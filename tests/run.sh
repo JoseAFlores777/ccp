@@ -79,6 +79,26 @@ test_rule_del() {
   assert_eq "$(ccp_resolve /a "$rf")" "default" "deleted => default"
 }
 
+test_profile_add_official() {
+  local h; h="$(newdir)"
+  ccp_profile_add_official "$h" work
+  ccp_profile_exists "$h" work; assert_rc "$?" 0 "work exists"
+  assert_eq "$(ccp_profile_type "$h" work)" "official" "type official"
+  [[ -d "$h/profiles/work/cc-home" ]]; assert_rc "$?" 0 "cc-home created"
+}
+test_profile_add_deepseek() {
+  local h; h="$(newdir)"
+  ccp_profile_add_deepseek "$h" ds "https://api.deepseek.com/anthropic" "pro[1m]" "flash" "max"
+  assert_eq "$(ccp_profile_type "$h" ds)" "deepseek" "type deepseek"
+  assert_eq "$(ccp_profile_get "$h" ds base_url)" "https://api.deepseek.com/anthropic" "base_url"
+  assert_eq "$(ccp_profile_get "$h" ds model_pro)" "pro[1m]" "model_pro"
+  assert_eq "$(ccp_profile_get "$h" ds effort)" "max" "effort"
+}
+test_profile_exists_false() {
+  local h; h="$(newdir)"
+  ccp_profile_exists "$h" nope; assert_rc "$?" 1 "missing => rc1"
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"
