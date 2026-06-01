@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# ============================================================
+#  ccp — Claude Code profile/account router (ex-dsctl)
+#  Enruta Claude Code a una cuenta oficial o a un provider
+#  (DeepSeek) por terminal y por PATH, vía perfiles con nombre.
+# ============================================================
+set -o pipefail
+CCP_VERSION="3.0.0"
+
+# --- localizar libs (junto al binario o en una ruta instalada) ---
+_self="${BASH_SOURCE[0]}"
+while [[ -h "$_self" ]]; do _self="$(readlink "$_self")"; done
+CCP_DIR="$(cd "$(dirname "$_self")/.." && pwd)"
+_libdir="$CCP_DIR/lib"
+[[ -f "$_libdir/paths.sh" ]] || _libdir="$HOME/.local/lib/ccp"
+for _l in paths.sh profiles.sh env.sh; do
+  # shellcheck disable=SC1090
+  [[ -f "$_libdir/$_l" ]] && source "$_libdir/$_l"
+done
+
+# --- rutas de config ---
+CCP_HOME="${CCP_HOME:-$HOME/.config/ccp}"
+CCP_RULES_FILE="$CCP_HOME/rules.tsv"
+CCP_CONF_FILE="$CCP_HOME/config"
+# defaults usados al crear perfiles deepseek nuevos
+CCP_BASE_URL_DEFAULT="https://api.deepseek.com/anthropic"
+CCP_MODEL_PRO_DEFAULT="deepseek-v4-pro[1m]"
+CCP_MODEL_FLASH_DEFAULT="deepseek-v4-flash"
+CCP_EFFORT_DEFAULT="max"
+
+# --- colores ---
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+  C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
+  C_RED=$'\033[31m'; C_GRN=$'\033[32m'; C_YEL=$'\033[33m'
+  C_BLU=$'\033[34m'; C_MAG=$'\033[35m'; C_CYN=$'\033[36m'
+else
+  C_RESET=""; C_BOLD=""; C_DIM=""; C_RED=""; C_GRN=""
+  C_YEL=""; C_BLU=""; C_MAG=""; C_CYN=""
+fi
+say()  { printf '%s\n' "$*"; }
+ok()   { printf '%s✅ %s%s\n' "$C_GRN" "$*" "$C_RESET"; }
+warn() { printf '%s⚠️  %s%s\n' "$C_YEL" "$*" "$C_RESET" >&2; }
+err()  { printf '%s❌ %s%s\n' "$C_RED" "$*" "$C_RESET" >&2; }
+info() { printf '%s%s%s\n' "$C_CYN" "$*" "$C_RESET"; }
+hr()   { printf '%s──────────────────────────────────────────────%s\n' "$C_DIM" "$C_RESET"; }
+
+_path_arg() { if [[ -z "$1" ]]; then printf '%s' "$PWD"; else printf '%s' "$1"; fi; }
+_repo_root() { git rev-parse --show-toplevel 2>/dev/null; }
+
+# --- dispatcher (las cmd_* se añaden en tareas siguientes) ---
+main() {
+  local cmd="$1"; shift 2>/dev/null
+  case "$cmd" in
+    version|--version|-v) say "ccp v$CCP_VERSION" ;;
+    *) err "Comando no implementado aún: '$cmd'"; return 1 ;;
+  esac
+}
+main "$@"
