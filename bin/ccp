@@ -435,6 +435,144 @@ _migrate_if_needed() {
   cmd_migrate >&2
 }
 
+_load_config() {
+  CCP_BASE_URL="$CCP_BASE_URL_DEFAULT"; CCP_MODEL_PRO="$CCP_MODEL_PRO_DEFAULT"
+  CCP_MODEL_FLASH="$CCP_MODEL_FLASH_DEFAULT"; CCP_EFFORT="$CCP_EFFORT_DEFAULT"
+  if [[ -f "$CCP_CONF_FILE" ]]; then
+    local line
+    while IFS= read -r line; do
+      case "$line" in
+        base_url=*)    CCP_BASE_URL="${line#base_url=}" ;;
+        model_pro=*)   CCP_MODEL_PRO="${line#model_pro=}" ;;
+        model_flash=*) CCP_MODEL_FLASH="${line#model_flash=}" ;;
+        effort=*)      CCP_EFFORT="${line#effort=}" ;;
+      esac
+    done < "$CCP_CONF_FILE"
+  fi
+}
+_save_config() {
+  mkdir -p "$CCP_HOME"
+  { printf 'base_url=%s\n' "$CCP_BASE_URL"; printf 'model_pro=%s\n' "$CCP_MODEL_PRO"
+    printf 'model_flash=%s\n' "$CCP_MODEL_FLASH"; printf 'effort=%s\n' "$CCP_EFFORT"; } > "$CCP_CONF_FILE"
+  chmod 600 "$CCP_CONF_FILE"
+}
+cmd_config() {
+  _load_config
+  case "$1" in
+    show|"")
+      hr; printf ' %sDefaults para perfiles deepseek nuevos%s\n' "$C_BOLD" "$C_RESET"; hr
+      printf ' Base URL:    %s\n' "$CCP_BASE_URL"
+      printf ' Modelo pro:  %s  %s(deepseek)%s\n' "$CCP_MODEL_PRO" "$C_DIM" "$C_RESET"
+      printf ' Modelo flash:%s\n' "$CCP_MODEL_FLASH"
+      printf ' Effort:      %s\n' "$CCP_EFFORT"; hr
+      info "Cambiar: ccp config set <base_url|model_pro|model_flash|effort> <valor>" ;;
+    set)
+      local k="$2" v="$3"; [[ -z "$k" || -z "$v" ]] && { err "Uso: ccp config set <clave> <valor>"; return 1; }
+      case "$k" in
+        base_url) CCP_BASE_URL="$v";; model_pro) CCP_MODEL_PRO="$v";;
+        model_flash) CCP_MODEL_FLASH="$v";; effort) CCP_EFFORT="$v";;
+        *) err "Clave desconocida: $k"; return 1;;
+      esac
+      _save_config; ok "Config: $k = $v" ;;
+    reset) rm -f "$CCP_CONF_FILE"; ok "Defaults restaurados." ;;
+    *) err "Uso: ccp config [show|set|reset]" ;;
+  esac
+}
+
+cmd_doctor() {
+  hr; printf ' %sDiagnóstico%s\n' "$C_BOLD" "$C_RESET"; hr
+  command -v node  >/dev/null 2>&1 && ok "Node.js: $(node --version)" || warn "Node.js no encontrado."
+  command -v claude>/dev/null 2>&1 && ok "Claude Code: $(claude --version 2>/dev/null || echo instalado)" || warn "Claude Code no instalado."
+  command -v git   >/dev/null 2>&1 && ok "git: $(git --version | awk '{print $3}')" || warn "git no encontrado."
+  [[ -f "$_libdir/paths.sh" ]] && ok "Librerías en $_libdir" || err "libs no encontradas."
+  type ccp >/dev/null 2>&1 && ok "Función 'ccp' cargada." || warn "Función 'ccp' NO cargada (ccp install && source rc)."
+  local name type
+  while read -r name; do
+    [[ -z "$name" ]] && continue
+    type="$(ccp_profile_type "$CCP_HOME" "$name")"
+    if [[ "$type" == "official" ]]; then
+      [[ -f "$CCP_HOME/profiles/$name/cc-home/.claude.json" ]] && ok "Perfil '$name' (oficial): logueado." || warn "Perfil '$name' (oficial): SIN login (ccp profile login $name)."
+    elif [[ "$type" == "deepseek" ]]; then
+      [[ -f "$CCP_HOME/profiles/$name/api_key" ]] && ok "Perfil '$name' (deepseek): key OK." || warn "Perfil '$name' (deepseek): SIN key (ccp key $name)."
+    fi
+  done < <(ccp_profile_list "$CCP_HOME")
+  hr
+}
+
+cmd_help() {
+  cat <<EOF
+${C_BOLD}ccp${C_RESET} v$CCP_VERSION — router de perfiles y cuentas de Claude Code
+
+${C_BOLD}TERMINAL (función shell)${C_RESET}
+  ccp use <perfil>            activa un perfil en esta terminal
+  ccp default | off           vuelve a tu login ~/.claude
+  ccp run [cmd]               corre cmd/claude con el perfil del cwd
+  ccp on                      (legacy) alias de 'use deepseek'
+
+${C_BOLD}PERFILES${C_RESET}
+  ccp profile add <n> --official            crea cuenta oficial (config dir propio)
+  ccp profile add <n> --deepseek [opts]     crea provider (--base-url --pro --flash --effort)
+  ccp profile login <n>                     abre claude para /login (perfiles oficiales)
+  ccp profile list | show <n> | rm <n>
+  ccp key <perfil> [API_KEY]                guarda la key de un perfil deepseek
+
+${C_BOLD}REGLAS DE PATH${C_RESET}
+  ccp path set <ruta> <perfil>   asigna ruta (y subcarpetas) a un perfil
+  ccp path rm <ruta>             quita la regla
+  ccp path list | test <ruta> | clear | edit
+                                 (gana la regla más específica; sin regla => 'default')
+
+${C_BOLD}SCRIPTING${C_RESET}
+  ccp resolve [ruta]          imprime el perfil (exit 0=no-default, 1=default)
+  ccp status [--json]         estado de la terminal + regla del cwd
+
+${C_BOLD}OTROS${C_RESET}
+  ccp install [rc] | uninstall [rc] | migrate
+  ccp config show|set|reset | completion bash|zsh | doctor | menu | version | help
+
+${C_BOLD}EJEMPLO${C_RESET}
+  ccp profile add work --official && ccp profile login work
+  ccp profile add personal --official && ccp profile login personal
+  ccp path set ~/work work
+  ccp path set ~/personal personal
+  ccp path set ~/labs deepseek        # tras 'ccp profile add deepseek --deepseek' + 'ccp key deepseek'
+  cd ~/work && claude                 # arranca como 'work' (auto, por el hook)
+EOF
+}
+
+cmd_menu() {
+  while true; do
+    clear 2>/dev/null || true
+    printf '%s' "$C_MAG"
+    cat <<'BANNER'
+   ╔════════════════════════════════════════════╗
+   ║   ccp · Claude Code profile router           ║
+   ╚════════════════════════════════════════════╝
+BANNER
+    printf '%s' "$C_RESET"
+    printf '   Terminal: %s%s%s   cwd → %s\n\n' "$C_BOLD" "${CCP_PROFILE:-default}" "$C_RESET" "$(ccp_resolve "$PWD" "$CCP_RULES_FILE")"
+    say "   ${C_BOLD}1)${C_RESET} Perfiles (list)"
+    say "   ${C_BOLD}2)${C_RESET} Reglas de PATH (list)"
+    say "   ${C_BOLD}3)${C_RESET} Estado (status)"
+    say "   ${C_BOLD}4)${C_RESET} Diagnóstico (doctor)"
+    say "   ${C_BOLD}5)${C_RESET} Instalar shell init"
+    say "   ${C_BOLD}6)${C_RESET} Ayuda"
+    say "   ${C_BOLD}0)${C_RESET} Salir"
+    echo; printf '   Opción: '; read -r opt; echo
+    case "$opt" in
+      1) cmd_profile list ;;
+      2) cmd_path_list ;;
+      3) cmd_status ;;
+      4) cmd_doctor ;;
+      5) cmd_install ;;
+      6) cmd_help ;;
+      0) break ;;
+      *) warn "Opción inválida." ;;
+    esac
+    echo; printf '   %s[Enter para continuar]%s' "$C_DIM" "$C_RESET"; read -r _
+  done
+}
+
 # --- dispatcher (las cmd_* se añaden en tareas siguientes) ---
 main() {
   _migrate_if_needed
@@ -454,7 +592,12 @@ main() {
     completion) cmd_completion "$@" ;;
     completion-shellinit) _print_shell_init ;;
     migrate) cmd_migrate "$@" ;;
-    *) err "Comando no implementado aún: '$cmd'"; return 1 ;;
+    config) cmd_config "$@" ;;
+    doctor) cmd_doctor ;;
+    menu)   cmd_menu ;;
+    help|--help|-h) cmd_help ;;
+    "")     cmd_menu ;;
+    *) err "Comando desconocido: '$cmd'"; echo; cmd_help; return 1 ;;
   esac
 }
 main "$@"

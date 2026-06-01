@@ -286,6 +286,23 @@ test_migrate_creates_deepseek_profile() {
   assert_eq "$(ccp_resolve /a/b/y "$h/rules.tsv")" "default"  "exclude -> default"
 }
 
+test_bin_help_mentions_profile() {
+  local h; h="$(newdir)"
+  local out; out="$(_ccp "$h" help)"
+  case "$out" in *"profile"*"path set"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: help missing profile/path set" >&2;; esac
+}
+test_bin_unknown_cmd_exit1() {
+  local h; h="$(newdir)"
+  _ccp "$h" bogus >/dev/null 2>&1; assert_rc "$?" 1 "unknown cmd exit 1"
+}
+test_bin_config_defaults() {
+  local h; h="$(newdir)"
+  local out; out="$(_ccp "$h" config show)"
+  case "$out" in *"deepseek"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: config show" >&2;; esac
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"
