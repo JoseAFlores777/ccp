@@ -395,8 +395,49 @@ COMPLETION_ZSH
   esac
 }
 
+cmd_migrate() {
+  local old="${DSCTL_HOME_SRC:-$HOME/.config/dsctl}"
+  [[ -d "$old" ]] || { warn "No hay config de dsctl en $old; nada que migrar."; return 0; }
+  mkdir -p "$CCP_HOME"
+  local base="$CCP_BASE_URL_DEFAULT" pro="$CCP_MODEL_PRO_DEFAULT" flash="$CCP_MODEL_FLASH_DEFAULT" effort="$CCP_EFFORT_DEFAULT"
+  if [[ -f "$old/config" ]]; then
+    local line v
+    while IFS= read -r line; do
+      case "$line" in
+        DS_BASE_URL=*)    v="${line#DS_BASE_URL=}";    base="${v%\"}";  base="${base#\"}" ;;
+        DS_MODEL_PRO=*)   v="${line#DS_MODEL_PRO=}";   pro="${v%\"}";   pro="${pro#\"}" ;;
+        DS_MODEL_FLASH=*) v="${line#DS_MODEL_FLASH=}"; flash="${v%\"}"; flash="${flash#\"}" ;;
+        DS_EFFORT=*)      v="${line#DS_EFFORT=}";      effort="${v%\"}";effort="${effort#\"}" ;;
+      esac
+    done < "$old/config"
+  fi
+  ccp_profile_add_deepseek "$CCP_HOME" deepseek "$base" "$pro" "$flash" "$effort"
+  [[ -f "$old/api_key" ]] && ccp_profile_set_key "$CCP_HOME" deepseek "$(cat "$old/api_key")"
+  if [[ -f "$old/rules.tsv" ]]; then
+    cp "$old/rules.tsv" "$CCP_HOME/rules.dsctl.bak"
+    : > "$CCP_RULES_FILE"
+    local kind path
+    while IFS=$'\t' read -r kind path; do
+      [[ -z "$kind" || "$kind" == \#* || -z "$path" ]] && continue
+      case "$kind" in
+        include) ccp_rule_set "$path" deepseek "$CCP_RULES_FILE" ;;
+        exclude) ccp_rule_set "$path" default  "$CCP_RULES_FILE" ;;
+      esac
+    done < "$old/rules.tsv"
+  fi
+  ok "Migrado desde dsctl: perfil 'deepseek' + reglas (backup en rules.dsctl.bak)."
+}
+
+# auto-migrar si hay dsctl viejo y no existe CCP_HOME todavía
+_migrate_if_needed() {
+  local old="${DSCTL_HOME_SRC:-$HOME/.config/dsctl}"
+  [[ -d "$old" && ! -d "$CCP_HOME" ]] || return 0
+  cmd_migrate >&2
+}
+
 # --- dispatcher (las cmd_* se añaden en tareas siguientes) ---
 main() {
+  _migrate_if_needed
   local cmd="$1"; shift 2>/dev/null
   case "$cmd" in
     version|--version|-v) say "ccp v$CCP_VERSION" ;;
@@ -412,6 +453,7 @@ main() {
     uninstall) cmd_uninstall "$@" ;;
     completion) cmd_completion "$@" ;;
     completion-shellinit) _print_shell_init ;;
+    migrate) cmd_migrate "$@" ;;
     *) err "Comando no implementado aún: '$cmd'"; return 1 ;;
   esac
 }

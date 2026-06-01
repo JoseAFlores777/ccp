@@ -272,6 +272,20 @@ test_shell_fn_use_evals_env() {
   assert_eq "$(bash "$script")" "work" "ccp use work sets CCP_PROFILE in shell"
 }
 
+test_migrate_creates_deepseek_profile() {
+  local old; old="$(newdir)"
+  printf 'DS_BASE_URL="https://api.deepseek.com/anthropic"\nDS_MODEL_PRO="pro[1m]"\nDS_MODEL_FLASH="flash"\nDS_EFFORT="high"\n' > "$old/config"
+  printf 'sk-old-key' > "$old/api_key"
+  printf 'include\t/a\nexclude\t/a/b\n' > "$old/rules.tsv"
+  local h; h="$(newdir)/ccp"
+  CCP_HOME="$h" DSCTL_HOME_SRC="$old" bash "$ROOT/bin/ccp" migrate >/dev/null 2>&1
+  assert_eq "$(ccp_profile_type "$h" deepseek)" "deepseek" "deepseek profile created"
+  assert_eq "$(ccp_profile_get "$h" deepseek effort)" "high" "effort migrated"
+  assert_eq "$(ccp_profile_get_key "$h" deepseek)" "sk-old-key" "key migrated"
+  assert_eq "$(ccp_resolve /a/x "$h/rules.tsv")"   "deepseek" "include -> deepseek"
+  assert_eq "$(ccp_resolve /a/b/y "$h/rules.tsv")" "default"  "exclude -> default"
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"
