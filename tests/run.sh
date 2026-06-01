@@ -163,6 +163,25 @@ test_bin_env_default() {
     *) _fail=$((_fail+1)); echo "FAIL: _env default" >&2;; esac
 }
 
+test_bin_profile_add_list() {
+  local h; h="$(newdir)"
+  _ccp "$h" profile add work --official >/dev/null
+  _ccp "$h" profile add ds --deepseek --base-url u --pro p --flash f --effort max >/dev/null
+  assert_eq "$(_ccp "$h" profile list | grep -c .)" "2" "two profiles listed"
+}
+test_bin_profile_show() {
+  local h; h="$(newdir)"
+  _ccp "$h" profile add ds --deepseek --base-url u --pro p --flash f --effort high >/dev/null
+  local out; out="$(_ccp "$h" profile show ds)"
+  case "$out" in *high*) _pass=$((_pass+1));; *) _fail=$((_fail+1)); echo "FAIL: show prints effort" >&2;; esac
+}
+test_bin_profile_rm() {
+  local h; h="$(newdir)"
+  _ccp "$h" profile add work --official >/dev/null
+  _ccp "$h" profile rm work >/dev/null
+  assert_eq "$(_ccp "$h" profile list | grep -c .)" "0" "removed"
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"

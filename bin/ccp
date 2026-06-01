@@ -61,6 +61,101 @@ cmd_hook() {
   ccp_env_delta "$CCP_HOME" "$prof"
 }
 
+cmd_profile() {
+  mkdir -p "$CCP_HOME"
+  local sub="$1"; shift 2>/dev/null
+  case "$sub" in
+    add)      _profile_add "$@" ;;
+    rm|del)   _profile_rm "$@" ;;
+    list|ls|"") _profile_list ;;
+    show)     _profile_show "$@" ;;
+    login)    _profile_login "$@" ;;
+    *) err "profile: subcomando desconocido '$sub'"; say "Usa: add | rm | list | show | login"; return 1 ;;
+  esac
+}
+
+_profile_add() {
+  local name="$1"; shift 2>/dev/null
+  [[ -z "$name" ]] && { err "Uso: ccp profile add <nombre> --official|--deepseek [opts]"; return 1; }
+  [[ "$name" == "default" ]] && { err "'default' es un perfil reservado."; return 1; }
+  local kind="" base="$CCP_BASE_URL_DEFAULT" pro="$CCP_MODEL_PRO_DEFAULT"
+  local flash="$CCP_MODEL_FLASH_DEFAULT" effort="$CCP_EFFORT_DEFAULT"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --official) kind=official ;;
+      --deepseek) kind=deepseek ;;
+      --base-url) base="$2"; shift ;;
+      --pro)      pro="$2"; shift ;;
+      --flash)    flash="$2"; shift ;;
+      --effort)   effort="$2"; shift ;;
+      *) err "opción desconocida: $1"; return 1 ;;
+    esac
+    shift
+  done
+  case "$kind" in
+    official)
+      ccp_profile_add_official "$CCP_HOME" "$name"
+      ok "Perfil oficial '$name' creado."
+      info "Loguéate una vez:  ccp profile login $name   (corre /login dentro)" ;;
+    deepseek)
+      ccp_profile_add_deepseek "$CCP_HOME" "$name" "$base" "$pro" "$flash" "$effort"
+      ok "Perfil deepseek '$name' creado."
+      info "Añade su API key:  ccp key $name" ;;
+    *) err "Especifica --official o --deepseek"; return 1 ;;
+  esac
+}
+
+_profile_rm() {
+  local name="$1"
+  [[ -z "$name" ]] && { err "Uso: ccp profile rm <nombre>"; return 1; }
+  ccp_profile_exists "$CCP_HOME" "$name" || { warn "No existe el perfil '$name'."; return 1; }
+  ccp_profile_rm "$CCP_HOME" "$name"
+  ok "Perfil '$name' eliminado. (Las reglas que lo usaban ahora resuelven a su ancestro.)"
+}
+
+_profile_list() { ccp_profile_list "$CCP_HOME"; }
+
+_profile_list_pretty() {
+  hr; printf ' %sPerfiles%s\n' "$C_BOLD" "$C_RESET"; hr
+  local any=0 name type
+  while read -r name; do
+    [[ -z "$name" ]] && continue
+    type="$(ccp_profile_type "$CCP_HOME" "$name")"
+    case "$type" in
+      official) printf '   🔑 %-16s %sofficial%s\n' "$name" "$C_CYN" "$C_RESET" ;;
+      deepseek) printf '   🟢 %-16s %sdeepseek%s\n' "$name" "$C_GRN" "$C_RESET" ;;
+      *)        printf '   ?  %-16s %s\n' "$name" "$type" ;;
+    esac
+    any=1
+  done < <(ccp_profile_list "$CCP_HOME" | sort)
+  (( any )) || say "   (sin perfiles — todo usa 'default')"
+  printf '   %s⚪ %-16s login ~/.claude (reservado)%s\n' "$C_DIM" "default" "$C_RESET"
+  hr
+}
+
+_profile_show() {
+  local name="$1"
+  [[ -z "$name" ]] && { err "Uso: ccp profile show <nombre>"; return 1; }
+  ccp_profile_exists "$CCP_HOME" "$name" || { err "No existe '$name'."; return 1; }
+  hr; printf ' %sPerfil: %s%s\n' "$C_BOLD" "$name" "$C_RESET"; hr
+  local type; type="$(ccp_profile_type "$CCP_HOME" "$name")"
+  printf ' Tipo:        %s\n' "$type"
+  if [[ "$type" == "deepseek" ]]; then
+    printf ' Base URL:    %s\n' "$(ccp_profile_get "$CCP_HOME" "$name" base_url)"
+    printf ' Modelo pro:  %s\n' "$(ccp_profile_get "$CCP_HOME" "$name" model_pro)"
+    printf ' Modelo flash:%s\n' "$(ccp_profile_get "$CCP_HOME" "$name" model_flash)"
+    printf ' Effort:      %s\n' "$(ccp_profile_get "$CCP_HOME" "$name" effort)"
+    printf ' API key:     %s\n' "$([[ -f "$CCP_HOME/profiles/$name/api_key" ]] && echo 'OK ✅' || echo 'falta ❌ (ccp key '"$name"')')"
+  elif [[ "$type" == "official" ]]; then
+    local cch="$CCP_HOME/profiles/$name/cc-home"
+    printf ' Config dir:  %s\n' "$cch"
+    printf ' Login:       %s\n' "$([[ -f "$cch/.claude.json" ]] && echo 'configurado ✅' || echo 'pendiente ❌ (ccp profile login '"$name"')')"
+  fi
+  hr
+}
+
+_profile_login() { err "ccp profile login se implementa en la fase de dirs oficiales (Task 12)."; return 1; }
+
 # --- dispatcher (las cmd_* se añaden en tareas siguientes) ---
 main() {
   local cmd="$1"; shift 2>/dev/null
@@ -70,6 +165,7 @@ main() {
     _resolve)  cmd_resolve "$@" ;;
     _env)      cmd_env "$@" ;;
     _hook)     cmd_hook "$@" ;;
+    profile|account) cmd_profile "$@" ;;
     *) err "Comando no implementado aún: '$cmd'"; return 1 ;;
   esac
 }
