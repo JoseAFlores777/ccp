@@ -30,6 +30,24 @@ newdir() { local d; d="$(mktemp -d "$TMPROOT/XXXXXX")"; printf '%s' "$d"; }
 # ---- los test_* se definen abajo o en archivos sourced ----
 # (este archivo crece tarea a tarea)
 
+test_norm_path_tilde() {
+  assert_eq "$(ccp_norm_path '~/x')" "$HOME/x" "tilde expands"
+}
+test_norm_path_dotdot() {
+  assert_eq "$(ccp_norm_path '/a/b/../c')" "/a/c" ".. collapses"
+}
+test_norm_path_root() {
+  assert_eq "$(ccp_norm_path '/')" "/" "root stays root"
+}
+test_is_ancestor() {
+  ccp_is_ancestor /a /a/b/c; assert_rc "$?" 0 "/a ancestor of /a/b/c"
+  ccp_is_ancestor /a/b /a;   assert_rc "$?" 1 "/a/b not ancestor of /a"
+}
+test_depth() {
+  assert_eq "$(ccp_depth /a/b/c)" "3" "depth 3"
+  assert_eq "$(ccp_depth /)" "0" "root depth 0"
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"

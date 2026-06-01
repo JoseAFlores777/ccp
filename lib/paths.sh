@@ -1,34 +1,22 @@
 #!/usr/bin/env bash
 # ============================================================
-#  lib/paths.sh — motor de reglas de paths para dsctl
-#
-#  Modelo:
-#    - INCLUDE: bajo este path (y sus subcarpetas) DeepSeek se enciende.
-#    - EXCLUDE: bajo este path NUNCA se enciende, aunque esté dentro
-#               de un include.
+#  lib/paths.sh — motor de reglas de paths para ccp
 #
 #  Resolución para un path P:
-#    1. Se buscan todas las reglas (include/exclude) que sean P o
-#       ancestros de P (prefijo de directorio).
-#    2. Gana la regla MÁS ESPECÍFICA (la de ruta más larga / más
-#       profunda). Empate exacto: exclude gana sobre include.
-#    3. Si ninguna regla aplica -> "official" (Claude Code normal).
+#    - Entre las reglas cuyo path es P o ancestro de P, gana la MÁS
+#      ESPECÍFICA (ruta más profunda). Paths únicos => sin empates.
+#    - Sin regla aplicable -> "default".
 #
-#  Formato de almacenamiento (DS_RULES_FILE), una regla por línea:
-#       include<TAB>/ruta/absoluta
-#       exclude<TAB>/ruta/absoluta
+#  Formato de DS_RULES_FILE (rules.tsv), una regla por línea:
+#       /ruta/absoluta<TAB>nombre_de_perfil
 # ============================================================
 
-# --- normalizar: quita slash final (salvo raíz), resuelve a absoluto ---
-ds_norm_path() {
+# --- normalizar: ~ inicial, a absoluto, colapsa . y .. textualmente ---
+ccp_norm_path() {
   local p="$1"
   [[ -z "$p" ]] && return 1
-  # expandir ~ inicial
   [[ "$p" == "~"* ]] && p="${p/#\~/$HOME}"
-  # a absoluto si es relativo
   [[ "$p" != /* ]] && p="$(pwd)/$p"
-  # colapsar // y resolver . y .. de forma textual y robusta
-  # (no usamos realpath para permitir paths que aún no existen)
   local out=() part
   local IFS='/'
   for part in $p; do
@@ -43,8 +31,8 @@ ds_norm_path() {
   printf '%s' "${joined:-/}"
 }
 
-# --- ¿base es ancestro-o-igual de path? (comparación de segmentos) ---
-ds_is_ancestor() {
+# --- ¿base es ancestro-o-igual de path? ---
+ccp_is_ancestor() {
   local base="$1" path="$2"
   [[ "$base" == "/" ]] && return 0
   [[ "$path" == "$base" ]] && return 0
@@ -52,8 +40,8 @@ ds_is_ancestor() {
   return 1
 }
 
-# --- profundidad de un path (número de segmentos); raíz=0 ---
-ds_depth() {
+# --- profundidad (segmentos); raíz=0 ---
+ccp_depth() {
   local p="$1" d=0 part
   local IFS='/'
   for part in $p; do [[ -n "$part" ]] && d=$((d+1)); done
