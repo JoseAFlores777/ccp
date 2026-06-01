@@ -147,6 +147,22 @@ test_env_deepseek() {
   assert_eq "$cfg" "NONE" "deepseek leaves CLAUDE_CONFIG_DIR unset"
 }
 
+_ccp() { CCP_HOME="$1" bash "$ROOT/bin/ccp" "${@:2}"; }
+
+test_bin_resolve_default() {
+  local h; h="$(newdir)"
+  local out rc
+  out="$(_ccp "$h" resolve /tmp/whatever)"; rc=$?
+  assert_eq "$out" "default" "resolve prints default"
+  assert_rc "$rc" 1 "default => exit 1"
+}
+test_bin_env_default() {
+  local h; h="$(newdir)"
+  local out; out="$(_ccp "$h" _env default)"
+  case "$out" in *"export CCP_PROFILE=default"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: _env default" >&2;; esac
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"

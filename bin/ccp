@@ -47,11 +47,29 @@ hr()   { printf '%s────────────────────�
 _path_arg() { if [[ -z "$1" ]]; then printf '%s' "$PWD"; else printf '%s' "$1"; fi; }
 _repo_root() { git rev-parse --show-toplevel 2>/dev/null; }
 
+# resolve: imprime el perfil del path; exit 0=no-default, 1=default
+cmd_resolve() {
+  local v; v="$(ccp_resolve "${1:-$PWD}" "$CCP_RULES_FILE")"
+  printf '%s\n' "$v"
+  [[ "$v" != "default" ]]
+}
+# _env: emite el delta de entorno (eval-able) para un perfil
+cmd_env() { ccp_env_delta "$CCP_HOME" "${1:-default}"; }
+# _hook: resuelve el perfil de un path y emite su delta (1 fork)
+cmd_hook() {
+  local prof; prof="$(ccp_resolve "${1:-$PWD}" "$CCP_RULES_FILE")"
+  ccp_env_delta "$CCP_HOME" "$prof"
+}
+
 # --- dispatcher (las cmd_* se añaden en tareas siguientes) ---
 main() {
   local cmd="$1"; shift 2>/dev/null
   case "$cmd" in
     version|--version|-v) say "ccp v$CCP_VERSION" ;;
+    resolve)   cmd_resolve "$@" ;;
+    _resolve)  cmd_resolve "$@" ;;
+    _env)      cmd_env "$@" ;;
+    _hook)     cmd_hook "$@" ;;
     *) err "Comando no implementado aún: '$cmd'"; return 1 ;;
   esac
 }
