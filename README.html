@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ccp — Guía de uso</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f4f1ea; --paper-2:#ece7dd;
+    --ink:#1a1915; --ink-soft:#3a3833; --ink-mute:#6f6a60;
+    --rule:#d8d2c4; --accent:#c96442; --accent-soft:#e8a48a;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0; background:var(--paper); color:var(--ink-soft);
+    font-family:'Inter',sans-serif; font-size:17px; line-height:1.6; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:900px; margin:0 auto; padding:64px 32px 96px;}
+
+  .eyebrow{font-family:'JetBrains Mono',monospace; text-transform:uppercase;
+    letter-spacing:.22em; font-size:12px; color:var(--accent); margin:0 0 18px;}
+  h1{font-family:'Tinos',serif; font-weight:700; font-size:60px; line-height:1.05;
+    color:var(--ink); margin:0 0 20px; letter-spacing:-.01em;}
+  .lede{font-size:21px; line-height:1.5; color:var(--ink-soft); max-width:42em; margin:0 0 8px;}
+  .lede em{color:var(--accent); font-style:normal; font-weight:600;}
+
+  nav.toc{margin:44px 0 8px; padding:24px 30px; background:var(--paper-2);
+    border:1px solid var(--rule); border-radius:6px;}
+  nav.toc h2{font-family:'JetBrains Mono',monospace; text-transform:uppercase;
+    letter-spacing:.16em; font-size:11px; color:var(--ink-mute); margin:0 0 14px;}
+  nav.toc ol{list-style:none; margin:0; padding:0; columns:2; column-gap:40px;}
+  nav.toc li{margin:0 0 8px; break-inside:avoid;}
+  nav.toc a{color:var(--ink-soft); text-decoration:none; font-size:14.5px;
+    border-bottom:1px solid transparent; transition:border-color .15s,color .15s;}
+  nav.toc a:hover{color:var(--ink); border-bottom-color:var(--accent);}
+  nav.toc a .n{font-family:'JetBrains Mono',monospace; color:var(--accent); font-size:12px; margin-right:8px;}
+
+  section{padding:40px 0; border-bottom:1px solid var(--rule); scroll-margin-top:24px;}
+  section:last-of-type{border-bottom:none;}
+  h2.sec{font-family:'Tinos',serif; font-weight:700; font-size:30px; color:var(--ink);
+    margin:0 0 6px; letter-spacing:-.005em;}
+  h2.sec .tag{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--accent);
+    text-transform:uppercase; letter-spacing:.14em; display:block; margin-bottom:8px;}
+  .sec-lede{color:var(--ink-mute); font-size:16px; margin:0 0 22px; max-width:42em;}
+  p{margin:0 0 16px; max-width:42em;}
+  code{font-family:'JetBrains Mono',monospace; font-size:.85em; background:var(--paper-2);
+    padding:1.5px 6px; border-radius:3px; color:var(--ink); border:1px solid var(--rule);}
+  strong{color:var(--ink); font-weight:600;}
+
+  /* step cards */
+  .step{display:flex; gap:18px; margin:0 0 16px; align-items:flex-start;}
+  .step .num{flex:none; width:30px; height:30px; border-radius:50%;
+    background:var(--accent); color:#fff; font-family:'JetBrains Mono',monospace;
+    font-size:14px; font-weight:500; display:flex; align-items:center; justify-content:center; margin-top:2px;}
+  .step .body{flex:1; min-width:0;}
+  .step .lead{margin:4px 0 8px; color:var(--ink-soft);}
+  .step .lead b{color:var(--ink); font-weight:600;}
+  .step .hint{font-size:14.5px; color:var(--ink-mute); margin:8px 0 0;}
+
+  /* single-action card (no number) */
+  .do{margin:0 0 16px;}
+  .do .lead{margin:0 0 8px; color:var(--ink-soft);}
+  .do .lead b{color:var(--ink); font-weight:600;}
+
+  .code{position:relative; margin:0;}
+  pre{font-family:'JetBrains Mono',monospace; font-size:13.5px; line-height:1.6;
+    background:#23211c; color:#e9e3d4; padding:14px 16px; border-radius:6px; overflow-x:auto; margin:0;}
+  pre .c{color:#8a8270; font-style:italic;}
+  .copy{position:absolute; top:8px; right:8px; font-family:'JetBrains Mono',monospace;
+    font-size:11px; background:#39352c; color:#cfc7b4; border:1px solid #4a4538;
+    border-radius:4px; padding:3px 9px; cursor:pointer; opacity:.65; transition:opacity .15s;}
+  .copy:hover{opacity:1;}
+
+  figure{margin:0 0 22px; padding:18px 22px; background:var(--paper-2);
+    border:1px solid var(--rule); border-radius:6px;}
+  figure pre{background:transparent; color:var(--ink-soft); padding:0; font-size:13px;}
+  figure pre b{color:var(--accent);}
+
+  table{width:100%; border-collapse:collapse; margin:8px 0 0; font-size:14.5px;}
+  th,td{text-align:left; padding:9px 13px; border-bottom:1px solid var(--rule); vertical-align:top;}
+  th{font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase;
+    letter-spacing:.08em; color:var(--ink-mute); font-weight:500;}
+  td code{background:transparent; border:none; padding:0; white-space:nowrap;}
+
+  .tip{border-left:3px solid var(--accent); background:var(--paper-2);
+    padding:12px 16px; border-radius:0 4px 4px 0; margin:8px 0 0; font-size:15px; max-width:42em;}
+  .tip b{color:var(--accent);}
+
+  .trouble{margin:0 0 18px;}
+  .trouble .q{font-weight:600; color:var(--ink); margin:0 0 4px;}
+  .trouble .a{color:var(--ink-mute); font-size:15.5px; margin:0 0 8px; max-width:42em;}
+
+  footer{margin-top:40px; padding-top:24px; border-top:1px solid var(--rule);
+    font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--ink-mute);}
+  footer a{color:var(--accent); text-decoration:none;}
+
+  @media(max-width:760px){
+    .wrap{padding:40px 20px 64px;}
+    h1{font-size:40px;} .lede{font-size:18px;}
+    nav.toc ol{columns:1;} h2.sec{font-size:24px;}
+    .step{gap:12px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Guía de uso</p>
+    <h1>ccp</h1>
+    <p class="lede">Una <em>cuenta de Claude Code distinta en cada carpeta.</em> En tu repo de trabajo, tu cuenta de empresa; en tu proyecto personal, tu cuenta personal; en tus experimentos, DeepSeek. El cambio ocurre solo, con hacer <code>cd</code>.</p>
+  </header>
+
+  <nav class="toc">
+    <h2>Contenido</h2>
+    <ol>
+      <li><a href="#modelo"><span class="n">·</span>El modelo mental</a></li>
+      <li><a href="#requisitos"><span class="n">·</span>Antes de empezar</a></li>
+      <li><a href="#instalacion"><span class="n">·</span>Instalación</a></li>
+      <li><a href="#c1"><span class="n">1</span>Cuenta de trabajo</a></li>
+      <li><a href="#c2"><span class="n">2</span>Cuenta personal</a></li>
+      <li><a href="#c3"><span class="n">3</span>Carpeta con DeepSeek</a></li>
+      <li><a href="#c4"><span class="n">4</span>Carve-out de subcarpeta</a></li>
+      <li><a href="#c5"><span class="n">5</span>Cambiar a mano</a></li>
+      <li><a href="#c6"><span class="n">6</span>Ver qué pasa</a></li>
+      <li><a href="#c7"><span class="n">7</span>Vengo de dsctl</a></li>
+      <li><a href="#trouble"><span class="n">·</span>Solución de problemas</a></li>
+      <li><a href="#ref"><span class="n">·</span>Referencia rápida</a></li>
+    </ol>
+  </nav>
+
+  <section id="modelo">
+    <h2 class="sec"><span class="tag">Empieza aquí</span>El modelo mental — 30 segundos</h2>
+    <p>Tres ideas y ya:</p>
+    <p><strong>1.</strong> Un <strong>perfil</strong> es una identidad: una cuenta oficial de Anthropic, un proveedor tipo DeepSeek, o tu login normal (<code>default</code>).<br>
+       <strong>2.</strong> Una <strong>regla</strong> dice "esta carpeta (y sus subcarpetas) usa tal perfil".<br>
+       <strong>3.</strong> Gana la regla <strong>más específica</strong>. Sin regla → tu login normal.</p>
+    <figure>
+<pre>~/work          → perfil <b>"work"</b>      (cuenta empresa)
+~/work/cliente  → perfil <b>"default"</b>   (carve-out: tu login normal)
+~/personal      → perfil <b>"personal"</b>  (cuenta personal)
+~/labs          → perfil <b>"deepseek"</b>
+~               → <b>default</b></pre>
+    </figure>
+    <p>Cuando entras a una carpeta, <code>ccp</code> aplica el perfil correcto en esa terminal. Luego corres <code>claude</code> normal.</p>
+  </section>
+
+  <section id="requisitos">
+    <h2 class="sec"><span class="tag">Requisitos</span>Antes de empezar</h2>
+    <p>Necesitas: macOS o Linux con <strong>bash</strong> o <strong>zsh</strong>, <strong>Claude Code</strong> instalado (que <code>claude --version</code> funcione), y <strong>git</strong>.</p>
+  </section>
+
+  <section id="instalacion">
+    <h2 class="sec"><span class="tag">Una sola vez</span>Instalación</h2>
+    <p class="sec-lede">Un paso a la vez.</p>
+
+    <div class="step"><div class="num">1</div><div class="body">
+      <p class="lead">Instala el <b>binario y las librerías</b>.</p>
+      <div class="code"><button class="copy">copy</button><pre>./install.sh</pre></div>
+    </div></div>
+
+    <div class="step"><div class="num">2</div><div class="body">
+      <p class="lead">Asegúrate de que <b><code>~/.local/bin</code> está en tu PATH</b>. Solo si el paso 1 te mostró una advertencia, añade esto a tu <code>~/.zshrc</code> o <code>~/.bashrc</code>:</p>
+      <div class="code"><button class="copy">copy</button><pre>export PATH="$HOME/.local/bin:$PATH"</pre></div>
+    </div></div>
+
+    <div class="step"><div class="num">3</div><div class="body">
+      <p class="lead">Instala la <b>función de shell y el hook</b> automático.</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp install</pre></div>
+    </div></div>
+
+    <div class="step"><div class="num">4</div><div class="body">
+      <p class="lead">Recarga tu shell — usa el archivo de <b>TU</b> shell.</p>
+      <div class="code"><button class="copy">copy</button><pre>source ~/.zshrc     <span class="c"># zsh</span>
+source ~/.bashrc    <span class="c"># bash</span></pre></div>
+    </div></div>
+
+    <div class="step"><div class="num">5</div><div class="body">
+      <p class="lead">Confirma que quedó bien.</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp doctor</pre></div>
+      <p class="hint">Si ves "Función 'ccp' cargada ✅", estás listo.</p>
+    </div></div>
+  </section>
+
+  <section id="c1">
+    <h2 class="sec"><span class="tag">Caso 1 · el más común</span>Tu cuenta de trabajo en tu carpeta de trabajo</h2>
+
+    <div class="step"><div class="num">1</div><div class="body">
+      <p class="lead">Crea el perfil oficial <b>"work"</b>.</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp profile add work --official</pre></div>
+    </div></div>
+
+    <div class="step"><div class="num">2</div><div class="body">
+      <p class="lead">Inicia sesión en ese perfil <b>(una sola vez)</b>. Abre Claude Code con la config aislada de "work".</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp profile login work</pre></div>
+      <p class="hint">Dentro de Claude Code: escribe <code>/login</code>, autentícate con tu cuenta de trabajo, y sal con <code>/quit</code>.</p>
+    </div></div>
+
+    <div class="step"><div class="num">3</div><div class="body">
+      <p class="lead">Dile a <code>ccp</code> qué carpeta usa "work".</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp path set ~/work work</pre></div>
+    </div></div>
+
+    <div class="step"><div class="num">4</div><div class="body">
+      <p class="lead">Pruébalo: entra y abre Claude.</p>
+      <div class="code"><button class="copy">copy</button><pre>cd ~/work && claude</pre></div>
+      <p class="hint">Arranca con tu cuenta de trabajo. No tuviste que hacer nada más.</p>
+    </div></div>
+  </section>
+
+  <section id="c2">
+    <h2 class="sec"><span class="tag">Caso 2</span>Añadir tu cuenta personal</h2>
+    <p class="sec-lede">Igual que el caso 1, con otro nombre y otra carpeta.</p>
+
+    <div class="step"><div class="num">1</div><div class="body">
+      <p class="lead">Crea el perfil.</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp profile add personal --official</pre></div>
+    </div></div>
+
+    <div class="step"><div class="num">2</div><div class="body">
+      <p class="lead">Inicia sesión (una vez), con tu <b>cuenta personal</b>.</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp profile login personal</pre></div>
+      <p class="hint">Dentro: <code>/login</code> con tu cuenta personal, luego <code>/quit</code>.</p>
+    </div></div>
+
+    <div class="step"><div class="num">3</div><div class="body">
+      <p class="lead">Asigna tu carpeta personal.</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp path set ~/personal personal</pre></div>
+      <p class="hint"><code>~/work</code> sigue siendo trabajo; <code>~/personal</code> ahora es personal.</p>
+    </div></div>
+  </section>
+
+  <section id="c3">
+    <h2 class="sec"><span class="tag">Caso 3</span>Una carpeta con DeepSeek</h2>
+    <p class="sec-lede">Para experimentos o trabajo donde prefieras DeepSeek en vez de tu cuenta Anthropic.</p>
+
+    <div class="step"><div class="num">1</div><div class="body">
+      <p class="lead">Crea el perfil de proveedor.</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp profile add deepseek --deepseek</pre></div>
+    </div></div>
+
+    <div class="step"><div class="num">2</div><div class="body">
+      <p class="lead">Guarda tu API key de DeepSeek (te la pide oculta).</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp key deepseek</pre></div>
+    </div></div>
+
+    <div class="step"><div class="num">3</div><div class="body">
+      <p class="lead">Asigna la carpeta.</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp path set ~/labs deepseek</pre></div>
+    </div></div>
+
+    <div class="step"><div class="num">4</div><div class="body">
+      <p class="lead">Úsalo.</p>
+      <div class="code"><button class="copy">copy</button><pre>cd ~/labs && claude</pre></div>
+    </div></div>
+  </section>
+
+  <section id="c4">
+    <h2 class="sec"><span class="tag">Caso 4</span>Sacar una subcarpeta de su regla (carve-out)</h2>
+    <p class="sec-lede">Tu <code>~/work</code> usa la cuenta de trabajo, pero hay un cliente puntual donde quieres tu login normal.</p>
+
+    <div class="do">
+      <p class="lead"><b>Un solo paso</b> — asigna esa subcarpeta al perfil <code>default</code>.</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp path set ~/work/cliente-x default</pre></div>
+    </div>
+    <p class="hint"><code>~/work</code> sigue en "work", pero <code>~/work/cliente-x</code> usa tu login normal. La subcarpeta más específica siempre manda.</p>
+  </section>
+
+  <section id="c5">
+    <h2 class="sec"><span class="tag">Caso 5</span>Cambiar a mano en una terminal</h2>
+    <p class="sec-lede">Cuando quieres cambiar el perfil de la terminal actual sin moverte de carpeta.</p>
+
+    <div class="do">
+      <p class="lead">Activar un perfil <b>aquí</b>:</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp use personal</pre></div>
+    </div>
+    <div class="do">
+      <p class="lead">Volver a tu <b>login normal</b>:</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp default</pre></div>
+    </div>
+    <div class="do">
+      <p class="lead">Correr Claude <b>una sola vez</b> con el perfil de la carpeta, sin dejarlo fijo:</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp run claude</pre></div>
+    </div>
+  </section>
+
+  <section id="c6">
+    <h2 class="sec"><span class="tag">Caso 6</span>Ver qué está pasando</h2>
+
+    <div class="do">
+      <p class="lead">¿Qué perfil usa esta carpeta y qué hay activo en la terminal?</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp status</pre></div>
+    </div>
+    <div class="do">
+      <p class="lead">¿Qué reglas de carpeta tengo?</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp path list</pre></div>
+    </div>
+    <div class="do">
+      <p class="lead">¿Qué perfiles tengo creados?</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp profile list</pre></div>
+    </div>
+    <div class="do">
+      <p class="lead">¿Está todo bien (logins, keys, función de shell)?</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp doctor</pre></div>
+    </div>
+  </section>
+
+  <section id="c7">
+    <h2 class="sec"><span class="tag">Caso 7</span>Vengo de <code>dsctl</code> (la versión vieja)</h2>
+    <p class="sec-lede"><code>ccp</code> reemplaza a <code>dsctl</code>. La migración es automática.</p>
+
+    <div class="step"><div class="num">1</div><div class="body">
+      <p class="lead">La <b>primera vez</b> que corras <code>ccp</code>, migra solo: crea un perfil <code>deepseek</code> con tu config vieja y convierte tus reglas. Solo úsalo:</p>
+      <div class="code"><button class="copy">copy</button><pre>ccp status</pre></div>
+    </div></div>
+
+    <div class="step"><div class="num">2</div><div class="body">
+      <p class="lead">Quita el bloque viejo de <code>dsctl</code> de tu shell.</p>
+      <div class="code"><button class="copy">copy</button><pre>dsctl uninstall</pre></div>
+      <p class="hint">Tus reglas viejas quedan respaldadas en <code>~/.config/ccp/rules.dsctl.bak</code>.</p>
+    </div></div>
+  </section>
+
+  <section id="trouble">
+    <h2 class="sec"><span class="tag">Ayuda</span>Solución de problemas</h2>
+
+    <div class="trouble">
+      <p class="q"><code>ccp: command not found</code></p>
+      <p class="a"><code>~/.local/bin</code> no está en tu PATH. Vuelve al Paso 2 de Instalación.</p>
+    </div>
+    <div class="trouble">
+      <p class="q"><code>ccp use ...</code> no cambia nada / "Función 'ccp' no cargada"</p>
+      <p class="a">Falta cargar la función de shell. Corre <code>ccp install</code> y luego <code>source ~/.zshrc</code> (o <code>~/.bashrc</code>).</p>
+    </div>
+    <div class="trouble">
+      <p class="q">Cambié de carpeta y el perfil no cambió</p>
+      <p class="a">El hook recuerda la última carpeta. Tras editar reglas, refresca con <code>cd .</code></p>
+    </div>
+    <div class="trouble">
+      <p class="q">Al abrir Claude dice "Not logged in"</p>
+      <p class="a">Ese perfil oficial todavía no tiene sesión. Inícialo una vez con <code>ccp profile login &lt;nombre&gt;</code>.</p>
+    </div>
+    <div class="trouble">
+      <p class="q">Quiero ver el perfil de una carpeta sin entrar en ella</p>
+      <p class="a"><code>ccp resolve ~/ruta/que/sea</code></p>
+    </div>
+  </section>
+
+  <section id="ref">
+    <h2 class="sec"><span class="tag">Cheatsheet</span>Referencia rápida</h2>
+    <p class="sec-lede">Cuando ya le agarraste la onda, este es todo el mapa.</p>
+    <table>
+      <thead><tr><th>Quiero…</th><th>Comando</th></tr></thead>
+      <tbody>
+        <tr><td>Crear cuenta oficial</td><td><code>ccp profile add &lt;n&gt; --official</code></td></tr>
+        <tr><td>Iniciar sesión en ella</td><td><code>ccp profile login &lt;n&gt;</code></td></tr>
+        <tr><td>Crear proveedor DeepSeek</td><td><code>ccp profile add &lt;n&gt; --deepseek</code></td></tr>
+        <tr><td>Guardar su API key</td><td><code>ccp key &lt;n&gt;</code></td></tr>
+        <tr><td>Asignar carpeta → perfil</td><td><code>ccp path set &lt;ruta&gt; &lt;perfil&gt;</code></td></tr>
+        <tr><td>Quitar una regla</td><td><code>ccp path rm &lt;ruta&gt;</code></td></tr>
+        <tr><td>Ver reglas / perfiles</td><td><code>ccp path list</code> · <code>ccp profile list</code></td></tr>
+        <tr><td>Cambiar a mano</td><td><code>ccp use &lt;n&gt;</code> · <code>ccp default</code></td></tr>
+        <tr><td>Estado / diagnóstico</td><td><code>ccp status</code> · <code>ccp doctor</code></td></tr>
+        <tr><td>Ayuda completa</td><td><code>ccp help</code></td></tr>
+      </tbody>
+    </table>
+    <div class="tip"><b>Para scripting:</b> <code>ccp resolve [ruta]</code> imprime el perfil (exit <code>0</code> = no-default, <code>1</code> = default), y <code>ccp status --json</code> devuelve un objeto JSON con <code>active</code>, <code>profile</code>, <code>profile_type</code>, <code>cwd</code> y <code>repo</code>.</div>
+  </section>
+
+  <footer>
+    ccp · guía de uso &nbsp;·&nbsp; ¿cómo funciona por dentro? → <a href="docs/superpowers/specs/ccp-profiles.html">spec</a> · CLAUDE.md
+  </footer>
+
+</div>
+<script>
+  document.querySelectorAll('.copy').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var txt = btn.parentElement.querySelector('pre').innerText;
+      navigator.clipboard.writeText(txt).then(function(){
+        var old = btn.textContent; btn.textContent = 'copied';
+        setTimeout(function(){ btn.textContent = old; }, 1200);
+      });
+    });
+  });
+</script>
+</body>
+</html>
