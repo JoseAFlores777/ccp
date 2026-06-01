@@ -99,6 +99,28 @@ test_profile_exists_false() {
   ccp_profile_exists "$h" nope; assert_rc "$?" 1 "missing => rc1"
 }
 
+test_profile_key() {
+  local h; h="$(newdir)"
+  ccp_profile_add_deepseek "$h" ds "url" "p" "f" "max"
+  ccp_profile_set_key "$h" ds "sk-secret-123"
+  assert_eq "$(ccp_profile_get_key "$h" ds)" "sk-secret-123" "key roundtrip"
+  local mode; mode="$(stat -f '%Lp' "$h/profiles/ds/api_key" 2>/dev/null || stat -c '%a' "$h/profiles/ds/api_key")"
+  assert_eq "$mode" "600" "key file is 600"
+}
+test_profile_list() {
+  local h; h="$(newdir)"
+  ccp_profile_add_official "$h" work
+  ccp_profile_add_deepseek "$h" ds "url" "p" "f" "max"
+  assert_eq "$(ccp_profile_list "$h" | sort | tr '\n' ' ')" "ds work " "list names sorted"
+}
+test_profile_rm() {
+  local h; h="$(newdir)"
+  ccp_profile_add_official "$h" work
+  ccp_profile_rm "$h" work
+  ccp_profile_exists "$h" work; assert_rc "$?" 1 "removed"
+  assert_eq "$(ccp_profile_list "$h")" "" "index empty after rm"
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"

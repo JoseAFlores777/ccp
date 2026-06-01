@@ -56,3 +56,32 @@ ccp_profile_add_deepseek() { # ccp_home name base_url model_pro model_flash effo
   } > "$d/meta"
   _ccp_index_set "$1" "$2" deepseek
 }
+
+ccp_profile_set_key() { # ccp_home name key
+  local d; d="$(_ccp_profile_dir "$1" "$2")"; mkdir -p "$d"
+  printf '%s' "$3" > "$d/api_key"; chmod 600 "$d/api_key"
+}
+
+ccp_profile_get_key() { # ccp_home name
+  local f; f="$(_ccp_profile_dir "$1" "$2")/api_key"
+  [[ -f "$f" ]] || return 1
+  cat "$f"
+}
+
+ccp_profile_list() { # ccp_home   (un nombre por línea)
+  local dir; dir="$(_ccp_profiles_dir "$1")"
+  [[ -d "$dir" ]] || return 0
+  local p
+  for p in "$dir"/*/; do
+    [[ -f "$p/meta" ]] || continue
+    basename "$p"
+  done
+}
+
+ccp_profile_rm() { # ccp_home name
+  rm -rf "$(_ccp_profile_dir "$1" "$2")"
+  local idx="$1/profiles.tsv"
+  [[ -f "$idx" ]] || return 0
+  local tmp; tmp="$(mktemp)"
+  awk -F'\t' -v n="$2" '$1 != n' "$idx" > "$tmp" && mv "$tmp" "$idx"
+}
