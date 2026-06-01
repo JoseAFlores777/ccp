@@ -121,6 +121,32 @@ test_profile_rm() {
   assert_eq "$(ccp_profile_list "$h")" "" "index empty after rm"
 }
 
+_MANAGED='CLAUDE_CONFIG_DIR ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_EFFORT_LEVEL CCP_PROFILE'
+
+test_env_default_unsets_all() {
+  local h; h="$(newdir)"
+  local out; out="$(ccp_env_delta "$h" default)"
+  case "$out" in *"unset "*"ANTHROPIC_BASE_URL"*) :;; *) _fail=$((_fail+1)); echo "FAIL: default no unset" >&2;; esac
+  local got; got="$(ANTHROPIC_BASE_URL=leak; eval "$out"; printf '%s|%s' "${ANTHROPIC_BASE_URL:-}" "${CCP_PROFILE:-}")"
+  assert_eq "$got" "|default" "default clears leak, sets CCP_PROFILE"
+}
+test_env_official() {
+  local h; h="$(newdir)"; ccp_profile_add_official "$h" work
+  local out; out="$(ccp_env_delta "$h" work)"
+  local got; got="$(eval "$out"; printf '%s|%s' "${CLAUDE_CONFIG_DIR:-}" "${CCP_PROFILE:-}")"
+  assert_eq "$got" "$h/profiles/work/cc-home|work" "official exports CLAUDE_CONFIG_DIR + CCP_PROFILE"
+}
+test_env_deepseek() {
+  local h; h="$(newdir)"
+  ccp_profile_add_deepseek "$h" ds "https://x/anthropic" "pro[1m]" "flash" "high"
+  ccp_profile_set_key "$h" ds "sk-key"
+  local out; out="$(ccp_env_delta "$h" ds)"
+  local got; got="$(eval "$out"; printf '%s|%s|%s|%s' "${ANTHROPIC_BASE_URL:-}" "${ANTHROPIC_AUTH_TOKEN:-}" "${ANTHROPIC_MODEL:-}" "${CLAUDE_CODE_EFFORT_LEVEL:-}")"
+  assert_eq "$got" "https://x/anthropic|sk-key|pro[1m]|high" "deepseek exports provider vars"
+  local cfg; cfg="$(eval "$out"; printf '%s' "${CLAUDE_CONFIG_DIR:-NONE}")"
+  assert_eq "$cfg" "NONE" "deepseek leaves CLAUDE_CONFIG_DIR unset"
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"
