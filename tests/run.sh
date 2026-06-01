@@ -238,6 +238,20 @@ test_bin_status_json_profile_type() {
     *) _fail=$((_fail+1)); echo "FAIL: status json profile_type: $out" >&2;; esac
 }
 
+test_seed_official_symlinks() {
+  local h; h="$(newdir)"
+  local src; src="$(newdir)"
+  mkdir -p "$src/plugins" "$src/commands" "$src/agents"
+  printf 'x' > "$src/CLAUDE.md"
+  printf '{"k":1}' > "$src/settings.json"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile add work --official >/dev/null
+  local cch="$h/profiles/work/cc-home"
+  [[ -L "$cch/plugins" ]]; assert_rc "$?" 0 "plugins symlinked"
+  [[ -L "$cch/CLAUDE.md" ]]; assert_rc "$?" 0 "CLAUDE.md symlinked"
+  [[ -f "$cch/settings.json" && ! -L "$cch/settings.json" ]]; assert_rc "$?" 0 "settings.json copied not linked"
+  [[ ! -e "$cch/.claude.json" ]]; assert_rc "$?" 0 "no creds seeded"
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"

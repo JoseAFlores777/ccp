@@ -95,7 +95,8 @@ _profile_add() {
   case "$kind" in
     official)
       ccp_profile_add_official "$CCP_HOME" "$name"
-      ok "Perfil oficial '$name' creado."
+      _seed_official_home "$CCP_HOME/profiles/$name/cc-home"
+      ok "Perfil oficial '$name' creado (plugins/skills symlinked, settings copiado)."
       info "Loguéate una vez:  ccp profile login $name   (corre /login dentro)" ;;
     deepseek)
       ccp_profile_add_deepseek "$CCP_HOME" "$name" "$base" "$pro" "$flash" "$effort"
@@ -154,7 +155,35 @@ _profile_show() {
   hr
 }
 
-_profile_login() { err "ccp profile login se implementa en la fase de dirs oficiales (Task 12)."; return 1; }
+# Siembra un cc-home oficial: symlinks de lo compartible, copia de settings.json.
+# Fuente override-able para tests: CCP_CLAUDE_SRC (default ~/.claude).
+_seed_official_home() { # cc_home_dir
+  local cch="$1"; local src="${CCP_CLAUDE_SRC:-$HOME/.claude}"
+  mkdir -p "$cch"
+  [[ -d "$src" ]] || return 0
+  local item
+  for item in plugins commands agents skills CLAUDE.md; do
+    if [[ -e "$src/$item" && ! -e "$cch/$item" ]]; then
+      ln -s "$src/$item" "$cch/$item"
+    fi
+  done
+  # settings.json: COPIA (CC escribe ahí; no compartir writes entre cuentas)
+  if [[ -f "$src/settings.json" && ! -e "$cch/settings.json" ]]; then
+    cp "$src/settings.json" "$cch/settings.json"
+  fi
+}
+
+_profile_login() {
+  local name="$1"
+  [[ -z "$name" ]] && { err "Uso: ccp profile login <nombre>"; return 1; }
+  ccp_profile_exists "$CCP_HOME" "$name" || { err "No existe '$name'."; return 1; }
+  [[ "$(ccp_profile_type "$CCP_HOME" "$name")" == "official" ]] || { err "'$name' no es oficial."; return 1; }
+  command -v claude >/dev/null 2>&1 || { err "Claude Code no está instalado."; return 1; }
+  local cch="$CCP_HOME/profiles/$name/cc-home"
+  info "Abriendo Claude Code con el config dir de '$name'."
+  info "Dentro, corre  /login  con la cuenta de este perfil, luego /quit."
+  CLAUDE_CONFIG_DIR="$cch" command claude
+}
 
 cmd_path() {
   mkdir -p "$CCP_HOME"; touch "$CCP_RULES_FILE"
