@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dsctl · documentación</title>
+<meta name="description" content="dsctl — alterna Claude Code entre tu login oficial de Anthropic y los modelos de DeepSeek, por terminal y por carpeta. Documentación completa.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#ffffff; --bg-2:#f8fafc; --bg-3:#f1f5f9;
+  --text:#0f172a; --text-2:#475569; --muted:#64748b;
+  --border:#e2e8f0; --border-2:#cbd5e1;
+  --accent:#4f46e5; --accent-2:#6366f1; --accent-soft:#eef2ff;
+  --code-bg:#f8fafc; --code-text:#334155;
+  --ok:#16a34a; --warn:#d97706; --prompt:#94a3b8;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --shadow:0 1px 2px rgba(15,23,42,.04),0 4px 16px rgba(15,23,42,.06);
+}
+[data-theme="dark"]{
+  --bg:#0d1117; --bg-2:#161b22; --bg-3:#1c2128;
+  --text:#e6edf3; --text-2:#c9d1d9; --muted:#8b949e;
+  --border:#30363d; --border-2:#3d444d;
+  --accent:#58a6ff; --accent-2:#79c0ff; --accent-soft:#1f6feb22;
+  --code-bg:#161b22; --code-text:#c9d1d9;
+  --ok:#3fb950; --warn:#d29922; --prompt:#6e7681;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:var(--sans); font-size:16px; line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+  transition:background .25s ease,color .25s ease;
+}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--mono);font-size:.88em}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+/* ---------- Topbar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:50;
+  display:flex;align-items:center;gap:14px;
+  height:60px;padding:0 22px;
+  background:color-mix(in srgb,var(--bg) 85%,transparent);
+  backdrop-filter:saturate(180%) blur(10px);
+  border-bottom:1px solid var(--border);
+}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:18px;color:var(--text)}
+.brand .dot{font-family:var(--mono);color:var(--accent)}
+.brand:hover{text-decoration:none}
+.topbar .spacer{flex:1}
+.icon-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:40px;height:40px;border-radius:9px;cursor:pointer;
+  background:transparent;border:1px solid var(--border);color:var(--text-2);
+  transition:background .2s,color .2s,border-color .2s;
+}
+.icon-btn:hover{background:var(--bg-2);color:var(--text);border-color:var(--border-2)}
+.icon-btn svg{width:18px;height:18px}
+.menu-btn{display:none}
+
+/* ---------- Layout ---------- */
+.layout{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:256px 1fr;gap:0}
+.sidebar{
+  position:sticky;top:60px;align-self:start;height:calc(100vh - 60px);
+  overflow-y:auto;padding:28px 16px 60px 22px;border-right:1px solid var(--border);
+}
+.sidebar nav{font-size:14.5px}
+.sidebar .group{margin:0 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:14px 10px 6px}
+.sidebar a{
+  display:block;padding:6px 10px;border-radius:7px;color:var(--text-2);
+  border-left:2px solid transparent;
+}
+.sidebar a:hover{background:var(--bg-2);color:var(--text);text-decoration:none}
+.sidebar a.active{color:var(--accent);background:var(--accent-soft);font-weight:600}
+
+.main{min-width:0;padding:40px 40px 120px;max-width:860px}
+section{scroll-margin-top:80px;padding-bottom:8px}
+section+section{margin-top:46px;padding-top:38px;border-top:1px solid var(--border)}
+
+/* ---------- Hero ---------- */
+.hero{padding-top:8px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600;margin-bottom:14px}
+h1{font-size:clamp(34px,5vw,52px);line-height:1.08;margin:0 0 16px;letter-spacing:-.02em;font-weight:800}
+h1 .accent{color:var(--accent)}
+.lede{font-size:19px;color:var(--text-2);max-width:62ch;margin:0 0 22px}
+.hero-cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:9px;font-weight:600;font-size:14.5px;cursor:pointer;border:1px solid transparent;transition:transform .12s,background .2s,border-color .2s}
+.btn svg{width:16px;height:16px}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-2);text-decoration:none}
+.btn-ghost{background:transparent;border-color:var(--border-2);color:var(--text)}
+.btn-ghost:hover{background:var(--bg-2);text-decoration:none}
+
+h2{font-size:28px;margin:0 0 8px;letter-spacing:-.01em;font-weight:750}
+.sec-num{font-family:var(--mono);font-size:13px;color:var(--accent);font-weight:600;display:block;margin-bottom:4px}
+h3{font-size:18px;margin:30px 0 8px;font-weight:700}
+p{margin:0 0 14px}
+.note,.warn-box{
+  border:1px solid var(--border);border-left:3px solid var(--accent);
+  background:var(--bg-2);border-radius:9px;padding:14px 16px;margin:18px 0;font-size:15px;color:var(--text-2);
+}
+.warn-box{border-left-color:var(--warn)}
+.note strong,.warn-box strong{color:var(--text)}
+
+ul,ol{margin:0 0 16px;padding-left:22px}
+li{margin:5px 0}
+
+/* ---------- Code ---------- */
+.code{position:relative;margin:16px 0}
+.code pre{
+  margin:0;background:var(--code-bg);border:1px solid var(--border);
+  border-radius:11px;padding:16px 18px;overflow-x:auto;font-family:var(--mono);
+  font-size:13.5px;line-height:1.7;color:var(--code-text);
+}
+.code .copy{
+  position:absolute;top:9px;right:9px;width:34px;height:30px;border-radius:7px;
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+  background:var(--bg);border:1px solid var(--border);color:var(--muted);
+  opacity:0;transition:opacity .15s,color .2s,background .2s;
+}
+.code:hover .copy,.code .copy:focus-visible{opacity:1}
+.code .copy:hover{color:var(--text);background:var(--bg-3)}
+.code .copy svg{width:15px;height:15px}
+.code .copy.done{color:var(--ok);border-color:var(--ok)}
+.tok-c{color:var(--muted)}
+.tok-p{color:var(--prompt);user-select:none}
+.tok-o{color:var(--ok)}
+.tok-a{color:var(--accent-2)}
+code.inline{background:var(--bg-3);padding:2px 6px;border-radius:5px;color:var(--text)}
+
+/* ---------- Table ---------- */
+.tbl{width:100%;border-collapse:collapse;margin:16px 0;font-size:14.5px;display:block;overflow-x:auto}
+.tbl th,.tbl td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--border);vertical-align:top}
+.tbl th{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.tbl td code{color:var(--accent);white-space:nowrap}
+.tbl tr:hover td{background:var(--bg-2)}
+
+/* ---------- Badges & diagram ---------- */
+.badge{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:12px;font-weight:600;padding:3px 9px;border-radius:6px;border:1px solid}
+.b-ds{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent);background:color-mix(in srgb,var(--ok) 10%,transparent)}
+.b-off{color:var(--muted);border-color:var(--border-2);background:var(--bg-2)}
+
+.tree{font-family:var(--mono);font-size:13.5px;background:var(--bg-2);border:1px solid var(--border);border-radius:11px;padding:18px 20px;margin:18px 0;line-height:2.1}
+.tree .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tree .path{color:var(--text)}
+
+.arch{display:grid;gap:14px;margin:20px 0}
+.arch-box{border:1px solid var(--border);border-radius:11px;padding:16px 18px;background:var(--bg-2)}
+.arch-box h4{margin:0 0 6px;font-size:15px;display:flex;align-items:center;gap:8px}
+.arch-box .tag{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:5px;background:var(--accent-soft);color:var(--accent)}
+.arch-box p{margin:0;font-size:14px;color:var(--text-2)}
+.arch-flow{text-align:center;color:var(--muted);font-family:var(--mono);font-size:18px;line-height:1}
+
+footer{border-top:1px solid var(--border);margin-top:60px;padding:26px 40px;color:var(--muted);font-size:13.5px;max-width:860px}
+footer .sig{font-family:var(--mono)}
+
+/* ---------- Responsive ---------- */
+@media(max-width:860px){
+  .menu-btn{display:inline-flex}
+  .layout{display:block;max-width:none}
+  .sidebar{
+    position:fixed;top:60px;left:0;width:280px;height:calc(100vh - 60px);
+    background:var(--bg);z-index:40;transform:translateX(-100%);
+    transition:transform .25s ease;border-right:1px solid var(--border);box-shadow:var(--shadow);
+  }
+  .sidebar.open{transform:translateX(0)}
+  .scrim{position:fixed;inset:60px 0 0;background:rgba(0,0,0,.4);z-index:35;opacity:0;pointer-events:none;transition:opacity .25s}
+  .scrim.open{opacity:1;pointer-events:auto}
+  .main{padding:28px 20px 100px;max-width:none}
+  h1{font-size:34px}
+  footer{padding:24px 20px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Abrir menú de contenido" aria-expanded="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+  </button>
+  <a class="brand" href="#top">ds<span class="dot">ctl</span></a>
+  <div class="spacer"></div>
+  <a class="icon-btn" href="https://github.com/&lt;tu-usuario&gt;/dsctl" aria-label="Repositorio en GitHub" target="_blank" rel="noopener">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.6 18.3 5 18.3 5c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
+  </a>
+  <button class="icon-btn" id="themeBtn" aria-label="Cambiar tema claro/oscuro">
+    <svg id="iconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.9" y1="4.9" x2="7" y2="7"/><line x1="17" y1="17" x2="19.1" y2="19.1"/><line x1="4.9" y1="19.1" x2="7" y2="17"/><line x1="17" y1="7" x2="19.1" y2="4.9"/></svg>
+    <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+  </button>
+</header>
+
+<div class="scrim" id="scrim"></div>
+
+<div class="layout" id="top">
+  <aside class="sidebar" id="sidebar">
+    <nav>
+      <div class="group">Empezar</div>
+      <a href="#que-es">Qué es</a>
+      <a href="#instalacion">Instalación</a>
+      <a href="#inicio-rapido">Inicio rápido</a>
+      <div class="group">Uso</div>
+      <a href="#reglas-path">Reglas de PATH</a>
+      <a href="#terminal">Uso por terminal</a>
+      <a href="#autocompletado">Autocompletado</a>
+      <a href="#scripting">Integración / scripting</a>
+      <div class="group">Referencia</div>
+      <a href="#comandos">Comandos</a>
+      <a href="#config">Configuración</a>
+      <a href="#como-funciona">Cómo funciona</a>
+      <div class="group">Operación</div>
+      <a href="#seguridad">Seguridad</a>
+      <a href="#diagnostico">Diagnóstico</a>
+      <a href="#desinstalar">Desinstalar</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+    <!-- HERO -->
+    <section id="que-es" class="hero">
+      <div class="eyebrow">Documentación · v2.1.0</div>
+      <h1>ds<span class="accent">ctl</span></h1>
+      <p class="lede">Alterna <strong>Claude Code</strong> entre tu <strong>login oficial de Anthropic</strong> y los modelos de <strong>DeepSeek</strong> — controlado <strong>por terminal</strong> y <strong>por carpeta</strong> con reglas <code class="inline">include</code> / <code class="inline">exclude</code>.</p>
+      <p class="lede" style="font-size:16px">Las variables <code class="inline">ANTHROPIC_BASE_URL</code> / <code class="inline">ANTHROPIC_AUTH_TOKEN</code> que usa DeepSeek <strong>anulan tu login</strong>. Si las pones globales, contaminan <em>todas</em> tus sesiones — incluidas las de empresa. dsctl las activa <strong>solo donde tú definas</strong>, nunca de forma global, así tu login oficial queda intacto.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#instalacion">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+          Instalar
+        </a>
+        <a class="btn btn-ghost" href="#inicio-rapido">Inicio rápido</a>
+        <a class="btn btn-ghost" href="#reglas-path">Reglas de PATH</a>
+      </div>
+    </section>
+
+    <!-- INSTALACIÓN -->
+    <section id="instalacion">
+      <span class="sec-num">§ 01</span>
+      <h2>Instalación</h2>
+      <p>Requisitos: <strong>Node.js 18+</strong> y <strong>Claude Code</strong>. Compatible con <strong>bash</strong> y <strong>zsh</strong>.</p>
+      <div class="code"><pre><code><span class="tok-p">$</span> git clone https://github.com/&lt;tu-usuario&gt;/dsctl.git
+<span class="tok-p">$</span> cd dsctl
+<span class="tok-p">$</span> bash install.sh          <span class="tok-c"># copia binario y librería a ~/.local</span>
+<span class="tok-p">$</span> dsctl install            <span class="tok-c"># añade la función 'ds' + hook + completion a tu shell</span>
+<span class="tok-p">$</span> source ~/.zshrc          <span class="tok-c"># o ~/.bashrc</span>
+<span class="tok-p">$</span> dsctl key                <span class="tok-c"># guarda tu API key DeepSeek (entrada oculta)</span></code></pre></div>
+      <p>Instala Claude Code con <code class="inline">npm install -g @anthropic-ai/claude-code</code>. Verifica todo con:</p>
+      <div class="code"><pre><code><span class="tok-p">$</span> dsctl doctor</code></pre></div>
+      <div class="note"><strong>¿Por qué dos pasos?</strong> <code class="inline">install.sh</code> copia el binario; <code class="inline">dsctl install</code> escribe la función de shell en tu <code class="inline">rc</code>. La función es la única que puede modificar el entorno de tu terminal — el binario corre en un proceso hijo y no puede. Ver <a href="#como-funciona">Cómo funciona</a>.</div>
+    </section>
+
+    <!-- INICIO RÁPIDO -->
+    <section id="inicio-rapido">
+      <span class="sec-num">§ 02</span>
+      <h2>Inicio rápido</h2>
+      <p>El flujo más común: marca una carpeta como territorio DeepSeek y olvídate. Al entrar, Claude Code usa DeepSeek; al salir, vuelve a tu login oficial — automático.</p>
+      <div class="code"><pre><code><span class="tok-p">$</span> dsctl path include ~/work     <span class="tok-c"># bajo ~/work → DeepSeek</span>
+<span class="tok-o">✓ INCLUDE: DeepSeek activo en  /Users/tu/work  (y subcarpetas)</span>
+
+<span class="tok-p">$</span> cd ~/work/proyecto
+<span class="tok-o">🟢 DeepSeek ACTIVADO en esta terminal (deepseek-v4-pro[1m])</span>
+
+<span class="tok-p">$</span> claude                         <span class="tok-c"># corre con DeepSeek</span>
+
+<span class="tok-p">$</span> cd ~                           <span class="tok-c"># fuera de la regla</span>
+<span class="tok-o">⚪ DeepSeek DESACTIVADO. Claude Code usará tu login oficial.</span></code></pre></div>
+      <p>¿Prefieres control manual sin reglas? Usa <a href="#terminal"><code class="inline">ds on / off / run</code></a> en la terminal actual.</p>
+    </section>
+
+    <!-- REGLAS DE PATH -->
+    <section id="reglas-path">
+      <span class="sec-num">§ 03</span>
+      <h2>Reglas de PATH</h2>
+      <p>El núcleo de dsctl. Defines <strong>dónde</strong> corre DeepSeek con dos tipos de regla:</p>
+      <table class="tbl">
+        <thead><tr><th>Regla</th><th>Efecto</th></tr></thead>
+        <tbody>
+          <tr><td><code>include</code></td><td>Bajo este path (y subcarpetas) DeepSeek se enciende.</td></tr>
+          <tr><td><code>exclude</code></td><td>Bajo este path <strong>nunca</strong>, aunque herede un <code class="inline">include</code>.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Precedencia</h3>
+      <p>Gana la regla <strong>más específica</strong> (la ruta más profunda). En empate exacto, <code class="inline">exclude</code> gana. Sin reglas que apliquen → <strong>Claude Code oficial</strong>.</p>
+
+      <div class="code"><pre><code><span class="tok-p">$</span> dsctl path include ~/work              <span class="tok-c"># todo ~/work usa DeepSeek</span>
+<span class="tok-p">$</span> dsctl path exclude ~/work/cliente      <span class="tok-c"># ...menos este cliente</span>
+<span class="tok-p">$</span> dsctl path include ~/work/cliente/lab  <span class="tok-c"># ...pero su carpeta 'lab' sí</span></code></pre></div>
+
+      <p>Resolución resultante:</p>
+      <div class="tree">
+        <div class="row"><span class="path">~/work</span> <span class="badge b-ds">🟢 DeepSeek</span> <span class="tok-c">include</span></div>
+        <div class="row" style="padding-left:22px"><span class="path">└ ~/work/cliente</span> <span class="badge b-off">⚪ oficial</span> <span class="tok-c">exclude — gana sobre el include padre</span></div>
+        <div class="row" style="padding-left:44px"><span class="path">└ ~/work/cliente/lab</span> <span class="badge b-ds">🟢 DeepSeek</span> <span class="tok-c">include más profundo — re-activa</span></div>
+        <div class="row" style="padding-left:22px"><span class="path">└ ~/otra-cosa</span> <span class="badge b-off">⚪ oficial</span> <span class="tok-c">ninguna regla aplica</span></div>
+      </div>
+
+      <h3>Administrar reglas</h3>
+      <div class="code"><pre><code><span class="tok-p">$</span> dsctl path list             <span class="tok-c"># árbol de includes/excludes + regla del cwd</span>
+<span class="tok-p">$</span> dsctl path test ~/work/x    <span class="tok-c"># ¿esta ruta resolvería a DeepSeek u oficial?</span>
+<span class="tok-p">$</span> dsctl path rm ~/work/cliente <span class="tok-c"># quita la regla de esa ruta exacta</span>
+<span class="tok-p">$</span> dsctl path clear            <span class="tok-c"># borra TODAS las reglas</span>
+<span class="tok-p">$</span> dsctl path edit             <span class="tok-c"># abre rules.tsv en $EDITOR</span></code></pre></div>
+      <div class="note">Omite la ruta y dsctl usa la <strong>carpeta actual</strong>: <code class="inline">dsctl path include</code> incluye el <code class="inline">cwd</code>.</div>
+    </section>
+
+    <!-- TERMINAL -->
+    <section id="terminal">
+      <span class="sec-num">§ 04</span>
+      <h2>Uso por terminal</h2>
+      <p>Control manual, sin tocar reglas. Afecta <strong>solo la terminal actual</strong>.</p>
+      <div class="code"><pre><code><span class="tok-p">$</span> ds on            <span class="tok-c"># 🟢 DeepSeek SOLO en esta terminal</span>
+<span class="tok-p">$</span> claude
+<span class="tok-p">$</span> ds off           <span class="tok-c"># ⚪ vuelve al login oficial</span>
+<span class="tok-p">$</span> ds run           <span class="tok-c"># enciende, corre claude, restaura al salir</span>
+<span class="tok-p">$</span> ds run npm test  <span class="tok-c"># enciende, corre cualquier comando, restaura</span></code></pre></div>
+      <table class="tbl">
+        <thead><tr><th>Comando</th><th>Qué hace</th></tr></thead>
+        <tbody>
+          <tr><td><code>ds on</code></td><td>Exporta las variables <code class="inline">ANTHROPIC_*</code> de DeepSeek en esta shell.</td></tr>
+          <tr><td><code>ds off</code></td><td>Las quita (<code class="inline">unset</code>). Claude Code vuelve a tu login.</td></tr>
+          <tr><td><code>ds run [cmd]</code></td><td>Enciende, ejecuta <code class="inline">cmd</code> (o <code class="inline">claude</code>), y restaura el estado previo al terminar.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- AUTOCOMPLETADO -->
+    <section id="autocompletado">
+      <span class="sec-num">§ 05</span>
+      <h2>Autocompletado</h2>
+      <p>Tab-complete para <code class="inline">dsctl</code> y <code class="inline">ds</code>: subcomandos, sub-subcomandos (<code class="inline">include</code>/<code class="inline">exclude</code>/<code class="inline">test</code>…), llaves de config y <strong>rutas</strong>. Se <strong>auto-carga</strong> al instalar el shell init — normalmente no haces nada.</p>
+      <p>Si lo quieres cargar a mano (o en otro <code class="inline">rc</code>):</p>
+      <div class="code"><pre><code><span class="tok-c"># zsh</span>
+<span class="tok-p">$</span> eval "$(dsctl completion zsh)"
+
+<span class="tok-c"># bash</span>
+<span class="tok-p">$</span> eval "$(dsctl completion bash)"</code></pre></div>
+      <p>Verifica que cargó con <code class="inline">dsctl doctor</code> (línea «Autocompletado cargado»).</p>
+    </section>
+
+    <!-- SCRIPTING -->
+    <section id="scripting">
+      <span class="sec-num">§ 06</span>
+      <h2>Integración / scripting</h2>
+      <p>Salida <strong>machine-readable</strong> para statuslines, hooks y CI.</p>
+
+      <h3>Exit codes</h3>
+      <p><code class="inline">dsctl resolve</code> y <code class="inline">dsctl path test</code> imprimen el veredicto <em>y</em> setean el exit code: <strong>0 = deepseek</strong>, <strong>1 = official</strong>.</p>
+      <div class="code"><pre><code><span class="tok-p">$</span> dsctl resolve ~/work/proyecto
+deepseek
+<span class="tok-p">$</span> echo $?
+0
+
+<span class="tok-c"># úsalo en un condicional</span>
+<span class="tok-p">$</span> if dsctl path test . ; then echo "aquí va DeepSeek"; fi</code></pre></div>
+
+      <h3>JSON</h3>
+      <div class="code"><pre><code><span class="tok-p">$</span> dsctl status --json
+{"mode":"deepseek","base_url":"https://api.deepseek.com/anthropic",
+ "model":"deepseek-v4-pro[1m]","key_present":true,
+ "cwd":"/Users/tu/work","rule":"deepseek","repo":"/Users/tu/work"}
+
+<span class="tok-c"># ejemplo: badge en una statusline</span>
+<span class="tok-p">$</span> dsctl status --json | jq -r '.mode'</code></pre></div>
+      <table class="tbl">
+        <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
+        <tbody>
+          <tr><td><code>mode</code></td><td><code class="inline">deepseek</code> | <code class="inline">official</code> — estado de <em>esta</em> terminal</td></tr>
+          <tr><td><code>rule</code></td><td>Veredicto de la regla para el <code class="inline">cwd</code> (independiente de <code class="inline">mode</code>)</td></tr>
+          <tr><td><code>base_url</code>, <code>model</code></td><td>Endpoint y modelo activos</td></tr>
+          <tr><td><code>key_present</code></td><td><code class="inline">true</code>/<code class="inline">false</code> — si hay API key guardada</td></tr>
+          <tr><td><code>cwd</code>, <code>repo</code></td><td>Carpeta actual y raíz del repo git (vacío si no es git)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- COMANDOS -->
+    <section id="comandos">
+      <span class="sec-num">§ 07</span>
+      <h2>Referencia de comandos</h2>
+      <table class="tbl">
+        <thead><tr><th>Comando</th><th>Descripción</th></tr></thead>
+        <tbody>
+          <tr><td><code>dsctl</code></td><td>Menú interactivo</td></tr>
+          <tr><td><code>ds on | off | run [cmd]</code></td><td>(shell) Alterna en la terminal actual</td></tr>
+          <tr><td><code>dsctl path include [ruta]</code></td><td>Bajo esta ruta → DeepSeek (Enter = cwd)</td></tr>
+          <tr><td><code>dsctl path exclude [ruta]</code></td><td>Bajo esta ruta → nunca, aunque herede include</td></tr>
+          <tr><td><code>dsctl path rm [ruta]</code></td><td>Quita la regla de esa ruta</td></tr>
+          <tr><td><code>dsctl path list</code></td><td>Includes/excludes + regla del cwd</td></tr>
+          <tr><td><code>dsctl path test [ruta]</code></td><td>Veredicto de una ruta (exit 0/1)</td></tr>
+          <tr><td><code>dsctl path clear</code></td><td>Borra todas las reglas</td></tr>
+          <tr><td><code>dsctl path edit</code></td><td>Abre rules.tsv en <code class="inline">$EDITOR</code></td></tr>
+          <tr><td><code>dsctl resolve [ruta]</code></td><td>Imprime <code class="inline">deepseek|official</code> + exit code</td></tr>
+          <tr><td><code>dsctl status [--json]</code></td><td>Estado de la terminal + regla del cwd</td></tr>
+          <tr><td><code>dsctl config show|set|reset</code></td><td>Modelos / URL / effort</td></tr>
+          <tr><td><code>dsctl completion bash|zsh</code></td><td>Imprime el script de autocompletado</td></tr>
+          <tr><td><code>dsctl key [API_KEY]</code></td><td>Guarda la API key (oculta si se omite)</td></tr>
+          <tr><td><code>dsctl install | uninstall [rc]</code></td><td>Gestiona la función de shell</td></tr>
+          <tr><td><code>dsctl doctor</code></td><td>Diagnóstico</td></tr>
+          <tr><td><code>dsctl version | help</code></td><td>Versión / ayuda</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- CONFIG -->
+    <section id="config">
+      <span class="sec-num">§ 08</span>
+      <h2>Configuración</h2>
+      <p>Modelos y endpoint son configurables. Valores por defecto:</p>
+      <div class="code"><pre><code><span class="tok-p">$</span> dsctl config show
+ Base URL:        https://api.deepseek.com/anthropic
+ Modelo (pro):    deepseek-v4-pro[1m]
+ Modelo (flash):  deepseek-v4-flash
+ Effort:          max</code></pre></div>
+      <div class="code"><pre><code><span class="tok-p">$</span> dsctl config set model_pro deepseek-v4-pro[1m]
+<span class="tok-p">$</span> dsctl config set base_url https://api.deepseek.com/anthropic
+<span class="tok-p">$</span> dsctl config reset          <span class="tok-c"># vuelve a los defaults</span></code></pre></div>
+      <table class="tbl">
+        <thead><tr><th>Llave</th><th>Mapea a</th></tr></thead>
+        <tbody>
+          <tr><td><code>base_url</code></td><td><code class="inline">ANTHROPIC_BASE_URL</code></td></tr>
+          <tr><td><code>model_pro</code></td><td><code class="inline">ANTHROPIC_MODEL</code> + Opus + Sonnet</td></tr>
+          <tr><td><code>model_flash</code></td><td>Haiku + <code class="inline">CLAUDE_CODE_SUBAGENT_MODEL</code></td></tr>
+          <tr><td><code>effort</code></td><td><code class="inline">CLAUDE_CODE_EFFORT_LEVEL</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- CÓMO FUNCIONA -->
+    <section id="como-funciona">
+      <span class="sec-num">§ 09</span>
+      <h2>Cómo funciona</h2>
+      <p>Un binario corre en un proceso hijo y <strong>no puede</strong> alterar el entorno del shell padre. Por eso dsctl se divide en tres piezas:</p>
+      <div class="arch">
+        <div class="arch-box">
+          <h4><span class="tag">función shell</span> ds on/off/run</h4>
+          <p>Vive en tu <code class="inline">rc</code> (la instala <code class="inline">dsctl install</code>). Como corre <em>dentro</em> de la shell, es la única que puede <code class="inline">export</code>/<code class="inline">unset</code> las variables <code class="inline">ANTHROPIC_*</code>.</p>
+        </div>
+        <div class="arch-flow">↕ invoca</div>
+        <div class="arch-box">
+          <h4><span class="tag">binario</span> dsctl</h4>
+          <p>Toda la lógica: reglas, key, config, menú, resolución de paths. No toca el entorno; solo lee/escribe config y resuelve veredictos.</p>
+        </div>
+        <div class="arch-flow">↕ consulta cada prompt</div>
+        <div class="arch-box">
+          <h4><span class="tag">hook</span> _ds_autocheck</h4>
+          <p>Se engancha a <code class="inline">precmd</code> (zsh) / <code class="inline">PROMPT_COMMAND</code> (bash). Llama a <code class="inline">dsctl _resolve "$PWD"</code> y enciende/apaga según el veredicto. <strong>Cachea por <code class="inline">$PWD</code></strong>: solo re-consulta al cambiar de carpeta, así no hay fork en cada prompt.</p>
+        </div>
+      </div>
+      <div class="note">Tras editar reglas a mano (<code class="inline">path edit</code>), haz <code class="inline">cd .</code> o re-<code class="inline">source</code> tu <code class="inline">rc</code> para invalidar el cache del hook.</div>
+    </section>
+
+    <!-- SEGURIDAD -->
+    <section id="seguridad">
+      <span class="sec-num">§ 10</span>
+      <h2>Seguridad</h2>
+      <ul>
+        <li>La API key vive en <code class="inline">~/.config/dsctl/api_key</code> con permisos <code class="inline">600</code> — nunca en el <code class="inline">rc</code> ni en git.</li>
+        <li><code class="inline">dsctl status</code> solo muestra los últimos 4 caracteres de la key.</li>
+        <li>Las reglas viven en <code class="inline">~/.config/dsctl/rules.tsv</code> (texto plano editable).</li>
+        <li>dsctl <strong>nunca</strong> exporta variables de forma global: el aislamiento por terminal/carpeta protege tu login oficial.</li>
+      </ul>
+    </section>
+
+    <!-- DIAGNÓSTICO -->
+    <section id="diagnostico">
+      <span class="sec-num">§ 11</span>
+      <h2>Diagnóstico</h2>
+      <div class="code"><pre><code><span class="tok-p">$</span> dsctl doctor</code></pre></div>
+      <p>Verifica Node.js, Claude Code, git, la librería de paths, la API key, la función <code class="inline">ds</code> y el autocompletado.</p>
+      <table class="tbl">
+        <thead><tr><th>Síntoma</th><th>Causa / arreglo</th></tr></thead>
+        <tbody>
+          <tr><td>«Función 'ds' NO cargada»</td><td>Corre <code class="inline">dsctl install</code> y luego <code class="inline">source</code> tu <code class="inline">rc</code>.</td></tr>
+          <tr><td>El modo no cambia al hacer <code class="inline">cd</code></td><td>El hook no está activo: re-<code class="inline">source</code> el <code class="inline">rc</code>. Tras editar reglas, <code class="inline">cd .</code> para refrescar el cache.</td></tr>
+          <tr><td>«No hay API key»</td><td><code class="inline">dsctl key</code> para guardarla.</td></tr>
+          <tr><td>El autocompletado no responde</td><td>Re-<code class="inline">source</code> el <code class="inline">rc</code>; en zsh requiere <code class="inline">compinit</code>.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- DESINSTALAR -->
+    <section id="desinstalar">
+      <span class="sec-num">§ 12</span>
+      <h2>Desinstalar</h2>
+      <div class="code"><pre><code><span class="tok-p">$</span> dsctl uninstall                          <span class="tok-c"># quita la función del rc</span>
+<span class="tok-p">$</span> rm -f ~/.local/bin/dsctl ~/.local/lib/dsctl/paths.sh
+<span class="tok-p">$</span> rm -rf ~/.config/dsctl                    <span class="tok-c"># borra key, reglas y config</span></code></pre></div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <p>dsctl — DeepSeek + Claude Code manager · MIT.</p>
+  <p class="sig">v2.1.0</p>
+</footer>
+
+<script>
+(function(){
+  // ---- Tema ----
+  var root=document.documentElement, btn=document.getElementById('themeBtn');
+  var sun=document.getElementById('iconSun'), moon=document.getElementById('iconMoon');
+  function apply(t){
+    root.setAttribute('data-theme',t);
+    var dark=t==='dark';
+    sun.style.display=dark?'none':'';
+    moon.style.display=dark?'':'none';
+  }
+  var saved=null;
+  try{saved=localStorage.getItem('dsctl-theme');}catch(e){}
+  if(saved){apply(saved);}
+  else{apply(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');}
+  btn.addEventListener('click',function(){
+    var next=root.getAttribute('data-theme')==='dark'?'light':'dark';
+    apply(next);
+    try{localStorage.setItem('dsctl-theme',next);}catch(e){}
+  });
+
+  // ---- Botones de copiar ----
+  var copyIco='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+  var okIco='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+  document.querySelectorAll('.code').forEach(function(box){
+    var pre=box.querySelector('pre'); if(!pre)return;
+    var b=document.createElement('button');
+    b.className='copy'; b.type='button'; b.setAttribute('aria-label','Copiar código'); b.innerHTML=copyIco;
+    b.addEventListener('click',function(){
+      var txt=pre.innerText.replace(/^\$ ?/gm,'').replace(/ /g,' ');
+      navigator.clipboard.writeText(txt).then(function(){
+        b.classList.add('done'); b.innerHTML=okIco;
+        setTimeout(function(){b.classList.remove('done'); b.innerHTML=copyIco;},1400);
+      });
+    });
+    box.appendChild(b);
+  });
+
+  // ---- Scrollspy ----
+  var links=Array.prototype.slice.call(document.querySelectorAll('.sidebar a'));
+  var map={};
+  links.forEach(function(a){var id=a.getAttribute('href').slice(1);var s=document.getElementById(id);if(s)map[id]=a;});
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if(en.isIntersecting){
+        links.forEach(function(l){l.classList.remove('active');});
+        var a=map[en.target.id]; if(a)a.classList.add('active');
+      }
+    });
+  },{rootMargin:'-72px 0px -70% 0px',threshold:0});
+  Object.keys(map).forEach(function(id){obs.observe(document.getElementById(id));});
+
+  // ---- Menú móvil ----
+  var menuBtn=document.getElementById('menuBtn'), sidebar=document.getElementById('sidebar'), scrim=document.getElementById('scrim');
+  function closeMenu(){sidebar.classList.remove('open');scrim.classList.remove('open');menuBtn.setAttribute('aria-expanded','false');}
+  menuBtn.addEventListener('click',function(){
+    var open=sidebar.classList.toggle('open');
+    scrim.classList.toggle('open',open);
+    menuBtn.setAttribute('aria-expanded',String(open));
+  });
+  scrim.addEventListener('click',closeMenu);
+  sidebar.addEventListener('click',function(e){if(e.target.tagName==='A')closeMenu();});
+})();
+</script>
+</body>
+</html>

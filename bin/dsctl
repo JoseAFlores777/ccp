@@ -1,0 +1,592 @@
+#!/usr/bin/env bash
+# ============================================================
+#  dsctl — DeepSeek + Claude Code manager
+#  Alterna Claude Code entre tu login oficial de Anthropic y
+#  los modelos de DeepSeek, por terminal y/o por PATH (reglas
+#  include/exclude administrables vía CLI interactivo).
+#
+#  https://github.com/<tu-usuario>/dsctl   ·   MIT
+# ============================================================
+set -o pipefail
+DSCTL_VERSION="2.1.0"
+
+# ----------------------------------------------------------------
+#  Localizar la librería (junto al binario o en una ruta instalada)
+# ----------------------------------------------------------------
+_self="${BASH_SOURCE[0]}"
+while [[ -h "$_self" ]]; do _self="$(readlink "$_self")"; done
+DSCTL_DIR="$(cd "$(dirname "$_self")/.." && pwd)"
+DSCTL_LIB="$DSCTL_DIR/lib/paths.sh"
+# fallback: instalación que copió lib junto a ~/.local/bin
+[[ -f "$DSCTL_LIB" ]] || DSCTL_LIB="$HOME/.local/lib/dsctl/paths.sh"
+if [[ -f "$DSCTL_LIB" ]]; then
+  # shellcheck disable=SC1090
+  source "$DSCTL_LIB"
+fi
+
+# ----------------------------------------------------------------
+#  Rutas de config
+# ----------------------------------------------------------------
+DS_HOME="${DS_HOME:-$HOME/.config/dsctl}"
+DS_KEY_FILE="$DS_HOME/api_key"
+DS_RULES_FILE="$DS_HOME/rules.tsv"
+DS_CONF_FILE="$DS_HOME/config"
+
+DS_BASE_URL_DEFAULT="https://api.deepseek.com/anthropic"
+DS_MODEL_PRO_DEFAULT="deepseek-v4-pro[1m]"
+DS_MODEL_FLASH_DEFAULT="deepseek-v4-flash"
+DS_EFFORT_DEFAULT="max"
+
+# ----------------------------------------------------------------
+#  Colores
+# ----------------------------------------------------------------
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+  C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
+  C_RED=$'\033[31m'; C_GRN=$'\033[32m'; C_YEL=$'\033[33m'
+  C_BLU=$'\033[34m'; C_MAG=$'\033[35m'; C_CYN=$'\033[36m'
+else
+  C_RESET=""; C_BOLD=""; C_DIM=""; C_RED=""; C_GRN=""
+  C_YEL=""; C_BLU=""; C_MAG=""; C_CYN=""
+fi
+
+say()  { printf '%s\n' "$*"; }
+ok()   { printf '%s✅ %s%s\n' "$C_GRN" "$*" "$C_RESET"; }
+warn() { printf '%s⚠️  %s%s\n' "$C_YEL" "$*" "$C_RESET" >&2; }
+err()  { printf '%s❌ %s%s\n' "$C_RED" "$*" "$C_RESET" >&2; }
+info() { printf '%s%s%s\n' "$C_CYN" "$*" "$C_RESET"; }
+hr()   { printf '%s──────────────────────────────────────────────%s\n' "$C_DIM" "$C_RESET"; }
+
+# ----------------------------------------------------------------
+#  Config load/save
+# ----------------------------------------------------------------
+_load_config() {
+  DS_BASE_URL="$DS_BASE_URL_DEFAULT"; DS_MODEL_PRO="$DS_MODEL_PRO_DEFAULT"
+  DS_MODEL_FLASH="$DS_MODEL_FLASH_DEFAULT"; DS_EFFORT="$DS_EFFORT_DEFAULT"
+  [[ -f "$DS_CONF_FILE" ]] && source "$DS_CONF_FILE"
+}
+_save_config() {
+  mkdir -p "$DS_HOME"
+  cat > "$DS_CONF_FILE" <<EOF
+DS_BASE_URL="$DS_BASE_URL"
+DS_MODEL_PRO="$DS_MODEL_PRO"
+DS_MODEL_FLASH="$DS_MODEL_FLASH"
+DS_EFFORT="$DS_EFFORT"
+EOF
+  chmod 600 "$DS_CONF_FILE"
+}
+_repo_root() { git rev-parse --show-toplevel 2>/dev/null; }
+
+# ----------------------------------------------------------------
+#  Shell init (función 'ds' + hook). Generado por 'dsctl install'.
+# ----------------------------------------------------------------
+_print_shell_init() {
+cat <<'SHELL_INIT'
+# >>> dsctl shell init >>>
+ds() {
+  local DS_HOME="${DS_HOME:-$HOME/.config/dsctl}"
+  local DS_KEY_FILE="$DS_HOME/api_key"
+  local DS_CONF_FILE="$DS_HOME/config"
+  local DS_BASE_URL="https://api.deepseek.com/anthropic"
+  local DS_MODEL_PRO="deepseek-v4-pro[1m]"
+  local DS_MODEL_FLASH="deepseek-v4-flash"
+  local DS_EFFORT="max"
+  [[ -f "$DS_CONF_FILE" ]] && source "$DS_CONF_FILE"
+
+  _ds_on() {
+    [[ -f "$DS_KEY_FILE" ]] || { echo "⚠️  No hay API key. Corre: dsctl key" >&2; return 1; }
+    local key; key="$(cat "$DS_KEY_FILE")"
+    [[ -z "$key" ]] && { echo "⚠️  Key vacía. Corre: dsctl key" >&2; return 1; }
+    export ANTHROPIC_BASE_URL="$DS_BASE_URL" ANTHROPIC_AUTH_TOKEN="$key"
+    export ANTHROPIC_MODEL="$DS_MODEL_PRO"
+    export ANTHROPIC_DEFAULT_OPUS_MODEL="$DS_MODEL_PRO"
+    export ANTHROPIC_DEFAULT_SONNET_MODEL="$DS_MODEL_PRO"
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL="$DS_MODEL_FLASH"
+    export CLAUDE_CODE_SUBAGENT_MODEL="$DS_MODEL_FLASH"
+    export CLAUDE_CODE_EFFORT_LEVEL="$DS_EFFORT"
+    export DS_ACTIVE=1
+    echo "🟢 DeepSeek ACTIVADO en esta terminal ($DS_MODEL_PRO)"
+  }
+  _ds_off() {
+    unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL \
+          ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL \
+          ANTHROPIC_DEFAULT_HAIKU_MODEL CLAUDE_CODE_SUBAGENT_MODEL \
+          CLAUDE_CODE_EFFORT_LEVEL DS_ACTIVE
+    echo "⚪ DeepSeek DESACTIVADO. Claude Code usará tu login oficial."
+  }
+  case "$1" in
+    on)  _ds_on ;;
+    off) _ds_off ;;
+    run)
+      local was="${DS_ACTIVE:-0}"; _ds_on || return 1; shift
+      if [[ $# -gt 0 ]]; then command "$@"; else command claude; fi
+      local rc=$?; [[ "$was" != "1" ]] && _ds_off; return $rc ;;
+    *) command dsctl "$@" ;;
+  esac
+}
+
+# Hook: aplica las reglas de PATH al cambiar de carpeta.
+# Cache: solo refork a 'dsctl _resolve' cuando cambió el PWD desde el
+# último prompt. La mayoría de prompts son la misma carpeta → cero fork.
+# Tras editar reglas: 'cd .' o re-source para refrescar.
+_ds_autocheck() {
+  command -v dsctl >/dev/null 2>&1 || return
+  [[ "$PWD" == "${_DS_LAST_PWD:-}" ]] && return
+  _DS_LAST_PWD="$PWD"
+  local verdict; verdict="$(dsctl _resolve "$PWD" 2>/dev/null)"
+  if [[ "$verdict" == "deepseek" ]]; then
+    [[ "${DS_ACTIVE:-0}" != "1" ]] && ds on >/dev/null 2>&1
+  else
+    [[ "${DS_ACTIVE:-0}" == "1" ]] && ds off >/dev/null 2>&1
+  fi
+}
+if [[ -n "$ZSH_VERSION" ]]; then
+  typeset -ag precmd_functions
+  [[ " ${precmd_functions[*]} " == *" _ds_autocheck "* ]] || precmd_functions+=(_ds_autocheck)
+elif [[ -n "$BASH_VERSION" ]]; then
+  [[ "$PROMPT_COMMAND" == *_ds_autocheck* ]] || PROMPT_COMMAND="_ds_autocheck;${PROMPT_COMMAND:-}"
+fi
+
+# Autocompletado de 'dsctl' y 'ds' (subcomandos, llaves y rutas)
+if command -v dsctl >/dev/null 2>&1; then
+  if [[ -n "$ZSH_VERSION" ]]; then
+    eval "$(dsctl completion zsh)" 2>/dev/null
+  elif [[ -n "$BASH_VERSION" ]]; then
+    eval "$(dsctl completion bash)" 2>/dev/null
+  fi
+fi
+# <<< dsctl shell init <<<
+SHELL_INIT
+}
+
+# ----------------------------------------------------------------
+#  install / uninstall
+# ----------------------------------------------------------------
+cmd_install() {
+  mkdir -p "$DS_HOME"
+  local rc shell_name; shell_name="$(basename "${SHELL:-bash}")"
+  case "$shell_name" in zsh) rc="$HOME/.zshrc";; *) rc="$HOME/.bashrc";; esac
+  [[ -n "$1" ]] && rc="$1"
+  if grep -q "dsctl shell init" "$rc" 2>/dev/null; then
+    ok "El init de dsctl ya está en $rc"
+  else
+    { echo; echo "# dsctl — gestor DeepSeek/Claude Code"; _print_shell_init; } >> "$rc"
+    ok "Init añadido a $rc"
+  fi
+  hr; info "Recarga con:  source $rc"; info "Configura la key:  dsctl key"; hr
+}
+cmd_uninstall() {
+  local rc shell_name; shell_name="$(basename "${SHELL:-bash}")"
+  case "$shell_name" in zsh) rc="$HOME/.zshrc";; *) rc="$HOME/.bashrc";; esac
+  [[ -n "$1" ]] && rc="$1"
+  if [[ ! -f "$rc" ]] || ! grep -q "dsctl shell init" "$rc"; then
+    warn "No encontré el init en $rc"; return 0; fi
+  local tmp; tmp="$(mktemp)"
+  awk '
+    /# dsctl — gestor DeepSeek\/Claude Code/ {skip=1}
+    /# >>> dsctl shell init >>>/ {skip=1}
+    skip==0 {print}
+    /# <<< dsctl shell init <<</ {skip=0; next}
+  ' "$rc" > "$tmp" && mv "$tmp" "$rc"
+  ok "Init removido de $rc"
+}
+
+# ----------------------------------------------------------------
+#  key
+# ----------------------------------------------------------------
+cmd_key() {
+  mkdir -p "$DS_HOME"; local key="$1"
+  if [[ -z "$key" ]]; then
+    printf 'Pega tu API key de DeepSeek (oculta): '; read -rs key; echo
+  fi
+  [[ -z "$key" ]] && { err "No ingresaste ninguna key."; return 1; }
+  printf '%s' "$key" > "$DS_KEY_FILE"; chmod 600 "$DS_KEY_FILE"
+  ok "API key guardada en $DS_KEY_FILE (600)"
+}
+
+# ----------------------------------------------------------------
+#  path — gestión de reglas include/exclude  (NÚCLEO NUEVO)
+# ----------------------------------------------------------------
+_path_arg() {  # resuelve el argumento de path: vacío => cwd
+  if [[ -z "$1" ]]; then printf '%s' "$PWD"; else printf '%s' "$1"; fi
+}
+cmd_path() {
+  mkdir -p "$DS_HOME"; touch "$DS_RULES_FILE"
+  local sub="$1"; shift 2>/dev/null
+  case "$sub" in
+    include|inc|add)
+      local p; p="$(ds_norm_path "$(_path_arg "$1")")"
+      ds_rule_add include "$p" "$DS_RULES_FILE"
+      ok "INCLUDE: DeepSeek activo en  $p  (y subcarpetas)" ;;
+    exclude|exc)
+      local p; p="$(ds_norm_path "$(_path_arg "$1")")"
+      ds_rule_add exclude "$p" "$DS_RULES_FILE"
+      ok "EXCLUDE: NUNCA DeepSeek en  $p  (y subcarpetas)" ;;
+    rm|remove|del)
+      local p; p="$(ds_norm_path "$(_path_arg "$1")")"
+      ds_rule_del "$p" "$DS_RULES_FILE"
+      ok "Regla eliminada para  $p" ;;
+    list|ls|"")
+      cmd_path_list ;;
+    test|check)
+      local p; p="$(ds_norm_path "$(_path_arg "$1")")"
+      local v; v="$(ds_resolve "$p" "$DS_RULES_FILE")"
+      if [[ "$v" == "deepseek" ]]; then
+        printf ' %s  ->  %s🟢 DeepSeek%s\n' "$p" "$C_GRN" "$C_RESET"
+        return 0
+      else
+        printf ' %s  ->  %s⚪ Claude oficial%s\n' "$p" "$C_DIM" "$C_RESET"
+        return 1
+      fi ;;
+    clear)
+      : > "$DS_RULES_FILE"; ok "Todas las reglas de path eliminadas." ;;
+    edit)
+      "${EDITOR:-nano}" "$DS_RULES_FILE" ;;
+    *)
+      err "Subcomando desconocido: '$sub'"
+      say "Usa: include | exclude | rm | list | test | clear | edit" ;;
+  esac
+}
+cmd_path_list() {
+  hr
+  printf ' %sReglas de PATH para DeepSeek%s\n' "$C_BOLD" "$C_RESET"
+  hr
+  if [[ ! -s "$DS_RULES_FILE" ]]; then
+    say "  (sin reglas — todo usa Claude Code oficial)"; hr; return
+  fi
+  # includes primero, luego excludes, ordenados por ruta.
+  # Filtramos con read (no 'grep -P': el -P de BSD/macOS no existe).
+  local kind path _n
+  printf ' %s%sINCLUDE (DeepSeek aquí)%s\n' "$C_GRN" "$C_BOLD" "$C_RESET"
+  _n=0
+  while IFS=$'\t' read -r kind path; do
+    [[ "$kind" == "include" && -n "$path" ]] || continue
+    printf '   🟢 %s\n' "$path"; _n=1
+  done < <(sort -t$'\t' -k2 "$DS_RULES_FILE")
+  (( _n )) || say "   (ninguno)"
+  echo
+  printf ' %s%sEXCLUDE (nunca DeepSeek)%s\n' "$C_YEL" "$C_BOLD" "$C_RESET"
+  _n=0
+  while IFS=$'\t' read -r kind path; do
+    [[ "$kind" == "exclude" && -n "$path" ]] || continue
+    printf '   ⛔ %s\n' "$path"; _n=1
+  done < <(sort -t$'\t' -k2 "$DS_RULES_FILE")
+  (( _n )) || say "   (ninguno)"
+  hr
+  info "Regla efectiva para el cwd:"
+  cmd_path test "$PWD"
+  hr
+}
+
+# Resolución usada por el hook (_ds_autocheck) y como API pública 'resolve'.
+# Imprime deepseek|official y setea exit code (0=deepseek, 1=official).
+cmd_resolve() {
+  local v; v="$(ds_resolve "${1:-$PWD}" "$DS_RULES_FILE")"
+  printf '%s\n' "$v"
+  [[ "$v" == "deepseek" ]]
+}
+
+# ----------------------------------------------------------------
+#  status
+# ----------------------------------------------------------------
+_json_esc() { local s="$1"; s="${s//\\/\\\\}"; s="${s//\"/\\\"}"; printf '%s' "$s"; }
+
+cmd_status() {
+  _load_config
+  if [[ "$1" == "--json" ]]; then
+    local mode rule repo keyp
+    [[ "${DS_ACTIVE:-0}" == "1" ]] && mode=deepseek || mode=official
+    rule="$(ds_resolve "$PWD" "$DS_RULES_FILE")"
+    repo="$(_repo_root)"
+    [[ -f "$DS_KEY_FILE" ]] && keyp=true || keyp=false
+    printf '{"mode":"%s","base_url":"%s","model":"%s","key_present":%s,"cwd":"%s","rule":"%s","repo":"%s"}\n' \
+      "$mode" \
+      "$(_json_esc "${ANTHROPIC_BASE_URL:-$DS_BASE_URL}")" \
+      "$(_json_esc "${ANTHROPIC_MODEL:-$DS_MODEL_PRO}")" \
+      "$keyp" \
+      "$(_json_esc "$PWD")" \
+      "$rule" \
+      "$(_json_esc "${repo:-}")"
+    return 0
+  fi
+  hr
+  printf ' %sEstado de Claude Code en esta terminal%s\n' "$C_BOLD" "$C_RESET"; hr
+  if [[ "${DS_ACTIVE:-0}" == "1" ]]; then
+    printf ' Modo:        %s🟢 DeepSeek%s\n' "$C_GRN" "$C_RESET"
+    printf ' Base URL:    %s\n' "${ANTHROPIC_BASE_URL:-$DS_BASE_URL}"
+    printf ' Modelo:      %s\n' "${ANTHROPIC_MODEL:-$DS_MODEL_PRO}"
+    [[ -n "${ANTHROPIC_AUTH_TOKEN:-}" ]] && printf ' API key:     ****%s\n' "${ANTHROPIC_AUTH_TOKEN: -4}"
+  else
+    printf ' Modo:        %s⚪ Claude Code oficial%s\n' "$C_DIM" "$C_RESET"
+  fi
+  hr
+  printf ' Key file:    %s\n' "$([[ -f $DS_KEY_FILE ]] && echo 'OK ✅' || echo 'NO existe ❌ (dsctl key)')"
+  printf ' Cwd:         %s\n' "$PWD"
+  printf ' Regla cwd:   ' ; cmd_path test "$PWD" | sed 's/^[^>]*-> *//'
+  local repo; repo="$(_repo_root)"; printf ' Repo:        %s\n' "${repo:-no es git}"
+  hr
+}
+
+# ----------------------------------------------------------------
+#  config
+# ----------------------------------------------------------------
+cmd_config() {
+  _load_config
+  case "$1" in
+    show|"")
+      hr; printf ' %sConfiguración%s\n' "$C_BOLD" "$C_RESET"; hr
+      printf ' Base URL:        %s\n' "$DS_BASE_URL"
+      printf ' Modelo (pro):    %s\n' "$DS_MODEL_PRO"
+      printf ' Modelo (flash):  %s\n' "$DS_MODEL_FLASH"
+      printf ' Effort:          %s\n' "$DS_EFFORT"; hr
+      info "Cambiar: dsctl config set <base_url|model_pro|model_flash|effort> <valor>" ;;
+    set)
+      local k="$2" v="$3"; [[ -z "$k" || -z "$v" ]] && { err "Uso: dsctl config set <clave> <valor>"; return 1; }
+      case "$k" in
+        base_url) DS_BASE_URL="$v";; model_pro) DS_MODEL_PRO="$v";;
+        model_flash) DS_MODEL_FLASH="$v";; effort) DS_EFFORT="$v";;
+        *) err "Clave desconocida: $k"; return 1;;
+      esac
+      _save_config; ok "Config: $k = $v" ;;
+    reset) rm -f "$DS_CONF_FILE"; ok "Config restaurada a defaults." ;;
+    *) err "Uso: dsctl config [show|set|reset]" ;;
+  esac
+}
+
+# ----------------------------------------------------------------
+#  doctor
+# ----------------------------------------------------------------
+cmd_doctor() {
+  hr; printf ' %sDiagnóstico%s\n' "$C_BOLD" "$C_RESET"; hr
+  command -v node  >/dev/null 2>&1 && ok "Node.js: $(node --version)" || err "Node.js no encontrado (v18+ requerido)."
+  command -v claude>/dev/null 2>&1 && ok "Claude Code: $(claude --version 2>/dev/null || echo instalado)" || warn "Claude Code no instalado (npm i -g @anthropic-ai/claude-code)."
+  command -v git   >/dev/null 2>&1 && ok "git: $(git --version | awk '{print $3}')" || warn "git no encontrado."
+  [[ -f "$DSCTL_LIB" ]] && ok "Librería de paths: $DSCTL_LIB" || err "lib/paths.sh no encontrada."
+  [[ -f "$DS_KEY_FILE" ]] && ok "API key configurada." || warn "Sin API key (dsctl key)."
+  type ds >/dev/null 2>&1 && ok "Función 'ds' cargada." || warn "Función 'ds' NO cargada (dsctl install && source rc)."
+  type _dsctl >/dev/null 2>&1 && ok "Autocompletado cargado." || warn "Autocompletado NO cargado (re-source tu rc tras 'dsctl install')."
+  hr
+}
+
+# ----------------------------------------------------------------
+#  completion — scripts de autocompletado (bash / zsh)
+# ----------------------------------------------------------------
+cmd_completion() {
+  case "$1" in
+    bash)
+      cat <<'COMPLETION_BASH'
+_dsctl() {
+  local cur prev top
+  cur="${COMP_WORDS[COMP_CWORD]}"; prev="${COMP_WORDS[COMP_CWORD-1]}"
+  top="install uninstall key path status config doctor menu completion resolve version help"
+  if [[ $COMP_CWORD -eq 1 ]]; then
+    COMPREPLY=( $(compgen -W "$top" -- "$cur") ); return
+  fi
+  case "${COMP_WORDS[1]}" in
+    path)
+      if [[ $COMP_CWORD -eq 2 ]]; then
+        COMPREPLY=( $(compgen -W "include exclude rm list test clear edit" -- "$cur") )
+      else
+        case "${COMP_WORDS[2]}" in
+          include|exclude|rm|test) COMPREPLY=( $(compgen -d -- "$cur") ) ;;
+        esac
+      fi ;;
+    config)
+      if [[ $COMP_CWORD -eq 2 ]]; then
+        COMPREPLY=( $(compgen -W "show set reset" -- "$cur") )
+      elif [[ "${COMP_WORDS[2]}" == "set" && $COMP_CWORD -eq 3 ]]; then
+        COMPREPLY=( $(compgen -W "base_url model_pro model_flash effort" -- "$cur") )
+      fi ;;
+    completion) COMPREPLY=( $(compgen -W "bash zsh" -- "$cur") ) ;;
+    status)     COMPREPLY=( $(compgen -W "--json" -- "$cur") ) ;;
+    resolve)    COMPREPLY=( $(compgen -d -- "$cur") ) ;;
+  esac
+}
+complete -F _dsctl dsctl
+_ds() {
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+  [[ $COMP_CWORD -eq 1 ]] && COMPREPLY=( $(compgen -W "on off run" -- "$cur") )
+}
+complete -F _ds ds
+COMPLETION_BASH
+      ;;
+    zsh)
+      cat <<'COMPLETION_ZSH'
+if ! whence compdef >/dev/null 2>&1; then
+  autoload -Uz compinit && compinit -C
+fi
+_dsctl() {
+  local -a top
+  top=(install uninstall key path status config doctor menu completion resolve version help)
+  if (( CURRENT == 2 )); then compadd -- $top; return; fi
+  case "${words[2]}" in
+    path)
+      if (( CURRENT == 3 )); then
+        compadd -- include exclude rm list test clear edit
+      else
+        case "${words[3]}" in
+          include|exclude|rm|test) _path_files -/ ;;
+        esac
+      fi ;;
+    config)
+      if (( CURRENT == 3 )); then
+        compadd -- show set reset
+      elif [[ "${words[3]}" == set ]] && (( CURRENT == 4 )); then
+        compadd -- base_url model_pro model_flash effort
+      fi ;;
+    completion) compadd -- bash zsh ;;
+    status)     compadd -- --json ;;
+    resolve)    _path_files -/ ;;
+  esac
+}
+compdef _dsctl dsctl
+_ds() { (( CURRENT == 2 )) && compadd -- on off run }
+compdef _ds ds
+COMPLETION_ZSH
+      ;;
+    *)
+      err "Uso: dsctl completion <bash|zsh>"
+      say "Activa en tu rc:  eval \"\$(dsctl completion zsh)\""
+      return 1 ;;
+  esac
+}
+
+# ----------------------------------------------------------------
+#  Menú interactivo
+# ----------------------------------------------------------------
+cmd_menu() {
+  while true; do
+    clear 2>/dev/null || true; _load_config
+    printf '%s' "$C_MAG"
+    cat <<'BANNER'
+   ╔════════════════════════════════════════════╗
+   ║   dsctl · DeepSeek + Claude Code manager     ║
+   ╚════════════════════════════════════════════╝
+BANNER
+    printf '%s' "$C_RESET"
+    if [[ "${DS_ACTIVE:-0}" == "1" ]]; then
+      printf '   Terminal: %s🟢 DeepSeek%s   ' "$C_GRN" "$C_RESET"
+    else
+      printf '   Terminal: %s⚪ Oficial%s   ' "$C_DIM" "$C_RESET"
+    fi
+    printf 'cwd → %s\n\n' "$(cmd_resolve "$PWD")"
+    say "   ${C_BOLD}1)${C_RESET} Activar DeepSeek aquí (ds on)"
+    say "   ${C_BOLD}2)${C_RESET} Desactivar (ds off)"
+    say "   ${C_BOLD}3)${C_RESET} Reglas de PATH (include/exclude) ▸"
+    say "   ${C_BOLD}4)${C_RESET} Ver estado (status)"
+    say "   ${C_BOLD}5)${C_RESET} Configurar API key"
+    say "   ${C_BOLD}6)${C_RESET} Configuración (modelos/URL)"
+    say "   ${C_BOLD}7)${C_RESET} Diagnóstico (doctor)"
+    say "   ${C_BOLD}8)${C_RESET} Instalar shell init"
+    say "   ${C_BOLD}9)${C_RESET} Ayuda"
+    say "   ${C_BOLD}0)${C_RESET} Salir"
+    echo; printf '   Opción: '; read -r opt; echo
+    case "$opt" in
+      1) type ds >/dev/null 2>&1 && ds on || warn "Función 'ds' no cargada (opción 8)." ;;
+      2) type ds >/dev/null 2>&1 && ds off || warn "Función 'ds' no cargada." ;;
+      3) _menu_paths ;;
+      4) cmd_status ;;
+      5) cmd_key ;;
+      6) cmd_config show ;;
+      7) cmd_doctor ;;
+      8) cmd_install ;;
+      9) cmd_help ;;
+      0) say "Hasta luego."; break ;;
+      *) warn "Opción inválida." ;;
+    esac
+    echo; printf '   %s[Enter para continuar]%s' "$C_DIM" "$C_RESET"; read -r _
+  done
+}
+_menu_paths() {
+  while true; do
+    echo; cmd_path_list; echo
+    say "   ${C_BOLD}a)${C_RESET} Incluir un path (DeepSeek)"
+    say "   ${C_BOLD}e)${C_RESET} Excluir un path (nunca)"
+    say "   ${C_BOLD}r)${C_RESET} Quitar regla de un path"
+    say "   ${C_BOLD}t)${C_RESET} Probar un path"
+    say "   ${C_BOLD}c)${C_RESET} Limpiar todas las reglas"
+    say "   ${C_BOLD}q)${C_RESET} Volver"
+    echo; printf '   > '; read -r s
+    case "$s" in
+      a) printf '   path (Enter = %s): ' "$PWD"; read -r p; cmd_path include "${p:-$PWD}" ;;
+      e) printf '   path (Enter = %s): ' "$PWD"; read -r p; cmd_path exclude "${p:-$PWD}" ;;
+      r) printf '   path (Enter = %s): ' "$PWD"; read -r p; cmd_path rm "${p:-$PWD}" ;;
+      t) printf '   path (Enter = %s): ' "$PWD"; read -r p; cmd_path test "${p:-$PWD}" ;;
+      c) cmd_path clear ;;
+      q) break ;;
+      *) warn "Opción inválida." ;;
+    esac
+    printf '   %s[Enter]%s' "$C_DIM" "$C_RESET"; read -r _
+  done
+}
+
+# ----------------------------------------------------------------
+#  Ayuda
+# ----------------------------------------------------------------
+cmd_help() {
+  cat <<EOF
+${C_BOLD}dsctl${C_RESET} v$DSCTL_VERSION — DeepSeek + Claude Code manager
+
+${C_BOLD}USO${C_RESET}
+  dsctl                       menú interactivo
+  ds on | off | run [cmd]     (shell) alterna en la terminal actual
+
+${C_BOLD}REGLAS DE PATH${C_RESET}  (qué carpetas usan DeepSeek)
+  dsctl path include [ruta]   bajo esta ruta → DeepSeek (Enter = cwd)
+  dsctl path exclude [ruta]   bajo esta ruta → NUNCA, aunque herede include
+  dsctl path rm [ruta]        quita la regla de esa ruta
+  dsctl path list             muestra includes/excludes y la regla del cwd
+  dsctl path test [ruta]      dice si una ruta resolvería a DeepSeek u oficial
+                              (exit 0=deepseek, 1=oficial → scriptable)
+  dsctl path clear            borra todas las reglas
+  dsctl path edit             abre el archivo de reglas en \$EDITOR
+
+${C_BOLD}SCRIPTING${C_RESET}  (salida machine-readable)
+  dsctl resolve [ruta]        imprime deepseek|official + exit code (0/1)
+  dsctl status --json         estado de la terminal como objeto JSON
+
+${C_BOLD}OTROS${C_RESET}
+  dsctl install [rc]          instala la función 'ds' + hook en tu shell
+  dsctl uninstall [rc]        la remueve
+  dsctl key [API_KEY]         guarda tu API key (oculta si se omite)
+  dsctl status                estado de la terminal + regla del cwd
+  dsctl config show|set|reset modelos / URL
+  dsctl completion bash|zsh   imprime el script de autocompletado
+  dsctl doctor                diagnóstico
+  dsctl version | help
+
+${C_BOLD}PRECEDENCIA${C_RESET}
+  Gana la regla más específica (ruta más profunda). Empate exacto: exclude.
+  Sin reglas que apliquen → Claude Code oficial.
+
+${C_BOLD}EJEMPLO${C_RESET}
+  dsctl path include ~/work          # todo work con DeepSeek
+  dsctl path exclude ~/work/cliente  # ...menos este cliente
+  dsctl path include ~/work/cliente/lab   # ...pero su 'lab' sí
+  cd ~/work/cliente/lab && claude    # → DeepSeek (auto, por el hook)
+EOF
+}
+
+# ----------------------------------------------------------------
+#  Dispatcher
+# ----------------------------------------------------------------
+main() {
+  local cmd="$1"; shift 2>/dev/null
+  case "$cmd" in
+    install) cmd_install "$@" ;;
+    uninstall) cmd_uninstall "$@" ;;
+    key) cmd_key "$@" ;;
+    path) cmd_path "$@" ;;
+    _resolve) cmd_resolve "$@" ;;     # interno (hook)
+    resolve) cmd_resolve "$@" ;;      # público (scripting)
+    completion) cmd_completion "$@" ;;
+    status) cmd_status "$@" ;;
+    config) cmd_config "$@" ;;
+    doctor) cmd_doctor ;;
+    menu) cmd_menu ;;
+    version|--version|-v) say "dsctl v$DSCTL_VERSION" ;;
+    help|--help|-h) cmd_help ;;
+    "") cmd_menu ;;
+    *) err "Comando desconocido: '$cmd'"; echo; cmd_help; return 1 ;;
+  esac
+}
+main "$@"
