@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ccp — Plan de implementación (router de perfiles)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f4f1ea; --paper-2:#ece7dd;
+    --ink:#1a1915; --ink-soft:#3a3833; --ink-mute:#6f6a60;
+    --rule:#d8d2c4; --accent:#c96442; --accent-soft:#e8a48a;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0; background:var(--paper); color:var(--ink-soft);
+    font-family:'Inter',sans-serif; font-size:17px; line-height:1.62; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:980px; margin:0 auto; padding:64px 32px 96px;}
+
+  .eyebrow{font-family:'JetBrains Mono',monospace; text-transform:uppercase;
+    letter-spacing:.22em; font-size:12px; color:var(--accent); margin:0 0 18px;}
+  h1{font-family:'Tinos',serif; font-weight:700; font-size:56px; line-height:1.06;
+    color:var(--ink); margin:0 0 22px; letter-spacing:-.01em;}
+  h1 em{font-style:italic; color:var(--accent);}
+  .lede{font-size:21px; line-height:1.5; color:var(--ink-soft); max-width:46em; margin:0 0 28px;}
+  .meta{display:flex; flex-wrap:wrap; gap:10px 26px; font-family:'JetBrains Mono',monospace;
+    font-size:12.5px; color:var(--ink-mute); border-top:1px solid var(--rule);
+    border-bottom:1px solid var(--rule); padding:16px 0; margin:0 0 8px;}
+  .meta b{color:var(--ink); font-weight:500;}
+  .pass{color:#3f7d4e; font-weight:600;}
+
+  .warnbox{border-left:3px solid var(--accent); background:#f6e4dc;
+    padding:14px 18px; border-radius:0 4px 4px 0; margin:28px 0 0; font-size:15px; max-width:48em;}
+  .warnbox b{color:var(--accent);}
+
+  nav.toc{margin:40px 0 8px; padding:28px 32px; background:var(--paper-2);
+    border:1px solid var(--rule); border-radius:4px;}
+  nav.toc h2{font-family:'JetBrains Mono',monospace; text-transform:uppercase;
+    letter-spacing:.18em; font-size:11px; color:var(--ink-mute); margin:0 0 16px;}
+  nav.toc ol{list-style:none; margin:0; padding:0; columns:2; column-gap:48px;}
+  nav.toc li{margin:0 0 9px; break-inside:avoid;}
+  nav.toc a{color:var(--ink-soft); text-decoration:none; font-size:14.5px;
+    border-bottom:1px solid transparent; transition:border-color .15s,color .15s;}
+  nav.toc a:hover{color:var(--ink); border-bottom-color:var(--accent);}
+  nav.toc a .n{font-family:'JetBrains Mono',monospace; color:var(--accent);
+    font-size:12px; margin-right:9px;}
+
+  section{padding:42px 0; border-bottom:1px solid var(--rule); scroll-margin-top:24px;}
+  section:last-of-type{border-bottom:none;}
+  h2.sec{font-family:'Tinos',serif; font-weight:700; font-size:30px; color:var(--ink);
+    margin:0 0 8px; letter-spacing:-.005em; display:flex; align-items:baseline; gap:16px;}
+  h2.sec .num{font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--accent);
+    font-weight:500; flex:none;}
+  .phase-tag{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--ink-mute); margin:0 0 4px;}
+  h3{font-family:'Inter',sans-serif; font-weight:600; font-size:17px; color:var(--ink); margin:24px 0 8px;}
+  p{margin:0 0 14px; max-width:46em;}
+  ul,ol{max-width:46em; padding-left:22px;}
+  li{margin:0 0 6px;}
+  code{font-family:'JetBrains Mono',monospace; font-size:.85em; background:var(--paper-2);
+    padding:1.5px 6px; border-radius:3px; color:var(--ink); border:1px solid var(--rule);}
+  strong{color:var(--ink); font-weight:600;}
+
+  .files{font-family:'JetBrains Mono',monospace; font-size:13px; background:var(--paper-2);
+    border:1px solid var(--rule); border-radius:5px; padding:12px 16px; margin:6px 0 16px;}
+  .files .c{color:#8a8270;}
+  .files .mod{color:var(--accent);}
+
+  .steps{list-style:none; padding:0; margin:8px 0 0; counter-reset:step;}
+  .steps>li{position:relative; padding:8px 0 8px 38px; border-bottom:1px dashed var(--rule);}
+  .steps>li:last-child{border-bottom:none;}
+  .steps>li::before{counter-increment:step; content:counter(step);
+    position:absolute; left:0; top:8px; width:24px; height:24px; border-radius:50%;
+    background:var(--accent); color:#fff; font-family:'JetBrains Mono',monospace;
+    font-size:12px; display:flex; align-items:center; justify-content:center;}
+  .steps .label{font-weight:600; color:var(--ink);}
+
+  table{width:100%; border-collapse:collapse; margin:8px 0 20px; font-size:14px;}
+  th,td{text-align:left; padding:9px 13px; border-bottom:1px solid var(--rule); vertical-align:top;}
+  th{font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase;
+    letter-spacing:.08em; color:var(--ink-mute); font-weight:500; background:var(--paper-2);}
+  td code{background:transparent; border:none; padding:0;}
+
+  pre{font-family:'JetBrains Mono',monospace; font-size:12.8px; line-height:1.6;
+    background:#23211c; color:#e9e3d4; padding:16px 18px; border-radius:6px;
+    overflow-x:auto; margin:8px 0 16px;}
+  pre .c{color:#8a8270; font-style:italic;}
+  pre .run{color:#b7c89a;}
+  .run-label{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--accent);
+    text-transform:uppercase; letter-spacing:.1em; margin:6px 0 0;}
+
+  .pointer{font-size:14px; color:var(--ink-mute); font-style:italic; max-width:46em;}
+
+  footer{margin-top:40px; padding-top:24px; border-top:1px solid var(--rule);
+    font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--ink-mute);
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;}
+
+  @media(max-width:760px){
+    .wrap{padding:40px 20px 64px;}
+    h1{font-size:38px;} .lede{font-size:18px;}
+    nav.toc ol{columns:1;} h2.sec{font-size:24px; gap:10px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <p class="eyebrow">Plan · superpowers · TDD</p>
+    <h1>Plan de implementación: <em>ccp</em></h1>
+    <p class="lede">18 tareas TDD bite-sized para convertir el toggle binario de <code>dsctl</code> en un router de <strong>perfiles con nombre</strong> de Claude Code, con rebrand a <code>ccp</code>. Cada tarea = test que falla → implementación mínima → test que pasa → commit.</p>
+    <div class="meta">
+      <span><b>Fecha</b> 2026-06-01</span>
+      <span><b>Tareas</b> 18 · 7 fases</span>
+      <span><b>Gate 1</b> <span class="pass">pasado</span></span>
+      <span><b>Stack</b> Bash · awk · harness propio</span>
+      <span><b>Spec</b> ccp-profiles.md</span>
+    </div>
+    <div class="warnbox"><b>Política de commits (override).</b> El dueño del repo prohíbe commits autónomos. Los pasos <code>Commit</code> son reales, pero el ejecutor DEBE pedir autorización explícita por turno antes de <code>git commit</code>, y NO debe añadir trailer <code>Co-Authored-By:</code>. Sin autorización: deja staged y reporta.</div>
+  </header>
+
+  <nav class="toc">
+    <h2>Tareas</h2>
+    <ol>
+      <li><a href="#arch"><span class="n">00</span>Arquitectura &amp; archivos</a></li>
+      <li><a href="#t1"><span class="n">01</span>Test harness</a></li>
+      <li><a href="#t2"><span class="n">02</span>Helpers de path (rename)</a></li>
+      <li><a href="#t3"><span class="n">03</span>Resolver → nombre de perfil</a></li>
+      <li><a href="#t4"><span class="n">04</span>Storage: add/exists/type/get</a></li>
+      <li><a href="#t5"><span class="n">05</span>Storage: key/list/rm</a></li>
+      <li><a href="#t6"><span class="n">06</span>Env delta</a></li>
+      <li><a href="#t7"><span class="n">07</span>Scaffold del binario</a></li>
+      <li><a href="#t8"><span class="n">08</span>_resolve / _env / _hook</a></li>
+      <li><a href="#t9"><span class="n">09</span>cmd_profile</a></li>
+      <li><a href="#t10"><span class="n">10</span>cmd_path + cmd_key</a></li>
+      <li><a href="#t11"><span class="n">11</span>cmd_status (+json)</a></li>
+      <li><a href="#t12"><span class="n">12</span>Dirs oficiales + login</a></li>
+      <li><a href="#t13"><span class="n">13</span>Shell init + completion</a></li>
+      <li><a href="#t14"><span class="n">14</span>Migración dsctl→ccp</a></li>
+      <li><a href="#t15"><span class="n">15</span>config/doctor/menu/help</a></li>
+      <li><a href="#t16"><span class="n">16</span>install.sh</a></li>
+      <li><a href="#t17"><span class="n">17</span>CI</a></li>
+      <li><a href="#t18"><span class="n">18</span>E2E + CLAUDE.md</a></li>
+    </ol>
+  </nav>
+
+  <section id="arch">
+    <h2 class="sec"><span class="num">§ 00</span>Arquitectura &amp; estructura de archivos</h2>
+    <p><strong>Goal:</strong> rebrand <code>dsctl</code>→<code>ccp</code> y convertir el toggle deepseek↔official en un motor de perfiles con nombre que enruta cada carpeta a una cuenta oficial o a un provider DeepSeek, todo configurable por CLI.</p>
+    <p><strong>Arquitectura:</strong> libs de funciones puras (<code>lib/paths.sh</code> resolver, <code>lib/profiles.sh</code> storage, <code>lib/env.sh</code> emisor de delta) sourced por un binario <code>bin/ccp</code>. El binario corre en hijo y no muta el shell; la función <code>ccp()</code> y el hook <code>precmd</code> hacen <code>eval</code> del delta emitido — único punto de mutación de env.</p>
+    <table>
+      <thead><tr><th>Archivo</th><th>Responsabilidad</th><th>Acción</th></tr></thead>
+      <tbody>
+        <tr><td><code>lib/paths.sh</code></td><td>Normalización + resolver most-specific → nombre de perfil</td><td><span style="color:#c96442">Modificar</span></td></tr>
+        <tr><td><code>lib/profiles.sh</code></td><td>CRUD de storage (meta, key, cc-home)</td><td>Crear</td></tr>
+        <tr><td><code>lib/env.sh</code></td><td><code>ccp_env_delta</code> — unset+export eval-able</td><td>Crear</td></tr>
+        <tr><td><code>bin/ccp</code></td><td>Dispatch, profile/path/env/hook/status/migrate/install + fn shell</td><td>Crear (rebrand)</td></tr>
+        <tr><td><code>install.sh</code></td><td>Copia binario + 3 libs</td><td>Modificar</td></tr>
+        <tr><td><code>tests/run.sh</code></td><td>Harness: sourcea libs, corre <code>test_*</code></td><td>Crear</td></tr>
+        <tr><td><code>.github/workflows/ci.yml</code></td><td>shellcheck + bash -n + suite</td><td>Modificar</td></tr>
+        <tr><td><code>CLAUDE.md</code></td><td>Guía a ccp/perfiles</td><td>Modificar</td></tr>
+      </tbody>
+    </table>
+    <h3>Convenciones fijadas (usadas en todas las tareas)</h3>
+    <ul>
+      <li>Raíz config: <code>CCP_HOME</code> (default <code>~/.config/ccp</code>).</li>
+      <li>Perfil: <code>$CCP_HOME/profiles/&lt;name&gt;/{meta, api_key (600), cc-home/}</code>.</li>
+      <li><code>rules.tsv</code> = <code>path&lt;TAB&gt;profile</code>; <code>profiles.tsv</code> = <code>name&lt;TAB&gt;type</code>.</li>
+      <li><code>default</code> = perfil reservado (nunca en disco) = fallback.</li>
+      <li><code>meta</code> = <code>key=value</code> parseado (NUNCA sourced).</li>
+      <li>Vars manejadas (set exacto en <code>lib/env.sh</code>): <code>CLAUDE_CONFIG_DIR ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_EFFORT_LEVEL CCP_PROFILE</code>.</li>
+    </ul>
+  </section>
+
+  <section id="t1">
+    <p class="phase-tag">Fase 1 · Harness + motor de paths</p>
+    <h2 class="sec"><span class="num">§ 01</span>Test harness</h2>
+    <div class="files"><span class="c">Crear:</span> tests/run.sh</div>
+    <p>Harness bash: sourcea las libs, define <code>assert_eq</code>/<code>assert_rc</code>/<code>newdir</code>, corre todas las funciones <code>test_*</code> (o las que matcheen un filtro), exit ≠0 si algo falla.</p>
+    <pre><span class="c">#!/usr/bin/env bash · uso: bash tests/run.sh [filtro]</span>
+set -uo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT/lib/paths.sh"
+[[ -f "$ROOT/lib/profiles.sh" ]] &amp;&amp; source "$ROOT/lib/profiles.sh"
+[[ -f "$ROOT/lib/env.sh" ]]      &amp;&amp; source "$ROOT/lib/env.sh"
+_pass=0; _fail=0
+assert_eq(){ if [[ "$1" == "$2" ]]; then _pass=$((_pass+1));
+  else _fail=$((_fail+1)); printf 'FAIL: %s\n  got:[%s] want:[%s]\n' "$3" "$1" "$2" &gt;&amp;2; fi; }
+assert_rc(){ if [[ "$1" == "$2" ]]; then _pass=$((_pass+1));
+  else _fail=$((_fail+1)); printf 'FAIL: %s (rc %s!=%s)\n' "$3" "$1" "$2" &gt;&amp;2; fi; }
+TMPROOT="$(mktemp -d)"; trap 'rm -rf "$TMPROOT"' EXIT
+newdir(){ mktemp -d "$TMPROOT/XXXXXX"; }
+<span class="c"># ... test_* se añaden tarea a tarea ...</span>
+_filter="${1:-}"
+_tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] &amp;&amp; grep -- "$_filter" || cat; } | sort)"
+for fn in $_tests; do "$fn"; done
+printf '\n%d passed, %d failed\n' "$_pass" "$_fail"; [[ "$_fail" -eq 0 ]]</pre>
+    <ol class="steps">
+      <li><span class="label">Escribir el harness</span> (arriba).</li>
+      <li><span class="label">Correr vacío.</span> <code>bash tests/run.sh</code> → <code>0 passed, 0 failed</code>, exit 0.</li>
+      <li><span class="label">Commit</span> <span class="pointer">(autorización requerida)</span> — <code>test: add bash test harness for ccp</code></li>
+    </ol>
+  </section>
+
+  <section id="t2">
+    <p class="phase-tag">Fase 1 · Harness + motor de paths</p>
+    <h2 class="sec"><span class="num">§ 02</span>Helpers de path (rename ds_*→ccp_*)</h2>
+    <div class="files"><span class="mod">Modificar:</span> lib/paths.sh · tests/run.sh</div>
+    <p>Rename mecánico (cuerpos idénticos) de <code>ds_norm_path</code>/<code>ds_is_ancestor</code>/<code>ds_depth</code> → <code>ccp_*</code>, fijando los nombres nuevos. Tests: tilde expande, <code>..</code> colapsa, raíz, ancestro, profundidad.</p>
+    <pre>ccp_norm_path(){ <span class="c"># ~ inicial, a absoluto, colapsa . y .. textual</span>
+  local p="$1"; [[ -z "$p" ]] &amp;&amp; return 1
+  [[ "$p" == "~"* ]] &amp;&amp; p="${p/#\~/$HOME}"; [[ "$p" != /* ]] &amp;&amp; p="$(pwd)/$p"
+  local out=() part; local IFS='/'
+  for part in $p; do case "$part" in ''|.) continue;; ..) [[ ${#out[@]} -gt 0 ]] &amp;&amp; unset 'out[${#out[@]}-1]';; *) out+=("$part");; esac; done
+  local j=""; for part in "${out[@]}"; do j="$j/$part"; done; printf '%s' "${j:-/}"; }
+ccp_is_ancestor(){ local base="$1" path="$2"; [[ "$base" == "/" ]] &amp;&amp; return 0
+  [[ "$path" == "$base" ]] &amp;&amp; return 0; [[ "$path" == "$base"/* ]] &amp;&amp; return 0; return 1; }
+ccp_depth(){ local p="$1" d=0 part; local IFS='/'; for part in $p; do [[ -n "$part" ]] &amp;&amp; d=$((d+1)); done; printf '%d' "$d"; }</pre>
+    <ol class="steps">
+      <li><span class="label">Tests que fallan</span> — <code>test_norm_path_*</code>, <code>test_is_ancestor</code>, <code>test_depth</code>.</li>
+      <li><span class="label">Correr → fallan</span> (funciones no definidas).</li>
+      <li><span class="label">Rename en lib/paths.sh</span> (arriba); borrar los <code>ds_*</code> helpers.</li>
+      <li><span class="label">Correr → pasan.</span></li>
+      <li><span class="label">Commit</span> — <code>refactor: rename path helpers ds_* -&gt; ccp_*</code></li>
+    </ol>
+  </section>
+
+  <section id="t3">
+    <p class="phase-tag">Fase 1 · Harness + motor de paths</p>
+    <h2 class="sec"><span class="num">§ 03</span>Resolver → nombre de perfil</h2>
+    <div class="files"><span class="mod">Modificar:</span> lib/paths.sh · tests/run.sh</div>
+    <p>Formato de regla pasa a <code>path&lt;TAB&gt;profile</code>. <code>ccp_resolve</code> devuelve el nombre del perfil más específico (o <code>default</code>). <code>ccp_rule_set</code> reemplaza por path; <code>ccp_rule_del</code> borra. Tests: vacío→default, most-specific gana, carve-out default, replace no-append, del.</p>
+    <pre>ccp_resolve(){ <span class="c"># &lt;path&gt; &lt;rules_file&gt; → nombre (default si nada aplica)</span>
+  local query rules_file; query="$(ccp_norm_path "$1")" || { printf 'default'; return; }
+  rules_file="$2"; [[ -f "$rules_file" ]] || { printf 'default'; return; }
+  local best_depth=-1 best_profile="default" path profile depth
+  while IFS=$'\t' read -r path profile; do
+    [[ -z "$path" || "$path" == \#* || -z "$profile" ]] &amp;&amp; continue
+    if ccp_is_ancestor "$path" "$query"; then depth="$(ccp_depth "$path")"
+      if (( depth &gt; best_depth )); then best_depth="$depth"; best_profile="$profile"; fi; fi
+  done &lt; "$rules_file"; printf '%s' "$best_profile"; }
+ccp_rule_set(){ local path profile="$2" rules_file="$3"; path="$(ccp_norm_path "$1")" || return 1
+  mkdir -p "$(dirname "$rules_file")"; touch "$rules_file"; local tmp; tmp="$(mktemp)"
+  awk -F'\t' -v p="$path" '$1 != p' "$rules_file" &gt; "$tmp" &amp;&amp; mv "$tmp" "$rules_file"
+  printf '%s\t%s\n' "$path" "$profile" &gt;&gt; "$rules_file"; }
+ccp_rule_del(){ local path rules_file="$2"; path="$(ccp_norm_path "$1")" || return 1
+  [[ -f "$rules_file" ]] || return 0; local tmp; tmp="$(mktemp)"
+  awk -F'\t' -v p="$path" '$1 != p' "$rules_file" &gt; "$tmp" &amp;&amp; mv "$tmp" "$rules_file"; }</pre>
+    <ol class="steps">
+      <li><span class="label">Tests que fallan</span> — 5 casos de resolución/rule.</li>
+      <li><span class="label">Correr → fallan.</span></li>
+      <li><span class="label">Reemplazar resolver + mutadores</span>; borrar <code>ds_resolve/ds_rule_add/ds_rule_del</code>.</li>
+      <li><span class="label">Correr → pasan.</span></li>
+      <li><span class="label">Commit</span> — <code>feat: path resolver returns profile name; rules are path&lt;TAB&gt;profile</code></li>
+    </ol>
+  </section>
+
+  <section id="t4">
+    <p class="phase-tag">Fase 2 · Storage de perfiles</p>
+    <h2 class="sec"><span class="num">§ 04</span>profiles.sh — add/exists/type/get</h2>
+    <div class="files"><span class="c">Crear:</span> lib/profiles.sh · <span class="mod">Modificar:</span> tests/run.sh</div>
+    <p>CRUD que opera sobre un <code>ccp_home</code> explícito (testeable). <code>meta</code> se parsea con awk (no source). Índice <code>profiles.tsv</code>.</p>
+    <pre>_ccp_profiles_dir(){ printf '%s/profiles' "$1"; }
+_ccp_profile_dir(){ printf '%s/profiles/%s' "$1" "$2"; }
+ccp_profile_exists(){ [[ -f "$(_ccp_profile_dir "$1" "$2")/meta" ]]; }
+ccp_profile_type(){ ccp_profile_get "$1" "$2" type; }
+ccp_profile_get(){ <span class="c"># ccp_home name key — imprime tras el primer '='</span>
+  local meta; meta="$(_ccp_profile_dir "$1" "$2")/meta"; [[ -f "$meta" ]] || return 1
+  awk -F= -v k="$3" '$1==k{sub(/^[^=]*=/,"");print;found=1;exit} END{exit !found}' "$meta"; }
+_ccp_index_set(){ local idx="$1/profiles.tsv"; mkdir -p "$1"; touch "$idx"; local tmp; tmp="$(mktemp)"
+  awk -F'\t' -v n="$2" '$1 != n' "$idx" &gt; "$tmp" &amp;&amp; mv "$tmp" "$idx"; printf '%s\t%s\n' "$2" "$3" &gt;&gt; "$idx"; }
+ccp_profile_add_official(){ local d; d="$(_ccp_profile_dir "$1" "$2")"; mkdir -p "$d/cc-home"
+  printf 'type=official\n' &gt; "$d/meta"; _ccp_index_set "$1" "$2" official; }
+ccp_profile_add_deepseek(){ <span class="c"># home name base_url pro flash effort</span>
+  local d; d="$(_ccp_profile_dir "$1" "$2")"; mkdir -p "$d"
+  { printf 'type=deepseek\n'; printf 'base_url=%s\n' "$3"; printf 'model_pro=%s\n' "$4"
+    printf 'model_flash=%s\n' "$5"; printf 'effort=%s\n' "$6"; } &gt; "$d/meta"
+  _ccp_index_set "$1" "$2" deepseek; }</pre>
+    <ol class="steps">
+      <li><span class="label">Tests que fallan</span> — add_official (cc-home creado), add_deepseek (campos), exists=false.</li>
+      <li><span class="label">Correr → fallan.</span></li>
+      <li><span class="label">Crear lib/profiles.sh</span> (arriba).</li>
+      <li><span class="label">Correr → pasan.</span></li>
+      <li><span class="label">Commit</span> — <code>feat: profile storage (add/exists/type/get)</code></li>
+    </ol>
+  </section>
+
+  <section id="t5">
+    <p class="phase-tag">Fase 2 · Storage de perfiles</p>
+    <h2 class="sec"><span class="num">§ 05</span>profiles.sh — key/list/rm</h2>
+    <div class="files"><span class="mod">Modificar:</span> lib/profiles.sh · tests/run.sh</div>
+    <p>Key 600 (test verifica modo con <code>stat -f '%Lp'</code> BSD / <code>stat -c '%a'</code> GNU). <code>list</code> un nombre por línea. <code>rm</code> borra dir + entrada de índice.</p>
+    <pre>ccp_profile_set_key(){ local d; d="$(_ccp_profile_dir "$1" "$2")"; mkdir -p "$d"
+  printf '%s' "$3" &gt; "$d/api_key"; chmod 600 "$d/api_key"; }
+ccp_profile_get_key(){ local f; f="$(_ccp_profile_dir "$1" "$2")/api_key"; [[ -f "$f" ]] || return 1; cat "$f"; }
+ccp_profile_list(){ local dir; dir="$(_ccp_profiles_dir "$1")"; [[ -d "$dir" ]] || return 0
+  local p; for p in "$dir"/*/; do [[ -f "$p/meta" ]] || continue; basename "$p"; done; }
+ccp_profile_rm(){ rm -rf "$(_ccp_profile_dir "$1" "$2")"; local idx="$1/profiles.tsv"
+  [[ -f "$idx" ]] || return 0; local tmp; tmp="$(mktemp)"
+  awk -F'\t' -v n="$2" '$1 != n' "$idx" &gt; "$tmp" &amp;&amp; mv "$tmp" "$idx"; }</pre>
+    <ol class="steps">
+      <li><span class="label">Tests que fallan</span> — key roundtrip+600, list sorted, rm.</li>
+      <li><span class="label">Correr → fallan.</span></li>
+      <li><span class="label">Append a lib/profiles.sh.</span></li>
+      <li><span class="label">Correr → pasan.</span></li>
+      <li><span class="label">Commit</span> — <code>feat: profile key storage, list, rm</code></li>
+    </ol>
+  </section>
+
+  <section id="t6">
+    <p class="phase-tag">Fase 3 · Env delta</p>
+    <h2 class="sec"><span class="num">§ 06</span>env.sh — ccp_env_delta</h2>
+    <div class="files"><span class="c">Crear:</span> lib/env.sh · <span class="mod">Modificar:</span> tests/run.sh</div>
+    <p>Emite delta eval-able: (1) <code>unset</code> de todas las vars manejadas, (2) <code>export</code> del perfil. Valores con <code>%q</code>. Tests evalúan en subshell y verifican efecto.</p>
+    <pre>CCP_MANAGED_VARS="CLAUDE_CONFIG_DIR ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_EFFORT_LEVEL CCP_PROFILE"
+ccp_env_delta(){ local home="$1" profile="$2"
+  printf 'unset %s\n' "$CCP_MANAGED_VARS"
+  if [[ "$profile" == "default" ]]; then printf 'export CCP_PROFILE=%q\n' "default"; return 0; fi
+  ccp_profile_exists "$home" "$profile" || { printf 'echo "⚠️  ccp: perfil %q no existe; default" &gt;&amp;2\n' "$profile"; printf 'export CCP_PROFILE=%q\n' "default"; return 0; }
+  local type; type="$(ccp_profile_type "$home" "$profile")"
+  case "$type" in
+    official) printf 'export CLAUDE_CONFIG_DIR=%q\n' "$home/profiles/$profile/cc-home"
+              printf 'export CCP_PROFILE=%q\n' "$profile" ;;
+    deepseek) local b p f e k
+              b="$(ccp_profile_get "$home" "$profile" base_url)"; p="$(ccp_profile_get "$home" "$profile" model_pro)"
+              f="$(ccp_profile_get "$home" "$profile" model_flash)"; e="$(ccp_profile_get "$home" "$profile" effort)"
+              printf 'export ANTHROPIC_BASE_URL=%q\n' "$b"
+              if k="$(ccp_profile_get_key "$home" "$profile")"; then printf 'export ANTHROPIC_AUTH_TOKEN=%q\n' "$k"
+              else printf 'echo "⚠️  ccp: %q sin key (ccp key %q)" &gt;&amp;2\n' "$profile" "$profile"; fi
+              printf 'export ANTHROPIC_MODEL=%q\n' "$p"; printf 'export ANTHROPIC_DEFAULT_OPUS_MODEL=%q\n' "$p"
+              printf 'export ANTHROPIC_DEFAULT_SONNET_MODEL=%q\n' "$p"; printf 'export ANTHROPIC_DEFAULT_HAIKU_MODEL=%q\n' "$f"
+              printf 'export CLAUDE_CODE_SUBAGENT_MODEL=%q\n' "$f"; printf 'export CLAUDE_CODE_EFFORT_LEVEL=%q\n' "$e"
+              printf 'export CCP_PROFILE=%q\n' "$profile" ;;
+    *) printf 'export CCP_PROFILE=%q\n' "default" ;;
+  esac; }</pre>
+    <ol class="steps">
+      <li><span class="label">Tests que fallan</span> — default unset+marca, official→CLAUDE_CONFIG_DIR, deepseek→ANTHROPIC_* y sin CLAUDE_CONFIG_DIR.</li>
+      <li><span class="label">Correr → fallan.</span></li>
+      <li><span class="label">Crear lib/env.sh.</span></li>
+      <li><span class="label">Correr → pasan.</span></li>
+      <li><span class="label">Commit</span> — <code>feat: env delta emitter</code></li>
+    </ol>
+  </section>
+
+  <section id="t7">
+    <p class="phase-tag">Fase 4 · Binario + comandos internos</p>
+    <h2 class="sec"><span class="num">§ 07</span>Scaffold de bin/ccp</h2>
+    <div class="files"><span class="c">Crear:</span> bin/ccp</div>
+    <p>Copia la estructura de <code>bin/dsctl</code> adaptada: localiza/sourcea las 3 libs (junto al binario o en <code>~/.local/lib/ccp</code>), define <code>CCP_HOME</code> + defaults + colores + helpers <code>ok/warn/err/info/say/hr</code>, y un <code>main()</code> mínimo (solo <code>version</code>). Las <code>cmd_*</code> se añaden en tareas siguientes.</p>
+    <ol class="steps">
+      <li><span class="label">Escribir scaffold</span> — ver código completo en <code>2026-06-01-ccp-profiles.md §Task 7</code>.</li>
+      <li><span class="label">Syntax + smoke.</span> <code>bash -n bin/ccp &amp;&amp; bash bin/ccp version</code> → <code>ccp v3.0.0</code>.</li>
+      <li><span class="label">Commit</span> — <code>feat: bin/ccp scaffold</code></li>
+    </ol>
+    <p class="pointer">Código bash completo del scaffold en el .md (lib-loading loop, paletas, helpers, dispatcher mínimo).</p>
+  </section>
+
+  <section id="t8">
+    <p class="phase-tag">Fase 4 · Binario + comandos internos</p>
+    <h2 class="sec"><span class="num">§ 08</span>_resolve / _env / _hook</h2>
+    <div class="files"><span class="mod">Modificar:</span> bin/ccp · tests/run.sh</div>
+    <p>Comandos internos que puentean el binario con el shell. <code>resolve</code> imprime el perfil + exit code; <code>_env</code> emite delta de un perfil; <code>_hook</code> resuelve PWD y emite delta en un solo fork. Test helper: <code>_ccp(){ CCP_HOME="$1" bash "$ROOT/bin/ccp" "${@:2}"; }</code></p>
+    <pre>cmd_resolve(){ local v; v="$(ccp_resolve "${1:-$PWD}" "$CCP_RULES_FILE")"; printf '%s\n' "$v"; [[ "$v" != "default" ]]; }
+cmd_env(){ ccp_env_delta "$CCP_HOME" "${1:-default}"; }
+cmd_hook(){ local prof; prof="$(ccp_resolve "${1:-$PWD}" "$CCP_RULES_FILE")"; ccp_env_delta "$CCP_HOME" "$prof"; }
+<span class="c"># dispatch: resolve) _resolve) _env) _hook)</span></pre>
+    <ol class="steps">
+      <li><span class="label">Tests que fallan</span> — resolve default→exit1, no-default→exit0, _hook eval→CCP_PROFILE, _env default.</li>
+      <li><span class="label">Correr → falla</span> <code>bin_env_default</code> ("no implementado").</li>
+      <li><span class="label">Añadir comandos + wire dispatch.</span></li>
+      <li><span class="label">Correr → pasa</span> <code>bin_env_default</code> (resolve-nondefault y hook esperan T9-10).</li>
+      <li><span class="label">Commit</span> — <code>feat: ccp _resolve/_env/_hook internal commands</code></li>
+    </ol>
+  </section>
+
+  <section id="t9">
+    <p class="phase-tag">Fase 5 · Comandos profile &amp; path</p>
+    <h2 class="sec"><span class="num">§ 09</span>cmd_profile (add/list/show/rm)</h2>
+    <div class="files"><span class="mod">Modificar:</span> bin/ccp</div>
+    <p><code>cmd_profile</code> despacha a <code>_profile_add</code> (parsea <code>--official</code>/<code>--deepseek</code> + <code>--base-url/--pro/--flash/--effort</code>), <code>_profile_rm</code>, <code>_profile_list_pretty</code>, <code>_profile_show</code>, y un stub <code>_profile_login</code> (se rellena en T12). Dispatch: <code>profile|account)</code>. Rechaza nombre <code>default</code>.</p>
+    <ol class="steps">
+      <li><span class="label">Tests que fallan</span> — add+list (2 perfiles), show imprime effort, rm.</li>
+      <li><span class="label">Correr → fallan.</span></li>
+      <li><span class="label">Añadir cmd_profile + helpers</span> (código completo en .md §Task 9).</li>
+      <li><span class="label">Correr → pasan</span> + <code>bash -n</code>.</li>
+      <li><span class="label">Commit</span> — <code>feat: ccp profile add/list/show/rm</code></li>
+    </ol>
+  </section>
+
+  <section id="t10">
+    <p class="phase-tag">Fase 5 · Comandos profile &amp; path</p>
+    <h2 class="sec"><span class="num">§ 10</span>cmd_path + cmd_key</h2>
+    <div class="files"><span class="mod">Modificar:</span> bin/ccp</div>
+    <p><code>path set &lt;ruta&gt; &lt;perfil&gt;</code> (valida que el perfil exista, salvo <code>default</code>); legacy <code>include</code>→deepseek, <code>exclude</code>→default; <code>rm/list/test/clear/edit</code>. <code>cmd_key &lt;perfil&gt; [KEY]</code> guarda la key de un perfil deepseek. Wire: <code>path)</code> <code>key)</code>. Aquí pasan también los tests <code>bin_resolve_nondefault</code> y <code>bin_hook</code> de T8.</p>
+    <ol class="steps">
+      <li><span class="label">Tests que fallan</span> — set+test, perfil desconocido rechazado, legacy include, key.</li>
+      <li><span class="label">Correr → fallan.</span></li>
+      <li><span class="label">Añadir cmd_path + cmd_path_list + cmd_key</span> (.md §Task 10).</li>
+      <li><span class="label">Correr → pasan</span> (incluye los pendientes de T8).</li>
+      <li><span class="label">Commit</span> — <code>feat: ccp path set/list/test + legacy + per-profile key</code></li>
+    </ol>
+  </section>
+
+  <section id="t11">
+    <p class="phase-tag">Fase 6 · Dirs, shell, status, migración, install</p>
+    <h2 class="sec"><span class="num">§ 11</span>cmd_status (+ --json)</h2>
+    <div class="files"><span class="mod">Modificar:</span> bin/ccp</div>
+    <p>JSON gana <code>active</code> (perfil de la terminal), <code>profile</code> (regla del cwd) y <code>profile_type</code>. Tests verifican <code>"profile":"default"</code> y, en una zona con regla, <code>"profile":"ds"..."profile_type":"deepseek"</code>.</p>
+    <pre>cmd_status(){ local rule type; rule="$(ccp_resolve "$PWD" "$CCP_RULES_FILE")"
+  if [[ "$rule" == "default" ]]; then type="default"; else type="$(ccp_profile_type "$CCP_HOME" "$rule" 2&gt;/dev/null || echo default)"; fi
+  if [[ "$1" == "--json" ]]; then local active="${CCP_PROFILE:-default}" repo; repo="$(_repo_root)"
+    printf '{"active":"%s","profile":"%s","profile_type":"%s","cwd":"%s","repo":"%s"}\n' \
+      "$(_json_esc "$active")" "$(_json_esc "$rule")" "$(_json_esc "$type")" "$(_json_esc "$PWD")" "$(_json_esc "${repo:-}")"; return 0; fi
+  <span class="c"># ... salida humana ...</span> }</pre>
+    <ol class="steps">
+      <li><span class="label">Tests que fallan</span> → <span class="label">implementar</span> → <span class="label">pasan</span>.</li>
+      <li><span class="label">Commit</span> — <code>feat: ccp status + --json (profile-aware)</code></li>
+    </ol>
+  </section>
+
+  <section id="t12">
+    <p class="phase-tag">Fase 6 · Dirs, shell, status, migración, install</p>
+    <h2 class="sec"><span class="num">§ 12</span>Dirs oficiales (symlink selectivo) + login</h2>
+    <div class="files"><span class="mod">Modificar:</span> bin/ccp</div>
+    <p><code>_seed_official_home</code> symlinkea <code>plugins/ commands/ agents/ skills/ CLAUDE.md</code> desde <code>~/.claude</code> (fuente override-able <code>CCP_CLAUDE_SRC</code> para tests) y <strong>copia</strong> <code>settings.json</code>. <code>_profile_login</code> lanza <code>CLAUDE_CONFIG_DIR=&lt;cc-home&gt; claude</code> para correr <code>/login</code> dentro. Test verifica symlinks + settings copiado (no link) + sin credenciales sembradas.</p>
+    <pre>_seed_official_home(){ local cch="$1"; local src="${CCP_CLAUDE_SRC:-$HOME/.claude}"; mkdir -p "$cch"; [[ -d "$src" ]] || return 0
+  local item; for item in plugins commands agents skills CLAUDE.md; do
+    [[ -e "$src/$item" &amp;&amp; ! -e "$cch/$item" ]] &amp;&amp; ln -s "$src/$item" "$cch/$item"; done
+  [[ -f "$src/settings.json" &amp;&amp; ! -e "$cch/settings.json" ]] &amp;&amp; cp "$src/settings.json" "$cch/settings.json"; }</pre>
+    <ol class="steps">
+      <li><span class="label">Test que falla</span> — <code>test_seed_official_symlinks</code>.</li>
+      <li><span class="label">Correr → falla.</span></li>
+      <li><span class="label">Implementar seeding + login</span>; reemplazar branch official de <code>_profile_add</code> y el stub <code>_profile_login</code>.</li>
+      <li><span class="label">Correr → pasa.</span></li>
+      <li><span class="label">Commit</span> — <code>feat: official profile cc-home seeding + ccp profile login</code></li>
+    </ol>
+  </section>
+
+  <section id="t13">
+    <p class="phase-tag">Fase 6 · Dirs, shell, status, migración, install</p>
+    <h2 class="sec"><span class="num">§ 13</span>Shell init (fn+hook) + completion + install</h2>
+    <div class="files"><span class="mod">Modificar:</span> bin/ccp</div>
+    <p>Heredoc <code>_print_shell_init</code> con la función <code>ccp()</code> (intercepta <code>use/default/off/on/run</code>, resto → <code>command ccp</code>) y el hook <code>_ccp_autocheck</code> (cache por PWD, <code>eval "$(command ccp _hook "$PWD")"</code>). <code>cmd_install</code> detecta y ofrece quitar el init viejo de <code>dsctl</code>; markers <code># &gt;&gt;&gt; ccp shell init &gt;&gt;&gt;</code>. <code>completion-shellinit</code> imprime el heredoc (single source para tests + install).</p>
+    <pre>ccp(){ case "$1" in
+    use) shift; eval "$(command ccp _env "${1:-default}")" ;;
+    default|off) eval "$(command ccp _env default)" ;;
+    on)  eval "$(command ccp _env deepseek)" ;;   <span class="c"># legacy</span>
+    run) shift; eval "$(command ccp _hook "$PWD")"; if [[ $# -gt 0 ]]; then command "$@"; else command claude; fi ;;
+    *)   command ccp "$@" ;; esac; }
+_ccp_autocheck(){ command -v ccp &gt;/dev/null 2&gt;&amp;1 || return
+  [[ "$PWD" == "${_CCP_LAST_PWD:-}" ]] &amp;&amp; return; _CCP_LAST_PWD="$PWD"
+  eval "$(command ccp _hook "$PWD" 2&gt;/dev/null)"; }</pre>
+    <ol class="steps">
+      <li><span class="label">Tests que fallan</span> — shell init parsea con <code>bash -n</code> + tiene marker; <code>ccp use work</code> setea <code>CCP_PROFILE</code> al sourcear.</li>
+      <li><span class="label">Correr → fallan.</span></li>
+      <li><span class="label">Añadir _print_shell_init + install/uninstall + completion</span> (.md §Task 13).</li>
+      <li><span class="label">Correr → pasan.</span></li>
+      <li><span class="label">Commit</span> — <code>feat: ccp shell init (fn+hook), completion, install/uninstall</code></li>
+    </ol>
+  </section>
+
+  <section id="t14">
+    <p class="phase-tag">Fase 6 · Dirs, shell, status, migración, install</p>
+    <h2 class="sec"><span class="num">§ 14</span>Migración dsctl → ccp + auto-trigger</h2>
+    <div class="files"><span class="mod">Modificar:</span> bin/ccp</div>
+    <p>Lee el home viejo (override <code>DSCTL_HOME_SRC</code>, default <code>~/.config/dsctl</code>): crea perfil <code>deepseek</code> desde el <code>config</code> (parse seguro de <code>DS_*</code>, no source) + <code>api_key</code>; convierte <code>include</code>→deepseek, <code>exclude</code>→default; backup <code>rules.dsctl.bak</code>. <code>_migrate_if_needed</code> dispara al inicio de <code>main()</code> si existe dsctl y NO existe <code>CCP_HOME</code>.</p>
+    <pre>_migrate_if_needed(){ local old="${DSCTL_HOME_SRC:-$HOME/.config/dsctl}"
+  [[ -d "$old" &amp;&amp; ! -d "$CCP_HOME" ]] || return 0; cmd_migrate &gt;&amp;2; }</pre>
+    <p class="pointer">Nota: <code>newdir</code> en tests crea el dir → <code>CCP_HOME</code> existe → auto-migrate NO dispara en tests normales → no interfiere con tu <code>~/.config/dsctl</code> real. El test de migración usa subdir inexistente a propósito.</p>
+    <ol class="steps">
+      <li><span class="label">Test que falla</span> — <code>test_migrate_creates_deepseek_profile</code> (perfil, effort, key, reglas).</li>
+      <li><span class="label">Correr → falla</span> → <span class="label">implementar</span> → <span class="label">suite completa verde.</span></li>
+      <li><span class="label">Commit</span> — <code>feat: auto-migrate dsctl config to ccp profiles</code></li>
+    </ol>
+  </section>
+
+  <section id="t15">
+    <p class="phase-tag">Fase 6 · Dirs, shell, status, migración, install</p>
+    <h2 class="sec"><span class="num">§ 15</span>config / doctor / menu / help</h2>
+    <div class="files"><span class="mod">Modificar:</span> bin/ccp</div>
+    <p><code>config</code> = defaults para perfiles deepseek nuevos (parse seguro). <code>doctor</code> chequea node/claude/git/libs/fn + login/key por perfil. <code>menu</code> interactivo simplificado. <code>help</code> en español documentando toda la superficie. Tests: help menciona <code>profile</code>+<code>path set</code>, comando desconocido → exit 1, config show menciona deepseek.</p>
+    <ol class="steps">
+      <li><span class="label">Tests que fallan</span> → <span class="label">implementar</span> (.md §Task 15) → <span class="label">suite verde.</span></li>
+      <li><span class="label">Commit</span> — <code>feat: ccp config/doctor/menu/help</code></li>
+    </ol>
+  </section>
+
+  <section id="t16">
+    <p class="phase-tag">Fase 7 · Install, CI, docs, E2E</p>
+    <h2 class="sec"><span class="num">§ 16</span>install.sh</h2>
+    <div class="files"><span class="mod">Modificar:</span> install.sh</div>
+    <p>Copia <code>bin/ccp</code>→<code>~/.local/bin</code> y las 3 libs→<code>~/.local/lib/ccp</code> (override <code>CCP_BIN_DIR</code>/<code>CCP_LIB_DIR</code>). Verificación: <code>bash -n</code> + install a dirs temporales.</p>
+    <ol class="steps">
+      <li><span class="label">Reescribir install.sh</span> (.md §Task 16).</li>
+      <li><span class="label">Syntax + dry install a temp.</span></li>
+      <li><span class="label">Commit</span> — <code>build: install ccp binary + three libs</code></li>
+    </ol>
+  </section>
+
+  <section id="t17">
+    <p class="phase-tag">Fase 7 · Install, CI, docs, E2E</p>
+    <h2 class="sec"><span class="num">§ 17</span>CI</h2>
+    <div class="files"><span class="mod">Modificar:</span> .github/workflows/ci.yml</div>
+    <p>shellcheck (non-blocking, <code>|| true</code>) sobre binario+libs+install+tests; <code>bash -n</code> de cada lib; <code>bash tests/run.sh</code> como gate.</p>
+    <pre>      - name: test suite
+        run: bash tests/run.sh</pre>
+    <ol class="steps">
+      <li><span class="label">Leer el workflow actual</span> → <span class="label">reemplazar steps de lint+smoke</span> → <span class="label">correr suite local.</span></li>
+      <li><span class="label">Commit</span> — <code>ci: lint+test ccp libs and binary</code></li>
+    </ol>
+  </section>
+
+  <section id="t18">
+    <p class="phase-tag">Fase 7 · Install, CI, docs, E2E</p>
+    <h2 class="sec"><span class="num">§ 18</span>E2E manual + CLAUDE.md</h2>
+    <div class="files"><span class="mod">Modificar:</span> CLAUDE.md</div>
+    <p>Smoke end-to-end contra un <code>CCP_HOME</code> scratch: crear perfiles work(oficial)+labs(deepseek)+key, asignar paths, verificar <code>resolve</code>/<code>_env</code>/<code>_hook</code>. Actualizar CLAUDE.md ("What this is", Commands, arquitectura, nota de migración dsctl→ccp). Verificación final: suite verde + <code>bash -n</code> + shellcheck.</p>
+    <pre class="run">export CCP_HOME="$(mktemp -d)/ccp"
+bash bin/ccp profile add work --official
+bash bin/ccp profile add labs --deepseek --base-url https://api.deepseek.com/anthropic --pro 'deepseek-v4-pro[1m]' --flash deepseek-v4-flash --effort max
+bash bin/ccp key labs sk-test
+bash bin/ccp path set /tmp/workzone work
+bash bin/ccp path set /tmp/labzone labs
+bash bin/ccp resolve /tmp/workzone/x   <span class="c"># work, rc=0</span>
+bash bin/ccp _hook /tmp/labzone/x      <span class="c"># exports ANTHROPIC_* + AUTH_TOKEN=sk-test</span></pre>
+    <ol class="steps">
+      <li><span class="label">E2E smoke</span> → <span class="label">actualizar CLAUDE.md</span> → <span class="label">verificación final</span>.</li>
+      <li><span class="label">Commit</span> — <code>docs: update CLAUDE.md for ccp profile router</code></li>
+    </ol>
+  </section>
+
+  <section id="open">
+    <h2 class="sec"><span class="num">§ —</span>Open items (resolver durante ejecución)</h2>
+    <ul>
+      <li><strong>12.2 Login no-interactivo:</strong> T12 lanza el REPL con el <code>CLAUDE_CONFIG_DIR</code> correcto e instruye <code>/login</code>. Si CC expone <code>claude login</code>, cambiar la última línea. Sin bloqueo.</li>
+      <li><strong>12.3 Writability de symlinks:</strong> T12 symlinkea <code>plugins/ commands/ agents/ skills/ CLAUDE.md</code> y <strong>copia</strong> <code>settings.json</code>. Revisar si CC escribe en <code>plugins/</code> por-cuenta. Riesgo bajo.</li>
+      <li><strong>12.1 settings.json:</strong> decidido = copiar (T12). Revisar solo si approvals por-cuenta deben quedar aislados y sincronizados — fuera de scope v1.</li>
+    </ul>
+  </section>
+
+  <footer>
+    <span>ccp · plan de implementación · 18 tareas TDD</span>
+    <span>2026-06-01 · source: 2026-06-01-ccp-profiles.md</span>
+  </footer>
+
+</div>
+</body>
+</html>

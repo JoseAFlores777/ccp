@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ccp — Router de perfiles y cuentas de Claude Code por path</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f4f1ea; --paper-2:#ece7dd;
+    --ink:#1a1915; --ink-soft:#3a3833; --ink-mute:#6f6a60;
+    --rule:#d8d2c4; --accent:#c96442; --accent-soft:#e8a48a;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--paper); color:var(--ink-soft);
+    font-family:'Inter',sans-serif; font-size:17px; line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:980px; margin:0 auto; padding:64px 32px 96px;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .serif{font-family:'Tinos',serif;}
+
+  /* hero */
+  .eyebrow{font-family:'JetBrains Mono',monospace; text-transform:uppercase;
+    letter-spacing:.22em; font-size:12px; color:var(--accent); margin:0 0 18px;}
+  h1{font-family:'Tinos',serif; font-weight:700; font-size:56px; line-height:1.06;
+    color:var(--ink); margin:0 0 22px; letter-spacing:-.01em;}
+  h1 em{font-style:italic; color:var(--accent);}
+  .lede{font-size:21px; line-height:1.5; color:var(--ink-soft); max-width:46em; margin:0 0 28px;}
+  .meta{display:flex; flex-wrap:wrap; gap:10px 26px; font-family:'JetBrains Mono',monospace;
+    font-size:12.5px; color:var(--ink-mute); border-top:1px solid var(--rule);
+    border-bottom:1px solid var(--rule); padding:16px 0; margin:0 0 8px;}
+  .meta b{color:var(--ink); font-weight:500;}
+  .pass{color:#3f7d4e; font-weight:600;}
+
+  /* toc */
+  nav.toc{margin:48px 0 8px; padding:28px 32px; background:var(--paper-2);
+    border:1px solid var(--rule); border-radius:4px;}
+  nav.toc h2{font-family:'JetBrains Mono',monospace; text-transform:uppercase;
+    letter-spacing:.18em; font-size:11px; color:var(--ink-mute); margin:0 0 16px;}
+  nav.toc ol{list-style:none; margin:0; padding:0; columns:2; column-gap:48px;}
+  nav.toc li{margin:0 0 9px; break-inside:avoid;}
+  nav.toc a{color:var(--ink-soft); text-decoration:none; font-size:15px;
+    border-bottom:1px solid transparent; transition:border-color .15s,color .15s;}
+  nav.toc a:hover{color:var(--ink); border-bottom-color:var(--accent);}
+  nav.toc a .n{font-family:'JetBrains Mono',monospace; color:var(--accent);
+    font-size:12.5px; margin-right:10px;}
+
+  /* sections */
+  section{padding:46px 0; border-bottom:1px solid var(--rule); scroll-margin-top:24px;}
+  section:last-of-type{border-bottom:none;}
+  h2.sec{font-family:'Tinos',serif; font-weight:700; font-size:31px; color:var(--ink);
+    margin:0 0 6px; letter-spacing:-.005em; display:flex; align-items:baseline; gap:16px;}
+  h2.sec .num{font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--accent);
+    font-weight:500; flex:none;}
+  .section-lede{color:var(--ink-mute); font-size:16px; margin:0 0 22px; max-width:44em;}
+  h3{font-family:'Inter',sans-serif; font-weight:600; font-size:18px; color:var(--ink);
+    margin:30px 0 10px;}
+  p{margin:0 0 16px; max-width:46em;}
+  ul,ol.proc{max-width:46em; padding-left:22px;}
+  li{margin:0 0 7px;}
+  code{font-family:'JetBrains Mono',monospace; font-size:.86em; background:var(--paper-2);
+    padding:1.5px 6px; border-radius:3px; color:var(--ink); border:1px solid var(--rule);}
+  strong{color:var(--ink); font-weight:600;}
+  em{color:var(--ink-soft);}
+
+  /* tables */
+  table{width:100%; border-collapse:collapse; margin:8px 0 22px; font-size:14.5px;}
+  th,td{text-align:left; padding:10px 14px; border-bottom:1px solid var(--rule);
+    vertical-align:top;}
+  th{font-family:'JetBrains Mono',monospace; font-size:11.5px; text-transform:uppercase;
+    letter-spacing:.08em; color:var(--ink-mute); font-weight:500; background:var(--paper-2);}
+  td code{background:transparent; border:none; padding:0;}
+
+  /* code blocks */
+  .code{position:relative; margin:8px 0 24px;}
+  pre{font-family:'JetBrains Mono',monospace; font-size:13.5px; line-height:1.65;
+    background:#23211c; color:#e9e3d4; padding:20px 22px; border-radius:6px;
+    overflow-x:auto; margin:0;}
+  pre .c{color:#8a8270; font-style:italic;}
+  pre .k{color:#e8a48a;}
+  pre .s{color:#b7c89a;}
+  .copy{position:absolute; top:10px; right:10px; font-family:'JetBrains Mono',monospace;
+    font-size:11px; background:#39352c; color:#cfc7b4; border:1px solid #4a4538;
+    border-radius:4px; padding:4px 9px; cursor:pointer; opacity:.7; transition:opacity .15s;}
+  .copy:hover{opacity:1;}
+
+  /* callout */
+  .note{border-left:3px solid var(--accent); background:var(--paper-2);
+    padding:14px 18px; border-radius:0 4px 4px 0; margin:0 0 22px; font-size:15px;
+    max-width:46em;}
+  .note b{color:var(--accent);}
+
+  /* diagram */
+  figure{margin:18px 0 26px; padding:24px; background:var(--paper-2);
+    border:1px solid var(--rule); border-radius:6px; overflow-x:auto;}
+  figcaption{font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--ink-mute);
+    text-transform:uppercase; letter-spacing:.1em; margin-top:14px; text-align:center;}
+
+  footer{margin-top:40px; padding-top:24px; border-top:1px solid var(--rule);
+    font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--ink-mute);
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;}
+
+  @media(max-width:760px){
+    .wrap{padding:40px 20px 64px;}
+    h1{font-size:38px;}
+    .lede{font-size:18px;}
+    nav.toc ol{columns:1;}
+    h2.sec{font-size:25px; gap:10px;}
+    figure{padding:16px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <p class="eyebrow">Spec · superpowers</p>
+    <h1>ccp — un <em>perfil de Claude Code</em> por cada carpeta</h1>
+    <p class="lede">Rebrand de <code>dsctl</code> a <code>ccp</code>: el toggle binario DeepSeek↔oficial se vuelve un motor de <strong>perfiles con nombre</strong>. Cada repo arranca Claude Code con la cuenta —o el provider— que le toca, por terminal y por path, configurable 100% desde la CLI.</p>
+    <div class="meta">
+      <span><b>Versión</b> v0.1</span>
+      <span><b>Fecha</b> 2026-06-01</span>
+      <span><b>Status</b> <span class="pass">gate pasado · listo para plan</span></span>
+      <span><b>Scope</b> rebrand + motor de perfiles</span>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <h2>Contenido</h2>
+    <ol>
+      <li><a href="#s1"><span class="n">01</span>Overview</a></li>
+      <li><a href="#s2"><span class="n">02</span>Goals / Non-goals</a></li>
+      <li><a href="#s3"><span class="n">03</span>Conceptos: perfiles</a></li>
+      <li><a href="#s4"><span class="n">04</span>Motor de reglas de path</a></li>
+      <li><a href="#s5"><span class="n">05</span>Aplicación de env</a></li>
+      <li><a href="#s6"><span class="n">06</span>Config dir oficial</a></li>
+      <li><a href="#s7"><span class="n">07</span>Layout de almacenamiento</a></li>
+      <li><a href="#s8"><span class="n">08</span>Superficie CLI</a></li>
+      <li><a href="#s9"><span class="n">09</span>Función shell + hook</a></li>
+      <li><a href="#s10"><span class="n">10</span>Migración dsctl→ccp</a></li>
+      <li><a href="#s11"><span class="n">11</span>Superficie scripting</a></li>
+      <li><a href="#s12"><span class="n">12</span>Riesgos &amp; pendientes</a></li>
+      <li><a href="#s13"><span class="n">13</span>Criterios de aceptación</a></li>
+      <li><a href="#s14"><span class="n">14</span>Plan por fases</a></li>
+    </ol>
+  </nav>
+
+  <section id="s1">
+    <h2 class="sec"><span class="num">§ 01</span>Overview</h2>
+    <p class="section-lede">De un booleano a un nombre de perfil.</p>
+    <p>Hoy <code>dsctl</code> alterna Claude Code entre tu login oficial de Anthropic y DeepSeek, con scope <strong>por terminal</strong> y <strong>por carpeta</strong> vía un hook <code>precmd</code>. El modelo es binario: un path resuelve a <code>deepseek</code> u <code>official</code>.</p>
+    <p>Este spec lo generaliza a <strong>perfiles con nombre</strong>. Una carpeta resuelve a un <em>nombre de perfil</em>, donde un perfil es:</p>
+    <ul>
+      <li>una <strong>cuenta oficial</strong> de Anthropic (con su propio <code>CLAUDE_CONFIG_DIR</code>),</li>
+      <li>un <strong>provider compatible</strong> tipo DeepSeek (su base URL, key y modelos), o</li>
+      <li>el perfil reservado <strong><code>default</code></strong> (tu login normal en <code>~/.claude</code>).</li>
+    </ul>
+    <p>Repo A → cuenta <em>work</em>; repo B → cuenta <em>personal</em>; repo C → <em>deepseek</em>. El binario y la función shell se renombran a <strong><code>ccp</code></strong> (un solo nombre para ambos).</p>
+  </section>
+
+  <section id="s2">
+    <h2 class="sec"><span class="num">§ 02</span>Goals / Non-goals</h2>
+    <h3>Goals</h3>
+    <ul>
+      <li>Enrutar cada path a un perfil arbitrario (≥2 cuentas oficiales + ≥1 provider).</li>
+      <li>Mantener scope por-terminal/por-carpeta y el auto-switch en <code>cd</code>.</li>
+      <li>Single source of truth del env: el binario emite el delta, el shell lo aplica.</li>
+      <li>Auto-migrar <code>~/.config/dsctl</code>; <code>on</code>/<code>off</code> legacy siguen vivos.</li>
+      <li>Preservar la superficie machine-readable (<code>resolve</code>, <code>status --json</code>) con awareness de perfil.</li>
+    </ul>
+    <h3>Non-goals</h3>
+    <ul>
+      <li>Sin tipo <code>ANTHROPIC_API_KEY</code> (Console) en v1 — solo OAuth + provider.</li>
+      <li>No automatizar el OAuth: <code>ccp</code> enruta env y lanza <code>claude</code>; tú corres <code>/login</code> una vez por perfil oficial.</li>
+      <li>Sin árboles de reglas con herencia por capas (una regla más-específica gana).</li>
+    </ul>
+  </section>
+
+  <section id="s3">
+    <h2 class="sec"><span class="num">§ 03</span>Conceptos: perfiles</h2>
+    <p class="section-lede">Un perfil = nombre + tipo + datos del tipo.</p>
+    <table>
+      <thead><tr><th>Tipo</th><th>Datos</th><th>Activación (delta de env)</th></tr></thead>
+      <tbody>
+        <tr><td><code>official</code></td><td>dir <code>cc-home/</code> propio</td><td><code>export CLAUDE_CONFIG_DIR</code> + unset todo <code>ANTHROPIC_*</code></td></tr>
+        <tr><td><code>deepseek</code> (provider)</td><td><code>base_url</code>, <code>api_key</code> (600), <code>model_pro</code>, <code>model_flash</code>, <code>effort</code></td><td><code>export ANTHROPIC_*</code> + unset <code>CLAUDE_CONFIG_DIR</code></td></tr>
+        <tr><td><code>default</code> (reservado)</td><td>—</td><td>unset todo lo manejado (usa <code>~/.claude</code>)</td></tr>
+      </tbody>
+    </table>
+    <p><code>default</code> siempre existe, es el fallback cuando ninguna regla aplica, y es asignable a un path para abrir un hueco oficial dentro de un subárbol provider.</p>
+    <h3>Resolución</h3>
+    <p>Para un path P: entre las reglas cuyo path es P o ancestro de P, gana la <strong>más específica</strong> (más profunda). Los paths son únicos → no hay empates por profundidad. Sin regla → <code>default</code>. (La vieja regla "exclude gana empate exacto" desaparece: ya no existe <code>exclude</code>.)</p>
+    <figure>
+      <svg viewBox="0 0 720 250" width="100%" height="auto" font-family="JetBrains Mono, monospace" font-size="13">
+        <!-- tree -->
+        <line x1="60" y1="40" x2="60" y2="210" stroke="#d8d2c4" stroke-width="2"/>
+        <g fill="#1a1915">
+          <circle cx="60" cy="40" r="5" fill="#6f6a60"/><text x="78" y="45">~/  →  <tspan fill="#6f6a60">default</tspan></text>
+          <circle cx="60" cy="90" r="5" fill="#c96442"/><text x="78" y="95">~/work  →  <tspan fill="#c96442">work (oficial)</tspan></text>
+          <circle cx="60" cy="140" r="5" fill="#6f6a60"/><text x="78" y="145">~/work/cliente  →  <tspan fill="#6f6a60">default</tspan>  <tspan fill="#8a8270">(carve-out)</tspan></text>
+          <circle cx="60" cy="190" r="5" fill="#3f7d4e"/><text x="78" y="195">~/work/cliente/lab  →  <tspan fill="#3f7d4e">deepseek</tspan></text>
+        </g>
+        <text x="480" y="45" fill="#6f6a60">cwd=~/work/api</text>
+        <text x="480" y="63" fill="#1a1915">⇒ más específico: <tspan fill="#c96442">work</tspan></text>
+        <text x="480" y="145" fill="#6f6a60">cwd=~/work/cliente/x</text>
+        <text x="480" y="163" fill="#1a1915">⇒ <tspan fill="#6f6a60">default</tspan> (hueco)</text>
+        <text x="480" y="195" fill="#6f6a60">cwd=…/cliente/lab/y</text>
+        <text x="480" y="213" fill="#1a1915">⇒ <tspan fill="#3f7d4e">deepseek</tspan></text>
+      </svg>
+      <figcaption>Most-specific-wins sobre nombres de perfil</figcaption>
+    </figure>
+  </section>
+
+  <section id="s4">
+    <h2 class="sec"><span class="num">§ 04</span>Motor de reglas de path</h2>
+    <p>Las líneas de <code>rules.tsv</code> pasan a <code>path&lt;TAB&gt;profile</code>. El resolver de funciones puras (hoy <code>lib/paths.sh</code>) mantiene most-specific-wins pero devuelve un <strong>nombre de perfil</strong> en vez de <code>deepseek|official</code>. Sin match → <code>default</code>.</p>
+    <div class="code">
+      <button class="copy">copy</button>
+<pre><span class="c"># asigna ruta → perfil (reemplaza include/exclude)</span>
+ccp path set ~/work        work
+ccp path set ~/work/cliente default      <span class="c"># carve-out</span>
+ccp path set ~/lab         deepseek
+ccp path rm   &lt;ruta&gt;
+ccp path list                            <span class="c"># reglas + regla efectiva del cwd</span>
+ccp path test &lt;ruta&gt;                      <span class="c"># imprime el perfil (scriptable)</span>
+ccp path clear | edit</pre>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2 class="sec"><span class="num">§ 05</span>Aplicación de env</h2>
+    <p class="section-lede">El binario corre en proceso hijo: no puede mutar el shell padre.</p>
+    <ul>
+      <li>Comando interno <strong><code>ccp _env &lt;perfil&gt;</code></strong> imprime un <strong>delta completo</strong> eval-able: <code>unset</code> de cada var manejada, luego <code>export</code> del perfil objetivo. Stateless — aplicar el delta de cualquier perfil desde cualquier estado previo es correcto.</li>
+      <li>La función <code>ccp</code> y el hook hacen <code>eval "$(ccp _env &lt;perfil&gt;)"</code>.</li>
+      <li>Optimización: <strong><code>ccp _hook "$PWD"</code></strong> resuelve <em>e</em> imprime el delta en un solo fork, preservando el cache "fork solo si cambió <code>$PWD</code>".</li>
+    </ul>
+    <p>Vars manejadas: <code>CLAUDE_CONFIG_DIR</code>, <code>ANTHROPIC_BASE_URL</code>, <code>ANTHROPIC_AUTH_TOKEN</code>, <code>ANTHROPIC_MODEL</code>, <code>ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL</code>, <code>CLAUDE_CODE_SUBAGENT_MODEL</code>, <code>CLAUDE_CODE_EFFORT_LEVEL</code>, + marcador <code>CCP_PROFILE</code>.</p>
+    <div class="note"><b>Seguridad.</b> El hook hace <code>eval</code> de la salida del binario. Esa salida se genera de tu propia config, va fuertemente quoteada, y el binario es confiable. Ningún input externo llega a <code>_env</code>.</div>
+  </section>
+
+  <section id="s6">
+    <h2 class="sec"><span class="num">§ 06</span>Config dir oficial &amp; herencia</h2>
+    <p><code>CLAUDE_CONFIG_DIR</code> reubica <strong>todo</strong> <code>~/.claude</code> (plugins, settings, MCP, skills, history). Un perfil oficial nuevo arrancaría pelado. Por eso al hacer <code>ccp profile add &lt;name&gt; --official</code>, se siembra <code>cc-home/</code> con <strong>symlinks selectivos</strong> desde <code>~/.claude</code>.</p>
+    <table>
+      <thead><tr><th>Compartido (symlink → ~/.claude)</th><th>Separado (por perfil)</th></tr></thead>
+      <tbody>
+        <tr><td><code>plugins/</code>, <code>commands/</code>, <code>agents/</code>, skills, <code>CLAUDE.md</code></td><td>credenciales/keychain, <code>history.jsonl</code>, <code>projects/</code>, <code>.claude.json</code></td></tr>
+      </tbody>
+    </table>
+    <div class="note"><b>settings.json es el delicado.</b> Claude Code escribe ahí (approvals, "use custom API key"). Default: <strong>copiar</strong> (no symlink) para que los writes por-cuenta no se filtren. <em>(Pendiente 12.1 — confirmar.)</em></div>
+  </section>
+
+  <section id="s7">
+    <h2 class="sec"><span class="num">§ 07</span>Layout de almacenamiento</h2>
+    <div class="code">
+      <button class="copy">copy</button>
+<pre>~/.config/ccp/
+  rules.tsv               <span class="c"># path&lt;TAB&gt;profile</span>
+  profiles.tsv            <span class="c"># name&lt;TAB&gt;type  (índice)</span>
+  profiles/
+    &lt;name&gt;/
+      meta                <span class="c"># type + fields (base_url, models, effort)</span>
+      api_key             <span class="c"># 600, solo provider</span>
+      cc-home/            <span class="c"># solo oficial = CLAUDE_CONFIG_DIR</span></pre>
+    </div>
+  </section>
+
+  <section id="s8">
+    <h2 class="sec"><span class="num">§ 08</span>Superficie CLI</h2>
+    <div class="code">
+      <button class="copy">copy</button>
+<pre>ccp                          <span class="c"># menú interactivo</span>
+ccp use &lt;perfil&gt;             <span class="c"># (shell) activa perfil en esta terminal</span>
+ccp default | off            <span class="c"># (shell) vuelve a ~/.claude</span>
+ccp run [cmd]                <span class="c"># (shell) corre cmd/claude con el perfil del cwd</span>
+ccp on                       <span class="c"># (shell, legacy) alias → use deepseek</span>
+
+ccp profile add &lt;name&gt; <span class="k">--official</span> | <span class="k">--deepseek</span>
+ccp profile rm &lt;name&gt;
+ccp profile list | show &lt;name&gt;
+ccp profile login &lt;name&gt;     <span class="c"># lanza claude con el cc-home del perfil para /login</span>
+
+ccp path set|rm|list|test|clear|edit
+ccp resolve [ruta]           <span class="c"># nombre de perfil (exit 0=no-default,1=default)</span>
+ccp status [--json]          <span class="c"># --json gana 'profile' + 'profile_type'</span>
+ccp install|uninstall|key|config|completion|doctor|version|help</pre>
+    </div>
+    <p><code>account</code> es alias de <code>profile</code> (nice-to-have).</p>
+  </section>
+
+  <section id="s9">
+    <h2 class="sec"><span class="num">§ 09</span>Función shell + hook</h2>
+    <p>La función <code>ccp()</code> intercepta <code>use</code>/<code>default</code>/<code>off</code>/<code>run</code>/<code>on</code> (mutación de env) y cae a <code>command ccp "$@"</code> para lo demás — espejo del <code>ds()</code> actual. El hook <code>precmd</code> (<code>_ccp_autocheck</code>) cachea por <code>$PWD</code>, llama <code>ccp _hook "$PWD"</code> y hace <code>eval</code> del delta. El completion auto-carga.</p>
+    <div class="note"><b>Caveat de sesión viva.</b> Claude Code lee el env al arrancar. Cambiar el perfil (por <code>cd</code> o <code>ccp use</code>) afecta el <strong>próximo</strong> <code>claude</code>, no una sesión ya corriendo — igual que hoy con DeepSeek. Se documenta, no se arregla.</div>
+  </section>
+
+  <section id="s10">
+    <h2 class="sec"><span class="num">§ 10</span>Migración dsctl → ccp</h2>
+    <ol class="proc">
+      <li>Si existe <code>~/.config/dsctl</code> y no <code>~/.config/ccp</code>: crear perfil builtin <code>deepseek</code> desde el <code>config</code> viejo (base_url/models/effort) + <code>api_key</code>.</li>
+      <li>Convertir reglas: <code>include</code>→asignar <code>deepseek</code>, <code>exclude</code>→asignar <code>default</code>.</li>
+      <li>Backup del <code>rules.tsv</code> viejo.</li>
+      <li><code>ccp install</code> detecta el bloque <code># &gt;&gt;&gt; dsctl shell init &gt;&gt;&gt;</code> en el rc y ofrece quitarlo.</li>
+    </ol>
+    <p>Verbos legacy: <code>ccp on</code>→<code>use deepseek</code>, <code>ccp off</code>→<code>default</code>.</p>
+  </section>
+
+  <section id="s11">
+    <h2 class="sec"><span class="num">§ 11</span>Superficie scripting</h2>
+    <ul>
+      <li><code>ccp resolve [ruta]</code> → imprime nombre de perfil; exit <code>0</code> = perfil no-default activo, <code>1</code> = default. (El caso deepseek preserva el viejo <code>0</code>.)</li>
+      <li><code>ccp status --json</code> → campos actuales + <code>"profile"</code>, <code>"profile_type"</code>.</li>
+    </ul>
+  </section>
+
+  <section id="s12">
+    <h2 class="sec"><span class="num">§ 12</span>Riesgos &amp; pendientes</h2>
+    <table>
+      <thead><tr><th>#</th><th>Item</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Gate 1</td><td>2 cuentas OAuth coexisten en Keychain (macOS)</td><td><span class="pass">PASADO</span> — 2026-06-01, token byte-idéntico + identidades aisladas</td></tr>
+        <tr><td>12.1</td><td><code>settings.json</code>: copiar vs symlink en dirs oficiales</td><td>Abierto — default <strong>copiar</strong></td></tr>
+        <tr><td>12.2</td><td>Login no-interactivo: ¿<code>claude /login</code> es flag o solo REPL?</td><td>Abierto — verificar en build; fallback = lanzar REPL</td></tr>
+        <tr><td>12.3</td><td>Lista exacta de symlinks (¿CC escribe en <code>plugins/</code>, <code>commands/</code>?)</td><td>Abierto — auditar antes de symlinkear dirs escribibles</td></tr>
+        <tr><td>12.4</td><td>Keying de items Keychain para dirs custom (4 items observados)</td><td>Riesgo bajo — A probado intacto</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="s13">
+    <h2 class="sec"><span class="num">§ 13</span>Criterios de aceptación</h2>
+    <ul>
+      <li><code>ccp profile add work --official</code> + <code>ccp profile login work</code> → logueado en 2da cuenta sin perturbar <code>default</code>.</li>
+      <li><code>ccp path set ~/repoA work &amp;&amp; cd ~/repoA &amp;&amp; claude</code> → arranca como <em>work</em>; <code>cd ~/repoC</code> (deepseek) → DeepSeek; <code>cd ~</code> → <code>default</code>.</li>
+      <li>Config dsctl existente auto-migra; bloque rc <code>ds</code>/<code>dsctl</code> quitable; <code>ccp on/off</code> siguen.</li>
+      <li><code>ccp resolve</code> / <code>status --json</code> profile-aware; smoke test de CI del motor actualizado a nombres de perfil.</li>
+      <li><code>ccp help</code> documenta toda la superficie en español.</li>
+    </ul>
+  </section>
+
+  <section id="s14">
+    <h2 class="sec"><span class="num">§ 14</span>Plan por fases</h2>
+    <ol class="proc">
+      <li><strong>Motor</strong>: <code>lib/paths.sh</code> → resolver de nombres de perfil + tests.</li>
+      <li><strong>Storage + perfiles</strong>: <code>profile add/rm/list/show</code>, layout, <code>meta</code>/<code>api_key</code>.</li>
+      <li><strong>Env</strong>: <code>ccp _env</code> / <code>_hook</code>, reescribir <code>ccp()</code> + heredoc del hook.</li>
+      <li><strong>Dirs oficiales</strong>: sembrar cc-home + symlink/copy selectivo; <code>profile login</code>.</li>
+      <li><strong>Migración + rebrand</strong>: dsctl→ccp, auto-migrar, install quita bloque viejo.</li>
+      <li><strong>Superficie</strong>: <code>resolve</code>/<code>status --json</code>/completion/menú/doctor/help.</li>
+      <li><strong>Verify</strong>: end-to-end con <code>work</code>/<code>personal</code>/<code>deepseek</code>.</li>
+    </ol>
+  </section>
+
+  <footer>
+    <span>ccp spec · router de perfiles de Claude Code</span>
+    <span>v0.1 — 2026-06-01</span>
+  </footer>
+
+</div>
+<script>
+  document.querySelectorAll('.copy').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var pre = btn.parentElement.querySelector('pre');
+      var txt = pre.innerText;
+      navigator.clipboard.writeText(txt).then(function(){
+        var old = btn.textContent; btn.textContent = 'copied';
+        setTimeout(function(){ btn.textContent = old; }, 1200);
+      });
+    });
+  });
+</script>
+</body>
+</html>
