@@ -78,8 +78,9 @@ _profile_add() {
   local name="$1"; shift 2>/dev/null
   [[ -z "$name" ]] && { err "Uso: ccp profile add <nombre> --official|--deepseek [opts]"; return 1; }
   [[ "$name" == "default" ]] && { err "'default' es un perfil reservado."; return 1; }
-  local kind="" base="$CCP_BASE_URL_DEFAULT" pro="$CCP_MODEL_PRO_DEFAULT"
-  local flash="$CCP_MODEL_FLASH_DEFAULT" effort="$CCP_EFFORT_DEFAULT"
+  _load_config   # arranca de los defaults configurables (ccp config set ...)
+  local kind="" base="$CCP_BASE_URL" pro="$CCP_MODEL_PRO"
+  local flash="$CCP_MODEL_FLASH" effort="$CCP_EFFORT"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --official) kind=official ;;
@@ -560,7 +561,7 @@ BANNER
     say "   ${C_BOLD}0)${C_RESET} Salir"
     echo; printf '   Opción: '; read -r opt; echo
     case "$opt" in
-      1) cmd_profile list ;;
+      1) _profile_list_pretty ;;
       2) cmd_path_list ;;
       3) cmd_status ;;
       4) cmd_doctor ;;
@@ -597,6 +598,8 @@ main() {
     menu)   cmd_menu ;;
     help|--help|-h) cmd_help ;;
     "")     cmd_menu ;;
+    use|default|off|on|run)
+      err "'$cmd' solo funciona vía la función shell 'ccp' (corre 'ccp install' y recarga tu shell)."; return 1 ;;
     *) err "Comando desconocido: '$cmd'"; echo; cmd_help; return 1 ;;
   esac
 }

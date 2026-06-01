@@ -303,6 +303,13 @@ test_bin_config_defaults() {
     *) _fail=$((_fail+1)); echo "FAIL: config show" >&2;; esac
 }
 
+test_bin_config_set_used_by_profile_add() {
+  local h; h="$(newdir)"
+  _ccp "$h" config set base_url "https://custom/anthropic" >/dev/null
+  _ccp "$h" profile add ds --deepseek >/dev/null
+  assert_eq "$(ccp_profile_get "$h" ds base_url)" "https://custom/anthropic" "profile add uses configured default base_url"
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"

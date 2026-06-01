@@ -7,7 +7,7 @@
 #      ESPECÍFICA (ruta más profunda). Paths únicos => sin empates.
 #    - Sin regla aplicable -> "default".
 #
-#  Formato de DS_RULES_FILE (rules.tsv), una regla por línea:
+#  Formato de rules.tsv (CCP_RULES_FILE), una regla por línea:
 #       /ruta/absoluta<TAB>nombre_de_perfil
 # ============================================================
 
