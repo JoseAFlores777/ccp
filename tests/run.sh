@@ -222,6 +222,22 @@ test_bin_key_sets_profile_key() {
   assert_eq "$(ccp_profile_get_key "$h" ds)" "sk-abc" "ccp key <profile> stores"
 }
 
+test_bin_status_json_default() {
+  local h; h="$(newdir)"
+  local out; out="$(_ccp "$h" status --json)"
+  case "$out" in *'"profile":"default"'*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: status json profile default: $out" >&2;; esac
+}
+test_bin_status_json_profile_type() {
+  local h; h="$(newdir)"
+  local zone; zone="$(newdir)/sz"; mkdir -p "$zone"
+  _ccp "$h" profile add ds --deepseek --base-url u --pro p --flash f --effort max >/dev/null
+  _ccp "$h" path set "$zone" ds >/dev/null
+  local out; out="$(cd "$zone" && CCP_HOME="$h" bash "$ROOT/bin/ccp" status --json)"
+  case "$out" in *'"profile":"ds"'*'"profile_type":"deepseek"'*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: status json profile_type: $out" >&2;; esac
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"

@@ -222,6 +222,27 @@ cmd_key() {
   ok "API key guardada para '$name' (600)."
 }
 
+_json_esc() { local s="$1"; s="${s//\\/\\\\}"; s="${s//\"/\\\"}"; printf '%s' "$s"; }
+
+cmd_status() {
+  local rule type
+  rule="$(ccp_resolve "$PWD" "$CCP_RULES_FILE")"
+  if [[ "$rule" == "default" ]]; then type="default"; else type="$(ccp_profile_type "$CCP_HOME" "$rule" 2>/dev/null || echo default)"; fi
+  if [[ "$1" == "--json" ]]; then
+    local active="${CCP_PROFILE:-default}" repo; repo="$(_repo_root)"
+    printf '{"active":"%s","profile":"%s","profile_type":"%s","cwd":"%s","repo":"%s"}\n' \
+      "$(_json_esc "$active")" "$(_json_esc "$rule")" "$(_json_esc "$type")" \
+      "$(_json_esc "$PWD")" "$(_json_esc "${repo:-}")"
+    return 0
+  fi
+  hr; printf ' %sEstado de ccp en esta terminal%s\n' "$C_BOLD" "$C_RESET"; hr
+  printf ' Perfil activo (terminal): %s\n' "${CCP_PROFILE:-default}"
+  printf ' Perfil del cwd (regla):   %s  (%s)\n' "$rule" "$type"
+  printf ' Cwd:                      %s\n' "$PWD"
+  local repo; repo="$(_repo_root)"; printf ' Repo:                     %s\n' "${repo:-no es git}"
+  hr
+}
+
 # --- dispatcher (las cmd_* se añaden en tareas siguientes) ---
 main() {
   local cmd="$1"; shift 2>/dev/null
@@ -234,6 +255,7 @@ main() {
     profile|account) cmd_profile "$@" ;;
     path) cmd_path "$@" ;;
     key)  cmd_key "$@" ;;
+    status) cmd_status "$@" ;;
     *) err "Comando no implementado aún: '$cmd'"; return 1 ;;
   esac
 }
