@@ -156,6 +156,72 @@ _profile_show() {
 
 _profile_login() { err "ccp profile login se implementa en la fase de dirs oficiales (Task 12)."; return 1; }
 
+cmd_path() {
+  mkdir -p "$CCP_HOME"; touch "$CCP_RULES_FILE"
+  local sub="$1"; shift 2>/dev/null
+  case "$sub" in
+    set)
+      local p prof="$2"
+      p="$(ccp_norm_path "$(_path_arg "$1")")"
+      [[ -z "$prof" ]] && { err "Uso: ccp path set <ruta> <perfil>"; return 1; }
+      if [[ "$prof" != "default" ]] && ! ccp_profile_exists "$CCP_HOME" "$prof"; then
+        err "El perfil '$prof' no existe (ccp profile add $prof ...)."; return 1
+      fi
+      ccp_rule_set "$p" "$prof" "$CCP_RULES_FILE"
+      ok "REGLA: $p  ->  $prof  (y subcarpetas)" ;;
+    include|inc|add)
+      local p; p="$(ccp_norm_path "$(_path_arg "$1")")"
+      ccp_profile_exists "$CCP_HOME" deepseek || { err "No hay perfil 'deepseek' (legacy). Usa 'ccp path set <ruta> <perfil>'."; return 1; }
+      ccp_rule_set "$p" deepseek "$CCP_RULES_FILE"
+      ok "REGLA (legacy): $p  ->  deepseek" ;;
+    exclude|exc)
+      local p; p="$(ccp_norm_path "$(_path_arg "$1")")"
+      ccp_rule_set "$p" default "$CCP_RULES_FILE"
+      ok "REGLA (legacy): $p  ->  default" ;;
+    rm|remove|del)
+      local p; p="$(ccp_norm_path "$(_path_arg "$1")")"
+      ccp_rule_del "$p" "$CCP_RULES_FILE"; ok "Regla eliminada: $p" ;;
+    list|ls|"") cmd_path_list ;;
+    test|check)
+      local p v; p="$(ccp_norm_path "$(_path_arg "$1")")"
+      v="$(ccp_resolve "$p" "$CCP_RULES_FILE")"
+      printf '%s\n' "$v"
+      [[ "$v" != "default" ]] ;;
+    clear) : > "$CCP_RULES_FILE"; ok "Todas las reglas eliminadas." ;;
+    edit)  "${EDITOR:-nano}" "$CCP_RULES_FILE" ;;
+    *) err "path: subcomando desconocido '$sub'"; say "Usa: set | rm | list | test | clear | edit" ;;
+  esac
+}
+
+cmd_path_list() {
+  hr; printf ' %sReglas de PATH%s\n' "$C_BOLD" "$C_RESET"; hr
+  if [[ ! -s "$CCP_RULES_FILE" ]]; then
+    say "  (sin reglas — todo usa 'default')"; hr; return
+  fi
+  local path profile
+  while IFS=$'\t' read -r path profile; do
+    [[ -z "$path" || "$path" == \#* ]] && continue
+    printf '   %-40s -> %s%s%s\n' "$path" "$C_GRN" "$profile" "$C_RESET"
+  done < <(sort -t$'\t' -k1 "$CCP_RULES_FILE")
+  hr
+  info "Regla efectiva para el cwd:"
+  printf '   %s -> %s\n' "$PWD" "$(ccp_resolve "$PWD" "$CCP_RULES_FILE")"
+  hr
+}
+
+# ccp key <perfil> [API_KEY]   (key de un perfil deepseek)
+cmd_key() {
+  local name="$1"; shift 2>/dev/null
+  [[ -z "$name" ]] && { err "Uso: ccp key <perfil> [API_KEY]"; return 1; }
+  ccp_profile_exists "$CCP_HOME" "$name" || { err "No existe el perfil '$name'."; return 1; }
+  [[ "$(ccp_profile_type "$CCP_HOME" "$name")" == "deepseek" ]] || { err "'$name' no es un perfil deepseek."; return 1; }
+  local key="$1"
+  if [[ -z "$key" ]]; then printf 'Pega la API key de %s (oculta): ' "$name"; read -rs key; echo; fi
+  [[ -z "$key" ]] && { err "No ingresaste ninguna key."; return 1; }
+  ccp_profile_set_key "$CCP_HOME" "$name" "$key"
+  ok "API key guardada para '$name' (600)."
+}
+
 # --- dispatcher (las cmd_* se añaden en tareas siguientes) ---
 main() {
   local cmd="$1"; shift 2>/dev/null
@@ -166,6 +232,8 @@ main() {
     _env)      cmd_env "$@" ;;
     _hook)     cmd_hook "$@" ;;
     profile|account) cmd_profile "$@" ;;
+    path) cmd_path "$@" ;;
+    key)  cmd_key "$@" ;;
     *) err "Comando no implementado aún: '$cmd'"; return 1 ;;
   esac
 }

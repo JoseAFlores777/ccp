@@ -182,6 +182,46 @@ test_bin_profile_rm() {
   assert_eq "$(_ccp "$h" profile list | grep -c .)" "0" "removed"
 }
 
+test_bin_resolve_nondefault_exit0() {
+  local h; h="$(newdir)"
+  _ccp "$h" profile add ds --deepseek --base-url url --pro p --flash f --effort max >/dev/null
+  _ccp "$h" path set /tmp/zone ds >/dev/null
+  local out rc; out="$(_ccp "$h" resolve /tmp/zone/x)"; rc=$?
+  assert_eq "$out" "ds" "resolve prints profile"
+  assert_rc "$rc" 0 "non-default => exit 0"
+}
+test_bin_hook_emits_eval() {
+  local h; h="$(newdir)"
+  _ccp "$h" profile add work --official >/dev/null
+  _ccp "$h" path set /tmp/wz work >/dev/null
+  local out; out="$(_ccp "$h" _hook /tmp/wz/sub)"
+  local got; got="$(eval "$out"; printf '%s' "${CCP_PROFILE:-}")"
+  assert_eq "$got" "work" "_hook delta sets CCP_PROFILE=work"
+}
+test_bin_path_set_test() {
+  local h; h="$(newdir)"
+  _ccp "$h" profile add work --official >/dev/null
+  _ccp "$h" path set /tmp/p1 work >/dev/null
+  assert_eq "$(_ccp "$h" path test /tmp/p1/x)" "work" "path test prints profile"
+}
+test_bin_path_set_unknown_profile_rejected() {
+  local h; h="$(newdir)"
+  local out rc; out="$(_ccp "$h" path set /tmp/p2 ghost 2>&1)"; rc=$?
+  assert_rc "$rc" 1 "unknown profile rejected"
+}
+test_bin_path_legacy_include() {
+  local h; h="$(newdir)"
+  _ccp "$h" profile add deepseek --deepseek --base-url u --pro p --flash f --effort max >/dev/null
+  _ccp "$h" path include /tmp/leg >/dev/null
+  assert_eq "$(_ccp "$h" path test /tmp/leg/x)" "deepseek" "legacy include => deepseek"
+}
+test_bin_key_sets_profile_key() {
+  local h; h="$(newdir)"
+  _ccp "$h" profile add ds --deepseek --base-url u --pro p --flash f --effort max >/dev/null
+  _ccp "$h" key ds sk-abc >/dev/null
+  assert_eq "$(ccp_profile_get_key "$h" ds)" "sk-abc" "ccp key <profile> stores"
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"
