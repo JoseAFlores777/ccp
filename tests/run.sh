@@ -252,6 +252,26 @@ test_seed_official_symlinks() {
   [[ ! -e "$cch/.claude.json" ]]; assert_rc "$?" 0 "no creds seeded"
 }
 
+test_shell_init_valid_bash() {
+  local out; out="$(bash "$ROOT/bin/ccp" completion-shellinit 2>/dev/null)"
+  printf '%s' "$out" | bash -n -; assert_rc "$?" 0 "shell init parses"
+  case "$out" in *">>> ccp shell init >>>"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: missing marker" >&2;; esac
+}
+test_shell_fn_use_evals_env() {
+  local h; h="$(newdir)"
+  CCP_HOME="$h" bash "$ROOT/bin/ccp" profile add work --official >/dev/null
+  local script; script="$(newdir)/t.sh"
+  {
+    echo "export CCP_HOME='$h'"
+    echo "export PATH='$(dirname "$ROOT/bin/ccp")':\"\$PATH\""
+    bash "$ROOT/bin/ccp" completion-shellinit
+    echo "ccp use work >/dev/null 2>&1"
+    echo "printf '%s' \"\${CCP_PROFILE:-}\""
+  } > "$script"
+  assert_eq "$(bash "$script")" "work" "ccp use work sets CCP_PROFILE in shell"
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"

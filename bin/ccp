@@ -272,6 +272,129 @@ cmd_status() {
   hr
 }
 
+_print_shell_init() {
+cat <<'SHELL_INIT'
+# >>> ccp shell init >>>
+ccp() {
+  case "$1" in
+    use)
+      shift; eval "$(command ccp _env "${1:-default}")" ;;
+    default|off)
+      eval "$(command ccp _env default)" ;;
+    on)   # legacy alias
+      eval "$(command ccp _env deepseek)" ;;
+    run)
+      shift
+      eval "$(command ccp _hook "$PWD")"
+      if [[ $# -gt 0 ]]; then command "$@"; else command claude; fi ;;
+    *) command ccp "$@" ;;
+  esac
+}
+
+# Hook: aplica el perfil del PWD al cambiar de carpeta (cache por PWD).
+_ccp_autocheck() {
+  command -v ccp >/dev/null 2>&1 || return
+  [[ "$PWD" == "${_CCP_LAST_PWD:-}" ]] && return
+  _CCP_LAST_PWD="$PWD"
+  eval "$(command ccp _hook "$PWD" 2>/dev/null)"
+}
+if [[ -n "$ZSH_VERSION" ]]; then
+  typeset -ag precmd_functions
+  [[ " ${precmd_functions[*]} " == *" _ccp_autocheck "* ]] || precmd_functions+=(_ccp_autocheck)
+elif [[ -n "$BASH_VERSION" ]]; then
+  [[ "$PROMPT_COMMAND" == *_ccp_autocheck* ]] || PROMPT_COMMAND="_ccp_autocheck;${PROMPT_COMMAND:-}"
+fi
+
+if command -v ccp >/dev/null 2>&1; then
+  if [[ -n "$ZSH_VERSION" ]]; then
+    eval "$(ccp completion zsh)" 2>/dev/null
+  elif [[ -n "$BASH_VERSION" ]]; then
+    eval "$(ccp completion bash)" 2>/dev/null
+  fi
+fi
+# <<< ccp shell init <<<
+SHELL_INIT
+}
+
+cmd_install() {
+  mkdir -p "$CCP_HOME"
+  local rc shell_name; shell_name="$(basename "${SHELL:-bash}")"
+  case "$shell_name" in zsh) rc="$HOME/.zshrc";; *) rc="$HOME/.bashrc";; esac
+  [[ -n "$1" ]] && rc="$1"
+  if grep -q "dsctl shell init" "$rc" 2>/dev/null; then
+    warn "Detecté el init viejo de dsctl en $rc."
+    info "Quítalo con:  dsctl uninstall   (o edita el bloque '# >>> dsctl shell init >>>')"
+  fi
+  if grep -q "ccp shell init" "$rc" 2>/dev/null; then
+    ok "El init de ccp ya está en $rc"
+  else
+    { echo; echo "# ccp — router de perfiles de Claude Code"; _print_shell_init; } >> "$rc"
+    ok "Init añadido a $rc"
+  fi
+  hr; info "Recarga con:  source $rc"; hr
+}
+
+cmd_uninstall() {
+  local rc shell_name; shell_name="$(basename "${SHELL:-bash}")"
+  case "$shell_name" in zsh) rc="$HOME/.zshrc";; *) rc="$HOME/.bashrc";; esac
+  [[ -n "$1" ]] && rc="$1"
+  if [[ ! -f "$rc" ]] || ! grep -q "ccp shell init" "$rc"; then warn "No encontré el init en $rc"; return 0; fi
+  local tmp; tmp="$(mktemp)"
+  awk '
+    /# ccp — router de perfiles de Claude Code/ {skip=1}
+    /# >>> ccp shell init >>>/ {skip=1}
+    skip==0 {print}
+    /# <<< ccp shell init <<</ {skip=0; next}
+  ' "$rc" > "$tmp" && mv "$tmp" "$rc"
+  ok "Init de ccp removido de $rc"
+}
+
+cmd_completion() {
+  case "$1" in
+    bash)
+cat <<'COMPLETION_BASH'
+_ccp() {
+  local cur prev; cur="${COMP_WORDS[COMP_CWORD]}"; prev="${COMP_WORDS[COMP_CWORD-1]}"
+  local top="install uninstall key path profile status config doctor menu completion resolve version help use default on off run"
+  if [[ $COMP_CWORD -eq 1 ]]; then COMPREPLY=( $(compgen -W "$top" -- "$cur") ); return; fi
+  case "${COMP_WORDS[1]}" in
+    profile) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "add rm list show login" -- "$cur") )
+             [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" =~ ^(rm|show|login)$ ]] && COMPREPLY=( $(compgen -W "$(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
+    path)    [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "set rm list test clear edit" -- "$cur") )
+             [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" =~ ^(set|rm|test)$ ]] && COMPREPLY=( $(compgen -d -- "$cur") )
+             [[ $COMP_CWORD -eq 4 && "${COMP_WORDS[2]}" == "set" ]] && COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
+    use)     COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
+    key)     COMPREPLY=( $(compgen -W "$(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
+    completion) COMPREPLY=( $(compgen -W "bash zsh" -- "$cur") ) ;;
+  esac
+}
+complete -F _ccp ccp
+COMPLETION_BASH
+      ;;
+    zsh)
+cat <<'COMPLETION_ZSH'
+if ! whence compdef >/dev/null 2>&1; then autoload -Uz compinit && compinit -C; fi
+_ccp() {
+  local -a top; top=(install uninstall key path profile status config doctor menu completion resolve version help use default on off run)
+  if (( CURRENT == 2 )); then compadd -- $top; return; fi
+  case "${words[2]}" in
+    profile) (( CURRENT == 3 )) && compadd -- add rm list show login
+             (( CURRENT == 4 )) && [[ "${words[3]}" =~ ^(rm|show|login)$ ]] && compadd -- ${(f)"$(ccp profile list 2>/dev/null)"} ;;
+    path)    (( CURRENT == 3 )) && compadd -- set rm list test clear edit
+             (( CURRENT == 3 )) || { [[ "${words[3]}" =~ ^(set|rm|test)$ ]] && _path_files -/ }
+             (( CURRENT == 4 )) && [[ "${words[3]}" == set ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
+    use)     compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
+    key)     compadd -- ${(f)"$(ccp profile list 2>/dev/null)"} ;;
+    completion) compadd -- bash zsh ;;
+  esac
+}
+compdef _ccp ccp
+COMPLETION_ZSH
+      ;;
+    shellinit|*) _print_shell_init ;;
+  esac
+}
+
 # --- dispatcher (las cmd_* se añaden en tareas siguientes) ---
 main() {
   local cmd="$1"; shift 2>/dev/null
@@ -285,6 +408,10 @@ main() {
     path) cmd_path "$@" ;;
     key)  cmd_key "$@" ;;
     status) cmd_status "$@" ;;
+    install)   cmd_install "$@" ;;
+    uninstall) cmd_uninstall "$@" ;;
+    completion) cmd_completion "$@" ;;
+    completion-shellinit) _print_shell_init ;;
     *) err "Comando no implementado aún: '$cmd'"; return 1 ;;
   esac
 }
