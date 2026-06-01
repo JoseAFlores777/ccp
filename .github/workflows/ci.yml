@@ -8,18 +8,8 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: Lint
-        run: shellcheck -S warning bin/dsctl lib/paths.sh install.sh || true
-      - name: Smoke test (path engine)
-        run: |
-          bash -n bin/dsctl
-          bash -n lib/paths.sh
-          source lib/paths.sh
-          RF=$(mktemp)
-          ds_rule_add include /a "$RF"
-          ds_rule_add exclude /a/b "$RF"
-          ds_rule_add include /a/b/c "$RF"
-          test "$(ds_resolve /a/x "$RF")" = deepseek
-          test "$(ds_resolve /a/b/y "$RF")" = official
-          test "$(ds_resolve /a/b/c/z "$RF")" = deepseek
-          test "$(ds_resolve /other "$RF")" = official
-          echo "path engine OK"
+        run: shellcheck -S warning bin/ccp lib/paths.sh lib/profiles.sh lib/env.sh install.sh tests/run.sh || true
+      - name: Syntax check
+        run: bash -n bin/ccp && bash -n lib/paths.sh && bash -n lib/profiles.sh && bash -n lib/env.sh
+      - name: Test suite
+        run: bash tests/run.sh
