@@ -48,6 +48,37 @@ test_depth() {
   assert_eq "$(ccp_depth /)" "0" "root depth 0"
 }
 
+test_resolve_empty_is_default() {
+  local rf; rf="$(newdir)/rules.tsv"; : > "$rf"
+  assert_eq "$(ccp_resolve /any/path "$rf")" "default" "no rules => default"
+}
+test_resolve_most_specific_wins() {
+  local rf; rf="$(newdir)/rules.tsv"
+  ccp_rule_set /a work "$rf"
+  ccp_rule_set /a/b/c deepseek "$rf"
+  assert_eq "$(ccp_resolve /a/x "$rf")"       "work"     "inherit ancestor"
+  assert_eq "$(ccp_resolve /a/b/c/z "$rf")"   "deepseek" "deeper wins"
+}
+test_resolve_carveout_default() {
+  local rf; rf="$(newdir)/rules.tsv"
+  ccp_rule_set /a deepseek "$rf"
+  ccp_rule_set /a/b default "$rf"
+  assert_eq "$(ccp_resolve /a/b/x "$rf")" "default" "default carve-out wins"
+}
+test_rule_set_replaces() {
+  local rf; rf="$(newdir)/rules.tsv"
+  ccp_rule_set /a work "$rf"
+  ccp_rule_set /a personal "$rf"
+  assert_eq "$(grep -c . "$rf")" "1" "one line after replace"
+  assert_eq "$(ccp_resolve /a "$rf")" "personal" "replaced value"
+}
+test_rule_del() {
+  local rf; rf="$(newdir)/rules.tsv"
+  ccp_rule_set /a work "$rf"
+  ccp_rule_del /a "$rf"
+  assert_eq "$(ccp_resolve /a "$rf")" "default" "deleted => default"
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"

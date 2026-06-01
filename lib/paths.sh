@@ -48,54 +48,45 @@ ccp_depth() {
   printf '%d' "$d"
 }
 
-# --- resolver veredicto para un path dado, leyendo de un archivo de reglas ---
-#  uso: ds_resolve <path> <rules_file>
-#  imprime: deepseek | official
-ds_resolve() {
+# --- resolver: imprime el nombre de perfil para un path ---
+#  uso: ccp_resolve <path> <rules_file>   (imprime perfil; "default" si nada aplica)
+ccp_resolve() {
   local query rules_file
-  query="$(ds_norm_path "$1")" || { printf 'official'; return; }
+  query="$(ccp_norm_path "$1")" || { printf 'default'; return; }
   rules_file="$2"
-  [[ -f "$rules_file" ]] || { printf 'official'; return; }
+  [[ -f "$rules_file" ]] || { printf 'default'; return; }
 
-  local best_depth=-1 best_kind="official"
-  local kind path depth
-  while IFS=$'\t' read -r kind path; do
-    [[ -z "$kind" || "$kind" == \#* ]] && continue
-    [[ -z "$path" ]] && continue
-    if ds_is_ancestor "$path" "$query"; then
-      depth="$(ds_depth "$path")"
+  local best_depth=-1 best_profile="default"
+  local path profile depth
+  while IFS=$'\t' read -r path profile; do
+    [[ -z "$path" || "$path" == \#* ]] && continue
+    [[ -z "$profile" ]] && continue
+    if ccp_is_ancestor "$path" "$query"; then
+      depth="$(ccp_depth "$path")"
       if (( depth > best_depth )); then
-        best_depth="$depth"; best_kind="$kind"
-      elif (( depth == best_depth )); then
-        # empate de especificidad: exclude gana
-        [[ "$kind" == "exclude" ]] && best_kind="exclude"
+        best_depth="$depth"; best_profile="$profile"
       fi
     fi
   done < "$rules_file"
-
-  case "$best_kind" in
-    include) printf 'deepseek' ;;
-    *)       printf 'official' ;;
-  esac
+  printf '%s' "$best_profile"
 }
 
-# --- añadir una regla (kind=include|exclude) evitando duplicados ---
-#  uso: ds_rule_add <kind> <path> <rules_file>
-ds_rule_add() {
-  local kind="$1" path rules_file="$3"
-  path="$(ds_norm_path "$2")" || return 1
+# --- set/replace regla: path -> profile (una por path) ---
+#  uso: ccp_rule_set <path> <profile> <rules_file>
+ccp_rule_set() {
+  local path profile="$2" rules_file="$3"
+  path="$(ccp_norm_path "$1")" || return 1
   mkdir -p "$(dirname "$rules_file")"; touch "$rules_file"
-  # quitar cualquier regla previa para EXACTAMENTE este path (de cualquier tipo)
   local tmp; tmp="$(mktemp)"
-  awk -F'\t' -v p="$path" '$2 != p' "$rules_file" > "$tmp" && mv "$tmp" "$rules_file"
-  printf '%s\t%s\n' "$kind" "$path" >> "$rules_file"
+  awk -F'\t' -v p="$path" '$1 != p' "$rules_file" > "$tmp" && mv "$tmp" "$rules_file"
+  printf '%s\t%s\n' "$path" "$profile" >> "$rules_file"
 }
 
-# --- quitar la regla de un path exacto ---
-ds_rule_del() {
+# --- borrar la regla de un path exacto ---
+ccp_rule_del() {
   local path rules_file="$2"
-  path="$(ds_norm_path "$1")" || return 1
+  path="$(ccp_norm_path "$1")" || return 1
   [[ -f "$rules_file" ]] || return 0
   local tmp; tmp="$(mktemp)"
-  awk -F'\t' -v p="$path" '$2 != p' "$rules_file" > "$tmp" && mv "$tmp" "$rules_file"
+  awk -F'\t' -v p="$path" '$1 != p' "$rules_file" > "$tmp" && mv "$tmp" "$rules_file"
 }
