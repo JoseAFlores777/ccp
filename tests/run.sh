@@ -11,6 +11,7 @@ source "$ROOT/lib/paths.sh"
 [[ -f "$ROOT/lib/profiles.sh" ]] && { source "$ROOT/lib/profiles.sh"; }
 [[ -f "$ROOT/lib/env.sh" ]]      && { source "$ROOT/lib/env.sh"; }
 [[ -f "$ROOT/lib/cfg.sh" ]]      && { source "$ROOT/lib/cfg.sh"; }
+[[ -f "$ROOT/lib/instruct.sh" ]] && { source "$ROOT/lib/instruct.sh"; }
 
 _pass=0; _fail=0
 
@@ -536,6 +537,45 @@ test_bin_upgrade_runs() {
   case "$out" in *"actualizado"*) _pass=$((_pass+1));;
     *) _fail=$((_fail+1)); echo "FAIL: upgrade run did not report: $out" >&2;; esac
   [[ -x "$bd/ccp" ]]; assert_rc "$?" 0 "upgrade reinstalled the binary"
+}
+
+# ===== instruct: resolución de destino =====
+test_instruct_dest_global() {
+  assert_eq "$(ccp_instruct_dest global rule    /h ds /src /root)" "/src/CLAUDE.md"     "global rule"
+  assert_eq "$(ccp_instruct_dest global hook    /h ds /src /root)" "/src/settings.json" "global hook"
+  assert_eq "$(ccp_instruct_dest global mcp     /h ds /src /root)" "/src/settings.json" "global mcp"
+  assert_eq "$(ccp_instruct_dest global agent   /h ds /src /root)" "/src/agents"        "global agent"
+  assert_eq "$(ccp_instruct_dest global command /h ds /src /root)" "/src/commands"      "global command"
+  assert_eq "$(ccp_instruct_dest global skill   /h ds /src /root)" "/src/skills"        "global skill"
+}
+test_instruct_dest_project() {
+  assert_eq "$(ccp_instruct_dest project rule  /h ds /src /root)" "/root/.claude/CLAUDE.md"     "proj rule"
+  assert_eq "$(ccp_instruct_dest project hook  /h ds /src /root)" "/root/.claude/settings.json" "proj hook"
+  assert_eq "$(ccp_instruct_dest project mcp   /h ds /src /root)" "/root/.mcp.json"             "proj mcp"
+  assert_eq "$(ccp_instruct_dest project agent /h ds /src /root)" "/root/.claude/agents"        "proj agent"
+  assert_eq "$(ccp_instruct_dest project command /h ds /src /root)" "/root/.claude/commands" "proj command"
+  assert_eq "$(ccp_instruct_dest project skill   /h ds /src /root)" "/root/.claude/skills"   "proj skill"
+}
+test_instruct_dest_profile_overlay() {
+  assert_eq "$(ccp_instruct_dest profile rule /h work /src /root)" "/h/profiles/work/overlay/CLAUDE.md"             "prof rule"
+  assert_eq "$(ccp_instruct_dest profile hook /h work /src /root)" "/h/profiles/work/overlay/settings.overlay.json" "prof hook"
+  assert_eq "$(ccp_instruct_dest profile mcp  /h work /src /root)" "/h/profiles/work/overlay/settings.overlay.json" "prof mcp"
+}
+test_instruct_dest_profile_default_rc2() {
+  ccp_instruct_dest profile rule /h default /src /root >/dev/null 2>&1; assert_rc "$?" 2 "profile+default => rc2"
+  ccp_instruct_dest profile rule /h ""      /src /root >/dev/null 2>&1; assert_rc "$?" 2 "profile+empty => rc2"
+}
+test_instruct_dest_profile_filetype_rc3() {
+  ccp_instruct_dest profile agent   /h work /src /root >/dev/null 2>&1; assert_rc "$?" 3 "profile agent => rc3"
+  ccp_instruct_dest profile command /h work /src /root >/dev/null 2>&1; assert_rc "$?" 3 "profile command => rc3"
+  ccp_instruct_dest profile skill   /h work /src /root >/dev/null 2>&1; assert_rc "$?" 3 "profile skill => rc3"
+}
+test_instruct_dest_project_no_root_rc4() {
+  ccp_instruct_dest project rule /h ds /src "" >/dev/null 2>&1; assert_rc "$?" 4 "project sin root => rc4"
+}
+test_instruct_dest_unknown_rc1() {
+  ccp_instruct_dest bogus rule /h ds /src /root >/dev/null 2>&1; assert_rc "$?" 1 "scope desconocido => rc1"
+  ccp_instruct_dest global xxx /h ds /src /root >/dev/null 2>&1; assert_rc "$?" 1 "tipo desconocido => rc1"
 }
 
 # ---- runner ----
