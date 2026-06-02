@@ -76,6 +76,29 @@ Si ves "Función 'ccp' cargada ✅", estás listo.
 
 ---
 
+## Actualizar a una versión nueva
+
+`install.sh` registra de qué repo instalaste, así que actualizar es un comando:
+
+```bash
+ccp upgrade
+```
+
+Eso re-instala el binario y las librerías desde ese repo, migra/regenera tus perfiles al modelo nuevo (`profile sync`), y te dice de qué versión a cuál subiste. Variantes:
+
+```bash
+ccp upgrade --pull       # hace 'git pull' en el repo antes de re-instalar
+ccp upgrade --no-sync    # no re-mergea los perfiles (solo binario + libs)
+```
+
+Notas:
+
+- Si cambió la función de shell o el hook, `ccp upgrade` te **avisa** (no toca tu rc); aplícalo con `ccp uninstall && ccp install && source ~/.zshrc`.
+- Para ver completions nuevos, abre una terminal nueva o haz `source` de tu rc.
+- Sin `ccp upgrade` (instancias viejas) el equivalente manual es: `bash install.sh && ccp profile sync`.
+
+---
+
 ## Caso 1 — Tu cuenta de trabajo en tu carpeta de trabajo
 
 El caso más común. Paso a paso.
