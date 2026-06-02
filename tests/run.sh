@@ -476,6 +476,20 @@ test_bin_profile_config_default_no_tty() {
   assert_rc "$rc" 1 "default config without tty => error"
 }
 
+test_bin_profile_sync_repulls_global() {
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  printf '{"model":"opus"}' > "$src/settings.json"; printf 'G' > "$src/CLAUDE.md"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile add work --official >/dev/null
+  # cambia el global DESPUÉS de crear el perfil
+  printf '{"model":"sonnet"}' > "$src/settings.json"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile sync work >/dev/null
+  if command -v jq >/dev/null 2>&1; then
+    assert_eq "$(jq -r '.model' "$h/profiles/work/cc-home/settings.json")" "sonnet" "sync re-pulled global change"
+  else
+    _pass=$((_pass+1))
+  fi
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"

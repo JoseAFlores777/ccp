@@ -71,7 +71,8 @@ cmd_profile() {
     show)     _profile_show "$@" ;;
     login)    _profile_login "$@" ;;
     config)   _profile_config "$@" ;;
-    *) err "profile: subcomando desconocido '$sub'"; say "Usa: add | rm | list | show | login | config"; return 1 ;;
+    sync)     _profile_sync "$@" ;;
+    *) err "profile: subcomando desconocido '$sub'"; say "Usa: add | rm | list | show | login | config | sync"; return 1 ;;
   esac
 }
 
@@ -254,6 +255,25 @@ _config_default() {
   local ed; ed="$(_resolve_editor)"
   local -a _ed; read -ra _ed <<< "${ed:-nano}"
   "${_ed[@]}" "$src/CLAUDE.md" "$src/settings.json"
+}
+
+# re-merge global ⊕ overlay para un perfil (o todos si no se da nombre).
+_profile_sync() {
+  local name="$1" src="${CCP_CLAUDE_SRC:-$HOME/.claude}"
+  if [[ -n "$name" ]]; then
+    ccp_profile_exists "$CCP_HOME" "$name" || { err "No existe '$name'."; return 1; }
+    ccp_cfg_migrate_legacy "$CCP_HOME" "$name"
+    ccp_cfg_regenerate "$CCP_HOME" "$name" "$src"
+    ok "Perfil '$name' re-sincronizado (global ⊕ overlay)."
+    return 0
+  fi
+  local n
+  while read -r n; do
+    [[ -z "$n" ]] && continue
+    ccp_cfg_migrate_legacy "$CCP_HOME" "$n"
+    ccp_cfg_regenerate "$CCP_HOME" "$n" "$src"
+  done < <(ccp_profile_list "$CCP_HOME")
+  ok "Todos los perfiles re-sincronizados."
 }
 
 cmd_path() {
