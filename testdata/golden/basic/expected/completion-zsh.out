@@ -1,0 +1,17 @@
+if ! whence compdef >/dev/null 2>&1; then autoload -Uz compinit && compinit -C; fi
+_ccp() {
+  local -a top; top=(install uninstall upgrade key path profile instruct status config doctor menu completion resolve version help use default on off run)
+  if (( CURRENT == 2 )); then compadd -- $top; return; fi
+  case "${words[2]}" in
+    profile) (( CURRENT == 3 )) && compadd -- add rm list show login config sync
+             (( CURRENT == 4 )) && [[ "${words[3]}" =~ ^(rm|show|login|config|sync)$ ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"}
+             (( CURRENT == 5 )) && [[ "${words[3]}" == config ]] && compadd -- instructions settings ;;
+    path)    (( CURRENT == 3 )) && compadd -- set rm list test clear edit
+             (( CURRENT == 3 )) || { [[ "${words[3]}" =~ ^(set|rm|test)$ ]] && _path_files -/ }
+             (( CURRENT == 4 )) && [[ "${words[3]}" == set ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
+    use)     compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
+    key)     compadd -- ${(f)"$(ccp profile list 2>/dev/null)"} ;;
+    completion) compadd -- bash zsh ;;
+  esac
+}
+compdef _ccp ccp

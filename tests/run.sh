@@ -11,6 +11,7 @@ source "$ROOT/lib/paths.sh"
 [[ -f "$ROOT/lib/profiles.sh" ]] && { source "$ROOT/lib/profiles.sh"; }
 [[ -f "$ROOT/lib/env.sh" ]]      && { source "$ROOT/lib/env.sh"; }
 [[ -f "$ROOT/lib/cfg.sh" ]]      && { source "$ROOT/lib/cfg.sh"; }
+[[ -f "$ROOT/lib/instruct.sh" ]] && { source "$ROOT/lib/instruct.sh"; }
 
 _pass=0; _fail=0
 
@@ -105,7 +106,9 @@ test_profile_key() {
   ccp_profile_add_deepseek "$h" ds "url" "p" "f" "max"
   ccp_profile_set_key "$h" ds "sk-secret-123"
   assert_eq "$(ccp_profile_get_key "$h" ds)" "sk-secret-123" "key roundtrip"
-  local mode; mode="$(stat -f '%Lp' "$h/profiles/ds/api_key" 2>/dev/null || stat -c '%a' "$h/profiles/ds/api_key")"
+  # GNU primero: en BSD/mac `stat -c` falla -> cae a `-f '%Lp'`. (No al revés:
+  # en GNU `stat -f` = --file-system, sale 0 con basura y no cae al fallback.)
+  local mode; mode="$(stat -c '%a' "$h/profiles/ds/api_key" 2>/dev/null || stat -f '%Lp' "$h/profiles/ds/api_key")"
   assert_eq "$mode" "600" "key file is 600"
 }
 test_profile_list() {
@@ -536,6 +539,268 @@ test_bin_upgrade_runs() {
   case "$out" in *"actualizado"*) _pass=$((_pass+1));;
     *) _fail=$((_fail+1)); echo "FAIL: upgrade run did not report: $out" >&2;; esac
   [[ -x "$bd/ccp" ]]; assert_rc "$?" 0 "upgrade reinstalled the binary"
+}
+
+# ===== instruct: resolución de destino =====
+test_instruct_dest_global() {
+  assert_eq "$(ccp_instruct_dest global rule    /h ds /src /root)" "/src/CLAUDE.md"     "global rule"
+  assert_eq "$(ccp_instruct_dest global hook    /h ds /src /root)" "/src/settings.json" "global hook"
+  assert_eq "$(ccp_instruct_dest global mcp     /h ds /src /root)" "/src.json"          "global mcp"
+  assert_eq "$(ccp_instruct_dest global agent   /h ds /src /root)" "/src/agents"        "global agent"
+  assert_eq "$(ccp_instruct_dest global command /h ds /src /root)" "/src/commands"      "global command"
+  assert_eq "$(ccp_instruct_dest global skill   /h ds /src /root)" "/src/skills"        "global skill"
+}
+test_instruct_dest_project() {
+  assert_eq "$(ccp_instruct_dest project rule  /h ds /src /root)" "/root/.claude/CLAUDE.md"     "proj rule"
+  assert_eq "$(ccp_instruct_dest project hook  /h ds /src /root)" "/root/.claude/settings.json" "proj hook"
+  assert_eq "$(ccp_instruct_dest project mcp   /h ds /src /root)" "/root/.mcp.json"             "proj mcp"
+  assert_eq "$(ccp_instruct_dest project agent /h ds /src /root)" "/root/.claude/agents"        "proj agent"
+  assert_eq "$(ccp_instruct_dest project command /h ds /src /root)" "/root/.claude/commands" "proj command"
+  assert_eq "$(ccp_instruct_dest project skill   /h ds /src /root)" "/root/.claude/skills"   "proj skill"
+}
+test_instruct_dest_profile_overlay() {
+  assert_eq "$(ccp_instruct_dest profile rule /h work /src /root)" "/h/profiles/work/overlay/CLAUDE.md"             "prof rule"
+  assert_eq "$(ccp_instruct_dest profile hook /h work /src /root)" "/h/profiles/work/overlay/settings.overlay.json" "prof hook"
+}
+test_instruct_dest_profile_mcp_rc5() {
+  ccp_instruct_dest profile mcp /h work /src /root >/dev/null 2>&1; assert_rc "$?" 5 "profile mcp => rc5 (no soportado)"
+}
+test_instruct_dest_profile_default_rc2() {
+  ccp_instruct_dest profile rule /h default /src /root >/dev/null 2>&1; assert_rc "$?" 2 "profile+default => rc2"
+  ccp_instruct_dest profile rule /h ""      /src /root >/dev/null 2>&1; assert_rc "$?" 2 "profile+empty => rc2"
+}
+test_instruct_dest_profile_filetype_rc3() {
+  ccp_instruct_dest profile agent   /h work /src /root >/dev/null 2>&1; assert_rc "$?" 3 "profile agent => rc3"
+  ccp_instruct_dest profile command /h work /src /root >/dev/null 2>&1; assert_rc "$?" 3 "profile command => rc3"
+  ccp_instruct_dest profile skill   /h work /src /root >/dev/null 2>&1; assert_rc "$?" 3 "profile skill => rc3"
+}
+test_instruct_dest_project_no_root_rc4() {
+  ccp_instruct_dest project rule /h ds /src "" >/dev/null 2>&1; assert_rc "$?" 4 "project sin root => rc4"
+}
+test_instruct_dest_unknown_rc1() {
+  ccp_instruct_dest bogus rule /h ds /src /root >/dev/null 2>&1; assert_rc "$?" 1 "scope desconocido => rc1"
+  ccp_instruct_dest global xxx /h ds /src /root >/dev/null 2>&1; assert_rc "$?" 1 "tipo desconocido => rc1"
+}
+
+# ===== instruct: bloque de reglas =====
+test_instruct_rule_add_creates_block() {
+  local f; f="$(newdir)/CLAUDE.md"; printf '# Mi config\n\ncontenido previo\n' > "$f"
+  ccp_instruct_rule_add "$f" "responde en español"
+  case "$(cat "$f")" in *"contenido previo"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: preserva contenido previo" >&2;; esac
+  assert_eq "$(ccp_instruct_rule_list "$f")" "responde en español" "lista 1 regla"
+}
+test_instruct_rule_add_appends_in_order() {
+  local f; f="$(newdir)/CLAUDE.md"; : > "$f"
+  ccp_instruct_rule_add "$f" "uno"
+  ccp_instruct_rule_add "$f" "dos"
+  assert_eq "$(ccp_instruct_rule_list "$f" | tr '\n' '|')" "uno|dos|" "orden de inserción"
+}
+test_instruct_rule_add_dedup_rc9() {
+  local f; f="$(newdir)/CLAUDE.md"; : > "$f"
+  ccp_instruct_rule_add "$f" "igual"
+  ccp_instruct_rule_add "$f" "igual"; assert_rc "$?" 9 "duplicado => rc9"
+  assert_eq "$(ccp_instruct_rule_list "$f" | grep -c .)" "1" "no duplica"
+}
+test_instruct_rule_rm_by_index() {
+  local f; f="$(newdir)/CLAUDE.md"; : > "$f"
+  ccp_instruct_rule_add "$f" "a"; ccp_instruct_rule_add "$f" "b"; ccp_instruct_rule_add "$f" "c"
+  ccp_instruct_rule_rm "$f" 2; assert_rc "$?" 0 "rm índice válido"
+  assert_eq "$(ccp_instruct_rule_list "$f" | tr '\n' '|')" "a|c|" "borra el 2do"
+}
+test_instruct_rule_rm_out_of_range_rc1() {
+  local f; f="$(newdir)/CLAUDE.md"; : > "$f"
+  ccp_instruct_rule_add "$f" "solo"
+  ccp_instruct_rule_rm "$f" 5; assert_rc "$?" 1 "fuera de rango => rc1"
+}
+test_instruct_rule_list_empty_file() {
+  local f; f="$(newdir)/none.md"
+  assert_eq "$(ccp_instruct_rule_list "$f")" "" "archivo inexistente => vacío"
+}
+test_instruct_rule_add_backslash_safe() {
+  local f; f="$(newdir)/CLAUDE.md"; : > "$f"
+  ccp_instruct_rule_add "$f" 'usa la ruta C:\temp\x'
+  assert_eq "$(ccp_instruct_rule_list "$f")" 'usa la ruta C:\temp\x' "backslashes intactos"
+  ccp_instruct_rule_add "$f" 'usa la ruta C:\temp\x'; assert_rc "$?" 9 "dedup con backslash => rc9"
+  assert_eq "$(ccp_instruct_rule_list "$f" | grep -c .)" "1" "no duplica con backslash"
+}
+
+# ===== instruct: binario (scope rule) =====
+_ccp_instr() { # ccp_home src repo_root args...
+  CCP_HOME="$1" CCP_CLAUDE_SRC="$2" CCP_REPO_ROOT="$3" bash "$ROOT/bin/ccp" "${@:4}"
+}
+test_bin_instruct_add_global_rule() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  _ccp_instr "$h" "$s" "" instruct add global rule "no uses emojis" >/dev/null
+  case "$(cat "$s/CLAUDE.md")" in *"no uses emojis"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: regla global escrita" >&2;; esac
+}
+test_bin_instruct_add_profile_default_errors() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  local rc; CCP_HOME="$h" CCP_CLAUDE_SRC="$s" CCP_PROFILE="" bash "$ROOT/bin/ccp" instruct add profile rule "x" >/dev/null 2>&1; rc=$?
+  assert_rc "$rc" 1 "profile sobre default => error (rc1)"
+}
+test_bin_instruct_add_profile_active() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  _ccp "$h" profile add work --official >/dev/null
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$s" CCP_PROFILE=work bash "$ROOT/bin/ccp" instruct add profile rule "responde en español" >/dev/null
+  case "$(cat "$h/profiles/work/overlay/CLAUDE.md")" in *"responde en español"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: regla de perfil escrita en overlay" >&2;; esac
+}
+test_bin_instruct_list_and_rm() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  _ccp_instr "$h" "$s" "" instruct add global rule "uno" >/dev/null
+  _ccp_instr "$h" "$s" "" instruct add global rule "dos" >/dev/null
+  local out; out="$(_ccp_instr "$h" "$s" "" instruct list global)"
+  case "$out" in *" 1) [rule] uno"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: list numerado: $out" >&2;; esac
+  _ccp_instr "$h" "$s" "" instruct rm global 1 >/dev/null
+  local rem; rem="$(_ccp_instr "$h" "$s" "" instruct list global)"
+  case "$rem" in *"dos"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: rm dejó 'dos'" >&2;; esac
+  case "$rem" in *"uno"*) _fail=$((_fail+1)); echo "FAIL: 'uno' debió borrarse" >&2;; *) _pass=$((_pass+1));; esac
+}
+test_bin_instruct_project_fallback_cwd() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  local d; d="$(newdir)"
+  ( cd "$d" && CCP_HOME="$h" CCP_CLAUDE_SRC="$s" bash "$ROOT/bin/ccp" instruct add project rule "regla repo" >/dev/null )
+  case "$(cat "$d/.claude/CLAUDE.md" 2>/dev/null)" in *"regla repo"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: fallback a cwd para project" >&2;; esac
+}
+
+test_bin_instruct_dest_subcmd() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  assert_eq "$(_ccp_instr "$h" "$s" "" instruct dest global agent)" "$s/agents" "dest global agent"
+}
+test_bin_instruct_record_and_list_global() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  _ccp_instr "$h" "$s" "" instruct add global rule "una regla" >/dev/null
+  _ccp_instr "$h" "$s" "" instruct record global agent "$s/agents/sec.md" "auditor seguridad" >/dev/null
+  local out; out="$(_ccp_instr "$h" "$s" "" instruct list global)"
+  case "$out" in *"una regla"*"auditor seguridad"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: list combina rule+manifest: $out" >&2;; esac
+}
+test_bin_instruct_rm_deletes_file_artifact() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  mkdir -p "$s/agents"; printf 'x' > "$s/agents/sec.md"
+  _ccp_instr "$h" "$s" "" instruct record global agent "$s/agents/sec.md" "auditor" >/dev/null
+  _ccp_instr "$h" "$s" "" instruct rm global 1 >/dev/null
+  [[ ! -e "$s/agents/sec.md" ]]; assert_rc "$?" 0 "rm borró el archivo del artefacto"
+}
+test_bin_instruct_rm_rule_then_manifest_indexing() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  mkdir -p "$s/agents"; printf 'x' > "$s/agents/a.md"
+  _ccp_instr "$h" "$s" "" instruct add global rule "regla1" >/dev/null
+  _ccp_instr "$h" "$s" "" instruct record global agent "$s/agents/a.md" "agente1" >/dev/null
+  # index 1 = la regla (no el manifest). Borrarla deja el agente intacto.
+  _ccp_instr "$h" "$s" "" instruct rm global 1 >/dev/null
+  [[ -e "$s/agents/a.md" ]]; assert_rc "$?" 0 "rm 1 borró la regla, NO el agente"
+  local out; out="$(_ccp_instr "$h" "$s" "" instruct list global)"
+  case "$out" in *"agente1"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: el agente debe seguir listado: $out" >&2;; esac
+}
+
+test_install_copies_commands() {
+  local bd ld h cd; bd="$(newdir)"; ld="$(newdir)"; h="$(newdir)"; cd="$(newdir)/claude"
+  CCP_BIN_DIR="$bd" CCP_LIB_DIR="$ld" CCP_HOME="$h" CCP_CLAUDE_SRC="$cd" \
+    bash "$ROOT/install.sh" >/dev/null 2>&1
+  [[ -f "$cd/commands/ccp/remember-global.md" ]]; assert_rc "$?" 0 "install copió remember-global"
+  [[ -f "$cd/commands/ccp/forget.md" ]];          assert_rc "$?" 0 "install copió forget"
+}
+
+# ===== instruct: manifest =====
+test_instruct_manifest_file() {
+  assert_eq "$(ccp_instruct_manifest_file global /h /root)"  "/h/authored.tsv"             "global manifest local"
+  assert_eq "$(ccp_instruct_manifest_file profile /h /root)" "/h/authored.tsv"             "profile manifest local"
+  assert_eq "$(ccp_instruct_manifest_file project /h /root)" "/root/.claude/ccp-authored.tsv" "project manifest repo"
+}
+test_instruct_manifest_add_list() {
+  local m; m="$(newdir)/authored.tsv"
+  ccp_instruct_manifest_add "$m" global - agent   /src/agents/sec.md  "auditor de seguridad"
+  ccp_instruct_manifest_add "$m" global - command /src/commands/dep.md "deploy"
+  assert_eq "$(ccp_instruct_manifest_list "$m" global -)" \
+"agent	/src/agents/sec.md	auditor de seguridad
+command	/src/commands/dep.md	deploy" "lista 2 entradas globales"
+}
+test_instruct_manifest_list_filters_profile() {
+  local m; m="$(newdir)/authored.tsv"
+  ccp_instruct_manifest_add "$m" profile work  hook /ov/work/settings.overlay.json  "hook A"
+  ccp_instruct_manifest_add "$m" profile other hook /ov/other/settings.overlay.json "hook B"
+  assert_eq "$(ccp_instruct_manifest_list "$m" profile work | grep -c .)" "1" "filtra por perfil activo"
+  assert_eq "$(ccp_instruct_manifest_list "$m" profile work)" "hook	/ov/work/settings.overlay.json	hook A" "desc round-trips para el perfil filtrado"
+}
+test_instruct_manifest_rm_returns_ref() {
+  local m; m="$(newdir)/authored.tsv"
+  ccp_instruct_manifest_add "$m" global - agent   /a.md "A"
+  ccp_instruct_manifest_add "$m" global - command /b.md "B"
+  local out; out="$(ccp_instruct_manifest_rm "$m" global - 1)"; assert_rc "$?" 0 "rm índice 1"
+  assert_eq "$out" "agent	/a.md" "rm devuelve type+ref de la fila borrada"
+  assert_eq "$(ccp_instruct_manifest_list "$m" global - | grep -c .)" "1" "queda 1"
+}
+test_instruct_manifest_rm_out_of_range() {
+  local m; m="$(newdir)/authored.tsv"; : > "$m"
+  ccp_instruct_manifest_rm "$m" global - 1 >/dev/null 2>&1; assert_rc "$?" 1 "vacío => rc1"
+}
+
+test_bin_instruct_add_mcp_global() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local h s; h="$(newdir)"; s="$(newdir)"; printf '{}\n' > "$s.json"
+  _ccp_instr "$h" "$s" "" instruct add global mcp 'github={"command":"gh-mcp"}' >/dev/null
+  assert_eq "$(jq -r '.mcpServers.github.command' "$s.json")" "gh-mcp" "mcp escrito en ~/.claude.json (=\${src}.json)"
+}
+test_bin_instruct_add_mcp_profile_rejected() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  _ccp "$h" profile add work --official >/dev/null
+  local rc; CCP_HOME="$h" CCP_CLAUDE_SRC="$s" CCP_PROFILE=work bash "$ROOT/bin/ccp" instruct add profile mcp 'x={"command":"y"}' >/dev/null 2>&1; rc=$?
+  assert_rc "$rc" 1 "mcp a nivel perfil => error (rc1)"
+}
+test_bin_instruct_add_hook_global() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local h s; h="$(newdir)"; s="$(newdir)"; printf '{}\n' > "$s/settings.json"
+  _ccp_instr "$h" "$s" "" instruct add global hook 'fmt={"hooks":{"PostToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"prettier"}]}]}}' >/dev/null
+  assert_eq "$(jq -r '.hooks.PostToolUse[0].hooks[0].command' "$s/settings.json")" "prettier" "hook escrito en settings.json global"
+}
+test_bin_instruct_add_hook_profile_regenerates() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local h s; h="$(newdir)"; s="$(newdir)"; printf '{}\n' > "$s/settings.json"
+  _ccp "$h" profile add work --official >/dev/null
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$s" CCP_PROFILE=work bash "$ROOT/bin/ccp" \
+    instruct add profile hook 'fmt={"hooks":{"PostToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"fmt"}]}]}}' >/dev/null
+  assert_eq "$(jq -r '.hooks.PostToolUse[0].hooks[0].command' "$h/profiles/work/overlay/settings.overlay.json")" "fmt" "hook en overlay"
+  assert_eq "$(jq -r '.hooks.PostToolUse[0].hooks[0].command' "$h/profiles/work/cc-home/settings.json")" "fmt" "regen propagó al cc-home"
+}
+test_bin_instruct_rm_mcp_by_name() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local h s; h="$(newdir)"; s="$(newdir)"; printf '{}\n' > "$s.json"
+  _ccp_instr "$h" "$s" "" instruct add global mcp 'gh={"command":"x"}' >/dev/null
+  # index 1 (no hay reglas) => borra la entrada mcp del manifest y del json
+  _ccp_instr "$h" "$s" "" instruct rm global 1 >/dev/null
+  assert_eq "$(jq -r '.mcpServers | has("gh")' "$s.json")" "false" "rm quitó el server del json"
+}
+
+test_instruct_json_merge_mcp() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local f; f="$(newdir)/settings.json"; printf '{}\n' > "$f"
+  ccp_instruct_json_merge "$f" '{"mcpServers":{"github":{"command":"gh-mcp"}}}'
+  assert_eq "$(jq -r '.mcpServers.github.command' "$f")" "gh-mcp" "mcp merge"
+}
+test_instruct_json_merge_preserves() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local f; f="$(newdir)/settings.json"; printf '{"existing":true}\n' > "$f"
+  ccp_instruct_json_merge "$f" '{"mcpServers":{"a":{"command":"x"}}}'
+  assert_eq "$(jq -r '.existing' "$f")" "true" "preserva claves previas"
+}
+test_instruct_json_merge_creates_missing_file() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local f; f="$(newdir)/sub/new.json"   # parent dir + file both absent
+  ccp_instruct_json_merge "$f" '{"mcpServers":{"a":{"command":"x"}}}'
+  assert_eq "$(jq -r '.mcpServers.a.command' "$f")" "x" "crea archivo (y dir) inexistente y mergea"
+}
+test_instruct_json_rm_mcp_by_name() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local f; f="$(newdir)/settings.json"; printf '{"mcpServers":{"a":{},"b":{}}}\n' > "$f"
+  ccp_instruct_json_rm_mcp "$f" a
+  assert_eq "$(jq -r '.mcpServers | keys | join(",")' "$f")" "b" "borró server a"
 }
 
 # ---- runner ----
