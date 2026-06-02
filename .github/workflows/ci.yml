@@ -2,7 +2,7 @@ name: ci
 on: [push, pull_request]
 
 env:
-  GO_VERSION: "1.23"
+  GO_VERSION: "1.24"
 
 jobs:
   # El bash es el ORÁCULO del contrato (archivado en legacy/ tras la paridad Go).
@@ -36,9 +36,9 @@ jobs:
       - name: go vet
         run: go vet ./...
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
-          version: v1.62.2
+          version: v2.12.2
       - name: go test
         run: go test ./...
 

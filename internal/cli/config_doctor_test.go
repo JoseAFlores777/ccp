@@ -86,7 +86,7 @@ func TestConfigEditor_GetAndSet(t *testing.T) {
 	if code, _, _ := run(t, home, "config", "editor", "vim"); code != 0 {
 		t.Fatalf("editor set exit = %d", code)
 	}
-	code, out, _ = run(t, home, "config", "editor")
+	_, out, _ = run(t, home, "config", "editor")
 	if strings.TrimSpace(out) != "vim" {
 		t.Errorf("editor get tras set = %q, quiero vim", strings.TrimSpace(out))
 	}

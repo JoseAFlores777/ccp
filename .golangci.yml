@@ -1,25 +1,48 @@
-# golangci-lint v1.62.x — config del rewrite Go de ccp.
-run:
-  timeout: 5m
-
+# golangci-lint v2 — config del rewrite Go de ccp.
+# (migrado de v1 cuando go.mod pasó a go 1.24; v1.62.2 no podía lintar 1.24)
+version: "2"
 linters:
-  enable:
-    - errcheck
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    - gofmt
-    - goimports
-
-linters-settings:
-  errcheck:
-    # escribir a un io.Writer de presentación no necesita chequeo de error
-    exclude-functions:
-      - fmt.Fprint
-      - fmt.Fprintf
-      - fmt.Fprintln
-
+  # Set por defecto de v2 (errcheck, govet, ineffassign, staticcheck, unused).
+  settings:
+    errcheck:
+      # Escribir a un writer de presentación no necesita chequeo de error.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - io.WriteString
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # Los tests hacen WriteFile/Unmarshal de fixtures sin chequear; es ruido.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - ineffassign
+      # ST1005: los mensajes de uso van en español capitalizado ("Uso:"),
+      # convención del CLI; no aplicamos error-strings-en-minúscula.
+      - linters:
+          - staticcheck
+        text: "ST1005:"
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
