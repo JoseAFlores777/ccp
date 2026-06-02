@@ -10,6 +10,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/lib/paths.sh"
 [[ -f "$ROOT/lib/profiles.sh" ]] && { source "$ROOT/lib/profiles.sh"; }
 [[ -f "$ROOT/lib/env.sh" ]]      && { source "$ROOT/lib/env.sh"; }
+[[ -f "$ROOT/lib/cfg.sh" ]]      && { source "$ROOT/lib/cfg.sh"; }
 
 _pass=0; _fail=0
 
@@ -308,6 +309,19 @@ test_bin_config_set_used_by_profile_add() {
   _ccp "$h" config set base_url "https://custom/anthropic" >/dev/null
   _ccp "$h" profile add ds --deepseek >/dev/null
   assert_eq "$(ccp_profile_get "$h" ds base_url)" "https://custom/anthropic" "profile add uses configured default base_url"
+}
+
+test_cfg_paths() {
+  assert_eq "$(ccp_cfg_overlay_dir /h work)"   "/h/profiles/work/overlay" "overlay dir"
+  assert_eq "$(ccp_cfg_instr_file /h work)"    "/h/profiles/work/overlay/CLAUDE.md" "instr file"
+  assert_eq "$(ccp_cfg_settings_file /h work)" "/h/profiles/work/overlay/settings.overlay.json" "settings file"
+  assert_eq "$(ccp_cfg_cchome /h work)"        "/h/profiles/work/cc-home" "cchome"
+}
+test_cfg_init_overlay() {
+  local h; h="$(newdir)"
+  ccp_cfg_init_overlay "$h" work
+  [[ -f "$h/profiles/work/overlay/CLAUDE.md" ]]; assert_rc "$?" 0 "instr created"
+  assert_eq "$(cat "$h/profiles/work/overlay/settings.overlay.json")" "{}" "overlay seeded as {}"
 }
 
 # ---- runner ----
