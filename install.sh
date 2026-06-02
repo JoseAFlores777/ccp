@@ -23,6 +23,12 @@ install -m 0644 "$SRC_DIR/lib/cfg.sh"      "$LIB_DIR/cfg.sh"
 ok "Binario  -> $BIN_DIR/ccp"
 ok "Librerías-> $LIB_DIR/{paths,profiles,env,cfg}.sh"
 
+# Registra la fuente para 'ccp upgrade' (re-instala desde aquí).
+CCP_HOME="${CCP_HOME:-$HOME/.config/ccp}"
+mkdir -p "$CCP_HOME"
+printf '%s\n' "$SRC_DIR" > "$CCP_HOME/install-source"
+ok "Fuente registrada-> $CCP_HOME/install-source"
+
 if ! printf '%s' "$PATH" | tr ':' '\n' | grep -qx "$BIN_DIR"; then
   warn "$BIN_DIR no está en tu PATH. Añade a tu rc:"
   echo "    export PATH=\"\$HOME/.local/bin:\$PATH\""

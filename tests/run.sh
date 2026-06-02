@@ -511,6 +511,33 @@ test_bin_profile_sync_default_rejected() {
   assert_rc "$rc" 1 "sync default => error (no cc-home)"
 }
 
+test_install_records_source() {
+  local bd ld h; bd="$(newdir)"; ld="$(newdir)"; h="$(newdir)"
+  CCP_BIN_DIR="$bd" CCP_LIB_DIR="$ld" CCP_HOME="$h" bash "$ROOT/install.sh" >/dev/null 2>&1
+  assert_eq "$(cat "$h/install-source")" "$ROOT" "install.sh records the source repo path"
+}
+test_bin_upgrade_no_source_errors() {
+  local h; h="$(newdir)"
+  local rc; _ccp "$h" upgrade >/dev/null 2>&1; rc=$?
+  assert_rc "$rc" 1 "upgrade without recorded source => error"
+}
+test_bin_upgrade_bad_arg() {
+  local h; h="$(newdir)"; printf '%s' "$ROOT" > "$h/install-source"
+  local rc; _ccp "$h" upgrade --bogus >/dev/null 2>&1; rc=$?
+  assert_rc "$rc" 1 "upgrade with unknown flag => error"
+}
+test_bin_upgrade_runs() {
+  # instala en dirs temporales (registra la fuente = $ROOT), luego upgrade --no-sync
+  local bd ld h; bd="$(newdir)"; ld="$(newdir)"; h="$(newdir)"
+  CCP_BIN_DIR="$bd" CCP_LIB_DIR="$ld" CCP_HOME="$h" bash "$ROOT/install.sh" >/dev/null 2>&1
+  # rc temporal SIN bloque => _upgrade_check_rc es no-op (no toca ningún rc real)
+  local rcfile; rcfile="$(newdir)/rc"; : > "$rcfile"
+  local out; out="$(CCP_BIN_DIR="$bd" CCP_HOME="$h" CCP_RC="$rcfile" bash "$ROOT/bin/ccp" upgrade --no-sync 2>&1)"
+  case "$out" in *"actualizado"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: upgrade run did not report: $out" >&2;; esac
+  [[ -x "$bd/ccp" ]]; assert_rc "$?" 0 "upgrade reinstalled the binary"
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"
