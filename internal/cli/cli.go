@@ -7,9 +7,22 @@ package cli
 import (
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
 )
+
+// ccpHome resuelve el directorio de config de ccp: CCP_HOME o ~/.config/ccp.
+func ccpHome() (string, error) {
+	if h := os.Getenv("CCP_HOME"); h != "" {
+		return h, nil
+	}
+	hd, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("no se pudo determinar HOME: %w", err)
+	}
+	return hd + "/.config/ccp", nil
+}
 
 // Dispatch ejecuta el subcomando indicado por args (os.Args[1:]) y devuelve
 // el código de salida del proceso. En la Fase 0 solo `version` está cableado;
@@ -28,8 +41,61 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "ccp v%s — router de perfiles y cuentas de Claude Code\n", core.Version)
 		fmt.Fprintln(stdout, "  (rewrite Go en curso — superficie completa en fases siguientes)")
 		return 0
+	case "profile":
+		return dispatchProfile(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "Comando desconocido: '%s'\n", cmd)
+		return 1
+	}
+}
+
+// dispatchProfile maneja `ccp profile <sub> ...`. En esta fase (#7) solo
+// `config` y `sync` están cableados; el resto de la superficie se conecta en
+// fases siguientes.
+func dispatchProfile(args []string, stdout, stderr io.Writer) int {
+	var sub string
+	if len(args) > 0 {
+		sub = args[0]
+	}
+	switch sub {
+	case "config":
+		var name string
+		if len(args) > 1 {
+			name = args[1]
+		}
+		home, err := ccpHome()
+		if err != nil {
+			fmt.Fprintf(stderr, "Error: %v\n", err)
+			return 1
+		}
+		if err := core.ProfileConfig(home, name, core.ProfileConfigOpts{}); err != nil {
+			fmt.Fprintf(stderr, "Error: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Config de '%s' actualizada (global ⊕ overlay).\n", name)
+		return 0
+	case "sync":
+		var name string
+		if len(args) > 1 {
+			name = args[1]
+		}
+		home, err := ccpHome()
+		if err != nil {
+			fmt.Fprintf(stderr, "Error: %v\n", err)
+			return 1
+		}
+		if err := core.ProfileSync(home, name); err != nil {
+			fmt.Fprintf(stderr, "Error: %v\n", err)
+			return 1
+		}
+		if name == "" {
+			fmt.Fprintln(stdout, "Todos los perfiles re-sincronizados.")
+		} else {
+			fmt.Fprintf(stdout, "Perfil '%s' re-sincronizado (global ⊕ overlay).\n", name)
+		}
+		return 0
+	default:
+		fmt.Fprintf(stderr, "profile: subcomando no cableado en esta fase: '%s'\n", sub)
 		return 1
 	}
 }
