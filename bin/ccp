@@ -195,8 +195,8 @@ _profile_config() {
   [[ -z "$name" ]] && { err "Uso: ccp profile config <perfil> [instructions|settings]"; return 1; }
   if [[ "$name" == "default" ]]; then _config_default; return; fi
   ccp_profile_exists "$CCP_HOME" "$name" || { err "No existe '$name'."; return 1; }
-  ccp_cfg_init_overlay "$CCP_HOME" "$name"
   ccp_cfg_migrate_legacy "$CCP_HOME" "$name"
+  ccp_cfg_init_overlay "$CCP_HOME" "$name"
   local instr settings
   instr="$(ccp_cfg_instr_file "$CCP_HOME" "$name")"
   settings="$(ccp_cfg_settings_file "$CCP_HOME" "$name")"
@@ -260,6 +260,7 @@ _config_default() {
 # re-merge global ⊕ overlay para un perfil (o todos si no se da nombre).
 _profile_sync() {
   local name="$1" src="${CCP_CLAUDE_SRC:-$HOME/.claude}"
+  [[ "$name" == "default" ]] && { err "'default' no tiene cc-home; no se sincroniza."; return 1; }
   if [[ -n "$name" ]]; then
     ccp_profile_exists "$CCP_HOME" "$name" || { err "No existe '$name'."; return 1; }
     ccp_cfg_migrate_legacy "$CCP_HOME" "$name"

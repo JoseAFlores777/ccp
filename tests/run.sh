@@ -490,6 +490,27 @@ test_bin_profile_sync_repulls_global() {
   fi
 }
 
+test_bin_profile_config_preserves_legacy_settings() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  printf '{"model":"opus"}' > "$src/settings.json"; printf 'G' > "$src/CLAUDE.md"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile add work --official >/dev/null
+  # simula estado LEGACY pre-overlay: sin overlay, con settings.json copia real (custom) en cc-home
+  rm -rf "$h/profiles/work/overlay"
+  printf '{"custom":"keep"}' > "$h/profiles/work/cc-home/settings.json"
+  # editor no-op (no cambia el overlay)
+  local fe; fe="$(newdir)/fe"; printf '#!/usr/bin/env bash\n:\n' > "$fe"; chmod +x "$fe"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" config editor "$fe" >/dev/null
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile config work settings >/dev/null
+  assert_eq "$(jq -r '.custom' "$h/profiles/work/overlay/settings.overlay.json")" "keep" "legacy settings preserved into overlay"
+  assert_eq "$(jq -r '.custom' "$h/profiles/work/cc-home/settings.json")" "keep" "legacy custom key survives merge into cc-home"
+}
+test_bin_profile_sync_default_rejected() {
+  local h; h="$(newdir)"
+  local rc; _ccp "$h" profile sync default >/dev/null 2>&1; rc=$?
+  assert_rc "$rc" 1 "sync default => error (no cc-home)"
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"
