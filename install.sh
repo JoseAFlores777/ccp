@@ -20,14 +20,24 @@ install -m 0644 "$SRC_DIR/lib/paths.sh"    "$LIB_DIR/paths.sh"
 install -m 0644 "$SRC_DIR/lib/profiles.sh" "$LIB_DIR/profiles.sh"
 install -m 0644 "$SRC_DIR/lib/env.sh"      "$LIB_DIR/env.sh"
 install -m 0644 "$SRC_DIR/lib/cfg.sh"      "$LIB_DIR/cfg.sh"
+install -m 0644 "$SRC_DIR/lib/instruct.sh" "$LIB_DIR/instruct.sh"
 ok "Binario  -> $BIN_DIR/ccp"
-ok "Librerías-> $LIB_DIR/{paths,profiles,env,cfg}.sh"
+ok "Librerías-> $LIB_DIR/{paths,profiles,env,cfg,instruct}.sh"
 
 # Registra la fuente para 'ccp upgrade' (re-instala desde aquí).
 CCP_HOME="${CCP_HOME:-$HOME/.config/ccp}"
 mkdir -p "$CCP_HOME"
 printf '%s\n' "$SRC_DIR" > "$CCP_HOME/install-source"
 ok "Fuente registrada-> $CCP_HOME/install-source"
+
+# Comandos /ccp: para Claude Code (se propagan a todos los perfiles vía el
+# symlink commands/ de cada cc-home). CCP_CLAUDE_SRC override-able en tests.
+CLAUDE_SRC="${CCP_CLAUDE_SRC:-$HOME/.claude}"
+if [[ -d "$SRC_DIR/commands/ccp" ]]; then
+  mkdir -p "$CLAUDE_SRC/commands/ccp"
+  install -m 0644 "$SRC_DIR/commands/ccp/"*.md "$CLAUDE_SRC/commands/ccp/"
+  ok "Comandos /ccp: -> $CLAUDE_SRC/commands/ccp/"
+fi
 
 if ! printf '%s' "$PATH" | tr ':' '\n' | grep -qx "$BIN_DIR"; then
   warn "$BIN_DIR no está en tu PATH. Añade a tu rc:"

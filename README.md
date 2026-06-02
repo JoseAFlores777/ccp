@@ -296,6 +296,59 @@ ccp config editor "code -w"                 # editor a usar (fallback: $EDITOR)
 
 ---
 
+## Comandos `/ccp:` — recordar y explorar artefactos
+
+`ccp` incluye cinco comandos de Claude Code que te permiten persistir instrucciones, agents, hooks y servidores MCP directamente desde la conversación, sin editar archivos a mano.
+
+**Comandos disponibles:**
+
+| Comando | Qué hace |
+|---|---|
+| `/ccp:remember-global <texto>` | Persiste al `~/.claude` global (aplica a todos los perfiles) |
+| `/ccp:remember-profile <texto>` | Persiste al overlay del perfil activo (error si es `default`) |
+| `/ccp:remember-project <texto>` | Persiste al `.claude/` del repo git actual (se versiona con el código) |
+| `/ccp:recall [scope]` | Lista lo que ccp gestiona (`global`, `profile`, `project`; sin argumento = los tres) |
+| `/ccp:forget [scope]` | Borra por índice (lista y pide confirmación antes de borrar) |
+
+Los comandos se instalan con `install.sh` en `~/.claude/commands/ccp/` y quedan disponibles en todos los perfiles vía el symlink `commands/` de cada cc-home.
+
+### Qué puedes guardar (scope × tipo)
+
+Cada comando clasifica automáticamente el artefacto según lo que pides (`rule`, `agent`, `command`, `skill`, `hook`, `mcp`) y lo escribe en la ruta oficial de Claude Code:
+
+| tipo | `global` | `project` | `profile` |
+|---|---|---|---|
+| `rule` | `~/.claude/CLAUDE.md` (bloque gestionado) | `.claude/CLAUDE.md` (bloque gestionado) | `overlay/CLAUDE.md` (bloque gestionado) |
+| `hook` | `~/.claude/settings.json` | `.claude/settings.json` | `overlay/settings.overlay.json` (+ regen) |
+| `mcp` | `~/.claude.json` | `.mcp.json` | ❌ no soportado — usa `global` o `project` |
+| `agent` | `~/.claude/agents/` | `.claude/agents/` | ❌ se comparten desde global vía symlink |
+| `command` | `~/.claude/commands/` | `.claude/commands/` | ❌ se comparten desde global vía symlink |
+| `skill` | `~/.claude/skills/` | `.claude/skills/` | ❌ se comparten desde global vía symlink |
+
+Notas importantes:
+
+- **Reglas (`rule`)**: viven dentro de un bloque con marcadores en `CLAUDE.md` (lo gestiona `ccp`; nunca edites ese bloque a mano). El bloque se `@import`a automáticamente en cada cc-home, así que los cambios no requieren regen.
+- **Agents, commands, skills**: Claude escribe el archivo en la ruta que devuelve `ccp instruct dest <scope> <type>` y lo registra con `ccp instruct record`. A nivel `profile` no se soportan (se heredan desde global vía symlink).
+- **Hooks y MCP**: requieren `jq`. El **borrado de hooks es manual** — `forget`/`rm` quitan la entrada del manifest, pero el bloque en `settings.json` hay que eliminarlo a mano (o via `ccp profile config <perfil> settings`).
+- **CRUD seguro**: `recall`/`forget` solo ven lo que `ccp` creó — reglas (bloque gestionado) y un **manifest de artefactos** (global/profile en `~/.config/ccp/authored.tsv`; project en `.claude/ccp-authored.tsv`, versionado con el repo).
+
+### Superficie CLI (`ccp instruct`)
+
+Los comandos `/ccp:` son wrappers sobre esta API que también puedes usar desde scripts:
+
+```bash
+ccp instruct add <scope> <type> <texto>          # añade rule/hook/mcp (agent/command/skill: usa dest + record)
+ccp instruct add <scope> mcp 'name={"command":"...","args":[...]}'  # server MCP
+ccp instruct list <scope>                         # lista lo gestionado
+ccp instruct rm <scope> <index>                   # borra por índice
+ccp instruct dest <scope> <type>                  # imprime la ruta destino oficial
+ccp instruct record <scope> <type> <ref> <desc>   # registra un artefacto ya escrito
+```
+
+`scope` = `global` | `profile` | `project`. Ver `docs/adr/0004` (bloque de reglas) y `docs/adr/0005` (routing + manifest).
+
+---
+
 ## Solución de problemas
 
 **`ccp: command not found`**
