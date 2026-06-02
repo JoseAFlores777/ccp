@@ -17,7 +17,7 @@ import (
 // para producir ccp.yaml, y carga el Config.
 // ---------------------------------------------------------------------------
 
-func goldenDir(t *testing.T) string {
+func envGoldenDir(t *testing.T) string {
 	t.Helper()
 	// internal/core -> ../../testdata/golden/basic
 	_, file, _, ok := runtime.Caller(0)
@@ -59,7 +59,7 @@ func copyTreeTest(t *testing.T, src, dst string) {
 // materializeHome crea el CCP_HOME temporal y devuelve (home, cfg).
 func materializeHome(t *testing.T) (string, *Config) {
 	t.Helper()
-	gd := goldenDir(t)
+	gd := envGoldenDir(t)
 	fixture := filepath.Join(gd, "ccp-home")
 
 	home := t.TempDir()
@@ -125,9 +125,9 @@ func writeStressProfileOnDisk(t *testing.T, home string, p Profile, key string) 
 	}
 }
 
-func readGolden(t *testing.T, name string) string {
+func envReadGolden(t *testing.T, name string) string {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(goldenDir(t), "expected", name))
+	data, err := os.ReadFile(filepath.Join(envGoldenDir(t), "expected", name))
 	if err != nil {
 		t.Fatalf("leyendo golden %s: %v", name, err)
 	}
@@ -157,7 +157,7 @@ func TestEnvDeltaGolden(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.golden, func(t *testing.T) {
 			got := redact(EnvDelta(home, c.profile, cfg), home)
-			want := readGolden(t, c.golden)
+			want := envReadGolden(t, c.golden)
 			if got != want {
 				t.Errorf("EnvDelta(%q) mismatch:\n--- got ---\n%q\n--- want ---\n%q", c.profile, got, want)
 			}
@@ -181,7 +181,7 @@ func TestHookGolden(t *testing.T) {
 		t.Run(c.golden, func(t *testing.T) {
 			prof := Resolve(c.query, cfg.Rules)
 			got := redact(EnvDelta(home, prof, cfg), home)
-			want := readGolden(t, c.golden)
+			want := envReadGolden(t, c.golden)
 			if got != want {
 				t.Errorf("hook(%q)->%q mismatch:\n--- got ---\n%q\n--- want ---\n%q", c.query, prof, got, want)
 			}
@@ -211,12 +211,12 @@ func TestResolveGolden(t *testing.T) {
 		t.Run(c.out, func(t *testing.T) {
 			prof := Resolve(c.query, cfg.Rules)
 			got := prof + "\n" // oráculo imprime nombre + newline (printf '%s\n' via emit)
-			want := readGolden(t, c.out)
+			want := envReadGolden(t, c.out)
 			if got != want {
 				t.Errorf("Resolve(%q) = %q, want %q", c.query, got, want)
 			}
 			// exit code: 0 si no-default, 1 si default.
-			wantCode := strings.TrimSpace(readGolden(t, c.code))
+			wantCode := strings.TrimSpace(envReadGolden(t, c.code))
 			gotCode := "0"
 			if prof == "default" {
 				gotCode = "1"
@@ -374,7 +374,7 @@ func lookShell(name string) (string, bool) {
 // evaluarla en bash. Devuelve nil si el oráculo no es ejecutable.
 func oracleEnv(t *testing.T, home, profile string) map[string]string {
 	t.Helper()
-	gd := goldenDir(t)
+	gd := envGoldenDir(t)
 	oracle := filepath.Join(gd, "..", "..", "..", "bin", "ccp")
 	if fi, err := os.Stat(oracle); err != nil || fi.IsDir() {
 		return nil
