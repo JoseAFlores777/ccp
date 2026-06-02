@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
 )
@@ -43,6 +45,8 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case "profile":
 		return dispatchProfile(args[1:], stdout, stderr)
+	case "backup":
+		return dispatchBackup(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "Comando desconocido: '%s'\n", cmd)
 		return 1
@@ -96,6 +100,98 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 		return 0
 	default:
 		fmt.Fprintf(stderr, "profile: subcomando no cableado en esta fase: '%s'\n", sub)
+		return 1
+	}
+}
+
+// dispatchBackup maneja `ccp backup <export|restore> ...`.
+func dispatchBackup(args []string, stdout, stderr io.Writer) int {
+	var sub string
+	if len(args) > 0 {
+		sub = args[0]
+	}
+	home, err := ccpHome()
+	if err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return 1
+	}
+
+	switch sub {
+	case "export":
+		var dest string
+		withSecrets := false
+		for _, a := range args[1:] {
+			switch a {
+			case "--with-secrets":
+				withSecrets = true
+			default:
+				if strings.HasPrefix(a, "-") {
+					fmt.Fprintf(stderr, "backup export: opción desconocida '%s'\n", a)
+					return 1
+				}
+				dest = a
+			}
+		}
+		if dest == "" {
+			fmt.Fprintln(stderr, "Uso: ccp backup export <archivo.tar.gz> [--with-secrets]")
+			return 1
+		}
+		if err := core.BackupExport(home, dest, withSecrets, time.Now()); err != nil {
+			fmt.Fprintf(stderr, "Error: %v\n", err)
+			return 1
+		}
+		if withSecrets {
+			fmt.Fprintf(stdout, "Backup escrito en %s (chmod 600).\n", dest)
+			fmt.Fprintln(stderr, "ADVERTENCIA: este backup contiene SECRETOS (api_key + credenciales de login). No lo compartas ni lo subas a un repo.")
+		} else {
+			fmt.Fprintf(stdout, "Backup escrito en %s (sin secretos; seguro de compartir).\n", dest)
+		}
+		return 0
+
+	case "restore":
+		var archive string
+		var opts core.RestoreOpts
+		for _, a := range args[1:] {
+			switch a {
+			case "--overwrite":
+				opts.Overwrite = true
+			case "--force":
+				opts.Force = true
+			default:
+				if strings.HasPrefix(a, "-") {
+					fmt.Fprintf(stderr, "backup restore: opción desconocida '%s'\n", a)
+					return 1
+				}
+				archive = a
+			}
+		}
+		if archive == "" {
+			fmt.Fprintln(stderr, "Uso: ccp backup restore <archivo.tar.gz> [--overwrite | --force]")
+			return 1
+		}
+		opts.Now = time.Now()
+		rep, err := core.BackupRestore(home, archive, opts)
+		if err != nil {
+			fmt.Fprintf(stderr, "Error: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Restore completado. Snapshot reversible en %s\n", rep.SnapshotDir)
+		if len(rep.Created) > 0 {
+			fmt.Fprintf(stdout, "  Creados:     %s\n", strings.Join(rep.Created, ", "))
+		}
+		if len(rep.Overwritten) > 0 {
+			fmt.Fprintf(stdout, "  Reemplazados: %s\n", strings.Join(rep.Overwritten, ", "))
+		}
+		if len(rep.Skipped) > 0 {
+			fmt.Fprintf(stdout, "  Saltados:    %s (usa --overwrite para reemplazar)\n", strings.Join(rep.Skipped, ", "))
+		}
+		if rep.RulesAdded > 0 {
+			fmt.Fprintf(stdout, "  Reglas añadidas: %d\n", rep.RulesAdded)
+		}
+		return 0
+
+	default:
+		fmt.Fprintf(stderr, "backup: subcomando desconocido '%s' (export|restore)\n", sub)
 		return 1
 	}
 }
