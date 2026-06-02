@@ -425,6 +425,14 @@ test_cfg_migrate_legacy_idempotent() {
   fi
 }
 
+test_bin_config_editor_set_show() {
+  local h; h="$(newdir)"
+  _ccp "$h" config editor "code -w" >/dev/null
+  local out; out="$(_ccp "$h" config show)"
+  case "$out" in *"code -w"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: config show missing editor" >&2;; esac
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"

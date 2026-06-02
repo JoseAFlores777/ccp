@@ -441,6 +441,7 @@ _migrate_if_needed() {
 _load_config() {
   CCP_BASE_URL="$CCP_BASE_URL_DEFAULT"; CCP_MODEL_PRO="$CCP_MODEL_PRO_DEFAULT"
   CCP_MODEL_FLASH="$CCP_MODEL_FLASH_DEFAULT"; CCP_EFFORT="$CCP_EFFORT_DEFAULT"
+  CCP_EDITOR=""
   if [[ -f "$CCP_CONF_FILE" ]]; then
     local line
     while IFS= read -r line; do
@@ -449,6 +450,7 @@ _load_config() {
         model_pro=*)   CCP_MODEL_PRO="${line#model_pro=}" ;;
         model_flash=*) CCP_MODEL_FLASH="${line#model_flash=}" ;;
         effort=*)      CCP_EFFORT="${line#effort=}" ;;
+        editor=*)      CCP_EDITOR="${line#editor=}" ;;
       esac
     done < "$CCP_CONF_FILE"
   fi
@@ -456,7 +458,8 @@ _load_config() {
 _save_config() {
   mkdir -p "$CCP_HOME"
   { printf 'base_url=%s\n' "$CCP_BASE_URL"; printf 'model_pro=%s\n' "$CCP_MODEL_PRO"
-    printf 'model_flash=%s\n' "$CCP_MODEL_FLASH"; printf 'effort=%s\n' "$CCP_EFFORT"; } > "$CCP_CONF_FILE"
+    printf 'model_flash=%s\n' "$CCP_MODEL_FLASH"; printf 'effort=%s\n' "$CCP_EFFORT"
+    printf 'editor=%s\n' "$CCP_EDITOR"; } > "$CCP_CONF_FILE"
   chmod 600 "$CCP_CONF_FILE"
 }
 cmd_config() {
@@ -467,7 +470,8 @@ cmd_config() {
       printf ' Base URL:    %s\n' "$CCP_BASE_URL"
       printf ' Modelo pro:  %s  %s(deepseek)%s\n' "$CCP_MODEL_PRO" "$C_DIM" "$C_RESET"
       printf ' Modelo flash:%s\n' "$CCP_MODEL_FLASH"
-      printf ' Effort:      %s\n' "$CCP_EFFORT"; hr
+      printf ' Effort:      %s\n' "$CCP_EFFORT"
+      printf ' Editor:      %s\n' "${CCP_EDITOR:-(usa \$EDITOR)}"; hr
       info "Cambiar: ccp config set <base_url|model_pro|model_flash|effort> <valor>" ;;
     set)
       local k="$2" v="$3"; [[ -z "$k" || -z "$v" ]] && { err "Uso: ccp config set <clave> <valor>"; return 1; }
@@ -477,10 +481,16 @@ cmd_config() {
         *) err "Clave desconocida: $k"; return 1;;
       esac
       _save_config; ok "Config: $k = $v" ;;
+    editor)
+      local e="$2"; [[ -z "$e" ]] && { err "Uso: ccp config editor <comando>"; return 1; }
+      CCP_EDITOR="$e"; _save_config; ok "Editor: $e" ;;
     reset) rm -f "$CCP_CONF_FILE"; ok "Defaults restaurados." ;;
-    *) err "Uso: ccp config [show|set|reset]" ;;
+    *) err "Uso: ccp config [show|set|reset|editor]" ;;
   esac
 }
+
+# editor configurable (ccp config editor ...) -> $EDITOR -> nano
+_resolve_editor() { _load_config; printf '%s' "${CCP_EDITOR:-${EDITOR:-nano}}"; }
 
 cmd_doctor() {
   hr; printf ' %sDiagnóstico%s\n' "$C_BOLD" "$C_RESET"; hr
