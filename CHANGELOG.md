@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Comandos `/ccp:remember-{global,profile,project}`, `/ccp:recall`, `/ccp:forget` y la superficie CLI `ccp instruct add|list|rm|dest|record`: capturan artefactos (rule/agent/command/hook/mcp/skill) en la estructura oficial de Claude Code (CLAUDE.md, agents/, commands/, skills/, settings.json hooks, ~/.claude.json/.mcp.json mcpServers), con CRUD seguro vía bloque marcado (reglas) y un manifest de artefactos. mcp: global/project; profile-mcp no soportado. Borrado de hooks manual. Ver docs/adr/0004, 0005.
+
 ## [2.1.0]
 - Autocompletado de shell (`dsctl completion bash|zsh`): subcomandos, llaves de
   config, rutas y verbos de `ds`. Se auto-carga vía el shell init.
