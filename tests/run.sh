@@ -578,6 +578,49 @@ test_instruct_dest_unknown_rc1() {
   ccp_instruct_dest global xxx /h ds /src /root >/dev/null 2>&1; assert_rc "$?" 1 "tipo desconocido => rc1"
 }
 
+# ===== instruct: bloque de reglas =====
+test_instruct_rule_add_creates_block() {
+  local f; f="$(newdir)/CLAUDE.md"; printf '# Mi config\n\ncontenido previo\n' > "$f"
+  ccp_instruct_rule_add "$f" "responde en español"
+  case "$(cat "$f")" in *"contenido previo"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: preserva contenido previo" >&2;; esac
+  assert_eq "$(ccp_instruct_rule_list "$f")" "responde en español" "lista 1 regla"
+}
+test_instruct_rule_add_appends_in_order() {
+  local f; f="$(newdir)/CLAUDE.md"; : > "$f"
+  ccp_instruct_rule_add "$f" "uno"
+  ccp_instruct_rule_add "$f" "dos"
+  assert_eq "$(ccp_instruct_rule_list "$f" | tr '\n' '|')" "uno|dos|" "orden de inserción"
+}
+test_instruct_rule_add_dedup_rc9() {
+  local f; f="$(newdir)/CLAUDE.md"; : > "$f"
+  ccp_instruct_rule_add "$f" "igual"
+  ccp_instruct_rule_add "$f" "igual"; assert_rc "$?" 9 "duplicado => rc9"
+  assert_eq "$(ccp_instruct_rule_list "$f" | grep -c .)" "1" "no duplica"
+}
+test_instruct_rule_rm_by_index() {
+  local f; f="$(newdir)/CLAUDE.md"; : > "$f"
+  ccp_instruct_rule_add "$f" "a"; ccp_instruct_rule_add "$f" "b"; ccp_instruct_rule_add "$f" "c"
+  ccp_instruct_rule_rm "$f" 2; assert_rc "$?" 0 "rm índice válido"
+  assert_eq "$(ccp_instruct_rule_list "$f" | tr '\n' '|')" "a|c|" "borra el 2do"
+}
+test_instruct_rule_rm_out_of_range_rc1() {
+  local f; f="$(newdir)/CLAUDE.md"; : > "$f"
+  ccp_instruct_rule_add "$f" "solo"
+  ccp_instruct_rule_rm "$f" 5; assert_rc "$?" 1 "fuera de rango => rc1"
+}
+test_instruct_rule_list_empty_file() {
+  local f; f="$(newdir)/none.md"
+  assert_eq "$(ccp_instruct_rule_list "$f")" "" "archivo inexistente => vacío"
+}
+test_instruct_rule_add_backslash_safe() {
+  local f; f="$(newdir)/CLAUDE.md"; : > "$f"
+  ccp_instruct_rule_add "$f" 'usa la ruta C:\temp\x'
+  assert_eq "$(ccp_instruct_rule_list "$f")" 'usa la ruta C:\temp\x' "backslashes intactos"
+  ccp_instruct_rule_add "$f" 'usa la ruta C:\temp\x'; assert_rc "$?" 9 "dedup con backslash => rc9"
+  assert_eq "$(ccp_instruct_rule_list "$f" | grep -c .)" "1" "no duplica con backslash"
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"

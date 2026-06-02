@@ -19,9 +19,7 @@
 #  desde global; ver docs/adr/0005).
 # ============================================================
 
-# shellcheck disable=SC2034  # referenciadas por las funciones CRUD (siguiente tarea)
 CCP_INSTR_BEGIN='<!-- >>> ccp instructions >>> -->'
-# shellcheck disable=SC2034
 CCP_INSTR_END='<!-- <<< ccp instructions <<< -->'
 
 # ccp_instruct_dest <scope> <type> <ccp_home> <profile> <src> <repo_root>
@@ -64,4 +62,55 @@ ccp_instruct_dest() {
       esac ;;
     *) return 1 ;;
   esac
+}
+
+# ---- bloque de reglas (tipo 'rule') --------------------------------------
+
+# asegura que <file> existe y contiene el bloque (idempotente).
+ccp_instruct_block_ensure() { # file
+  local f="$1"
+  mkdir -p "$(dirname "$f")"
+  [[ -e "$f" ]] || : > "$f"
+  if ! grep -qF "$CCP_INSTR_BEGIN" "$f"; then
+    { [[ -s "$f" ]] && printf '\n'; printf '%s\n%s\n' "$CCP_INSTR_BEGIN" "$CCP_INSTR_END"; } >> "$f"
+  fi
+}
+
+# lista las instrucciones (texto sin '- '), una por línea, en orden.
+ccp_instruct_rule_list() { # file
+  local f="$1"
+  [[ -f "$f" ]] || return 0
+  awk -v b="$CCP_INSTR_BEGIN" -v e="$CCP_INSTR_END" '
+    $0 == b { inb=1; next }
+    $0 == e { inb=0 }
+    inb && /^- / { line=$0; sub(/^- /, "", line); print line }
+  ' "$f"
+}
+
+# agrega una instrucción (bullet) si no es duplicado exacto. rc 0 añadió, 9 dup.
+ccp_instruct_rule_add() { # file text
+  local f="$1" text="$2"
+  ccp_instruct_block_ensure "$f"
+  if ccp_instruct_rule_list "$f" | grep -qxF "$text"; then return 9; fi
+  local tmp; tmp="$(mktemp)"
+  _CCP_LINE="- $text" awk -v end="$CCP_INSTR_END" '
+    BEGIN { line=ENVIRON["_CCP_LINE"] }
+    $0 == end { print line }
+    { print }
+  ' "$f" > "$tmp" && mv "$tmp" "$f"
+}
+
+# borra la instrucción N (1-based) dentro del bloque. rc 0 ok, 1 fuera de rango.
+ccp_instruct_rule_rm() { # file index
+  local f="$1" idx="$2"
+  [[ -f "$f" ]] || return 1
+  local n; n="$(ccp_instruct_rule_list "$f" | grep -c .)"
+  [[ "$idx" =~ ^[0-9]+$ && "$idx" -ge 1 && "$idx" -le "$n" ]] || return 1
+  local tmp; tmp="$(mktemp)"
+  awk -v b="$CCP_INSTR_BEGIN" -v e="$CCP_INSTR_END" -v target="$idx" '
+    $0 == b { inb=1; print; next }
+    $0 == e { inb=0; print; next }
+    inb && /^- / { c++; if (c == target) next; print; next }
+    { print }
+  ' "$f" > "$tmp" && mv "$tmp" "$f"
 }
