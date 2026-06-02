@@ -28,12 +28,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
+          ver="${GITHUB_REF_NAME#v}"   # tag v2.1.0 -> 2.1.0 (el CLI antepone "v")
+          xpkg="github.com/JoseAFlores777/ccp/internal/core.Version"
           for target in darwin/amd64 darwin/arm64 linux/amd64 linux/arm64; do
             goos="${target%/*}"; goarch="${target#*/}"
             out="dist/ccp-${goos}-${goarch}"
-            echo "==> $out"
+            echo "==> $out (v$ver)"
             GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
-              go build -trimpath -ldflags "-s -w" -o "$out" ./cmd/ccp
+              go build -trimpath -ldflags "-s -w -X ${xpkg}=${ver}" -o "$out" ./cmd/ccp
           done
 
       - name: Generate checksums.txt

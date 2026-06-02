@@ -7,4 +7,8 @@
 package core
 
 // Version es la versión del binario ccp (rewrite Go v2.0).
-const Version = "2.0.0"
+//
+// Es var, no const, para que el release la inyecte desde el tag con
+// -ldflags "-X github.com/JoseAFlores777/ccp/internal/core.Version=2.1.0".
+// El default es el de los builds de desarrollo / desde fuente sin tag.
+var Version = "2.0.0"

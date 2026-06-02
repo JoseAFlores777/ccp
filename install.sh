@@ -112,9 +112,18 @@ install_from_source() {
   command -v go >/dev/null 2>&1 || return 1
   [[ -f "$SRC_DIR/cmd/ccp/main.go" ]] || return 1
   info "Compilando desde el código (go build)…"
+  # versión: el tag git más cercano (sin la "v", que el CLI antepone); si no
+  # hay repo/tags, cae al default compilado en version.go.
+  local ver xpkg ldflags=""
+  ver="$(cd "$SRC_DIR" && git describe --tags --always --dirty 2>/dev/null || true)"
+  ver="${ver#v}"
+  if [[ -n "$ver" ]]; then
+    xpkg="github.com/JoseAFlores777/ccp/internal/core.Version"
+    ldflags="-X ${xpkg}=${ver}"
+  fi
   # build a un temp y luego instala: go build -o se niega a sobrescribir un
   # archivo que no creó él (p.ej. el ccp bash legacy o un binario en uso).
-  ( cd "$SRC_DIR" && CGO_ENABLED=0 go build -o "$TMP/ccp" ./cmd/ccp ) || return 1
+  ( cd "$SRC_DIR" && CGO_ENABLED=0 go build -ldflags "$ldflags" -o "$TMP/ccp" ./cmd/ccp ) || return 1
   install -m 0755 "$TMP/ccp" "$BIN_DIR/ccp"
   ok "Binario (go build) -> $BIN_DIR/ccp"
   return 0
