@@ -20,8 +20,9 @@ install -m 0644 "$SRC_DIR/lib/paths.sh"    "$LIB_DIR/paths.sh"
 install -m 0644 "$SRC_DIR/lib/profiles.sh" "$LIB_DIR/profiles.sh"
 install -m 0644 "$SRC_DIR/lib/env.sh"      "$LIB_DIR/env.sh"
 install -m 0644 "$SRC_DIR/lib/cfg.sh"      "$LIB_DIR/cfg.sh"
+install -m 0644 "$SRC_DIR/lib/instruct.sh" "$LIB_DIR/instruct.sh"
 ok "Binario  -> $BIN_DIR/ccp"
-ok "Librerías-> $LIB_DIR/{paths,profiles,env,cfg}.sh"
+ok "Librerías-> $LIB_DIR/{paths,profiles,env,cfg,instruct}.sh"
 
 # Registra la fuente para 'ccp upgrade' (re-instala desde aquí).
 CCP_HOME="${CCP_HOME:-$HOME/.config/ccp}"

@@ -17,11 +17,14 @@ for _l in paths.sh profiles.sh env.sh cfg.sh; do
   # shellcheck disable=SC1090
   [[ -f "$_libdir/$_l" ]] && source "$_libdir/$_l"
 done
+# shellcheck source=/dev/null
+[[ -f "$_libdir/instruct.sh" ]] && source "$_libdir/instruct.sh"
 
 # --- rutas de config ---
 CCP_HOME="${CCP_HOME:-$HOME/.config/ccp}"
 CCP_RULES_FILE="$CCP_HOME/rules.tsv"
 CCP_CONF_FILE="$CCP_HOME/config"
+CCP_CLAUDE_SRC="${CCP_CLAUDE_SRC:-$HOME/.claude}"
 # defaults usados al crear perfiles deepseek nuevos
 CCP_BASE_URL_DEFAULT="https://api.deepseek.com/anthropic"
 CCP_MODEL_PRO_DEFAULT="deepseek-v4-pro[1m]"
@@ -330,6 +333,84 @@ cmd_path_list() {
   hr
 }
 
+# scope del perfil activo (vía CCP_PROFILE; default si ausente).
+_instr_active_profile() { printf '%s' "${CCP_PROFILE:-default}"; }
+
+# raíz del repo para scope 'project' (override en tests con CCP_REPO_ROOT; fallback cwd).
+_instr_repo_root() {
+  if [[ -n "${CCP_REPO_ROOT:-}" ]]; then printf '%s' "$CCP_REPO_ROOT"; return; fi
+  local r; r="$(_repo_root)"; if [[ -n "$r" ]]; then printf '%s' "$r"; else printf '%s' "$PWD"; fi
+}
+
+# resuelve la ruta destino o falla con mensaje en español.
+_instr_dest_or_die() { # scope type
+  local scope="$1" type="$2" prof src root dest rc
+  prof="$(_instr_active_profile)"; src="$CCP_CLAUDE_SRC"; root="$(_instr_repo_root)"
+  dest="$(ccp_instruct_dest "$scope" "$type" "$CCP_HOME" "$prof" "$src" "$root")"; rc=$?
+  case "$rc" in
+    0) printf '%s' "$dest"; return 0 ;;
+    2) err "scope 'profile': el perfil activo es 'default' (sin overlay propio)."
+       info "Usa 'ccp instruct add global $type ...' o activa un perfil ('ccp use <n>')." >&2; return 2 ;;
+    3) err "tipo '$type' no existe a nivel de perfil (se comparten desde global)."
+       info "Usa scope 'global' (aplica a todos los perfiles) o 'project' (acota al repo)." >&2; return 3 ;;
+    4) err "scope 'project': no estás en un repo git y no hay CCP_REPO_ROOT."; return 4 ;;
+    *) err "scope/tipo inválido: '$scope'/'$type'."; return 1 ;;
+  esac
+}
+
+cmd_instruct() {
+  local sub="$1"; shift 2>/dev/null
+  case "$sub" in
+    add)  _instruct_add  "$@" ;;
+    list) _instruct_list "$@" ;;
+    rm)   _instruct_rm   "$@" ;;
+    *) err "instruct: subcomando desconocido '$sub' (add|list|rm)"; return 1 ;;
+  esac
+}
+
+# ccp instruct add <scope> <type> <texto...>
+_instruct_add() {
+  local scope="$1" type="$2"; shift 2 2>/dev/null
+  local text="$*"
+  [[ -n "$scope" && -n "$type" && -n "$text" ]] || { err "Uso: ccp instruct add <scope> <type> <texto>"; return 1; }
+  local dest; dest="$(_instr_dest_or_die "$scope" "$type")" || return 1
+  case "$type" in
+    rule)
+      if ccp_instruct_rule_add "$dest" "$text"; then
+        ok "Instrucción añadida ($scope/rule) -> $dest"
+      else
+        warn "Ya existía esa instrucción en $dest (no se duplica)."
+      fi
+      ;;
+    *) err "tipo '$type' aún no implementado por 'instruct add' (ver Milestones 3-4)."; return 1 ;;
+  esac
+}
+
+# ccp instruct list <scope>
+_instruct_list() {
+  local scope="$1"
+  [[ -n "$scope" ]] || { err "Uso: ccp instruct list <scope>"; return 1; }
+  local dest; dest="$(_instr_dest_or_die "$scope" rule)" || return 1
+  local i=0 line
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    i=$((i+1)); printf '   %2d) %s\n' "$i" "$line"
+  done < <(ccp_instruct_rule_list "$dest")
+  (( i )) || say "   (sin instrucciones en $scope)"
+}
+
+# ccp instruct rm <scope> <index>
+_instruct_rm() {
+  local scope="$1" idx="$2"
+  [[ -n "$scope" && -n "$idx" ]] || { err "Uso: ccp instruct rm <scope> <index>"; return 1; }
+  local dest; dest="$(_instr_dest_or_die "$scope" rule)" || return 1
+  if ccp_instruct_rule_rm "$dest" "$idx"; then
+    ok "Instrucción #$idx eliminada ($scope)."
+  else
+    err "Índice fuera de rango: $idx"; return 1
+  fi
+}
+
 # ccp key <perfil> [API_KEY]   (key de un perfil deepseek)
 cmd_key() {
   local name="$1"; shift 2>/dev/null
@@ -447,7 +528,7 @@ cmd_completion() {
 cat <<'COMPLETION_BASH'
 _ccp() {
   local cur prev; cur="${COMP_WORDS[COMP_CWORD]}"; prev="${COMP_WORDS[COMP_CWORD-1]}"
-  local top="install uninstall upgrade key path profile status config doctor menu completion resolve version help use default on off run"
+  local top="install uninstall upgrade key path profile instruct status config doctor menu completion resolve version help use default on off run"
   if [[ $COMP_CWORD -eq 1 ]]; then COMPREPLY=( $(compgen -W "$top" -- "$cur") ); return; fi
   case "${COMP_WORDS[1]}" in
     profile) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "add rm list show login config sync" -- "$cur") )
@@ -468,7 +549,7 @@ COMPLETION_BASH
 cat <<'COMPLETION_ZSH'
 if ! whence compdef >/dev/null 2>&1; then autoload -Uz compinit && compinit -C; fi
 _ccp() {
-  local -a top; top=(install uninstall upgrade key path profile status config doctor menu completion resolve version help use default on off run)
+  local -a top; top=(install uninstall upgrade key path profile instruct status config doctor menu completion resolve version help use default on off run)
   if (( CURRENT == 2 )); then compadd -- $top; return; fi
   case "${words[2]}" in
     profile) (( CURRENT == 3 )) && compadd -- add rm list show login config sync
@@ -681,6 +762,12 @@ ${C_BOLD}REGLAS DE PATH${C_RESET}
   ccp path list | test <ruta> | clear | edit
                                  (gana la regla más específica; sin regla => 'default')
 
+${C_BOLD}INSTRUCCIONES (memoria de Claude)${C_RESET}
+  ccp instruct add <scope> <type> <texto>   añade un artefacto (scope: global|profile|project)
+  ccp instruct list <scope>                 lista las instrucciones del scope
+  ccp instruct rm <scope> <index>           borra por índice
+                                            (lo usan los comandos /ccp:remember-* /ccp:recall /ccp:forget)
+
 ${C_BOLD}SCRIPTING${C_RESET}
   ccp resolve [ruta]          imprime el perfil (exit 0=no-default, 1=default)
   ccp status [--json]         estado de la terminal + regla del cwd
@@ -747,6 +834,7 @@ main() {
     _hook)     cmd_hook "$@" ;;
     profile|account) cmd_profile "$@" ;;
     path) cmd_path "$@" ;;
+    instruct) cmd_instruct "$@" ;;
     key)  cmd_key "$@" ;;
     status) cmd_status "$@" ;;
     install)   cmd_install "$@" ;;

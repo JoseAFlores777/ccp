@@ -621,6 +621,49 @@ test_instruct_rule_add_backslash_safe() {
   assert_eq "$(ccp_instruct_rule_list "$f" | grep -c .)" "1" "no duplica con backslash"
 }
 
+# ===== instruct: binario (scope rule) =====
+_ccp_instr() { # ccp_home src repo_root args...
+  CCP_HOME="$1" CCP_CLAUDE_SRC="$2" CCP_REPO_ROOT="$3" bash "$ROOT/bin/ccp" "${@:4}"
+}
+test_bin_instruct_add_global_rule() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  _ccp_instr "$h" "$s" "" instruct add global rule "no uses emojis" >/dev/null
+  case "$(cat "$s/CLAUDE.md")" in *"no uses emojis"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: regla global escrita" >&2;; esac
+}
+test_bin_instruct_add_profile_default_errors() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  local rc; CCP_HOME="$h" CCP_CLAUDE_SRC="$s" CCP_PROFILE="" bash "$ROOT/bin/ccp" instruct add profile rule "x" >/dev/null 2>&1; rc=$?
+  assert_rc "$rc" 1 "profile sobre default => error (rc1)"
+}
+test_bin_instruct_add_profile_active() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  _ccp "$h" profile add work --official >/dev/null
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$s" CCP_PROFILE=work bash "$ROOT/bin/ccp" instruct add profile rule "responde en español" >/dev/null
+  case "$(cat "$h/profiles/work/overlay/CLAUDE.md")" in *"responde en español"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: regla de perfil escrita en overlay" >&2;; esac
+}
+test_bin_instruct_list_and_rm() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  _ccp_instr "$h" "$s" "" instruct add global rule "uno" >/dev/null
+  _ccp_instr "$h" "$s" "" instruct add global rule "dos" >/dev/null
+  local out; out="$(_ccp_instr "$h" "$s" "" instruct list global)"
+  case "$out" in *" 1) uno"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: list numerado: $out" >&2;; esac
+  _ccp_instr "$h" "$s" "" instruct rm global 1 >/dev/null
+  local rem; rem="$(_ccp_instr "$h" "$s" "" instruct list global)"
+  case "$rem" in *"dos"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: rm dejó 'dos'" >&2;; esac
+  case "$rem" in *"uno"*) _fail=$((_fail+1)); echo "FAIL: 'uno' debió borrarse" >&2;; *) _pass=$((_pass+1));; esac
+}
+test_bin_instruct_project_fallback_cwd() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  local d; d="$(newdir)"
+  ( cd "$d" && CCP_HOME="$h" CCP_CLAUDE_SRC="$s" bash "$ROOT/bin/ccp" instruct add project rule "regla repo" >/dev/null )
+  case "$(cat "$d/.claude/CLAUDE.md" 2>/dev/null)" in *"regla repo"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: fallback a cwd para project" >&2;; esac
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"
