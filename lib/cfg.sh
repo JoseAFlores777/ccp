@@ -48,3 +48,32 @@ ccp_cfg_merge_settings() { # global_file overlay_file out_file
     if [[ -f "$g" ]]; then cp "$g" "$out"; else cp "$o" "$out"; fi
   fi
 }
+
+# escribe cc-home/CLAUDE.md: header + @import del global (si existe) + @import del overlay.
+# IMPORTANTE: si cc-home/CLAUDE.md es un symlink viejo, se elimina antes de escribir
+# (escribir sobre un symlink corrompería el archivo global apuntado).
+ccp_cfg_write_claude_md() { # home name src
+  local home="$1" name="$2" src="$3"
+  local cch overlay
+  cch="$(ccp_cfg_cchome "$home" "$name")"
+  overlay="$(ccp_cfg_instr_file "$home" "$name")"
+  mkdir -p "$cch"
+  [[ -L "$cch/CLAUDE.md" ]] && rm -f "$cch/CLAUDE.md"
+  {
+    printf '# %s — generado por ccp (no editar a mano; usa: ccp profile config %s)\n\n' "$name" "$name"
+    [[ -f "$src/CLAUDE.md" ]] && printf '@%s\n' "$src/CLAUDE.md"
+    printf '@%s\n' "$overlay"
+  } > "$cch/CLAUDE.md"
+}
+
+# regenera el cc-home efectivo desde global ⊕ overlay (idempotente).
+ccp_cfg_regenerate() { # home name src
+  local home="$1" name="$2" src="$3"
+  ccp_cfg_init_overlay "$home" "$name"
+  local cch overlay_s
+  cch="$(ccp_cfg_cchome "$home" "$name")"
+  overlay_s="$(ccp_cfg_settings_file "$home" "$name")"
+  mkdir -p "$cch"
+  ccp_cfg_write_claude_md "$home" "$name" "$src"
+  ccp_cfg_merge_settings "$src/settings.json" "$overlay_s" "$cch/settings.json"
+}

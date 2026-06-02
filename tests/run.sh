@@ -351,6 +351,40 @@ test_cfg_merge_no_global() {
   fi
 }
 
+test_cfg_write_claude_md_imports() {
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  printf 'GLOBAL RULES' > "$src/CLAUDE.md"
+  ccp_cfg_init_overlay "$h" work
+  ccp_cfg_write_claude_md "$h" work "$src"
+  local f="$h/profiles/work/cc-home/CLAUDE.md"
+  [[ -f "$f" && ! -L "$f" ]]; assert_rc "$?" 0 "cc-home CLAUDE.md is a real file"
+  case "$(cat "$f")" in
+    *"@$src/CLAUDE.md"*"@$h/profiles/work/overlay/CLAUDE.md"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: missing @imports in cc-home CLAUDE.md" >&2;;
+  esac
+}
+test_cfg_write_claude_md_replaces_symlink() {
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  printf 'G' > "$src/CLAUDE.md"
+  local cch="$h/profiles/work/cc-home"; mkdir -p "$cch"
+  ln -s "$src/CLAUDE.md" "$cch/CLAUDE.md"   # estado viejo: symlink
+  ccp_cfg_init_overlay "$h" work
+  ccp_cfg_write_claude_md "$h" work "$src"
+  [[ ! -L "$cch/CLAUDE.md" ]]; assert_rc "$?" 0 "old symlink replaced by real file"
+  assert_eq "$(cat "$src/CLAUDE.md")" "G" "global CLAUDE.md NOT clobbered"
+}
+test_cfg_regenerate() {
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  printf 'G' > "$src/CLAUDE.md"; printf '{"model":"opus"}' > "$src/settings.json"
+  ccp_cfg_regenerate "$h" work "$src"
+  local cch="$h/profiles/work/cc-home"
+  [[ -f "$cch/CLAUDE.md" ]]; assert_rc "$?" 0 "regenerate writes CLAUDE.md"
+  [[ -f "$cch/settings.json" ]]; assert_rc "$?" 0 "regenerate writes settings.json"
+  if command -v jq >/dev/null 2>&1; then
+    assert_eq "$(jq -r '.model' "$cch/settings.json")" "opus" "global merged into cc-home settings"
+  fi
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"
