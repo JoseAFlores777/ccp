@@ -433,6 +433,49 @@ test_bin_config_editor_set_show() {
     *) _fail=$((_fail+1)); echo "FAIL: config show missing editor" >&2;; esac
 }
 
+test_bin_profile_config_settings_target() {
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  printf 'G' > "$src/CLAUDE.md"; printf '{"model":"opus"}' > "$src/settings.json"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile add work --official >/dev/null
+  # editor falso: escribe un overlay válido en el archivo recibido
+  local fe; fe="$(newdir)/fakeeditor"
+  printf '#!/usr/bin/env bash\nprintf %s '"'"'{"env":{"FOO":"bar"}}'"'"' > "$1"\n' > "$fe"; chmod +x "$fe"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" config editor "$fe" >/dev/null
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile config work settings >/dev/null
+  local ov="$h/profiles/work/overlay/settings.overlay.json"
+  case "$(cat "$ov")" in *FOO*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: overlay not edited" >&2;; esac
+  if command -v jq >/dev/null 2>&1; then
+    assert_eq "$(jq -r '.env.FOO' "$h/profiles/work/cc-home/settings.json")" "bar" "overlay merged into cc-home after edit"
+    assert_eq "$(jq -r '.model' "$h/profiles/work/cc-home/settings.json")" "opus" "global still present after merge"
+  fi
+}
+test_bin_profile_config_bad_json_keeps_last_good() {
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  printf '{"model":"opus"}' > "$src/settings.json"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile add work --official >/dev/null
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }  # sin jq no hay validación
+  local good="$h/profiles/work/cc-home/settings.json"; cp "$good" "$h/snap.json"
+  local fe; fe="$(newdir)/fakeeditor"
+  printf '#!/usr/bin/env bash\nprintf %s '"'"'{bad json'"'"' > "$1"\n' > "$fe"; chmod +x "$fe"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" config editor "$fe" >/dev/null
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile config work settings >/dev/null 2>&1
+  assert_eq "$(cat "$good")" "$(cat "$h/snap.json")" "bad json: cc-home settings.json unchanged"
+}
+test_bin_profile_config_no_tty_requires_target() {
+  local h; h="$(newdir)"
+  _ccp "$h" profile add work --official >/dev/null
+  local rc; _ccp "$h" profile config work </dev/null >/dev/null 2>&1; rc=$?
+  assert_rc "$rc" 1 "no tty + no target => error"
+}
+
+test_bin_profile_config_default_no_tty() {
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  printf 'G' > "$src/CLAUDE.md"; printf '{}' > "$src/settings.json"
+  local rc; CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile config default </dev/null >/dev/null 2>&1; rc=$?
+  assert_rc "$rc" 1 "default config without tty => error"
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"

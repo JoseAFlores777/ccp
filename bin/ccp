@@ -70,7 +70,8 @@ cmd_profile() {
     list|ls|"") _profile_list ;;
     show)     _profile_show "$@" ;;
     login)    _profile_login "$@" ;;
-    *) err "profile: subcomando desconocido '$sub'"; say "Usa: add | rm | list | show | login"; return 1 ;;
+    config)   _profile_config "$@" ;;
+    *) err "profile: subcomando desconocido '$sub'"; say "Usa: add | rm | list | show | login | config"; return 1 ;;
   esac
 }
 
@@ -186,6 +187,73 @@ _profile_login() {
   info "Abriendo Claude Code con el config dir de '$name'."
   info "Dentro, corre  /login  con la cuenta de este perfil, luego /quit."
   CLAUDE_CONFIG_DIR="$cch" command claude
+}
+
+_profile_config() {
+  local name="$1" target="$2"
+  [[ -z "$name" ]] && { err "Uso: ccp profile config <perfil> [instructions|settings]"; return 1; }
+  if [[ "$name" == "default" ]]; then _config_default; return; fi
+  ccp_profile_exists "$CCP_HOME" "$name" || { err "No existe '$name'."; return 1; }
+  ccp_cfg_init_overlay "$CCP_HOME" "$name"
+  ccp_cfg_migrate_legacy "$CCP_HOME" "$name"
+  local instr settings
+  instr="$(ccp_cfg_instr_file "$CCP_HOME" "$name")"
+  settings="$(ccp_cfg_settings_file "$CCP_HOME" "$name")"
+  case "$target" in
+    instructions|instr|md) _edit_one "$instr" "$name"; return ;;
+    settings|json)         _edit_settings "$settings" "$name"; return ;;
+    "")                    : ;;
+    *) err "target desconocido: '$target' (instructions|settings)"; return 1 ;;
+  esac
+  if [[ ! -t 0 ]]; then err "Sin TTY: especifica target (instructions|settings)."; return 1; fi
+  while true; do
+    hr; printf ' %sConfig de perfil: %s%s\n' "$C_BOLD" "$name" "$C_RESET"; hr
+    say "   ${C_BOLD}1)${C_RESET} Instrucciones (CLAUDE.md)"
+    say "   ${C_BOLD}2)${C_RESET} Settings (hooks/permisos/env/mcp)"
+    say "   ${C_BOLD}3)${C_RESET} Ambos"
+    say "   ${C_BOLD}0)${C_RESET} Salir"
+    printf '   Opción: '; read -r opt
+    case "$opt" in
+      1) _edit_one "$instr" "$name" ;;
+      2) _edit_settings "$settings" "$name" ;;
+      3) _edit_one "$instr" "$name"; _edit_settings "$settings" "$name" ;;
+      0|"") break ;;
+      *) warn "Opción inválida." ;;
+    esac
+  done
+}
+
+# edita instrucciones (sin validación) y regenera cc-home.
+_edit_one() { # file name
+  local ed; ed="$(_resolve_editor)"
+  local -a _ed; read -ra _ed <<< "${ed:-nano}"
+  "${_ed[@]}" "$1"
+  ccp_cfg_regenerate "$CCP_HOME" "$2" "${CCP_CLAUDE_SRC:-$HOME/.claude}"
+  ok "Instrucciones de '$2' actualizadas."
+}
+
+# edita settings overlay; valida JSON; solo regenera si es válido.
+_edit_settings() { # file name
+  local ed; ed="$(_resolve_editor)"
+  local -a _ed; read -ra _ed <<< "${ed:-nano}"
+  "${_ed[@]}" "$1"
+  if ccp_cfg_validate_json "$1"; then
+    ccp_cfg_regenerate "$CCP_HOME" "$2" "${CCP_CLAUDE_SRC:-$HOME/.claude}"
+    ok "Settings de '$2' aplicados."
+  else
+    warn "JSON inválido en $1 — NO regeneré cc-home (se conserva el último bueno)."
+    warn "Reedita:  ccp profile config $2 settings"
+  fi
+}
+
+# 'default' = ~/.claude puro: abre los archivos GLOBALES con aviso.
+_config_default() {
+  if [[ ! -t 0 ]]; then err "Sin TTY: no se puede abrir editor para 'default'."; return 1; fi
+  local src="${CCP_CLAUDE_SRC:-$HOME/.claude}"
+  warn "default = tu config GLOBAL ($src). Editas archivos que afectan a TODOS los perfiles que heredan."
+  local ed; ed="$(_resolve_editor)"
+  local -a _ed; read -ra _ed <<< "${ed:-nano}"
+  "${_ed[@]}" "$src/CLAUDE.md" "$src/settings.json"
 }
 
 cmd_path() {
