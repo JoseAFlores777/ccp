@@ -664,6 +664,14 @@ test_bin_instruct_project_fallback_cwd() {
     *) _fail=$((_fail+1)); echo "FAIL: fallback a cwd para project" >&2;; esac
 }
 
+test_install_copies_commands() {
+  local bd ld h cd; bd="$(newdir)"; ld="$(newdir)"; h="$(newdir)"; cd="$(newdir)/claude"
+  CCP_BIN_DIR="$bd" CCP_LIB_DIR="$ld" CCP_HOME="$h" CCP_CLAUDE_SRC="$cd" \
+    bash "$ROOT/install.sh" >/dev/null 2>&1
+  [[ -f "$cd/commands/ccp/remember-global.md" ]]; assert_rc "$?" 0 "install copió remember-global"
+  [[ -f "$cd/commands/ccp/forget.md" ]];          assert_rc "$?" 0 "install copió forget"
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"
