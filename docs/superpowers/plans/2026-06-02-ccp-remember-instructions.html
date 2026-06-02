@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ccp remember — Implementation Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f4f1ea; --paper-2:#ece7dd;
+    --ink:#1a1915; --ink-soft:#3a3833; --ink-mute:#6f6a60;
+    --rule:#d8d2c4; --accent:#c96442; --accent-soft:#e8a48a;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:'Inter',sans-serif; font-size:17px; line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:980px; margin:0 auto; padding:64px 32px 96px}
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.22em;
+    text-transform:uppercase; color:var(--accent); margin:0 0 18px;
+  }
+  h1{
+    font-family:'Tinos',serif; font-weight:700; font-size:56px; line-height:1.08;
+    margin:0 0 20px; letter-spacing:-.01em;
+  }
+  h1 em{color:var(--accent); font-style:italic}
+  .lede{font-size:21px; color:var(--ink-soft); margin:0 0 28px; max-width:42em}
+  .meta{
+    display:flex; flex-wrap:wrap; gap:8px 28px; font-family:'JetBrains Mono',monospace;
+    font-size:12.5px; color:var(--ink-mute); border-top:1px solid var(--rule);
+    border-bottom:1px solid var(--rule); padding:16px 0; margin:0 0 8px;
+  }
+  .meta b{color:var(--ink-soft); font-weight:500}
+  nav.toc{margin:48px 0 16px; padding:28px 0; border-bottom:1px solid var(--rule)}
+  nav.toc h2{font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.2em;
+    text-transform:uppercase; color:var(--ink-mute); margin:0 0 18px}
+  nav.toc ol{list-style:none; margin:0; padding:0; columns:2; column-gap:48px}
+  nav.toc li{margin:0 0 10px; break-inside:avoid}
+  nav.toc a{color:var(--ink-soft); text-decoration:none; display:flex; gap:12px; padding-bottom:3px;
+    border-bottom:1px solid transparent; transition:border-color .15s,color .15s}
+  nav.toc a:hover{color:var(--ink); border-bottom-color:var(--accent)}
+  nav.toc .n{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--accent); min-width:1.8em}
+  section{padding:40px 0; border-bottom:1px solid var(--rule)}
+  section:last-of-type{border-bottom:none}
+  h2.sec{font-family:'Tinos',serif; font-weight:700; font-size:32px; margin:0 0 8px; letter-spacing:-.01em;
+    display:flex; align-items:baseline; gap:14px}
+  .num{font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--accent); font-weight:500}
+  h3{font-family:'Tinos',serif; font-weight:700; font-size:23px; margin:32px 0 6px}
+  h4{font-family:'Inter',sans-serif; font-weight:600; font-size:15px; margin:22px 0 8px; color:var(--ink-soft);
+    text-transform:uppercase; letter-spacing:.04em}
+  .section-lede{color:var(--ink-mute); font-size:18px; margin:0 0 18px; max-width:44em}
+  p{margin:0 0 14px}
+  ul,ol{margin:0 0 16px; padding-left:22px}
+  li{margin:0 0 7px}
+  code{font-family:'JetBrains Mono',monospace; font-size:.86em; background:var(--paper-2);
+    padding:.12em .4em; border-radius:4px; color:var(--ink-soft)}
+  pre{position:relative; background:#26241e; color:#e9e4d6; border-radius:10px; padding:20px 22px;
+    overflow-x:auto; font-family:'JetBrains Mono',monospace; font-size:13px; line-height:1.6; margin:0 0 20px}
+  pre code{background:none; padding:0; color:inherit; font-size:inherit}
+  pre .c{color:#8f8a78; font-style:italic}
+  pre .k{color:#e8a48a}
+  pre .s{color:#b9c99a}
+  .copy{position:absolute; top:10px; right:10px; font-family:'JetBrains Mono',monospace; font-size:11px;
+    background:rgba(255,255,255,.08); color:#cfc9b8; border:1px solid rgba(255,255,255,.14);
+    border-radius:6px; padding:4px 9px; cursor:pointer; transition:background .15s}
+  .copy:hover{background:rgba(255,255,255,.18)}
+  table{width:100%; border-collapse:collapse; margin:0 0 22px; font-size:14.5px}
+  th,td{text-align:left; padding:9px 12px; border-bottom:1px solid var(--rule); vertical-align:top}
+  th{font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--ink-mute); font-weight:500}
+  td code{font-size:12.5px}
+  .tag{display:inline-block; font-family:'JetBrains Mono',monospace; font-size:11px; padding:2px 8px;
+    border-radius:20px; border:1px solid var(--accent-soft); color:var(--accent); margin-right:6px}
+  .pill{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--ink-mute)}
+  .ms{background:var(--paper-2); border:1px solid var(--rule); border-radius:12px; padding:8px 22px 4px;
+    margin:0 0 20px}
+  .ms > h3:first-child{margin-top:18px}
+  .task{margin:18px 0 6px}
+  .task .th{font-weight:600; color:var(--ink); font-size:16px}
+  .files{font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--ink-mute); margin:4px 0 10px}
+  .files b{color:var(--accent); font-weight:500}
+  .callout{background:var(--paper-2); border-left:3px solid var(--accent); border-radius:0 8px 8px 0;
+    padding:14px 18px; margin:0 0 20px; font-size:15px; color:var(--ink-soft)}
+  ol.steps{counter-reset:s; list-style:none; padding-left:0}
+  ol.steps > li{counter-increment:s; position:relative; padding-left:34px; margin-bottom:9px}
+  ol.steps > li::before{content:counter(s); position:absolute; left:0; top:1px;
+    font-family:'JetBrains Mono',monospace; font-size:11px; background:var(--accent); color:#fff;
+    width:21px; height:21px; border-radius:50%; display:flex; align-items:center; justify-content:center}
+  footer{margin-top:56px; padding-top:24px; border-top:1px solid var(--rule);
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--ink-mute);
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px}
+  @media(max-width:760px){
+    .wrap{padding:40px 20px 64px}
+    h1{font-size:38px}
+    nav.toc ol{columns:1}
+    h2.sec{font-size:26px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <p class="eyebrow">Implementation Plan · superpowers</p>
+    <h1><code style="font-size:.62em;background:none;padding:0;color:var(--accent)">ccp</code> <em>remember</em> — captura polimórfica a estructura oficial de Claude Code</h1>
+    <p class="lede">Comandos <code>/ccp:</code> que dejan a Claude persistir reglas, agents, commands, hooks, MCPs y skills en la estructura nativa que Claude Code reconoce — con CRUD seguro respaldado por un manifest.</p>
+    <div class="meta">
+      <span><b>Fecha</b> 2026-06-02</span>
+      <span><b>Status</b> Plan · listo para ejecutar</span>
+      <span><b>Scope</b> bin/ccp · lib/instruct.sh · commands/ccp · install.sh · tests</span>
+      <span><b>Refs</b> CONTEXT.md · ADR 0004 · ADR 0005</span>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <h2>Contenido</h2>
+    <ol>
+      <li><a href="#goal"><span class="n">00</span><span>Goal &amp; Architecture</span></a></li>
+      <li><a href="#files"><span class="n">01</span><span>File Structure</span></a></li>
+      <li><a href="#m1"><span class="n">02</span><span>M1 · Mecánica de reglas + destino</span></a></li>
+      <li><a href="#m2"><span class="n">03</span><span>M2 · Comandos /ccp: (rules)</span></a></li>
+      <li><a href="#m3"><span class="n">04</span><span>M3 · Artefactos de archivo + manifest</span></a></li>
+      <li><a href="#m4"><span class="n">05</span><span>M4 · Artefactos JSON (hook/mcp)</span></a></li>
+      <li><a href="#m5"><span class="n">06</span><span>M5 · Docs &amp; cierre</span></a></li>
+      <li><a href="#review"><span class="n">07</span><span>Self-Review</span></a></li>
+    </ol>
+  </nav>
+
+  <section id="goal">
+    <h2 class="sec"><span class="num">§ 00</span>Goal &amp; Architecture</h2>
+    <p><b>Goal:</b> dar a Claude Code los comandos <code>/ccp:remember-{global,profile,project}</code>, <code>/ccp:recall</code> y <code>/ccp:forget</code> que persisten artefactos (rule/agent/command/hook/mcp/skill) en la estructura oficial de Claude Code, con CRUD seguro.</p>
+    <p><b>Architecture:</b> un nuevo <code>lib/instruct.sh</code> (funciones puras: resolución de destino por scope×tipo, CRUD del bloque de reglas en <code>CLAUDE.md</code>, CRUD del manifest) y un <code>cmd_instruct()</code> en <code>bin/ccp</code> (<code>add|list|rm|dest|record</code>) lo exponen como CLI determinista y testeable. Cinco archivos markdown bajo <code>commands/ccp/</code> son prompts que hacen que Claude <b>clasifique</b> la intención, redacte el contenido, <b>confirme</b> y llame al CLI. <code>install.sh</code> copia los comandos a <code>~/.claude/commands/ccp/</code>, desde donde el symlink de cada <code>cc-home</code> los propaga a todos los perfiles.</p>
+    <div class="callout"><b>Cara cliente:</b> un verbo simple (<em>remember / instructions</em>). <b>Cara Claude Code:</b> estructura oficial nativa — ccp no inventa contenedor custom. (ADR 0005)</div>
+    <h4>Las 6 ubicaciones oficiales × scope</h4>
+    <table>
+      <thead><tr><th>Tipo</th><th>global (~/.claude)</th><th>project (repo/.claude)</th><th>profile (overlay)</th></tr></thead>
+      <tbody>
+        <tr><td><code>rule</code></td><td><code>CLAUDE.md</code></td><td><code>.claude/CLAUDE.md</code></td><td>✅ <code>overlay/CLAUDE.md</code></td></tr>
+        <tr><td><code>hook</code></td><td><code>settings.json</code></td><td><code>.claude/settings.json</code></td><td>✅ <code>settings.overlay.json</code></td></tr>
+        <tr><td><code>mcp</code></td><td><code>settings.json</code>*</td><td><code>.mcp.json</code></td><td>✅ <code>settings.overlay.json</code></td></tr>
+        <tr><td><code>agent</code></td><td><code>agents/</code></td><td><code>.claude/agents/</code></td><td>❌ error guiado</td></tr>
+        <tr><td><code>command</code></td><td><code>commands/</code></td><td><code>.claude/commands/</code></td><td>❌ error guiado</td></tr>
+        <tr><td><code>skill</code></td><td><code>skills/</code></td><td><code>.claude/skills/</code></td><td>❌ error guiado</td></tr>
+      </tbody>
+    </table>
+    <p class="pill">* La ubicación global de MCP se verifica en M4·Task 4.1 antes de implementar (puede ser <code>~/.claude.json</code>).</p>
+  </section>
+
+  <section id="files">
+    <h2 class="sec"><span class="num">§ 01</span>File Structure</h2>
+    <table>
+      <thead><tr><th>Archivo</th><th>Responsabilidad</th><th>Acción</th></tr></thead>
+      <tbody>
+        <tr><td><code>lib/instruct.sh</code></td><td>Funciones puras: destino, CRUD bloque reglas, CRUD manifest, merge JSON.</td><td><span class="tag">crear</span></td></tr>
+        <tr><td><code>bin/ccp</code></td><td>Source del lib; <code>cmd_instruct</code>; dispatch en <code>main()</code>; ayuda; completions.</td><td><span class="tag">modificar</span></td></tr>
+        <tr><td><code>commands/ccp/remember-*.md</code></td><td>Prompts: clasifican, confirman, escriben por scope.</td><td><span class="tag">crear</span></td></tr>
+        <tr><td><code>commands/ccp/recall.md</code> · <code>forget.md</code></td><td>Listar / borrar vía CLI.</td><td><span class="tag">crear</span></td></tr>
+        <tr><td><code>install.sh</code></td><td>Copiar comandos a <code>~/.claude/commands/ccp/</code>.</td><td><span class="tag">modificar</span></td></tr>
+        <tr><td><code>tests/run.sh</code></td><td>Tests puros del lib + tests de binario.</td><td><span class="tag">modificar</span></td></tr>
+        <tr><td><code>README.md</code> · <code>CHANGELOG.md</code></td><td>Documentación de la feature.</td><td><span class="tag">modificar</span></td></tr>
+      </tbody>
+    </table>
+    <h4>Convenciones obligatorias (CLAUDE.md)</h4>
+    <ul>
+      <li><b>BSD/macOS:</b> nada de <code>grep -P</code>; filtrar con <code>awk -F'\t'</code>.</li>
+      <li><b>Pipes en tests:</b> nunca pipear <code>ccp</code> a <code>grep -q</code>/<code>head</code> (SIGPIPE bajo pipefail); capturar y <code>case</code>-match.</li>
+      <li><b>Funciones puras:</b> reciben <code>ccp_home</code> explícito; tests usan temp dirs.</li>
+      <li><b>Commits:</b> solo con autorización explícita del turno; sin trailer <code>Co-Authored-By</code>.</li>
+    </ul>
+  </section>
+
+  <section id="m1">
+    <h2 class="sec"><span class="num">§ 02</span>Milestone 1 — Mecánica de reglas + destino</h2>
+    <p class="section-lede">Entrega <code>ccp instruct add|list|rm &lt;scope&gt; rule</code> testeado + el resolvedor de destino completo. CLI puro, sin tocar config real.</p>
+
+    <div class="ms">
+      <h3>Task 1.1 · <code>ccp_instruct_dest</code> (resolvedor scope×tipo)</h3>
+      <div class="files">Create: <b>lib/instruct.sh</b> · Test: tests/run.sh</div>
+      <p>Función pura que mapea <code>(scope, type)</code> → ruta, con códigos de retorno para los casos guarda: <code>2</code> profile+default, <code>3</code> tipo de archivo en profile, <code>4</code> project sin root, <code>1</code> desconocido.</p>
+      <pre><button class="copy">copy</button><code><span class="c"># ccp_instruct_dest &lt;scope&gt; &lt;type&gt; &lt;ccp_home&gt; &lt;profile&gt; &lt;src&gt; &lt;repo_root&gt;</span>
+ccp_instruct_dest() {
+  <span class="k">local</span> scope=<span class="s">"$1"</span> type=<span class="s">"$2"</span> home=<span class="s">"$3"</span> prof=<span class="s">"$4"</span> src=<span class="s">"$5"</span> root=<span class="s">"$6"</span>
+  <span class="k">local</span> ov=<span class="s">"$home/profiles/$prof/overlay"</span>
+  <span class="k">case</span> <span class="s">"$scope"</span> <span class="k">in</span>
+    global)  <span class="k">case</span> <span class="s">"$type"</span> <span class="k">in</span>
+      rule) printf <span class="s">'%s/CLAUDE.md'</span> <span class="s">"$src"</span> ;;
+      hook|mcp) printf <span class="s">'%s/settings.json'</span> <span class="s">"$src"</span> ;;
+      agent) printf <span class="s">'%s/agents'</span> <span class="s">"$src"</span> ;;
+      command) printf <span class="s">'%s/commands'</span> <span class="s">"$src"</span> ;;
+      skill) printf <span class="s">'%s/skills'</span> <span class="s">"$src"</span> ;;
+      *) <span class="k">return</span> 1 ;; <span class="k">esac</span> ;;
+    profile) [[ -n <span class="s">"$prof"</span> &amp;&amp; <span class="s">"$prof"</span> != <span class="s">"default"</span> ]] || <span class="k">return</span> 2
+      <span class="k">case</span> <span class="s">"$type"</span> <span class="k">in</span>
+      rule) printf <span class="s">'%s/CLAUDE.md'</span> <span class="s">"$ov"</span> ;;
+      hook|mcp) printf <span class="s">'%s/settings.overlay.json'</span> <span class="s">"$ov"</span> ;;
+      agent|command|skill) <span class="k">return</span> 3 ;;
+      *) <span class="k">return</span> 1 ;; <span class="k">esac</span> ;;
+    project) [[ -n <span class="s">"$root"</span> ]] || <span class="k">return</span> 4
+      <span class="k">case</span> <span class="s">"$type"</span> <span class="k">in</span>
+      rule) printf <span class="s">'%s/.claude/CLAUDE.md'</span> <span class="s">"$root"</span> ;;
+      hook) printf <span class="s">'%s/.claude/settings.json'</span> <span class="s">"$root"</span> ;;
+      mcp) printf <span class="s">'%s/.mcp.json'</span> <span class="s">"$root"</span> ;;
+      agent) printf <span class="s">'%s/.claude/agents'</span> <span class="s">"$root"</span> ;;
+      command) printf <span class="s">'%s/.claude/commands'</span> <span class="s">"$root"</span> ;;
+      skill) printf <span class="s">'%s/.claude/skills'</span> <span class="s">"$root"</span> ;;
+      *) <span class="k">return</span> 1 ;; <span class="k">esac</span> ;;
+    *) <span class="k">return</span> 1 ;;
+  <span class="k">esac</span>
+}</code></pre>
+    </div>
+
+    <div class="ms">
+      <h3>Task 1.2 · CRUD del bloque de reglas</h3>
+      <div class="files">Modify: <b>lib/instruct.sh</b> · Test: tests/run.sh</div>
+      <p>Bloque con marcadores (idioma del shell-init del repo). <code>add</code> dedup (rc 9), <code>list</code> en orden, <code>rm</code> por índice 1-based.</p>
+      <pre><button class="copy">copy</button><code>CCP_INSTR_BEGIN=<span class="s">'&lt;!-- &gt;&gt;&gt; ccp instructions &gt;&gt;&gt; --&gt;'</span>
+CCP_INSTR_END=<span class="s">'&lt;!-- &lt;&lt;&lt; ccp instructions &lt;&lt;&lt; --&gt;'</span>
+
+ccp_instruct_rule_list() { <span class="c"># file</span>
+  <span class="k">local</span> f=<span class="s">"$1"</span>; [[ -f <span class="s">"$f"</span> ]] || <span class="k">return</span> 0
+  awk -v b=<span class="s">"$CCP_INSTR_BEGIN"</span> -v e=<span class="s">"$CCP_INSTR_END"</span> <span class="s">'
+    $0==b{inb=1;next} $0==e{inb=0}
+    inb &amp;&amp; /^- /{line=$0; sub(/^- /,"",line); print line}'</span> <span class="s">"$f"</span>
+}
+ccp_instruct_rule_add() { <span class="c"># file text  (rc 9 = duplicado)</span>
+  <span class="k">local</span> f=<span class="s">"$1"</span> text=<span class="s">"$2"</span>; ccp_instruct_block_ensure <span class="s">"$f"</span>
+  ccp_instruct_rule_list <span class="s">"$f"</span> | grep -qxF <span class="s">"$text"</span> &amp;&amp; <span class="k">return</span> 9
+  <span class="k">local</span> tmp; tmp=<span class="s">"$(mktemp)"</span>
+  awk -v end=<span class="s">"$CCP_INSTR_END"</span> -v line=<span class="s">"- $text"</span> <span class="s">'$0==end{print line}{print}'</span> <span class="s">"$f"</span> &gt; <span class="s">"$tmp"</span> &amp;&amp; mv <span class="s">"$tmp"</span> <span class="s">"$f"</span>
+}</code></pre>
+    </div>
+
+    <div class="ms">
+      <h3>Task 1.3 · <code>cmd_instruct</code> en bin/ccp (rule)</h3>
+      <div class="files">Modify: <b>bin/ccp</b> (source lib · cmd_instruct · main() · help · completions) · Test: tests/run.sh</div>
+      <p>El binario resuelve perfil activo (<code>CCP_PROFILE</code>), <code>src</code> (<code>CCP_CLAUDE_SRC</code>) y raíz (<code>_repo_root</code> git → fallback <code>$PWD</code>). <code>_instr_dest_or_die</code> traduce los rc a mensajes en español.</p>
+      <pre><button class="copy">copy</button><code>_instr_repo_root() {
+  [[ -n <span class="s">"${CCP_REPO_ROOT:-}"</span> ]] &amp;&amp; { printf <span class="s">'%s'</span> <span class="s">"$CCP_REPO_ROOT"</span>; <span class="k">return</span>; }
+  <span class="k">local</span> r; r=<span class="s">"$(_repo_root)"</span>; [[ -n <span class="s">"$r"</span> ]] &amp;&amp; printf <span class="s">'%s'</span> <span class="s">"$r"</span> || printf <span class="s">'%s'</span> <span class="s">"$PWD"</span>
+}
+_instr_dest_or_die() { <span class="c"># scope type</span>
+  <span class="k">local</span> dest rc; dest=<span class="s">"$(ccp_instruct_dest "$1" "$2" "$CCP_HOME" \
+    "$(_instr_active_profile)" "$CCP_CLAUDE_SRC" "$(_instr_repo_root)")"</span>; rc=$?
+  <span class="k">case</span> <span class="s">"$rc"</span> <span class="k">in</span>
+    0) printf <span class="s">'%s'</span> <span class="s">"$dest"</span> ;;
+    2) err <span class="s">"perfil activo es 'default' (sin overlay)."</span>; <span class="k">return</span> 2 ;;
+    3) err <span class="s">"tipo '$2' no existe a nivel perfil (usa global/project)."</span>; <span class="k">return</span> 3 ;;
+    4) err <span class="s">"no estás en un repo git."</span>; <span class="k">return</span> 4 ;;
+    *) err <span class="s">"scope/tipo inválido."</span>; <span class="k">return</span> 1 ;;
+  <span class="k">esac</span>
+}</code></pre>
+      <p class="pill">Dispatch: añadir <code>instruct) cmd_instruct "$@" ;;</code> en <code>main()</code>; <code>instruct</code> en las listas <code>top</code> de completions; nueva sección en <code>cmd_help</code>.</p>
+    </div>
+  </section>
+
+  <section id="m2">
+    <h2 class="sec"><span class="num">§ 03</span>Milestone 2 — Comandos /ccp: (rules)</h2>
+    <p class="section-lede">Cinco archivos markdown (limitados a <code>rule</code>) + copia en install.sh. Tras esto, <code>/ccp:remember-global "no uses emojis"</code> funciona end-to-end.</p>
+    <div class="ms">
+      <h3>Task 2.1–2.2 · Los 5 comandos</h3>
+      <div class="files">Create: <b>commands/ccp/</b> remember-global · remember-profile · remember-project · recall · forget</div>
+      <p>Cada <code>remember-*</code> sigue el mismo guión: <b>clasifica</b> tipo → <b>redacta</b> texto → <b>confirma</b> destino+texto → <b>escribe</b> vía <code>ccp instruct add &lt;scope&gt; rule "…"</code>. <code>recall</code> lista (solo lectura); <code>forget</code> lista numerado, pregunta, borra.</p>
+      <pre><button class="copy">copy</button><code><span class="c">--- commands/ccp/remember-global.md (frontmatter)</span>
+<span class="c">---</span>
+description: <span class="s">Persiste una instrucción/artefacto a nivel GLOBAL (~/.claude)</span>
+argument-hint: <span class="s">&lt;lo que quieres que Claude recuerde&gt;</span>
+<span class="c">---</span>
+Pasos: clasifica tipo · redacta · CONFIRMA destino+texto ·
+  ccp instruct add global rule <span class="s">"&lt;texto&gt;"</span> · reporta ruta.</code></pre>
+    </div>
+    <div class="ms">
+      <h3>Task 2.3 · install.sh copia los comandos</h3>
+      <div class="files">Modify: <b>install.sh</b> (tras install-source) · Test: test_install_copies_commands</div>
+      <pre><button class="copy">copy</button><code>CLAUDE_SRC=<span class="s">"${CCP_CLAUDE_SRC:-$HOME/.claude}"</span>
+<span class="k">if</span> [[ -d <span class="s">"$SRC_DIR/commands/ccp"</span> ]]; <span class="k">then</span>
+  mkdir -p <span class="s">"$CLAUDE_SRC/commands/ccp"</span>
+  install -m 0644 <span class="s">"$SRC_DIR/commands/ccp/"</span>*.md <span class="s">"$CLAUDE_SRC/commands/ccp/"</span>
+  ok <span class="s">"Comandos /ccp: -&gt; $CLAUDE_SRC/commands/ccp/"</span>
+<span class="k">fi</span></code></pre>
+      <p class="pill">Propagación: cada <code>cc-home</code> symlinkea <code>commands/</code> desde <code>~/.claude</code> → los comandos aparecen en todos los perfiles sin instalar por-perfil.</p>
+    </div>
+    <div class="ms">
+      <h3>Task 2.4 · Verificación manual end-to-end</h3>
+      <ol class="steps">
+        <li><code>bash install.sh &amp;&amp; ccp instruct add global rule "no uses emojis"</code></li>
+        <li><code>ccp instruct list global</code> → muestra <code>1) no uses emojis</code></li>
+        <li><code>ccp instruct rm global 1</code> → bloque vacío</li>
+        <li>Terminal nueva: <code>/ccp:</code> ofrece los 5 comandos</li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="m3">
+    <h2 class="sec"><span class="num">§ 04</span>Milestone 3 — Artefactos de archivo + manifest</h2>
+    <p class="section-lede">agent / command / skill como archivos en la estructura oficial, registrados en el manifest para CRUD seguro (nunca toca lo hecho a mano).</p>
+    <div class="ms">
+      <h3>Task 3.1 · CRUD del manifest</h3>
+      <div class="files">Modify: <b>lib/instruct.sh</b> · Test: test_instruct_manifest_*</div>
+      <p>Fila: <code>scope⇥profile⇥type⇥ref⇥desc</code>. Split por localidad: <code>$ccp_home/authored.tsv</code> (global+profile, machine-local) vs <code>$repo/.claude/ccp-authored.tsv</code> (project, versionado).</p>
+      <pre><button class="copy">copy</button><code>ccp_instruct_manifest_file() { <span class="c"># scope ccp_home repo_root</span>
+  <span class="k">case</span> <span class="s">"$1"</span> <span class="k">in</span>
+    global|profile) printf <span class="s">'%s/authored.tsv'</span> <span class="s">"$2"</span> ;;
+    project) printf <span class="s">'%s/.claude/ccp-authored.tsv'</span> <span class="s">"$3"</span> ;;
+    *) <span class="k">return</span> 1 ;;
+  <span class="k">esac</span>
+}
+ccp_instruct_manifest_rm() { <span class="c"># manifest scope profile index → imprime "type⇥ref"</span>
+  <span class="k">local</span> m=<span class="s">"$1"</span> scope=<span class="s">"$2"</span> prof=<span class="s">"$3"</span> idx=<span class="s">"$4"</span>; [[ -f <span class="s">"$m"</span> ]] || <span class="k">return</span> 1
+  <span class="k">local</span> target; target=<span class="s">"$(awk -F'\t' -v s="$scope" -v p="$prof" -v want="$idx" \
+    '$1==s &amp;&amp; (s!="profile"||$2==p){c++; if(c==want){print NR; exit}}' "$m")"</span>
+  [[ -n <span class="s">"$target"</span> ]] || <span class="k">return</span> 1
+  sed -n <span class="s">"${target}p"</span> <span class="s">"$m"</span> | cut -f3,4
+  <span class="k">local</span> tmp; tmp=<span class="s">"$(mktemp)"</span>; awk -v t=<span class="s">"$target"</span> <span class="s">'NR!=t'</span> <span class="s">"$m"</span> &gt; <span class="s">"$tmp"</span> &amp;&amp; mv <span class="s">"$tmp"</span> <span class="s">"$m"</span>
+}</code></pre>
+    </div>
+    <div class="ms">
+      <h3>Task 3.2 · list/rm combinados + subcomandos dest/record</h3>
+      <div class="files">Modify: <b>bin/ccp</b> · Test: test_bin_instruct_file_*</div>
+      <p>Claude escribe el archivo en la ruta de <code>ccp instruct dest &lt;scope&gt; &lt;type&gt;</code> y lo registra con <code>ccp instruct record</code>. <code>list</code> combina reglas (bloque) + manifest, numeradas juntas; <code>rm</code> mapea el índice: ≤ #reglas → bloque; resto → manifest + borra el archivo/dir.</p>
+      <pre><button class="copy">copy</button><code><span class="c"># _instruct_rm: zona manifest</span>
+<span class="k">case</span> <span class="s">"$type"</span> <span class="k">in</span>
+  agent|command) [[ -f <span class="s">"$ref"</span> ]] &amp;&amp; rm -f <span class="s">"$ref"</span> ;;
+  skill)         [[ -d <span class="s">"$ref"</span> ]] &amp;&amp; rm -rf <span class="s">"$ref"</span> ;;
+<span class="k">esac</span></code></pre>
+    </div>
+  </section>
+
+  <section id="m4">
+    <h2 class="sec"><span class="num">§ 05</span>Milestone 4 — Artefactos JSON (hook/mcp)</h2>
+    <p class="section-lede"><code>jq</code> deep-merge con fallback. <b>mcp</b>: CRUD completo (borrado por nombre de server). <b>hook</b>: add + listado; borrado manual documentado (arrays sin id estable) — limitación deliberada y reportada (ADR 0005).</p>
+    <div class="ms">
+      <h3>Task 4.1 · Verificar ubicaciones MCP/hook que CC honra</h3>
+      <div class="callout"><b>Verificación previa, no placeholder.</b> Confirmar: hooks → clave <code>hooks</code> en <code>settings.json</code>; MCP de usuario → ¿<code>~/.claude.json</code> o <code>settings.json</code>? Si difiere, ajustar la rama <code>global mcp</code> de <code>ccp_instruct_dest</code> + su test + nota en ADR 0005 antes de seguir.</div>
+    </div>
+    <div class="ms">
+      <h3>Task 4.2–4.3 · Merge JSON + wire hook/mcp</h3>
+      <div class="files">Modify: <b>lib/instruct.sh</b> · <b>bin/ccp</b> · Test: test_instruct_json_* / test_bin_instruct_mcp_* (gated por jq)</div>
+      <p>Entrada: <code>nombre={json}</code>. ccp envuelve en la clave correcta y mergea. En scope profile, tras escribir el overlay regenera el <code>cc-home</code> (<code>ccp_cfg_regenerate</code>).</p>
+      <pre><button class="copy">copy</button><code>ccp_instruct_json_merge() { <span class="c"># file snippet_json (requiere jq)</span>
+  <span class="k">local</span> f=<span class="s">"$1"</span> snippet=<span class="s">"$2"</span>; command -v jq &gt;/dev/null 2&gt;&amp;1 || <span class="k">return</span> 1
+  [[ -f <span class="s">"$f"</span> ]] &amp;&amp; jq -e . <span class="s">"$f"</span> &gt;/dev/null 2&gt;&amp;1 || printf <span class="s">'{}\n'</span> &gt; <span class="s">"$f"</span>
+  printf <span class="s">'%s'</span> <span class="s">"$snippet"</span> | jq -e . &gt;/dev/null 2&gt;&amp;1 || <span class="k">return</span> 1
+  <span class="k">local</span> tmp; tmp=<span class="s">"$(mktemp)"</span>
+  jq --argjson add <span class="s">"$snippet"</span> <span class="s">'. * $add'</span> <span class="s">"$f"</span> &gt; <span class="s">"$tmp"</span> &amp;&amp; mv <span class="s">"$tmp"</span> <span class="s">"$f"</span>
+}</code></pre>
+    </div>
+  </section>
+
+  <section id="m5">
+    <h2 class="sec"><span class="num">§ 06</span>Milestone 5 — Docs &amp; cierre</h2>
+    <p class="section-lede">README (sección "Instrucciones / remember" + tabla scope×tipo + nota de hooks), CHANGELOG, y verificar que <code>ccp help</code> muestra la sección INSTRUCCIONES.</p>
+  </section>
+
+  <section id="review">
+    <h2 class="sec"><span class="num">§ 07</span>Self-Review</h2>
+    <h4>Cobertura de decisiones del grilling</h4>
+    <table>
+      <thead><tr><th>Decisión</th><th>Tarea</th></tr></thead>
+      <tbody>
+        <tr><td>remember polimórfico, Claude clasifica</td><td>2.1–2.2 + CLI por tipo</td></tr>
+        <tr><td>scopes global/profile/project</td><td>1.1 <code>ccp_instruct_dest</code></td></tr>
+        <tr><td>6 tipos → estructura oficial</td><td>1.1 + 1.2/1.3 + 3.2 + 4.x</td></tr>
+        <tr><td>profile = solo rule/hook/mcp; resto error</td><td>rc3 + mensaje (1.1/1.3)</td></tr>
+        <tr><td>profile activo; default → error guiado</td><td>rc2 + mensaje (1.1/1.3)</td></tr>
+        <tr><td>project = raíz git, fallback cwd</td><td><code>_instr_repo_root</code> (1.3)</td></tr>
+        <tr><td>distribución repo → install.sh → ~/.claude</td><td>2.3</td></tr>
+        <tr><td>CRUD completo (mcp full, hook add+manual-rm)</td><td>1.3 / 3.2 / 4.3</td></tr>
+        <tr><td>bloque marcado para rules (ADR 0004)</td><td>1.2</td></tr>
+        <tr><td>manifest split por localidad</td><td>3.1</td></tr>
+        <tr><td>confirmar antes de escribir</td><td>paso 3 de cada remember-*</td></tr>
+      </tbody>
+    </table>
+    <p><b>Placeholder scan:</b> sin TBD/“handle edge cases”/“similar to”. Todo el código completo. Única verificación abierta intencional: Task 4.1 (ubicación MCP), explícita y accionable.</p>
+    <p><b>Type consistency:</b> <code>ccp_instruct_dest</code>, <code>ccp_instruct_rule_{add,list,rm}</code>, <code>ccp_instruct_block_ensure</code>, <code>ccp_instruct_manifest_{file,add,list,rm}</code>, <code>ccp_instruct_json_{merge,rm_mcp}</code>; binario <code>cmd_instruct</code> → <code>_instruct_{add,list,rm,record}</code>, <code>_instruct_dest_cmd</code>, helpers <code>_instr_*</code>. Manifest <code>scope⇥profile⇥type⇥ref⇥desc</code> consistente.</p>
+  </section>
+
+  <footer>
+    <span>ccp · remember — Implementation Plan</span>
+    <span>v0.1 — 2026-06-02</span>
+  </footer>
+
+</div>
+<script>
+document.querySelectorAll('.copy').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    var code=btn.parentElement.querySelector('code');
+    navigator.clipboard.writeText(code.innerText).then(function(){
+      var t=btn.textContent; btn.textContent='copiado'; setTimeout(function(){btn.textContent=t;},1200);
+    });
+  });
+});
+</script>
+</body>
+</html>
