@@ -648,7 +648,7 @@ test_bin_instruct_list_and_rm() {
   _ccp_instr "$h" "$s" "" instruct add global rule "uno" >/dev/null
   _ccp_instr "$h" "$s" "" instruct add global rule "dos" >/dev/null
   local out; out="$(_ccp_instr "$h" "$s" "" instruct list global)"
-  case "$out" in *" 1) uno"*) _pass=$((_pass+1));;
+  case "$out" in *" 1) [rule] uno"*) _pass=$((_pass+1));;
     *) _fail=$((_fail+1)); echo "FAIL: list numerado: $out" >&2;; esac
   _ccp_instr "$h" "$s" "" instruct rm global 1 >/dev/null
   local rem; rem="$(_ccp_instr "$h" "$s" "" instruct list global)"
@@ -662,6 +662,38 @@ test_bin_instruct_project_fallback_cwd() {
   ( cd "$d" && CCP_HOME="$h" CCP_CLAUDE_SRC="$s" bash "$ROOT/bin/ccp" instruct add project rule "regla repo" >/dev/null )
   case "$(cat "$d/.claude/CLAUDE.md" 2>/dev/null)" in *"regla repo"*) _pass=$((_pass+1));;
     *) _fail=$((_fail+1)); echo "FAIL: fallback a cwd para project" >&2;; esac
+}
+
+test_bin_instruct_dest_subcmd() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  assert_eq "$(_ccp_instr "$h" "$s" "" instruct dest global agent)" "$s/agents" "dest global agent"
+}
+test_bin_instruct_record_and_list_global() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  _ccp_instr "$h" "$s" "" instruct add global rule "una regla" >/dev/null
+  _ccp_instr "$h" "$s" "" instruct record global agent "$s/agents/sec.md" "auditor seguridad" >/dev/null
+  local out; out="$(_ccp_instr "$h" "$s" "" instruct list global)"
+  case "$out" in *"una regla"*"auditor seguridad"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: list combina rule+manifest: $out" >&2;; esac
+}
+test_bin_instruct_rm_deletes_file_artifact() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  mkdir -p "$s/agents"; printf 'x' > "$s/agents/sec.md"
+  _ccp_instr "$h" "$s" "" instruct record global agent "$s/agents/sec.md" "auditor" >/dev/null
+  _ccp_instr "$h" "$s" "" instruct rm global 1 >/dev/null
+  [[ ! -e "$s/agents/sec.md" ]]; assert_rc "$?" 0 "rm borró el archivo del artefacto"
+}
+test_bin_instruct_rm_rule_then_manifest_indexing() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  mkdir -p "$s/agents"; printf 'x' > "$s/agents/a.md"
+  _ccp_instr "$h" "$s" "" instruct add global rule "regla1" >/dev/null
+  _ccp_instr "$h" "$s" "" instruct record global agent "$s/agents/a.md" "agente1" >/dev/null
+  # index 1 = la regla (no el manifest). Borrarla deja el agente intacto.
+  _ccp_instr "$h" "$s" "" instruct rm global 1 >/dev/null
+  [[ -e "$s/agents/a.md" ]]; assert_rc "$?" 0 "rm 1 borró la regla, NO el agente"
+  local out; out="$(_ccp_instr "$h" "$s" "" instruct list global)"
+  case "$out" in *"agente1"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: el agente debe seguir listado: $out" >&2;; esac
 }
 
 test_install_copies_commands() {

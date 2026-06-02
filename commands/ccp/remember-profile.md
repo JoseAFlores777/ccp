@@ -12,8 +12,7 @@ Pasos:
 2. **Redacta** el texto.
 3. **Confirma** tipo + destino + texto. No escribas sin confirmación.
 4. **Escribe**:
-   ```
-   ccp instruct add profile rule "<texto redactado>"
-   ```
+   - Para `rule`/`hook`/`mcp`: `ccp instruct add profile <type> "<texto>"` (hook/mcp llegan en una versión próxima).
+   - `agent`/`command`/`skill` NO se permiten a nivel perfil (ccp los rechaza); usa `/ccp:remember-global` o `/ccp:remember-project`.
 5. Si ccp responde que el perfil activo es `default` (sin overlay), explícale al usuario que `default` = config global, y ofrécele `/ccp:remember-global` o activar un perfil con `ccp use <n>`.
 6. Reporta la ruta destino.

@@ -361,10 +361,12 @@ _instr_dest_or_die() { # scope type
 cmd_instruct() {
   local sub="$1"; shift 2>/dev/null
   case "$sub" in
-    add)  _instruct_add  "$@" ;;
-    list) _instruct_list "$@" ;;
-    rm)   _instruct_rm   "$@" ;;
-    *) err "instruct: subcomando desconocido '$sub' (add|list|rm)"; return 1 ;;
+    add)    _instruct_add      "$@" ;;
+    list)   _instruct_list     "$@" ;;
+    rm)     _instruct_rm       "$@" ;;
+    dest)   _instruct_dest_cmd "$@" ;;
+    record) _instruct_record   "$@" ;;
+    *) err "instruct: subcomando desconocido '$sub' (add|list|rm|dest|record)"; return 1 ;;
   esac
 }
 
@@ -386,29 +388,73 @@ _instruct_add() {
   esac
 }
 
+# imprime la ruta destino para (scope,type) — lo usan los comandos /ccp:.
+_instruct_dest_cmd() { # scope type
+  local dest; dest="$(_instr_dest_or_die "$1" "$2")" || return 1
+  printf '%s\n' "$dest"
+}
+
+# registra en el manifest un artefacto que Claude ya escribió.
+_instruct_record() { # scope type ref desc...
+  local scope="$1" type="$2" ref="$3"; shift 3 2>/dev/null
+  local desc="$*"
+  [[ -n "$scope" && -n "$type" && -n "$ref" ]] || { err "Uso: ccp instruct record <scope> <type> <ref> <desc>"; return 1; }
+  _instr_dest_or_die "$scope" "$type" >/dev/null || return 1
+  local prof root m
+  prof="$(_instr_active_profile)"; root="$(_instr_repo_root)"
+  [[ "$scope" != profile ]] && prof="-"
+  m="$(ccp_instruct_manifest_file "$scope" "$CCP_HOME" "$root")"
+  ccp_instruct_manifest_add "$m" "$scope" "$prof" "$type" "$ref" "$desc"
+  ok "Artefacto registrado ($scope/$type): $ref"
+}
+
 # ccp instruct list <scope>
 _instruct_list() {
   local scope="$1"
   [[ -n "$scope" ]] || { err "Uso: ccp instruct list <scope>"; return 1; }
-  local dest; dest="$(_instr_dest_or_die "$scope" rule)" || return 1
+  local rfile; rfile="$(_instr_dest_or_die "$scope" rule)" || return 1
+  local prof root m; prof="$(_instr_active_profile)"; root="$(_instr_repo_root)"
+  [[ "$scope" != profile ]] && prof="-"
+  m="$(ccp_instruct_manifest_file "$scope" "$CCP_HOME" "$root")"
   local i=0 line
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
-    i=$((i+1)); printf '   %2d) %s\n' "$i" "$line"
-  done < <(ccp_instruct_rule_list "$dest")
-  (( i )) || say "   (sin instrucciones en $scope)"
+    i=$((i+1)); printf '   %2d) [rule] %s\n' "$i" "$line"
+  done < <(ccp_instruct_rule_list "$rfile")
+  local type ref desc
+  while IFS=$'\t' read -r type ref desc; do
+    [[ -z "$type" ]] && continue
+    i=$((i+1)); printf '   %2d) [%s] %s — %s\n' "$i" "$type" "$desc" "$ref"
+  done < <(ccp_instruct_manifest_list "$m" "$scope" "$prof")
+  (( i )) || say "   (sin instrucciones ni artefactos en $scope)"
 }
 
 # ccp instruct rm <scope> <index>
 _instruct_rm() {
   local scope="$1" idx="$2"
-  [[ -n "$scope" && -n "$idx" ]] || { err "Uso: ccp instruct rm <scope> <index>"; return 1; }
-  local dest; dest="$(_instr_dest_or_die "$scope" rule)" || return 1
-  if ccp_instruct_rule_rm "$dest" "$idx"; then
-    ok "Instrucción #$idx eliminada ($scope)."
-  else
+  [[ -n "$scope" && "$idx" =~ ^[0-9]+$ ]] || { err "Uso: ccp instruct rm <scope> <index>"; return 1; }
+  local rfile; rfile="$(_instr_dest_or_die "$scope" rule)" || return 1
+  local prof root m; prof="$(_instr_active_profile)"; root="$(_instr_repo_root)"
+  [[ "$scope" != profile ]] && prof="-"
+  m="$(ccp_instruct_manifest_file "$scope" "$CCP_HOME" "$root")"
+  local nrules; nrules="$(ccp_instruct_rule_list "$rfile" | grep -c .)"
+  if [[ "$idx" -le "$nrules" ]]; then
+    if ccp_instruct_rule_rm "$rfile" "$idx"; then ok "Instrucción #$idx eliminada ($scope)."; return 0; fi
     err "Índice fuera de rango: $idx"; return 1
   fi
+  local midx=$((idx - nrules)) row type ref
+  row="$(ccp_instruct_manifest_rm "$m" "$scope" "$prof" "$midx")" || { err "Índice fuera de rango: $idx"; return 1; }
+  type="$(printf '%s' "$row" | cut -f1)"; ref="$(printf '%s' "$row" | cut -f2)"
+  case "$type" in
+    agent|command)
+      if [[ -f "$ref" ]]; then rm -f "$ref" || warn "No pude borrar el archivo: $ref"; fi ;;
+    skill)
+      # guard: nunca rm -rf sobre raíz/vacío
+      if [[ -n "$ref" && "$ref" != "/" && -d "$ref" ]]; then rm -rf "$ref" || warn "No pude borrar el dir: $ref"
+      elif [[ "$ref" == "/" || -z "$ref" ]]; then warn "ref inseguro en manifest, no borro: '$ref'"; fi ;;
+    hook|mcp) : ;;  # borrado de entrada JSON => Milestone 4
+  esac
+  ok "Artefacto #$idx eliminado del manifest ($scope/$type): $ref"
 }
 
 # ccp key <perfil> [API_KEY]   (key de un perfil deepseek)
