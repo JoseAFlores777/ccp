@@ -106,7 +106,9 @@ test_profile_key() {
   ccp_profile_add_deepseek "$h" ds "url" "p" "f" "max"
   ccp_profile_set_key "$h" ds "sk-secret-123"
   assert_eq "$(ccp_profile_get_key "$h" ds)" "sk-secret-123" "key roundtrip"
-  local mode; mode="$(stat -f '%Lp' "$h/profiles/ds/api_key" 2>/dev/null || stat -c '%a' "$h/profiles/ds/api_key")"
+  # GNU primero: en BSD/mac `stat -c` falla -> cae a `-f '%Lp'`. (No al revés:
+  # en GNU `stat -f` = --file-system, sale 0 con basura y no cae al fallback.)
+  local mode; mode="$(stat -c '%a' "$h/profiles/ds/api_key" 2>/dev/null || stat -f '%Lp' "$h/profiles/ds/api_key")"
   assert_eq "$mode" "600" "key file is 600"
 }
 test_profile_list() {

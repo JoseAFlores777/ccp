@@ -5,7 +5,8 @@
 .superpowers/
 
 # Go build artifacts (binario en raíz por `go build ./cmd/ccp`)
+# OJO: NO ignorar *.out — los golden de testdata/golden usan esa extensión.
 /ccp
 /dist/
 *.test
-*.out
+coverage.out
