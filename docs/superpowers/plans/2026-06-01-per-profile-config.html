@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Per-Profile Config — Implementation Plan · ccp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f4f1ea; --paper-2:#ece7dd;
+  --ink:#1a1915; --ink-soft:#3a3833; --ink-mute:#6f6a60;
+  --rule:#d8d2c4; --accent:#c96442; --accent-soft:#e8a48a;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:'Inter',sans-serif; font-size:16px; line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:980px; margin:0 auto; padding:64px 32px 96px}
+.eyebrow{font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.22em;
+  text-transform:uppercase; color:var(--accent); margin:0 0 18px}
+h1{font-family:'Tinos',serif; font-weight:700; font-size:56px; line-height:1.08;
+  margin:0 0 18px; letter-spacing:-.01em}
+h1 em{font-style:italic; color:var(--accent)}
+.lede{font-size:20px; color:var(--ink-soft); max-width:70ch; margin:0 0 26px}
+.meta{display:flex; flex-wrap:wrap; gap:8px 22px; font-family:'JetBrains Mono',monospace;
+  font-size:12.5px; color:var(--ink-mute); border-top:1px solid var(--rule);
+  border-bottom:1px solid var(--rule); padding:14px 0; margin-bottom:8px}
+.meta b{color:var(--ink-soft); font-weight:500}
+nav.toc{margin:40px 0 8px; padding:26px 28px; background:var(--paper-2);
+  border:1px solid var(--rule); border-radius:8px}
+nav.toc h2{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--ink-mute); margin:0 0 14px}
+nav.toc ol{list-style:none; margin:0; padding:0; columns:2; column-gap:36px}
+nav.toc li{margin:0 0 9px; break-inside:avoid}
+nav.toc a{color:var(--ink-soft); text-decoration:none; font-size:14.5px;
+  border-bottom:1px solid transparent; padding-bottom:1px; transition:border-color .15s,color .15s}
+nav.toc a:hover{color:var(--ink); border-bottom-color:var(--accent)}
+nav.toc .lead{font-family:'JetBrains Mono',monospace; color:var(--accent); font-size:12.5px; margin-right:8px}
+section{border-bottom:1px solid var(--rule); padding:46px 0}
+section:last-of-type{border-bottom:none}
+h2{font-family:'Tinos',serif; font-weight:700; font-size:30px; margin:0 0 8px;
+  letter-spacing:-.01em; scroll-margin-top:24px}
+h2 .num{font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--accent);
+  display:block; letter-spacing:.12em; margin-bottom:6px}
+h3{font-family:'Tinos',serif; font-weight:700; font-size:21px; margin:26px 0 6px}
+.section-lede{color:var(--ink-mute); font-size:16px; max-width:72ch; margin:0 0 18px}
+p{margin:0 0 14px}
+code{font-family:'JetBrains Mono',monospace; font-size:13px; background:var(--paper-2);
+  padding:1.5px 6px; border-radius:4px; color:var(--ink-soft)}
+pre{background:#211f1a; color:#e8e3d8; border-radius:8px; padding:18px 20px; overflow-x:auto;
+  font-family:'JetBrains Mono',monospace; font-size:12.8px; line-height:1.6; margin:14px 0; position:relative}
+pre code{background:none; padding:0; color:inherit; font-size:inherit}
+pre .c{color:#8f8a7c} pre .k{color:#e8a48a} pre .s{color:#b9c98a} pre .v{color:#7fb4c9}
+.copy{position:absolute; top:8px; right:8px; font-family:'JetBrains Mono',monospace; font-size:10.5px;
+  letter-spacing:.08em; text-transform:uppercase; color:#8f8a7c; background:#2c2a24;
+  border:1px solid #403d35; border-radius:5px; padding:3px 8px; cursor:pointer; transition:color .15s}
+.copy:hover{color:#e8e3d8}
+table{width:100%; border-collapse:collapse; margin:16px 0; font-size:14px}
+th,td{text-align:left; padding:9px 12px; border-bottom:1px solid var(--rule); vertical-align:top}
+th{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-mute); font-weight:500}
+td code{font-size:12px}
+.tag{display:inline-block; font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.08em;
+  text-transform:uppercase; padding:2px 8px; border-radius:20px; border:1px solid var(--accent-soft);
+  color:var(--accent); background:rgba(201,100,66,.07)}
+.task{border-left:3px solid var(--accent-soft); padding-left:20px; margin:22px 0}
+.task h3{margin-top:0}
+.files{font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--ink-mute); margin:4px 0 12px}
+.files b{color:var(--ink-soft); font-weight:500}
+ul.steps{margin:6px 0 0; padding-left:0; list-style:none}
+ul.steps li{position:relative; padding-left:26px; margin:5px 0; font-size:14.5px}
+ul.steps li:before{content:"▢"; position:absolute; left:0; color:var(--accent); font-size:13px}
+.callout{background:var(--paper-2); border:1px solid var(--rule); border-left:3px solid var(--accent);
+  border-radius:6px; padding:16px 20px; margin:18px 0}
+.callout b{color:var(--accent)}
+footer{margin-top:56px; padding-top:20px; border-top:1px solid var(--rule);
+  font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--ink-mute);
+  display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px}
+svg{max-width:100%; height:auto}
+@media (max-width:760px){
+  .wrap{padding:40px 20px 64px}
+  h1{font-size:38px}
+  nav.toc ol{columns:1}
+  .meta{font-size:11.5px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <p class="eyebrow">ccp · implementation plan</p>
+  <h1>Config <em>por perfil</em>:<br>reglas + hooks editables desde CLI</h1>
+  <p class="lede">Cada perfil de Claude Code lleva su propia config — instrucciones, hooks, permisos, env, MCP — como capa <em>baseline</em>, heredando del global y editable con tu editor favorito.</p>
+  <div class="meta">
+    <span><b>Fecha</b> 2026-06-01</span>
+    <span><b>Status</b> ready to execute</span>
+    <span><b>Scope</b> lib/cfg.sh · env.sh · bin/ccp · install.sh · tests</span>
+    <span><b>Tasks</b> 12 + verificación</span>
+    <span><b>Sub-skill</b> subagent-driven-development</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>Contenido</h2>
+  <ol>
+    <li><span class="lead">01</span><a href="#s1">Goal &amp; arquitectura</a></li>
+    <li><span class="lead">02</span><a href="#s2">Estructura de archivos</a></li>
+    <li><span class="lead">03</span><a href="#s3">Interfaces (cfg.sh)</a></li>
+    <li><span class="lead">04</span><a href="#s4">Dataflow del merge</a></li>
+    <li><span class="lead">05</span><a href="#s5">Tasks 1–4 · lib/cfg.sh</a></li>
+    <li><span class="lead">06</span><a href="#s6">Task 5 · env.sh</a></li>
+    <li><span class="lead">07</span><a href="#s7">Tasks 6–9 · bin/ccp core</a></li>
+    <li><span class="lead">08</span><a href="#s8">Tasks 10–12 · surface + docs</a></li>
+    <li><span class="lead">09</span><a href="#s9">Decisiones (ADR / CONTEXT)</a></li>
+    <li><span class="lead">10</span><a href="#s10">Verificación final</a></li>
+  </ol>
+</nav>
+
+<section id="s1">
+  <h2><span class="num">§ 01</span>Goal &amp; arquitectura</h2>
+  <p class="section-lede">Qué construimos y la forma general del enfoque.</p>
+  <p><b>Goal.</b> Permitir que cada perfil cargue su propia config de Claude Code (instrucciones + hooks/permisos/env/MCP) como capa baseline, editable desde la CLI con un editor configurable.</p>
+  <p><b>Arquitectura.</b> Todo perfil no-<code>default</code> tiene un <code>cc-home</code> (= <code>CLAUDE_CONFIG_DIR</code>). El perfil guarda dos archivos <span class="tag">overlay</span>: <code>overlay/CLAUDE.md</code> y <code>overlay/settings.overlay.json</code>. El <code>cc-home/CLAUDE.md</code> efectivo hace <code>@import</code> del global y del overlay; el <code>cc-home/settings.json</code> efectivo es global ⊕ overlay vía <code>jq</code> deep-merge (con fallback snapshot si falta <code>jq</code>). La regeneración corre al crear/editar/<code>sync</code> — nunca en el hook por-prompt.</p>
+  <div class="callout">
+    <b>Commits no autónomos.</b> Cada paso <code>Commit</code> es una <i>propuesta</i>: stagea, muestra el diff y pregunta antes de <code>git commit</code>. Sin trailer <code>Co-Authored-By</code>.
+  </div>
+</section>
+
+<section id="s2">
+  <h2><span class="num">§ 02</span>Estructura de archivos</h2>
+  <p class="section-lede">Dónde vive cada responsabilidad. Las decisiones de descomposición se fijan aquí.</p>
+  <table>
+    <tr><th>Archivo</th><th>Responsabilidad</th><th>Cambio</th></tr>
+    <tr><td><code>lib/cfg.sh</code></td><td>Motor puro overlay+merge: paths, init, validar JSON, jq-merge, generar <code>CLAUDE.md</code> @import, regenerar, migrar legacy.</td><td><span class="tag">crear</span></td></tr>
+    <tr><td><code>lib/env.sh</code></td><td>Delta de entorno. Rama deepseek ahora exporta <code>CLAUDE_CONFIG_DIR</code> → su cc-home.</td><td>mod <code>:40-59</code></td></tr>
+    <tr><td><code>bin/ccp</code></td><td>Sourcear cfg.sh; <code>_seed_cc_home</code>; deepseek add siembra cc-home; <code>profile config</code> / <code>sync</code>; <code>config editor</code>; help/menu/completions.</td><td>mod</td></tr>
+    <tr><td><code>install.sh</code></td><td>Copiar el cuarto lib <code>cfg.sh</code>.</td><td>mod <code>:19-23</code></td></tr>
+    <tr><td><code>tests/run.sh</code></td><td>Sourcear cfg.sh; nuevos <code>test_cfg_*</code> / <code>test_bin_profile_config_*</code>; actualizar <code>test_env_deepseek</code> + <code>test_seed_official_symlinks</code>.</td><td>mod</td></tr>
+  </table>
+</section>
+
+<section id="s3">
+  <h2><span class="num">§ 03</span>Interfaces fijadas — <code>lib/cfg.sh</code></h2>
+  <p class="section-lede">Nombres usados en todas las tasks. Mantener idénticos evita el bug "<code>clearLayers()</code> vs <code>clearFullLayers()</code>".</p>
+  <pre><button class="copy">copy</button><code><span class="k">ccp_cfg_overlay_dir</span>   &lt;home&gt; &lt;name&gt;            <span class="c"># .../profiles/&lt;name&gt;/overlay</span>
+<span class="k">ccp_cfg_instr_file</span>    &lt;home&gt; &lt;name&gt;            <span class="c"># .../overlay/CLAUDE.md</span>
+<span class="k">ccp_cfg_settings_file</span> &lt;home&gt; &lt;name&gt;            <span class="c"># .../overlay/settings.overlay.json</span>
+<span class="k">ccp_cfg_cchome</span>        &lt;home&gt; &lt;name&gt;            <span class="c"># .../profiles/&lt;name&gt;/cc-home</span>
+<span class="k">ccp_cfg_init_overlay</span>  &lt;home&gt; &lt;name&gt;            <span class="c"># crea CLAUDE.md vacío + '{}' overlay</span>
+<span class="k">ccp_cfg_validate_json</span> &lt;file&gt;                   <span class="c"># rc0 ok; sin jq => rc0 (no-op)</span>
+<span class="k">ccp_cfg_merge_settings</span> &lt;global&gt; &lt;overlay&gt; &lt;out&gt;
+<span class="k">ccp_cfg_write_claude_md</span> &lt;home&gt; &lt;name&gt; &lt;src&gt;
+<span class="k">ccp_cfg_regenerate</span>    &lt;home&gt; &lt;name&gt; &lt;src&gt;
+<span class="k">ccp_cfg_migrate_legacy</span> &lt;home&gt; &lt;name&gt;</code></pre>
+  <p>Layout en disco de un perfil tras el cambio:</p>
+  <pre><button class="copy">copy</button><code>profiles/&lt;name&gt;/
+├── meta
+├── api_key                      <span class="c"># solo deepseek</span>
+├── overlay/
+│   ├── CLAUDE.md                <span class="c"># tus instrucciones (editas esto)</span>
+│   └── settings.overlay.json    <span class="c"># tus hooks/perms/env/mcp (editas esto)</span>
+└── cc-home/                     <span class="c"># CLAUDE_CONFIG_DIR (official + deepseek)</span>
+    ├── CLAUDE.md                <span class="c"># GENERADO: @global + @overlay</span>
+    ├── settings.json            <span class="c"># GENERADO: global ⊕ overlay (jq)</span>
+    └── plugins/ commands/ …     <span class="c"># symlinks de ~/.claude</span></code></pre>
+</section>
+
+<section id="s4">
+  <h2><span class="num">§ 04</span>Dataflow del merge</h2>
+  <p class="section-lede">Cómo el global y el overlay producen el cc-home efectivo.</p>
+  <svg viewBox="0 0 920 270" xmlns="http://www.w3.org/2000/svg" font-family="JetBrains Mono, monospace" font-size="13">
+    <defs>
+      <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+        <path d="M0,0 L7,3 L0,6 Z" fill="#c96442"/>
+      </marker>
+    </defs>
+    <!-- global -->
+    <rect x="20" y="30" width="220" height="70" rx="8" fill="#ece7dd" stroke="#d8d2c4"/>
+    <text x="130" y="58" text-anchor="middle" fill="#3a3833">~/.claude/CLAUDE.md</text>
+    <text x="130" y="80" text-anchor="middle" fill="#3a3833">~/.claude/settings.json</text>
+    <text x="130" y="18" text-anchor="middle" fill="#6f6a60" font-size="11">GLOBAL (base)</text>
+    <!-- overlay -->
+    <rect x="20" y="160" width="220" height="70" rx="8" fill="#ece7dd" stroke="#d8d2c4"/>
+    <text x="130" y="188" text-anchor="middle" fill="#3a3833">overlay/CLAUDE.md</text>
+    <text x="130" y="210" text-anchor="middle" fill="#3a3833">settings.overlay.json</text>
+    <text x="130" y="148" text-anchor="middle" fill="#c96442" font-size="11">OVERLAY (lo tuyo)</text>
+    <!-- merge engine -->
+    <rect x="370" y="95" width="190" height="70" rx="8" fill="#211f1a"/>
+    <text x="465" y="125" text-anchor="middle" fill="#e8e3d8">ccp_cfg_</text>
+    <text x="465" y="145" text-anchor="middle" fill="#e8a48a">regenerate</text>
+    <!-- cc-home -->
+    <rect x="690" y="60" width="210" height="140" rx="8" fill="#ece7dd" stroke="#d8d2c4"/>
+    <text x="795" y="48" text-anchor="middle" fill="#6f6a60" font-size="11">cc-home (CLAUDE_CONFIG_DIR)</text>
+    <text x="795" y="92" text-anchor="middle" fill="#3a3833">CLAUDE.md</text>
+    <text x="795" y="110" text-anchor="middle" fill="#6f6a60" font-size="11">@global + @overlay</text>
+    <text x="795" y="150" text-anchor="middle" fill="#3a3833">settings.json</text>
+    <text x="795" y="168" text-anchor="middle" fill="#6f6a60" font-size="11">jq: global ⊕ overlay</text>
+    <!-- arrows -->
+    <line x1="240" y1="65" x2="368" y2="118" stroke="#c96442" stroke-width="1.5" marker-end="url(#ar)"/>
+    <line x1="240" y1="195" x2="368" y2="142" stroke="#c96442" stroke-width="1.5" marker-end="url(#ar)"/>
+    <line x1="560" y1="130" x2="688" y2="130" stroke="#c96442" stroke-width="1.5" marker-end="url(#ar)"/>
+    <text x="624" y="122" text-anchor="middle" fill="#6f6a60" font-size="11">edit / create / sync</text>
+  </svg>
+  <p>La regeneración se dispara solo en create/edit/<code>sync</code>. El hook por-prompt (<code>_ccp_autocheck</code>) nunca corre <code>jq</code>: solo evalúa el delta de env. El overlay md se lee vivo vía <code>@import</code> — editarlo no requiere regen.</p>
+</section>
+
+<section id="s5">
+  <h2><span class="num">§ 05</span>Tasks 1–4 · <code>lib/cfg.sh</code></h2>
+  <p class="section-lede">El motor puro, TDD. Cada función testeada con <code>ccp_home</code> temporal — nunca toca config real.</p>
+
+  <div class="task">
+    <h3>Task 1 — Paths + init de overlay</h3>
+    <p class="files"><b>Create</b> lib/cfg.sh · <b>Test</b> tests/run.sh</p>
+    <p>Helpers de path + <code>ccp_cfg_init_overlay</code> (crea <code>CLAUDE.md</code> vacío y <code>settings.overlay.json</code> = <code>{}</code>, idempotente). Sourcear cfg.sh en el harness.</p>
+    <ul class="steps"><li>test paths + init</li><li>run → FAIL (not found)</li><li>impl helpers + init</li><li>run → PASS</li><li>shellcheck</li><li>commit (propose)</li></ul>
+  </div>
+
+  <div class="task">
+    <h3>Task 2 — Validar JSON + merge de settings</h3>
+    <p class="files"><b>Modify</b> lib/cfg.sh</p>
+    <p><code>ccp_cfg_validate_json</code> (no-op sin jq) y <code>ccp_cfg_merge_settings</code>: deep-merge recursivo de objetos (overlay gana), arrays se reemplazan; sin jq cae a snapshot.</p>
+    <pre><button class="copy">copy</button><code><span class="k">ccp_cfg_merge_settings</span>() { <span class="c"># global overlay out</span>
+  <span class="k">local</span> g="$1" o="$2" out="$3"
+  <span class="k">if</span> command -v jq &gt;/dev/null 2&gt;&amp;1; <span class="k">then</span>
+    <span class="k">local</span> -a files=()
+    [[ -f "$g" ]] &amp;&amp; jq -e . "$g" &gt;/dev/null 2&gt;&amp;1 &amp;&amp; files+=("$g")
+    files+=("$o")
+    jq -s <span class="s">'reduce .[] as $x ({}; . * $x)'</span> "${files[@]}" &gt; "$out"
+  <span class="k">else</span>
+    [[ -f "$g" ]] &amp;&amp; cp "$g" "$out" || cp "$o" "$out"
+  <span class="k">fi</span>
+}</code></pre>
+  </div>
+
+  <div class="task">
+    <h3>Task 3 — Generar <code>cc-home/CLAUDE.md</code> (@import) + regenerate</h3>
+    <p class="files"><b>Modify</b> lib/cfg.sh</p>
+    <div class="callout"><b>Trampa crítica.</b> Si <code>cc-home/CLAUDE.md</code> es un symlink viejo, escribir con <code>&gt;</code> corromper­ía el <i>global</i> apuntado. <code>ccp_cfg_write_claude_md</code> hace <code>rm -f</code> del symlink antes de escribir. Test dedicado verifica que el global no se pisa.</p>
+    <pre><button class="copy">copy</button><code><span class="k">ccp_cfg_write_claude_md</span>() { <span class="c"># home name src</span>
+  ...
+  [[ -L "$cch/CLAUDE.md" ]] &amp;&amp; rm -f "$cch/CLAUDE.md"
+  {
+    printf <span class="s">'# %s — generado por ccp ...\n\n'</span> "$name" "$name"
+    [[ -f "$src/CLAUDE.md" ]] &amp;&amp; printf <span class="s">'@%s\n'</span> "$src/CLAUDE.md"
+    printf <span class="s">'@%s\n'</span> "$overlay"
+  } &gt; "$cch/CLAUDE.md"
+}</code></pre>
+  </div>
+
+  <div class="task">
+    <h3>Task 4 — Migración legacy → overlay</h3>
+    <p class="files"><b>Modify</b> lib/cfg.sh</p>
+    <p><code>ccp_cfg_migrate_legacy</code>: si <code>cc-home/settings.json</code> es copia real y no hay overlay aún → lo <code>mv</code> al overlay (preserva ediciones). Symlink viejo de <code>CLAUDE.md</code> → <code>rm</code>. Idempotente: no pisa un overlay ya migrado.</p>
+  </div>
+</section>
+
+<section id="s6">
+  <h2><span class="num">§ 06</span>Task 5 · <code>lib/env.sh</code></h2>
+  <p class="section-lede">deepseek pasa de env-only a tener su propio config dir.</p>
+  <p>En la rama <code>deepseek)</code>, primer <code>printf</code>:</p>
+  <pre><button class="copy">copy</button><code>printf <span class="s">'export CLAUDE_CONFIG_DIR=%q\n'</span> "$home/profiles/$profile/cc-home"</code></pre>
+  <p>Esto rompe a propósito <code>test_env_deepseek</code> (antes esperaba <code>CLAUDE_CONFIG_DIR</code> sin setear). El test se actualiza para esperar el cc-home. Ver <a href="#s9">ADR-0003</a>.</p>
+</section>
+
+<section id="s7">
+  <h2><span class="num">§ 07</span>Tasks 6–9 · <code>bin/ccp</code> core</h2>
+  <p class="section-lede">El binario: seeding, editor, y los comandos nuevos.</p>
+
+  <div class="task">
+    <h3>Task 6 — Sourcear cfg.sh + <code>_seed_cc_home</code></h3>
+    <p>Generaliza el seeding: symlinks de <code>plugins/commands/agents/skills</code> (ya no CLAUDE.md/settings.json), luego <code>ccp_cfg_regenerate</code>. <code>_profile_add</code> siembra cc-home para <b>ambos</b> tipos.</p>
+  </div>
+  <div class="task">
+    <h3>Task 7 — Editor configurable</h3>
+    <p><code>ccp config editor "code -w"</code> guarda <code>editor=</code> en el config; <code>_resolve_editor</code> = configurado → <code>$EDITOR</code> → <code>nano</code>.</p>
+  </div>
+  <div class="task">
+    <h3>Task 8 — <code>ccp profile config</code> (menú + targets + default)</h3>
+    <p>Menú TTY (1 instrucciones / 2 settings / 3 ambos). Target directo (<code>instructions|settings</code>) salta el menú para scripting; sin TTY y sin target → error. Settings se valida con <code>jq</code>: JSON malo ⇒ warn y <b>no</b> regenera (conserva el último bueno). <code>default</code> abre <code>~/.claude</code> real con aviso.</p>
+  </div>
+  <div class="task">
+    <h3>Task 9 — <code>ccp profile sync</code></h3>
+    <p>Re-mergea global ⊕ overlay para un perfil (o todos). Resuelve el staleness cuando el global cambia tras crear el perfil.</p>
+  </div>
+</section>
+
+<section id="s8">
+  <h2><span class="num">§ 08</span>Tasks 10–12 · surface + docs</h2>
+  <table>
+    <tr><th>Task</th><th>Qué</th></tr>
+    <tr><td>10</td><td>Help, completions (bash+zsh: <code>config sync</code> + <code>instructions|settings</code>), entrada de menú.</td></tr>
+    <tr><td>11</td><td><code>install.sh</code> copia el cuarto lib <code>cfg.sh</code>; smoke-test con prefijo temporal.</td></tr>
+    <tr><td>12</td><td>Docs: <code>CLAUDE.md</code> (Libraries + Config locations) y <code>README.md</code> (sección "Config por perfil").</td></tr>
+  </table>
+  <p>Comandos finales expuestos al usuario:</p>
+  <pre><button class="copy">copy</button><code><span class="k">ccp</span> profile config &lt;perfil&gt;                 <span class="c"># menú</span>
+<span class="k">ccp</span> profile config &lt;perfil&gt; instructions    <span class="c"># overlay/CLAUDE.md</span>
+<span class="k">ccp</span> profile config &lt;perfil&gt; settings        <span class="c"># overlay/settings.overlay.json</span>
+<span class="k">ccp</span> profile sync [&lt;perfil&gt;]                 <span class="c"># re-mergea el global</span>
+<span class="k">ccp</span> config editor "code -w"                 <span class="c"># editor (fallback $EDITOR)</span></code></pre>
+</section>
+
+<section id="s9">
+  <h2><span class="num">§ 09</span>Decisiones registradas</h2>
+  <p class="section-lede">Glosario + ADRs que respaldan este plan.</p>
+  <table>
+    <tr><th>Doc</th><th>Decisión</th></tr>
+    <tr><td><code>CONTEXT.md</code></td><td>Glosario: <i>profile config</i> (nuevo) vs <i>path rule</i> (rules.tsv viejo); <i>overlay</i>; <i>cc-home</i>.</td></tr>
+    <tr><td><code>adr/0001</code></td><td>Profile config = <b>baseline</b>, no override. cc-home es la capa más baja; el repo gana. Se rechazó hard-override vía enterprise-managed.</td></tr>
+    <tr><td><code>adr/0002</code></td><td>Settings = overlay + <b>jq deep-merge</b>; jq como dep blanda con fallback snapshot. Trade-off vs la convención "evita deps".</td></tr>
+    <tr><td><code>adr/0003</code></td><td>deepseek gana <b>cc-home</b> + <code>CLAUDE_CONFIG_DIR</code>. <code>default</code> queda intacto = <code>~/.claude</code> puro.</td></tr>
+  </table>
+</section>
+
+<section id="s10">
+  <h2><span class="num">§ 10</span>Verificación final</h2>
+  <p class="section-lede">Gates antes de declarar completo.</p>
+  <pre><button class="copy">copy</button><code><span class="c"># lint</span>
+shellcheck -S warning bin/ccp lib/*.sh install.sh tests/run.sh
+<span class="c"># sintaxis</span>
+bash -n bin/ccp &amp;&amp; bash -n lib/cfg.sh
+<span class="c"># suite completa</span>
+bash tests/run.sh                       <span class="c"># =&gt; N passed, 0 failed</span>
+<span class="c"># smoke real (CCP_HOME temporal)</span>
+H="$(mktemp -d)/ccp"
+CCP_HOME="$H" bash bin/ccp profile add demo --official
+CCP_HOME="$H" EDITOR=true bash bin/ccp profile config demo settings
+cat "$H/profiles/demo/cc-home/CLAUDE.md"      <span class="c"># @import lines</span>
+cat "$H/profiles/demo/cc-home/settings.json"  <span class="c"># merged</span></code></pre>
+  <p><b>Cobertura del spec:</b> instrucciones ✅ · hooks/permisos/env/MCP ✅ (todo en settings.overlay.json) · heredar global + propio ✅ · editable por CLI ✅ · editor configurable ✅ · todos los perfiles incl. deepseek ✅ · default intacto ✅ · baseline ✅ · regen en edit/create/sync ✅ · migración legacy ✅ · bad-JSON safe ✅.</p>
+</section>
+
+<footer>
+  <span>ccp · per-profile config plan</span>
+  <span>v0.1 — 2026-06-01</span>
+</footer>
+
+</div>
+<script>
+document.querySelectorAll('.copy').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var code = btn.parentElement.querySelector('code');
+    navigator.clipboard.writeText(code.innerText).then(function(){
+      var t = btn.textContent; btn.textContent = 'copied';
+      setTimeout(function(){ btn.textContent = t; }, 1200);
+    });
+  });
+});
+</script>
+</body>
+</html>
