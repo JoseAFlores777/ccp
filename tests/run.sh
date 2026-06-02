@@ -10,6 +10,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/lib/paths.sh"
 [[ -f "$ROOT/lib/profiles.sh" ]] && { source "$ROOT/lib/profiles.sh"; }
 [[ -f "$ROOT/lib/env.sh" ]]      && { source "$ROOT/lib/env.sh"; }
+[[ -f "$ROOT/lib/cfg.sh" ]]      && { source "$ROOT/lib/cfg.sh"; }
 
 _pass=0; _fail=0
 
@@ -144,7 +145,7 @@ test_env_deepseek() {
   local got; got="$(eval "$out"; printf '%s|%s|%s|%s' "${ANTHROPIC_BASE_URL:-}" "${ANTHROPIC_AUTH_TOKEN:-}" "${ANTHROPIC_MODEL:-}" "${CLAUDE_CODE_EFFORT_LEVEL:-}")"
   assert_eq "$got" "https://x/anthropic|sk-key|pro[1m]|high" "deepseek exports provider vars"
   local cfg; cfg="$(eval "$out"; printf '%s' "${CLAUDE_CONFIG_DIR:-NONE}")"
-  assert_eq "$cfg" "NONE" "deepseek leaves CLAUDE_CONFIG_DIR unset"
+  assert_eq "$cfg" "$h/profiles/ds/cc-home" "deepseek now exports its cc-home as CLAUDE_CONFIG_DIR"
 }
 
 _ccp() { CCP_HOME="$1" bash "$ROOT/bin/ccp" "${@:2}"; }
@@ -247,9 +248,21 @@ test_seed_official_symlinks() {
   CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile add work --official >/dev/null
   local cch="$h/profiles/work/cc-home"
   [[ -L "$cch/plugins" ]]; assert_rc "$?" 0 "plugins symlinked"
-  [[ -L "$cch/CLAUDE.md" ]]; assert_rc "$?" 0 "CLAUDE.md symlinked"
-  [[ -f "$cch/settings.json" && ! -L "$cch/settings.json" ]]; assert_rc "$?" 0 "settings.json copied not linked"
+  [[ -f "$cch/CLAUDE.md" && ! -L "$cch/CLAUDE.md" ]]; assert_rc "$?" 0 "CLAUDE.md is generated real file"
+  case "$(cat "$cch/CLAUDE.md")" in *"@$src/CLAUDE.md"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: cc-home CLAUDE.md missing global @import" >&2;; esac
+  [[ -f "$cch/settings.json" && ! -L "$cch/settings.json" ]]; assert_rc "$?" 0 "settings.json generated not linked"
+  [[ -f "$h/profiles/work/overlay/settings.overlay.json" ]]; assert_rc "$?" 0 "overlay seeded"
   [[ ! -e "$cch/.claude.json" ]]; assert_rc "$?" 0 "no creds seeded"
+}
+
+test_seed_deepseek_gets_cchome() {
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  mkdir -p "$src/plugins"; printf 'G' > "$src/CLAUDE.md"; printf '{"m":1}' > "$src/settings.json"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile add ds --deepseek --base-url u --pro p --flash f --effort max >/dev/null
+  local cch="$h/profiles/ds/cc-home"
+  [[ -L "$cch/plugins" ]]; assert_rc "$?" 0 "deepseek cc-home has symlinked plugins"
+  [[ -f "$cch/CLAUDE.md" && -f "$cch/settings.json" ]]; assert_rc "$?" 0 "deepseek cc-home generated config"
 }
 
 test_shell_init_valid_bash() {
@@ -289,8 +302,8 @@ test_migrate_creates_deepseek_profile() {
 test_bin_help_mentions_profile() {
   local h; h="$(newdir)"
   local out; out="$(_ccp "$h" help)"
-  case "$out" in *"profile"*"path set"*) _pass=$((_pass+1));;
-    *) _fail=$((_fail+1)); echo "FAIL: help missing profile/path set" >&2;; esac
+  case "$out" in *"profile config"*"path set"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: help missing profile config/path set" >&2;; esac
 }
 test_bin_unknown_cmd_exit1() {
   local h; h="$(newdir)"
@@ -308,6 +321,194 @@ test_bin_config_set_used_by_profile_add() {
   _ccp "$h" config set base_url "https://custom/anthropic" >/dev/null
   _ccp "$h" profile add ds --deepseek >/dev/null
   assert_eq "$(ccp_profile_get "$h" ds base_url)" "https://custom/anthropic" "profile add uses configured default base_url"
+}
+
+test_cfg_paths() {
+  assert_eq "$(ccp_cfg_overlay_dir /h work)"   "/h/profiles/work/overlay" "overlay dir"
+  assert_eq "$(ccp_cfg_instr_file /h work)"    "/h/profiles/work/overlay/CLAUDE.md" "instr file"
+  assert_eq "$(ccp_cfg_settings_file /h work)" "/h/profiles/work/overlay/settings.overlay.json" "settings file"
+  assert_eq "$(ccp_cfg_cchome /h work)"        "/h/profiles/work/cc-home" "cchome"
+}
+test_cfg_init_overlay() {
+  local h; h="$(newdir)"
+  ccp_cfg_init_overlay "$h" work
+  [[ -f "$h/profiles/work/overlay/CLAUDE.md" ]]; assert_rc "$?" 0 "instr created"
+  assert_eq "$(cat "$h/profiles/work/overlay/settings.overlay.json")" "{}" "overlay seeded as {}"
+}
+
+test_cfg_validate_json() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }  # sin jq: validador es no-op
+  local d; d="$(newdir)"
+  printf '{"a":1}' > "$d/good.json"; printf '{bad' > "$d/bad.json"
+  ccp_cfg_validate_json "$d/good.json"; assert_rc "$?" 0 "valid json ok"
+  ccp_cfg_validate_json "$d/bad.json";  assert_rc "$?" 1 "invalid json rc1"
+}
+test_cfg_merge_overlay_wins() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local d; d="$(newdir)"
+  printf '{"model":"opus","env":{"A":"1"}}' > "$d/global.json"
+  printf '{"env":{"B":"2"},"model":"sonnet"}' > "$d/overlay.json"
+  ccp_cfg_merge_settings "$d/global.json" "$d/overlay.json" "$d/out.json"
+  assert_eq "$(jq -r '.model' "$d/out.json")" "sonnet" "overlay overrides scalar"
+  assert_eq "$(jq -r '.env.A' "$d/out.json")" "1" "global key kept (deep merge)"
+  assert_eq "$(jq -r '.env.B' "$d/out.json")" "2" "overlay key added (deep merge)"
+}
+test_cfg_merge_no_global() {
+  local d; d="$(newdir)"
+  printf '{"env":{"B":"2"}}' > "$d/overlay.json"
+  ccp_cfg_merge_settings "$d/missing.json" "$d/overlay.json" "$d/out.json"
+  [[ -s "$d/out.json" ]]; assert_rc "$?" 0 "out written even without global"
+  if command -v jq >/dev/null 2>&1; then
+    assert_eq "$(jq -r '.env.B' "$d/out.json")" "2" "overlay-only merge"
+  fi
+}
+
+test_cfg_write_claude_md_imports() {
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  printf 'GLOBAL RULES' > "$src/CLAUDE.md"
+  ccp_cfg_init_overlay "$h" work
+  ccp_cfg_write_claude_md "$h" work "$src"
+  local f="$h/profiles/work/cc-home/CLAUDE.md"
+  [[ -f "$f" && ! -L "$f" ]]; assert_rc "$?" 0 "cc-home CLAUDE.md is a real file"
+  case "$(cat "$f")" in
+    *"@$src/CLAUDE.md"*"@$h/profiles/work/overlay/CLAUDE.md"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: missing @imports in cc-home CLAUDE.md" >&2;;
+  esac
+}
+test_cfg_write_claude_md_replaces_symlink() {
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  printf 'G' > "$src/CLAUDE.md"
+  local cch="$h/profiles/work/cc-home"; mkdir -p "$cch"
+  ln -s "$src/CLAUDE.md" "$cch/CLAUDE.md"   # estado viejo: symlink
+  ccp_cfg_init_overlay "$h" work
+  ccp_cfg_write_claude_md "$h" work "$src"
+  [[ ! -L "$cch/CLAUDE.md" ]]; assert_rc "$?" 0 "old symlink replaced by real file"
+  assert_eq "$(cat "$src/CLAUDE.md")" "G" "global CLAUDE.md NOT clobbered"
+}
+test_cfg_regenerate() {
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  printf 'G' > "$src/CLAUDE.md"; printf '{"model":"opus"}' > "$src/settings.json"
+  ccp_cfg_regenerate "$h" work "$src"
+  local cch="$h/profiles/work/cc-home"
+  [[ -f "$cch/CLAUDE.md" ]]; assert_rc "$?" 0 "regenerate writes CLAUDE.md"
+  [[ -f "$cch/settings.json" ]]; assert_rc "$?" 0 "regenerate writes settings.json"
+  if command -v jq >/dev/null 2>&1; then
+    assert_eq "$(jq -r '.model' "$cch/settings.json")" "opus" "global merged into cc-home settings"
+  fi
+}
+
+test_cfg_migrate_legacy() {
+  local h; h="$(newdir)"
+  local cch="$h/profiles/work/cc-home"; mkdir -p "$cch"
+  # estado viejo: settings.json copia (archivo real) + CLAUDE.md symlink
+  printf '{"hooks":{"X":1}}' > "$cch/settings.json"
+  printf 'G' > "$h/global-claude.md"
+  ln -s "$h/global-claude.md" "$cch/CLAUDE.md"
+  ccp_cfg_migrate_legacy "$h" work
+  local ov="$h/profiles/work/overlay/settings.overlay.json"
+  [[ -f "$ov" ]]; assert_rc "$?" 0 "old settings.json moved into overlay"
+  [[ ! -e "$cch/settings.json" ]]; assert_rc "$?" 0 "old cc-home settings.json removed"
+  [[ ! -L "$cch/CLAUDE.md" ]]; assert_rc "$?" 0 "old CLAUDE.md symlink removed"
+  if command -v jq >/dev/null 2>&1; then
+    assert_eq "$(jq -r '.hooks.X' "$ov")" "1" "edits preserved in overlay"
+  fi
+}
+test_cfg_migrate_legacy_idempotent() {
+  local h; h="$(newdir)"
+  ccp_cfg_init_overlay "$h" work
+  printf '{"keep":1}' > "$h/profiles/work/overlay/settings.overlay.json"
+  ccp_cfg_migrate_legacy "$h" work   # ya migrado: no debe pisar el overlay
+  if command -v jq >/dev/null 2>&1; then
+    assert_eq "$(jq -r '.keep' "$h/profiles/work/overlay/settings.overlay.json")" "1" "overlay untouched when already migrated"
+  else
+    _pass=$((_pass+1))
+  fi
+}
+
+test_bin_config_editor_set_show() {
+  local h; h="$(newdir)"
+  _ccp "$h" config editor "code -w" >/dev/null
+  local out; out="$(_ccp "$h" config show)"
+  case "$out" in *"code -w"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: config show missing editor" >&2;; esac
+}
+
+test_bin_profile_config_settings_target() {
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  printf 'G' > "$src/CLAUDE.md"; printf '{"model":"opus"}' > "$src/settings.json"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile add work --official >/dev/null
+  # editor falso: escribe un overlay válido en el archivo recibido
+  local fe; fe="$(newdir)/fakeeditor"
+  printf '#!/usr/bin/env bash\nprintf %s '"'"'{"env":{"FOO":"bar"}}'"'"' > "$1"\n' > "$fe"; chmod +x "$fe"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" config editor "$fe" >/dev/null
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile config work settings >/dev/null
+  local ov="$h/profiles/work/overlay/settings.overlay.json"
+  case "$(cat "$ov")" in *FOO*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: overlay not edited" >&2;; esac
+  if command -v jq >/dev/null 2>&1; then
+    assert_eq "$(jq -r '.env.FOO' "$h/profiles/work/cc-home/settings.json")" "bar" "overlay merged into cc-home after edit"
+    assert_eq "$(jq -r '.model' "$h/profiles/work/cc-home/settings.json")" "opus" "global still present after merge"
+  fi
+}
+test_bin_profile_config_bad_json_keeps_last_good() {
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  printf '{"model":"opus"}' > "$src/settings.json"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile add work --official >/dev/null
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }  # sin jq no hay validación
+  local good="$h/profiles/work/cc-home/settings.json"; cp "$good" "$h/snap.json"
+  local fe; fe="$(newdir)/fakeeditor"
+  printf '#!/usr/bin/env bash\nprintf %s '"'"'{bad json'"'"' > "$1"\n' > "$fe"; chmod +x "$fe"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" config editor "$fe" >/dev/null
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile config work settings >/dev/null 2>&1
+  assert_eq "$(cat "$good")" "$(cat "$h/snap.json")" "bad json: cc-home settings.json unchanged"
+}
+test_bin_profile_config_no_tty_requires_target() {
+  local h; h="$(newdir)"
+  _ccp "$h" profile add work --official >/dev/null
+  local rc; _ccp "$h" profile config work </dev/null >/dev/null 2>&1; rc=$?
+  assert_rc "$rc" 1 "no tty + no target => error"
+}
+
+test_bin_profile_config_default_no_tty() {
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  printf 'G' > "$src/CLAUDE.md"; printf '{}' > "$src/settings.json"
+  local rc; CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile config default </dev/null >/dev/null 2>&1; rc=$?
+  assert_rc "$rc" 1 "default config without tty => error"
+}
+
+test_bin_profile_sync_repulls_global() {
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  printf '{"model":"opus"}' > "$src/settings.json"; printf 'G' > "$src/CLAUDE.md"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile add work --official >/dev/null
+  # cambia el global DESPUÉS de crear el perfil
+  printf '{"model":"sonnet"}' > "$src/settings.json"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile sync work >/dev/null
+  if command -v jq >/dev/null 2>&1; then
+    assert_eq "$(jq -r '.model' "$h/profiles/work/cc-home/settings.json")" "sonnet" "sync re-pulled global change"
+  else
+    _pass=$((_pass+1))
+  fi
+}
+
+test_bin_profile_config_preserves_legacy_settings() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  printf '{"model":"opus"}' > "$src/settings.json"; printf 'G' > "$src/CLAUDE.md"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile add work --official >/dev/null
+  # simula estado LEGACY pre-overlay: sin overlay, con settings.json copia real (custom) en cc-home
+  rm -rf "$h/profiles/work/overlay"
+  printf '{"custom":"keep"}' > "$h/profiles/work/cc-home/settings.json"
+  # editor no-op (no cambia el overlay)
+  local fe; fe="$(newdir)/fe"; printf '#!/usr/bin/env bash\n:\n' > "$fe"; chmod +x "$fe"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" config editor "$fe" >/dev/null
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile config work settings >/dev/null
+  assert_eq "$(jq -r '.custom' "$h/profiles/work/overlay/settings.overlay.json")" "keep" "legacy settings preserved into overlay"
+  assert_eq "$(jq -r '.custom' "$h/profiles/work/cc-home/settings.json")" "keep" "legacy custom key survives merge into cc-home"
+}
+test_bin_profile_sync_default_rejected() {
+  local h; h="$(newdir)"
+  local rc; _ccp "$h" profile sync default >/dev/null 2>&1; rc=$?
+  assert_rc "$rc" 1 "sync default => error (no cc-home)"
 }
 
 # ---- runner ----

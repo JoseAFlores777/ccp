@@ -254,6 +254,25 @@ Tus reglas viejas quedan respaldadas en `~/.config/ccp/rules.dsctl.bak`.
 
 ---
 
+## Config por perfil
+
+Cada perfil (official o deepseek) tiene su propia config de Claude que se aplica como **capa baseline** cuando el perfil está activo:
+
+```bash
+ccp profile config <perfil>                 # menú: instrucciones / settings / ambos
+ccp profile config <perfil> instructions    # abre overlay/CLAUDE.md
+ccp profile config <perfil> settings        # abre overlay/settings.overlay.json
+ccp profile sync [<perfil>]                 # re-mergea cambios del global ~/.claude
+ccp config editor "code -w"                 # editor a usar (fallback: $EDITOR)
+```
+
+- **Instrucciones**: `cc-home/CLAUDE.md` hace `@import` del global `~/.claude/CLAUDE.md` y luego de tu overlay.
+- **Settings**: `cc-home/settings.json` = global ⊕ overlay (deep-merge con `jq`; sin `jq` cae a snapshot del global).
+- **Prioridad real**: es una baseline — la config del repo (`.claude/settings.json`) gana en conflicto; las instrucciones se inyectan siempre como contexto. Ver `docs/adr/0001`.
+- `default` no tiene overlay: `ccp profile config default` abre tu `~/.claude` global directo (con aviso).
+
+---
+
 ## Solución de problemas
 
 **`ccp: command not found`**

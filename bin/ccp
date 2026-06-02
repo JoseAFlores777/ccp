@@ -13,7 +13,7 @@ while [[ -h "$_self" ]]; do _self="$(readlink "$_self")"; done
 CCP_DIR="$(cd "$(dirname "$_self")/.." && pwd)"
 _libdir="$CCP_DIR/lib"
 [[ -f "$_libdir/paths.sh" ]] || _libdir="$HOME/.local/lib/ccp"
-for _l in paths.sh profiles.sh env.sh; do
+for _l in paths.sh profiles.sh env.sh cfg.sh; do
   # shellcheck disable=SC1090
   [[ -f "$_libdir/$_l" ]] && source "$_libdir/$_l"
 done
@@ -70,7 +70,9 @@ cmd_profile() {
     list|ls|"") _profile_list ;;
     show)     _profile_show "$@" ;;
     login)    _profile_login "$@" ;;
-    *) err "profile: subcomando desconocido '$sub'"; say "Usa: add | rm | list | show | login"; return 1 ;;
+    config)   _profile_config "$@" ;;
+    sync)     _profile_sync "$@" ;;
+    *) err "profile: subcomando desconocido '$sub'"; say "Usa: add | rm | list | show | login | config | sync"; return 1 ;;
   esac
 }
 
@@ -96,12 +98,13 @@ _profile_add() {
   case "$kind" in
     official)
       ccp_profile_add_official "$CCP_HOME" "$name"
-      _seed_official_home "$CCP_HOME/profiles/$name/cc-home"
-      ok "Perfil oficial '$name' creado (plugins/skills symlinked, settings copiado)."
+      _seed_cc_home "$CCP_HOME" "$name"
+      ok "Perfil oficial '$name' creado (plugins/skills symlinked, config generada)."
       info "Loguéate una vez:  ccp profile login $name   (corre /login dentro)" ;;
     deepseek)
       ccp_profile_add_deepseek "$CCP_HOME" "$name" "$base" "$pro" "$flash" "$effort"
-      ok "Perfil deepseek '$name' creado."
+      _seed_cc_home "$CCP_HOME" "$name"
+      ok "Perfil deepseek '$name' creado (cc-home + config generada)."
       info "Añade su API key:  ccp key $name" ;;
     *) err "Especifica --official o --deepseek"; return 1 ;;
   esac
@@ -156,22 +159,23 @@ _profile_show() {
   hr
 }
 
-# Siembra un cc-home oficial: symlinks de lo compartible, copia de settings.json.
+# Siembra un cc-home: symlinks de lo compartible + genera config (overlay model).
 # Fuente override-able para tests: CCP_CLAUDE_SRC (default ~/.claude).
-_seed_official_home() { # cc_home_dir
-  local cch="$1"; local src="${CCP_CLAUDE_SRC:-$HOME/.claude}"
+_seed_cc_home() { # home name
+  local home="$1" name="$2"
+  local cch; cch="$(ccp_cfg_cchome "$home" "$name")"
+  local src="${CCP_CLAUDE_SRC:-$HOME/.claude}"
   mkdir -p "$cch"
-  [[ -d "$src" ]] || return 0
-  local item
-  for item in plugins commands agents skills CLAUDE.md; do
-    if [[ -e "$src/$item" && ! -e "$cch/$item" ]]; then
-      ln -s "$src/$item" "$cch/$item"
-    fi
-  done
-  # settings.json: COPIA (CC escribe ahí; no compartir writes entre cuentas)
-  if [[ -f "$src/settings.json" && ! -e "$cch/settings.json" ]]; then
-    cp "$src/settings.json" "$cch/settings.json"
+  if [[ -d "$src" ]]; then
+    local item
+    for item in plugins commands agents skills; do
+      if [[ -e "$src/$item" && ! -e "$cch/$item" ]]; then
+        ln -s "$src/$item" "$cch/$item"
+      fi
+    done
   fi
+  ccp_cfg_init_overlay "$home" "$name"
+  ccp_cfg_regenerate "$home" "$name" "$src"
 }
 
 _profile_login() {
@@ -184,6 +188,93 @@ _profile_login() {
   info "Abriendo Claude Code con el config dir de '$name'."
   info "Dentro, corre  /login  con la cuenta de este perfil, luego /quit."
   CLAUDE_CONFIG_DIR="$cch" command claude
+}
+
+_profile_config() {
+  local name="$1" target="$2"
+  [[ -z "$name" ]] && { err "Uso: ccp profile config <perfil> [instructions|settings]"; return 1; }
+  if [[ "$name" == "default" ]]; then _config_default; return; fi
+  ccp_profile_exists "$CCP_HOME" "$name" || { err "No existe '$name'."; return 1; }
+  ccp_cfg_migrate_legacy "$CCP_HOME" "$name"
+  ccp_cfg_init_overlay "$CCP_HOME" "$name"
+  local instr settings
+  instr="$(ccp_cfg_instr_file "$CCP_HOME" "$name")"
+  settings="$(ccp_cfg_settings_file "$CCP_HOME" "$name")"
+  case "$target" in
+    instructions|instr|md) _edit_one "$instr" "$name"; return ;;
+    settings|json)         _edit_settings "$settings" "$name"; return ;;
+    "")                    : ;;
+    *) err "target desconocido: '$target' (instructions|settings)"; return 1 ;;
+  esac
+  if [[ ! -t 0 ]]; then err "Sin TTY: especifica target (instructions|settings)."; return 1; fi
+  while true; do
+    hr; printf ' %sConfig de perfil: %s%s\n' "$C_BOLD" "$name" "$C_RESET"; hr
+    say "   ${C_BOLD}1)${C_RESET} Instrucciones (CLAUDE.md)"
+    say "   ${C_BOLD}2)${C_RESET} Settings (hooks/permisos/env/mcp)"
+    say "   ${C_BOLD}3)${C_RESET} Ambos"
+    say "   ${C_BOLD}0)${C_RESET} Salir"
+    printf '   Opción: '; read -r opt
+    case "$opt" in
+      1) _edit_one "$instr" "$name" ;;
+      2) _edit_settings "$settings" "$name" ;;
+      3) _edit_one "$instr" "$name"; _edit_settings "$settings" "$name" ;;
+      0|"") break ;;
+      *) warn "Opción inválida." ;;
+    esac
+  done
+}
+
+# edita instrucciones (sin validación) y regenera cc-home.
+_edit_one() { # file name
+  local ed; ed="$(_resolve_editor)"
+  local -a _ed; read -ra _ed <<< "${ed:-nano}"
+  "${_ed[@]}" "$1"
+  ccp_cfg_regenerate "$CCP_HOME" "$2" "${CCP_CLAUDE_SRC:-$HOME/.claude}"
+  ok "Instrucciones de '$2' actualizadas."
+}
+
+# edita settings overlay; valida JSON; solo regenera si es válido.
+_edit_settings() { # file name
+  local ed; ed="$(_resolve_editor)"
+  local -a _ed; read -ra _ed <<< "${ed:-nano}"
+  "${_ed[@]}" "$1"
+  if ccp_cfg_validate_json "$1"; then
+    ccp_cfg_regenerate "$CCP_HOME" "$2" "${CCP_CLAUDE_SRC:-$HOME/.claude}"
+    ok "Settings de '$2' aplicados."
+  else
+    warn "JSON inválido en $1 — NO regeneré cc-home (se conserva el último bueno)."
+    warn "Reedita:  ccp profile config $2 settings"
+  fi
+}
+
+# 'default' = ~/.claude puro: abre los archivos GLOBALES con aviso.
+_config_default() {
+  if [[ ! -t 0 ]]; then err "Sin TTY: no se puede abrir editor para 'default'."; return 1; fi
+  local src="${CCP_CLAUDE_SRC:-$HOME/.claude}"
+  warn "default = tu config GLOBAL ($src). Editas archivos que afectan a TODOS los perfiles que heredan."
+  local ed; ed="$(_resolve_editor)"
+  local -a _ed; read -ra _ed <<< "${ed:-nano}"
+  "${_ed[@]}" "$src/CLAUDE.md" "$src/settings.json"
+}
+
+# re-merge global ⊕ overlay para un perfil (o todos si no se da nombre).
+_profile_sync() {
+  local name="$1" src="${CCP_CLAUDE_SRC:-$HOME/.claude}"
+  [[ "$name" == "default" ]] && { err "'default' no tiene cc-home; no se sincroniza."; return 1; }
+  if [[ -n "$name" ]]; then
+    ccp_profile_exists "$CCP_HOME" "$name" || { err "No existe '$name'."; return 1; }
+    ccp_cfg_migrate_legacy "$CCP_HOME" "$name"
+    ccp_cfg_regenerate "$CCP_HOME" "$name" "$src"
+    ok "Perfil '$name' re-sincronizado (global ⊕ overlay)."
+    return 0
+  fi
+  local n
+  while read -r n; do
+    [[ -z "$n" ]] && continue
+    ccp_cfg_migrate_legacy "$CCP_HOME" "$n"
+    ccp_cfg_regenerate "$CCP_HOME" "$n" "$src"
+  done < <(ccp_profile_list "$CCP_HOME")
+  ok "Todos los perfiles re-sincronizados."
 }
 
 cmd_path() {
@@ -359,8 +450,9 @@ _ccp() {
   local top="install uninstall key path profile status config doctor menu completion resolve version help use default on off run"
   if [[ $COMP_CWORD -eq 1 ]]; then COMPREPLY=( $(compgen -W "$top" -- "$cur") ); return; fi
   case "${COMP_WORDS[1]}" in
-    profile) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "add rm list show login" -- "$cur") )
-             [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" =~ ^(rm|show|login)$ ]] && COMPREPLY=( $(compgen -W "$(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
+    profile) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "add rm list show login config sync" -- "$cur") )
+             [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" =~ ^(rm|show|login|config|sync)$ ]] && COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") )
+             [[ $COMP_CWORD -eq 4 && "${COMP_WORDS[2]}" == "config" ]] && COMPREPLY=( $(compgen -W "instructions settings" -- "$cur") ) ;;
     path)    [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "set rm list test clear edit" -- "$cur") )
              [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" =~ ^(set|rm|test)$ ]] && COMPREPLY=( $(compgen -d -- "$cur") )
              [[ $COMP_CWORD -eq 4 && "${COMP_WORDS[2]}" == "set" ]] && COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
@@ -379,8 +471,9 @@ _ccp() {
   local -a top; top=(install uninstall key path profile status config doctor menu completion resolve version help use default on off run)
   if (( CURRENT == 2 )); then compadd -- $top; return; fi
   case "${words[2]}" in
-    profile) (( CURRENT == 3 )) && compadd -- add rm list show login
-             (( CURRENT == 4 )) && [[ "${words[3]}" =~ ^(rm|show|login)$ ]] && compadd -- ${(f)"$(ccp profile list 2>/dev/null)"} ;;
+    profile) (( CURRENT == 3 )) && compadd -- add rm list show login config sync
+             (( CURRENT == 4 )) && [[ "${words[3]}" =~ ^(rm|show|login|config|sync)$ ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"}
+             (( CURRENT == 5 )) && [[ "${words[3]}" == config ]] && compadd -- instructions settings ;;
     path)    (( CURRENT == 3 )) && compadd -- set rm list test clear edit
              (( CURRENT == 3 )) || { [[ "${words[3]}" =~ ^(set|rm|test)$ ]] && _path_files -/ }
              (( CURRENT == 4 )) && [[ "${words[3]}" == set ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
@@ -439,6 +532,7 @@ _migrate_if_needed() {
 _load_config() {
   CCP_BASE_URL="$CCP_BASE_URL_DEFAULT"; CCP_MODEL_PRO="$CCP_MODEL_PRO_DEFAULT"
   CCP_MODEL_FLASH="$CCP_MODEL_FLASH_DEFAULT"; CCP_EFFORT="$CCP_EFFORT_DEFAULT"
+  CCP_EDITOR=""
   if [[ -f "$CCP_CONF_FILE" ]]; then
     local line
     while IFS= read -r line; do
@@ -447,6 +541,7 @@ _load_config() {
         model_pro=*)   CCP_MODEL_PRO="${line#model_pro=}" ;;
         model_flash=*) CCP_MODEL_FLASH="${line#model_flash=}" ;;
         effort=*)      CCP_EFFORT="${line#effort=}" ;;
+        editor=*)      CCP_EDITOR="${line#editor=}" ;;
       esac
     done < "$CCP_CONF_FILE"
   fi
@@ -454,18 +549,20 @@ _load_config() {
 _save_config() {
   mkdir -p "$CCP_HOME"
   { printf 'base_url=%s\n' "$CCP_BASE_URL"; printf 'model_pro=%s\n' "$CCP_MODEL_PRO"
-    printf 'model_flash=%s\n' "$CCP_MODEL_FLASH"; printf 'effort=%s\n' "$CCP_EFFORT"; } > "$CCP_CONF_FILE"
+    printf 'model_flash=%s\n' "$CCP_MODEL_FLASH"; printf 'effort=%s\n' "$CCP_EFFORT"
+    printf 'editor=%s\n' "$CCP_EDITOR"; } > "$CCP_CONF_FILE"
   chmod 600 "$CCP_CONF_FILE"
 }
 cmd_config() {
   _load_config
   case "$1" in
     show|"")
-      hr; printf ' %sDefaults para perfiles deepseek nuevos%s\n' "$C_BOLD" "$C_RESET"; hr
+      hr; printf ' %sPlantilla para perfiles deepseek nuevos%s\n' "$C_BOLD" "$C_RESET"; hr
       printf ' Base URL:    %s\n' "$CCP_BASE_URL"
       printf ' Modelo pro:  %s  %s(deepseek)%s\n' "$CCP_MODEL_PRO" "$C_DIM" "$C_RESET"
       printf ' Modelo flash:%s\n' "$CCP_MODEL_FLASH"
-      printf ' Effort:      %s\n' "$CCP_EFFORT"; hr
+      printf ' Effort:      %s\n' "$CCP_EFFORT"
+      printf ' Editor:      %s\n' "${CCP_EDITOR:-(usa \$EDITOR)}"; hr
       info "Cambiar: ccp config set <base_url|model_pro|model_flash|effort> <valor>" ;;
     set)
       local k="$2" v="$3"; [[ -z "$k" || -z "$v" ]] && { err "Uso: ccp config set <clave> <valor>"; return 1; }
@@ -475,10 +572,16 @@ cmd_config() {
         *) err "Clave desconocida: $k"; return 1;;
       esac
       _save_config; ok "Config: $k = $v" ;;
+    editor)
+      local e="$2"; [[ -z "$e" ]] && { err "Uso: ccp config editor <comando>"; return 1; }
+      CCP_EDITOR="$e"; _save_config; ok "Editor: $e" ;;
     reset) rm -f "$CCP_CONF_FILE"; ok "Defaults restaurados." ;;
-    *) err "Uso: ccp config [show|set|reset]" ;;
+    *) err "Uso: ccp config [show|set|reset|editor]" ;;
   esac
 }
+
+# editor configurable (ccp config editor ...) -> $EDITOR -> nano
+_resolve_editor() { _load_config; printf '%s' "${CCP_EDITOR:-${EDITOR:-nano}}"; }
 
 cmd_doctor() {
   hr; printf ' %sDiagnóstico%s\n' "$C_BOLD" "$C_RESET"; hr
@@ -514,6 +617,8 @@ ${C_BOLD}PERFILES${C_RESET}
   ccp profile add <n> --official            crea cuenta oficial (config dir propio)
   ccp profile add <n> --deepseek [opts]     crea provider (--base-url --pro --flash --effort)
   ccp profile login <n>                     abre claude para /login (perfiles oficiales)
+  ccp profile config <n> [instructions|settings]  edita la config del perfil (editor)
+  ccp profile sync [<n>]                    re-mergea el global en el/los cc-home
   ccp profile list | show <n> | rm <n>
   ccp key <perfil> [API_KEY]                guarda la key de un perfil deepseek
 
@@ -529,7 +634,7 @@ ${C_BOLD}SCRIPTING${C_RESET}
 
 ${C_BOLD}OTROS${C_RESET}
   ccp install [rc] | uninstall [rc] | migrate
-  ccp config show|set|reset | completion bash|zsh | doctor | menu | version | help
+  ccp config show|set|reset|editor <cmd> | completion bash|zsh | doctor | menu | version | help
 
 ${C_BOLD}EJEMPLO${C_RESET}
   ccp profile add work --official && ccp profile login work
@@ -558,6 +663,7 @@ BANNER
     say "   ${C_BOLD}4)${C_RESET} Diagnóstico (doctor)"
     say "   ${C_BOLD}5)${C_RESET} Instalar shell init"
     say "   ${C_BOLD}6)${C_RESET} Ayuda"
+    say "   ${C_BOLD}7)${C_RESET} Editar config de un perfil"
     say "   ${C_BOLD}0)${C_RESET} Salir"
     echo; printf '   Opción: '; read -r opt; echo
     case "$opt" in
@@ -567,6 +673,7 @@ BANNER
       4) cmd_doctor ;;
       5) cmd_install ;;
       6) cmd_help ;;
+      7) printf '   Perfil: '; read -r _pn; [[ -n "$_pn" ]] && _profile_config "$_pn" ;;
       0) break ;;
       *) warn "Opción inválida." ;;
     esac

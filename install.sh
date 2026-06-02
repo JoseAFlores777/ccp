@@ -19,8 +19,9 @@ install -m 0755 "$SRC_DIR/bin/ccp" "$BIN_DIR/ccp"
 install -m 0644 "$SRC_DIR/lib/paths.sh"    "$LIB_DIR/paths.sh"
 install -m 0644 "$SRC_DIR/lib/profiles.sh" "$LIB_DIR/profiles.sh"
 install -m 0644 "$SRC_DIR/lib/env.sh"      "$LIB_DIR/env.sh"
+install -m 0644 "$SRC_DIR/lib/cfg.sh"      "$LIB_DIR/cfg.sh"
 ok "Binario  -> $BIN_DIR/ccp"
-ok "Librerías-> $LIB_DIR/{paths,profiles,env}.sh"
+ok "Librerías-> $LIB_DIR/{paths,profiles,env,cfg}.sh"
 
 if ! printf '%s' "$PATH" | tr ':' '\n' | grep -qx "$BIN_DIR"; then
   warn "$BIN_DIR no está en tu PATH. Añade a tu rc:"

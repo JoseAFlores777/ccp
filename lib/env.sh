@@ -43,6 +43,7 @@ ccp_env_delta() { # ccp_home profile
       model_pro="$(ccp_profile_get "$home" "$profile" model_pro)"
       model_flash="$(ccp_profile_get "$home" "$profile" model_flash)"
       effort="$(ccp_profile_get "$home" "$profile" effort)"
+      printf 'export CLAUDE_CONFIG_DIR=%q\n' "$home/profiles/$profile/cc-home"
       printf 'export ANTHROPIC_BASE_URL=%q\n' "$base_url"
       if key="$(ccp_profile_get_key "$home" "$profile")"; then
         printf 'export ANTHROPIC_AUTH_TOKEN=%q\n' "$key"
