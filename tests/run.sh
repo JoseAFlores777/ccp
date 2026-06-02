@@ -145,7 +145,7 @@ test_env_deepseek() {
   local got; got="$(eval "$out"; printf '%s|%s|%s|%s' "${ANTHROPIC_BASE_URL:-}" "${ANTHROPIC_AUTH_TOKEN:-}" "${ANTHROPIC_MODEL:-}" "${CLAUDE_CODE_EFFORT_LEVEL:-}")"
   assert_eq "$got" "https://x/anthropic|sk-key|pro[1m]|high" "deepseek exports provider vars"
   local cfg; cfg="$(eval "$out"; printf '%s' "${CLAUDE_CONFIG_DIR:-NONE}")"
-  assert_eq "$cfg" "NONE" "deepseek leaves CLAUDE_CONFIG_DIR unset"
+  assert_eq "$cfg" "$h/profiles/ds/cc-home" "deepseek now exports its cc-home as CLAUDE_CONFIG_DIR"
 }
 
 _ccp() { CCP_HOME="$1" bash "$ROOT/bin/ccp" "${@:2}"; }
