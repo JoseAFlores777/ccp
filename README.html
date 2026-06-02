@@ -3,440 +3,1005 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
 <title>ccp — Guía de uso</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  /* design system: ui-ux-pro-max — "code dark + run green" */
+  /* ─────────────────────────────────────────────────────────────
+     ccp — manual del operador · guía multivista
+     OKLCH cálida · papel/tinta/terracota
+     Zilla Slab (display) · Hanken Grotesk (body) · Spline Sans Mono (code)
+     ───────────────────────────────────────────────────────────── */
   :root{
-    --bg:#0F172A; --surface:#1E293B; --surface-2:#334155; --surface-3:#0B1220;
-    --border:#334155; --border-soft:#26334a;
-    --text:#F8FAFC; --muted:#94A3B8; --muted-2:#64748B;
-    --accent:#22C55E; --accent-dim:#16A34A; --accent-soft:rgba(34,197,94,.14);
-    --radius:12px;
+    --paper:    oklch(0.963 0.008 74);
+    --paper-2:  oklch(0.930 0.012 72);
+    --paper-3:  oklch(0.910 0.014 72);
+    --ink:      oklch(0.238 0.016 62);
+    --ink-soft: oklch(0.360 0.014 60);
+    --ink-mute: oklch(0.535 0.012 58);
+    --rule:     oklch(0.852 0.015 72);
+    --rule-soft:oklch(0.902 0.012 73);
+    --accent:   oklch(0.602 0.150 41);
+    --accent-deep: oklch(0.508 0.142 39);
+    --accent-soft: oklch(0.930 0.046 52);
+    --accent-line: oklch(0.760 0.110 46);
+
+    --term:     oklch(0.222 0.018 64);
+    --term-bar: oklch(0.288 0.016 62);
+    --term-text:oklch(0.905 0.012 78);
+    --term-mute:oklch(0.605 0.016 68);
+    --term-acc: oklch(0.760 0.140 50);
+    --term-ok:  oklch(0.760 0.130 150);
+
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --sb: 256px;
   }
+
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
-  @media (prefers-reduced-motion: reduce){
-    html{scroll-behavior:auto}
-    *{transition:none !important; animation:none !important}
+  ::selection{background:var(--accent-soft); color:var(--ink);}
+
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:'Hanken Grotesk',system-ui,sans-serif;
+    font-size:17px; line-height:1.62; font-weight:400;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    background-image:radial-gradient(oklch(0.5 0.02 60 / .018) 1px, transparent 1.4px);
+    background-size:4px 4px;
   }
-  body{margin:0; background:var(--bg); color:var(--text);
-    font-family:'IBM Plex Sans',system-ui,sans-serif; font-size:17px; line-height:1.65;
-    -webkit-font-smoothing:antialiased;}
-  .wrap{max-width:940px; margin:0 auto; padding:72px 28px 110px;}
-  a{color:var(--accent); text-decoration:none;}
-  :focus-visible{outline:2px solid var(--accent); outline-offset:3px; border-radius:4px;}
+  a{color:var(--accent-deep); text-decoration:none;
+    border-bottom:1px solid color-mix(in oklch, var(--accent-deep) 30%, transparent);
+    transition:border-color .2s var(--ease);}
+  a:hover{border-bottom-color:var(--accent-deep);}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:3px; border-radius:3px;}
+  .mono{font-family:'Spline Sans Mono',ui-monospace,monospace;}
+  strong, b{font-weight:600; color:var(--ink);}
 
-  .mono{font-family:'JetBrains Mono',ui-monospace,monospace;}
-  code{font-family:'JetBrains Mono',ui-monospace,monospace; font-size:.85em;
-    background:var(--surface); color:#cbe8d3; padding:2px 7px; border-radius:6px;
-    border:1px solid var(--border-soft);}
-  strong{color:var(--text); font-weight:600;}
+  code{font-family:'Spline Sans Mono',ui-monospace,monospace; font-size:.83em;
+    background:var(--paper-2); color:var(--accent-deep);
+    padding:2px 6px; border-radius:5px; border:1px solid var(--rule); white-space:nowrap;}
 
-  /* hero */
-  .eyebrow{font-family:'JetBrains Mono',monospace; text-transform:uppercase;
-    letter-spacing:.24em; font-size:12px; color:var(--accent); margin:0 0 18px;}
-  h1{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:66px; line-height:1;
-    color:var(--text); margin:0 0 22px; letter-spacing:-.02em;}
-  h1 .dot{color:var(--accent);}
-  .lede{font-size:21px; line-height:1.5; color:var(--muted); max-width:40em; margin:0;}
-  .lede em{color:var(--text); font-style:normal; font-weight:600;}
-  .lede b{color:var(--accent); font-weight:600;}
+  /* ── progress bar ──────────────────────────────────────── */
+  .progress{position:fixed; top:0; left:0; height:3px; width:0;
+    background:var(--accent); z-index:60; transition:width .45s var(--ease);}
 
-  /* TOC */
-  nav.toc{margin:48px 0 8px; padding:24px 28px; background:var(--surface);
-    border:1px solid var(--border); border-radius:var(--radius);}
-  nav.toc h2{font-family:'JetBrains Mono',monospace; text-transform:uppercase;
-    letter-spacing:.16em; font-size:11px; color:var(--muted); margin:0 0 16px;}
-  nav.toc ol{list-style:none; margin:0; padding:0; columns:2; column-gap:36px;}
-  nav.toc li{margin:0 0 9px; break-inside:avoid;}
-  nav.toc a{color:var(--muted); font-size:14.5px; display:inline-flex; gap:10px;
-    border-bottom:1px solid transparent; transition:color .2s,border-color .2s; cursor:pointer;}
-  nav.toc a:hover{color:var(--text); border-bottom-color:var(--accent);}
-  nav.toc a .n{font-family:'JetBrains Mono',monospace; color:var(--accent); font-size:12px;
-    min-width:14px; text-align:right;}
+  /* ── APP SHELL ─────────────────────────────────────────── */
+  .app{display:grid; grid-template-columns:var(--sb) 1fr; max-width:1180px; margin:0 auto; min-height:100vh;}
 
-  /* sections */
-  section{padding:56px 0; border-top:1px solid var(--border-soft); scroll-margin-top:24px;}
-  .tag{display:inline-block; font-family:'JetBrains Mono',monospace; font-size:11px;
-    color:var(--accent); background:var(--accent-soft); border:1px solid rgba(34,197,94,.3);
-    text-transform:uppercase; letter-spacing:.12em; padding:4px 10px; border-radius:999px; margin:0 0 14px;}
-  h2.sec{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:30px; color:var(--text);
-    margin:0 0 6px; letter-spacing:-.01em; line-height:1.15;}
-  .sec-lede{color:var(--muted); font-size:16px; margin:0 0 26px; max-width:42em;}
-  p{margin:0 0 16px; max-width:42em;}
-  p.intro{color:var(--muted);}
-  p.intro b{color:var(--text);}
+  /* sidebar */
+  .sidebar{position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+    border-right:1px solid var(--rule); padding:30px 22px 40px; background:var(--paper);}
+  .brand{display:flex; align-items:baseline; gap:2px; margin:0 0 4px;
+    font-family:'Zilla Slab',serif; font-weight:700; font-size:30px; letter-spacing:-.02em; color:var(--ink);}
+  .brand .cur{color:var(--accent);}
+  @media (prefers-reduced-motion:no-preference){.brand .cur{animation:blink 1.15s steps(1) infinite;} @keyframes blink{50%{opacity:.2}}}
+  .brand-sub{font-family:'Spline Sans Mono',monospace; font-size:10.5px; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--ink-mute); margin:0 0 26px;}
 
-  /* step cards (block-based, depth) */
-  .step{display:flex; gap:18px; margin:0 0 14px; padding:18px 20px;
-    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
-    transition:border-color .2s, background .2s;}
-  .step:hover{border-color:var(--accent); background:#1f2c43;}
-  .step .num{flex:none; width:32px; height:32px; border-radius:9px;
-    background:var(--accent); color:#06210f; font-family:'JetBrains Mono',monospace;
-    font-size:15px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-top:2px;}
+  .nav-group{margin:0 0 22px;}
+  .nav-group h3{font-family:'Spline Sans Mono',monospace; font-size:10px; font-weight:600;
+    letter-spacing:.18em; text-transform:uppercase; color:var(--ink-mute); margin:0 0 9px; padding-left:12px;}
+  .nav-group a{display:flex; align-items:center; gap:10px; padding:7px 12px; border-radius:8px;
+    color:var(--ink-soft); font-size:14.5px; border:none; transition:background .15s var(--ease), color .15s var(--ease);}
+  .nav-group a .ix{font-family:'Spline Sans Mono',monospace; font-size:10.5px; color:var(--ink-mute);
+    min-width:18px; transition:color .15s var(--ease);}
+  .nav-group a:hover{background:var(--paper-2); color:var(--ink);}
+  .nav-group a.active{background:var(--accent-soft); color:var(--accent-deep); font-weight:600;}
+  .nav-group a.active .ix{color:var(--accent-deep);}
+
+  /* main */
+  .main{min-width:0; padding:clamp(40px,6vw,76px) clamp(22px,5vw,68px) 60px; position:relative;}
+  .view{display:none; max-width:720px;}
+  .view.active{display:block;}
+  @media (prefers-reduced-motion:no-preference){
+    .view.active{animation:viewin .5s var(--ease);}
+    @keyframes viewin{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
+  }
+
+  /* ── shared typo ───────────────────────────────────────── */
+  .kicker{display:flex; align-items:center; gap:12px; margin:0 0 14px;
+    font-family:'Spline Sans Mono',monospace; font-size:11px; font-weight:500;
+    text-transform:uppercase; letter-spacing:.14em;}
+  .kicker .s{color:var(--accent); font-weight:600;}
+  .kicker .t{color:var(--ink-mute);}
+  h1{font-family:'Zilla Slab',serif; font-weight:700; font-size:clamp(48px,8vw,92px);
+    line-height:.92; color:var(--ink); margin:0 0 24px; letter-spacing:-.025em;}
+  h1 .cur{color:var(--accent); font-weight:600;}
+  @media (prefers-reduced-motion:no-preference){h1 .cur{animation:blink 1.15s steps(1) infinite;}}
+  h2.sec{font-family:'Zilla Slab',serif; font-weight:600; font-size:clamp(27px,4vw,38px);
+    color:var(--ink); margin:0 0 10px; letter-spacing:-.015em; line-height:1.1;}
+  h2.sec code{font-size:.68em; vertical-align:.06em;}
+  .lede{font-size:clamp(19px,2.3vw,23px); line-height:1.5; color:var(--ink-soft);
+    max-width:36ch; font-weight:400; margin:0 0 28px;}
+  .lede em{color:var(--ink); font-style:normal; font-weight:600;}
+  .lede b{color:var(--accent-deep); font-weight:600; white-space:nowrap;}
+  .sec-lede{color:var(--ink-mute); font-size:16.5px; margin:0 0 28px; max-width:56ch;}
+  p{margin:0 0 16px; max-width:62ch;} p.intro{color:var(--ink-soft);} p.intro b{color:var(--ink);}
+
+  .meta{font-family:'Spline Sans Mono',monospace; font-size:12px; color:var(--ink-mute);
+    display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center;
+    padding:20px 0 0; border-top:1px solid var(--rule); margin:30px 0 0; max-width:62ch;}
+  .meta b{color:var(--ink-soft); font-weight:500;}
+  .meta .dot{width:4px; height:4px; border-radius:50%; background:var(--accent); display:inline-block;}
+
+  /* ── tooltip terms ─────────────────────────────────────── */
+  .term{position:relative; color:var(--ink); font-weight:500;
+    border-bottom:1px dashed var(--accent-line); cursor:help; outline:none;}
+  .term::after{content:attr(data-tip); position:absolute; left:0; bottom:calc(100% + 9px);
+    width:max-content; max-width:250px; background:var(--ink); color:var(--paper);
+    font-family:'Hanken Grotesk',sans-serif; font-weight:400; font-size:13px; line-height:1.45;
+    padding:9px 12px; border-radius:8px; white-space:normal; z-index:30;
+    box-shadow:0 8px 24px oklch(0.2 0.02 60 / .25);
+    opacity:0; transform:translateY(4px); pointer-events:none; transition:opacity .18s var(--ease), transform .18s var(--ease);}
+  .term::before{content:""; position:absolute; left:14px; bottom:calc(100% + 4px);
+    border:5px solid transparent; border-top-color:var(--ink); z-index:31;
+    opacity:0; transition:opacity .18s var(--ease);}
+  .term:hover::after, .term:focus::after{opacity:1; transform:none;}
+  .term:hover::before, .term:focus::before{opacity:1;}
+
+  /* ── ideas list ────────────────────────────────────────── */
+  .ideas{list-style:none; margin:0 0 28px; padding:0; counter-reset:idea; max-width:62ch;}
+  .ideas li{position:relative; padding:14px 0 14px 52px; border-top:1px solid var(--rule-soft);
+    color:var(--ink-soft); counter-increment:idea;}
+  .ideas li:first-child{border-top:none;}
+  .ideas li::before{content:counter(idea); position:absolute; left:0; top:13px;
+    font-family:'Spline Sans Mono',monospace; font-weight:600; font-size:15px; color:var(--accent);
+    width:30px; height:30px; border:1px solid var(--accent-line); border-radius:8px;
+    display:flex; align-items:center; justify-content:center;}
+  .ideas li b{color:var(--ink);} .ideas li b.acc{color:var(--accent-deep);}
+
+  /* ── steps ─────────────────────────────────────────────── */
+  .steps{margin:0 0 8px; border-top:1px solid var(--rule);}
+  .step{display:flex; gap:clamp(14px,3vw,26px); padding:24px 0; border-bottom:1px solid var(--rule-soft);}
+  .step .num{flex:none; font-family:'Spline Sans Mono',monospace; font-weight:600; font-size:14px;
+    color:var(--accent); width:34px; padding-top:2px; border-right:1px solid var(--rule);}
   .step .body{flex:1; min-width:0;}
-  .step .lead{margin:3px 0 10px; color:var(--text); font-weight:500;}
-  .step .lead b{color:var(--accent); font-weight:700;}
-  .step .hint{font-size:14.5px; color:var(--muted); margin:10px 0 0;}
+  .step .lead{margin:1px 0 12px; color:var(--ink); font-weight:500; font-size:16.5px;}
+  .step .lead b{color:var(--accent-deep); font-weight:600;}
+  .step .hint{font-size:14.5px; color:var(--ink-mute); margin:12px 0 0; max-width:60ch;}
+  .step:last-child{border-bottom:none;}
 
-  /* single-action card */
-  .do{margin:0 0 14px; padding:18px 20px; background:var(--surface);
-    border:1px solid var(--border); border-radius:var(--radius);
-    transition:border-color .2s, background .2s;}
-  .do:hover{border-color:var(--accent); background:#1f2c43;}
-  .do .lead{margin:0 0 10px; color:var(--text); font-weight:500;}
-  .do .lead b{color:var(--accent); font-weight:700;}
+  .do{padding:20px 0; border-bottom:1px solid var(--rule-soft);}
+  .do:first-of-type{border-top:1px solid var(--rule);}
+  .do .lead{margin:0 0 12px; color:var(--ink); font-weight:500; font-size:16.5px;}
+  .do .lead b{color:var(--accent-deep); font-weight:600;}
 
-  /* code blocks */
+  /* ── code blocks ───────────────────────────────────────── */
   .code{position:relative; margin:0;}
-  pre{font-family:'JetBrains Mono',monospace; font-size:13.5px; line-height:1.65;
-    background:var(--surface-3); color:#e2e8f0; padding:14px 16px; border-radius:10px;
-    overflow-x:auto; margin:0; border:1px solid var(--border-soft);}
-  pre .c{color:#5b7089; font-style:italic;}
-  pre .g{color:var(--accent);}
-  .copy{position:absolute; top:8px; right:8px; display:inline-flex; align-items:center; gap:5px;
-    font-family:'JetBrains Mono',monospace; font-size:11px; background:var(--surface-2);
-    color:#cbd5e1; border:1px solid var(--border); border-radius:7px; padding:4px 9px;
-    cursor:pointer; opacity:.8; transition:opacity .2s, border-color .2s, color .2s;}
-  .copy:hover{opacity:1; border-color:var(--accent); color:var(--accent);}
-  .copy svg{width:13px; height:13px;}
+  pre{font-family:'Spline Sans Mono',monospace; font-size:13.5px; line-height:1.7;
+    background:var(--term); color:var(--term-text); padding:15px 18px; border-radius:9px;
+    overflow-x:auto; margin:0; border:1px solid oklch(0.32 0.016 62);
+    box-shadow:0 1px 0 oklch(1 0 0 / .4), 0 8px 24px oklch(0.2 0.02 60 / .10);}
+  pre .c{color:var(--term-mute); font-style:italic;} pre .g{color:var(--term-acc); font-weight:500;}
+  pre b{color:var(--term-acc); font-weight:600;}
+  .copy{position:absolute; top:9px; right:9px; display:inline-flex; align-items:center; gap:6px;
+    font-family:'Spline Sans Mono',monospace; font-size:10.5px; letter-spacing:.04em;
+    background:var(--term-bar); color:var(--term-text); border:1px solid oklch(0.38 0.016 62);
+    border-radius:6px; padding:4px 9px; cursor:pointer; opacity:.75;
+    transition:opacity .2s var(--ease), border-color .2s var(--ease), color .2s var(--ease);}
+  .copy:hover{opacity:1; border-color:var(--term-acc); color:var(--term-acc);}
+  .copy svg{width:12px; height:12px;}
 
-  /* mental-model terminal block */
-  figure{margin:0 0 22px; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;}
-  .term-bar{background:var(--surface-2); padding:9px 14px; display:flex; gap:7px; align-items:center;}
-  .term-bar i{width:11px; height:11px; border-radius:50%; display:inline-block;}
-  .term-bar .r{background:#ef4444}.term-bar .y{background:#eab308}.term-bar .g{background:var(--accent)}
-  .term-bar span{margin-left:10px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--muted);}
-  figure pre{border:none; border-radius:0; background:var(--surface-3); font-size:13px;}
-  figure pre b{color:var(--accent); font-weight:600;}
+  /* ── collapsible why ───────────────────────────────────── */
+  details.why{margin:14px 0 0; border:1px solid var(--rule); border-radius:9px;
+    background:var(--paper-2); overflow:hidden;}
+  details.why summary{cursor:pointer; list-style:none; padding:11px 15px;
+    font-family:'Spline Sans Mono',monospace; font-size:11px; font-weight:600;
+    color:var(--accent-deep); text-transform:uppercase; letter-spacing:.1em;
+    display:flex; align-items:center; gap:9px; user-select:none;}
+  details.why summary::-webkit-details-marker{display:none;}
+  details.why summary::before{content:"›"; font-size:15px; line-height:1; transition:transform .2s var(--ease); display:inline-block;}
+  details.why[open] summary::before{transform:rotate(90deg);}
+  details.why .why-body{padding:2px 15px 16px; color:var(--ink-soft); font-size:14.5px; max-width:60ch;}
+  details.why .why-body p{margin:0 0 8px;} details.why .why-body p:last-child{margin:0;}
 
-  /* tables */
-  table{width:100%; border-collapse:collapse; margin:8px 0 0; font-size:14.5px;}
-  th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--border-soft); vertical-align:top;}
-  th{font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase;
-    letter-spacing:.08em; color:var(--muted); font-weight:600;}
-  td code{white-space:nowrap;}
-  tbody tr{transition:background .15s;} tbody tr:hover{background:var(--surface);}
+  /* ── routing panel + svg ───────────────────────────────── */
+  figure{margin:0 0 26px; border:1px solid oklch(0.32 0.016 62); border-radius:11px; overflow:hidden;
+    box-shadow:0 1px 0 oklch(1 0 0 / .5), 0 14px 36px oklch(0.2 0.02 60 / .12);}
+  .term-bar{background:var(--term-bar); padding:11px 16px; display:flex; gap:7px; align-items:center;}
+  .term-bar i{width:11px; height:11px; border-radius:50%; display:inline-block; opacity:.9;}
+  .term-bar .r{background:oklch(0.64 0.18 25)} .term-bar .y{background:oklch(0.78 0.14 80)} .term-bar .g{background:oklch(0.72 0.13 145)}
+  .term-bar span{margin-left:12px; font-family:'Spline Sans Mono',monospace; font-size:11.5px; color:var(--term-mute);}
+  figure pre{border:none; border-radius:0; box-shadow:none; font-size:13.5px; padding:18px;}
 
-  .tip{border-left:3px solid var(--accent); background:var(--accent-soft);
-    padding:13px 16px; border-radius:0 10px 10px 0; margin:8px 0 0; font-size:15px; max-width:42em; color:var(--muted);}
-  .tip b{color:var(--accent);}
+  /* ── ROUTING PLAYGROUND ────────────────────────────────── */
+  .play{margin:26px 0 0; border:1px solid var(--rule); border-radius:13px; overflow:hidden; background:var(--paper-2);}
+  .play-head{padding:14px 18px; border-bottom:1px solid var(--rule); display:flex; align-items:center; gap:10px;
+    font-family:'Spline Sans Mono',monospace; font-size:11px; font-weight:600; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--ink-mute);}
+  .play-head .pin{width:7px; height:7px; border-radius:50%; background:var(--accent);}
+  .play-body{padding:20px 18px;}
+  .play label{display:block; font-family:'Spline Sans Mono',monospace; font-size:11px; font-weight:500;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--ink-mute); margin:0 0 8px;}
+  .play-in{display:flex; align-items:center; gap:0; background:var(--term); border:1px solid oklch(0.34 0.016 62);
+    border-radius:9px; padding:0 14px; box-shadow:0 6px 18px oklch(0.2 0.02 60 / .12);}
+  .play-in .pr{font-family:'Spline Sans Mono',monospace; color:var(--term-acc); font-size:15px; user-select:none;}
+  .play-in input{flex:1; background:none; border:none; outline:none; color:var(--term-text);
+    font-family:'Spline Sans Mono',monospace; font-size:15px; padding:13px 10px;}
+  .play-in input::placeholder{color:var(--term-mute);}
+  .chips{display:flex; flex-wrap:wrap; gap:7px; margin:12px 0 0;}
+  .chip{font-family:'Spline Sans Mono',monospace; font-size:12px; color:var(--ink-soft);
+    background:var(--paper); border:1px solid var(--rule); border-radius:999px; padding:5px 11px;
+    cursor:pointer; transition:border-color .15s var(--ease), color .15s var(--ease), background .15s var(--ease);}
+  .chip:hover{border-color:var(--accent); color:var(--accent-deep); background:var(--accent-soft);}
 
-  /* troubleshooting */
-  .trouble{margin:0 0 12px; padding:16px 18px; background:var(--surface);
-    border:1px solid var(--border); border-radius:var(--radius);}
-  .trouble .q{font-family:'JetBrains Mono',monospace; font-weight:500; color:var(--text); margin:0 0 6px; font-size:14.5px;}
-  .trouble .a{color:var(--muted); font-size:15px; margin:0; max-width:42em;}
+  .rules-list{margin:20px 0 0; display:flex; flex-direction:column; gap:0;
+    border:1px solid var(--rule); border-radius:9px; overflow:hidden; background:var(--paper);}
+  .rule-row{display:flex; align-items:center; gap:12px; padding:11px 15px; border-top:1px solid var(--rule-soft);
+    font-family:'Spline Sans Mono',monospace; font-size:13px; transition:background .2s var(--ease);}
+  .rule-row:first-child{border-top:none;}
+  .rule-row .rp{color:var(--ink-soft); min-width:148px;}
+  .rule-row .ra{color:var(--ink-mute);}
+  .rule-row .rb{margin-left:auto; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--ink-mute); border:1px solid var(--rule); border-radius:999px; padding:2px 8px;}
+  .rule-row.match{background:oklch(0.945 0.02 70);}
+  .rule-row.match .rp{color:var(--ink);}
+  .rule-row.win{background:var(--accent-soft);}
+  .rule-row.win .rp, .rule-row.win .ra{color:var(--accent-deep); font-weight:600;}
+  .rule-row.win .rb{border-color:var(--accent-line); color:var(--accent-deep);}
 
-  footer{margin-top:48px; padding-top:24px; border-top:1px solid var(--border-soft);
-    font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--muted);}
+  .play-out{margin:18px 0 0; padding:18px 20px; border-radius:11px; background:var(--term); color:var(--term-text);
+    box-shadow:0 8px 24px oklch(0.2 0.02 60 / .12);}
+  .play-out .ol{font-family:'Spline Sans Mono',monospace; font-size:11px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--term-mute); margin:0 0 8px;}
+  .play-out .ov{font-family:'Zilla Slab',serif; font-weight:700; font-size:32px; line-height:1; margin:0 0 10px; color:var(--term-text);}
+  .play-out .ov .arrow{color:var(--term-mute);}
+  .play-out .ov b{color:var(--term-acc);}
+  .play-out .oe{font-size:14px; color:var(--term-mute); margin:0; line-height:1.5; max-width:none;}
+  .play-out .oe b{color:var(--term-text); font-weight:600;}
 
-  @media(max-width:760px){
-    .wrap{padding:44px 18px 72px;}
-    h1{font-size:42px;} .lede{font-size:18px;}
-    nav.toc ol{columns:1;} h2.sec{font-size:24px;}
-    .step{gap:13px; padding:15px 16px;}
+  /* ── table ─────────────────────────────────────────────── */
+  table{width:100%; border-collapse:collapse; margin:6px 0 0; font-size:14.5px;}
+  th,td{text-align:left; padding:13px 16px; border-bottom:1px solid var(--rule-soft); vertical-align:middle;}
+  thead th{border-bottom:1.5px solid var(--rule); font-family:'Spline Sans Mono',monospace; font-size:10.5px;
+    text-transform:uppercase; letter-spacing:.1em; color:var(--ink-mute); font-weight:500;}
+  td:first-child{color:var(--ink-soft);} td code{white-space:nowrap;}
+  tbody tr{transition:background .15s var(--ease);} tbody tr:hover{background:var(--paper-2);}
+
+  /* ── callout (no side-stripe) ──────────────────────────── */
+  .tip{margin:20px 0 0; padding:16px 18px; background:var(--accent-soft); border:1px solid var(--accent-line);
+    border-radius:10px; font-size:14.5px; color:var(--ink-soft); max-width:64ch;}
+  .tip .lbl{font-family:'Spline Sans Mono',monospace; font-size:10.5px; font-weight:600; text-transform:uppercase;
+    letter-spacing:.1em; color:var(--accent-deep); display:block; margin:0 0 6px;}
+  .tip code{background:oklch(0.97 0.02 60); border-color:var(--accent-line);}
+
+  /* ── troubleshooting accordion ─────────────────────────── */
+  details.tr{border-bottom:1px solid var(--rule-soft);}
+  details.tr:first-of-type{border-top:1px solid var(--rule);}
+  details.tr summary{cursor:pointer; list-style:none; padding:16px 2px; display:flex; align-items:center; gap:12px;
+    font-family:'Spline Sans Mono',monospace; font-weight:500; color:var(--ink); font-size:14px; user-select:none;}
+  details.tr summary::-webkit-details-marker{display:none;}
+  details.tr summary .plus{flex:none; width:20px; height:20px; border:1px solid var(--accent-line); border-radius:6px;
+    display:flex; align-items:center; justify-content:center; color:var(--accent); font-size:14px; transition:transform .2s var(--ease);}
+  details.tr[open] summary .plus{transform:rotate(45deg);}
+  details.tr .a{color:var(--ink-mute); font-size:15px; margin:0 0 18px 32px; max-width:60ch; font-family:'Hanken Grotesk',sans-serif;}
+
+  /* ── start button ──────────────────────────────────────── */
+  .start{display:inline-flex; align-items:center; gap:10px; margin:8px 0 0; padding:14px 24px;
+    background:var(--ink); color:var(--paper); border:none; border-radius:11px; cursor:pointer;
+    font-family:'Hanken Grotesk',sans-serif; font-size:16px; font-weight:600;
+    transition:background .2s var(--ease), transform .2s var(--ease); box-shadow:0 10px 28px oklch(0.2 0.02 60 / .18);}
+  .start:hover{background:var(--accent-deep); transform:translateY(-1px);}
+  .start svg{width:17px; height:17px;}
+
+  .triad{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin:28px 0 0;}
+  .triad .t{padding:16px 16px 18px; border:1px solid var(--rule); border-radius:11px; background:var(--paper-2);}
+  .triad .t .ic{font-family:'Spline Sans Mono',monospace; font-size:11px; color:var(--accent-deep); font-weight:600; margin:0 0 8px; letter-spacing:.06em;}
+  .triad .t .tt{font-weight:600; color:var(--ink); margin:0 0 4px;}
+  .triad .t .td{font-size:13.5px; color:var(--ink-mute); margin:0;}
+
+  /* ── pager ─────────────────────────────────────────────── */
+  .pager{display:flex; justify-content:space-between; gap:14px; margin-top:52px; padding-top:26px; border-top:1px solid var(--rule);}
+  .pg{flex:1; max-width:48%; display:flex; flex-direction:column; gap:3px; padding:14px 18px;
+    border:1px solid var(--rule); border-radius:11px; background:var(--paper); cursor:pointer; text-align:left;
+    transition:border-color .2s var(--ease), background .2s var(--ease);}
+  .pg:hover{border-color:var(--accent); background:var(--accent-soft);}
+  .pg[disabled]{opacity:0; pointer-events:none;}
+  .pg .pl{font-family:'Spline Sans Mono',monospace; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-mute);}
+  .pg .pt{font-weight:600; color:var(--ink); font-size:15px;}
+  .pg.next{text-align:right; align-items:flex-end;}
+
+  .kbd-hint{margin:30px 0 0; font-family:'Spline Sans Mono',monospace; font-size:12px; color:var(--ink-mute); display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .kbd{display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; padding:0 6px;
+    background:var(--paper-2); border:1px solid var(--rule); border-bottom-width:2px; border-radius:6px; font-size:12px; color:var(--ink-soft);}
+
+  /* ── mobile menu ───────────────────────────────────────── */
+  .topbar{display:none;}
+  @media(max-width:900px){
+    .app{grid-template-columns:1fr;}
+    .sidebar{position:fixed; inset:0 30% 0 0; height:100vh; z-index:80; transform:translateX(-105%);
+      transition:transform .3s var(--ease); box-shadow:0 0 40px oklch(0.2 0.02 60 / .25); background:var(--paper);}
+    .sidebar.open{transform:none;}
+    .scrim{position:fixed; inset:0; background:oklch(0.2 0.02 60 / .4); z-index:79; opacity:0; pointer-events:none; transition:opacity .3s var(--ease);}
+    .scrim.show{opacity:1; pointer-events:auto;}
+    .topbar{display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:40;
+      padding:14px 20px; background:color-mix(in oklch, var(--paper) 86%, transparent); backdrop-filter:blur(8px);
+      border-bottom:1px solid var(--rule);}
+    .topbar .mb{display:flex; flex-direction:column; gap:4px; background:none; border:none; cursor:pointer; padding:6px;}
+    .topbar .mb i{width:20px; height:2px; background:var(--ink); border-radius:2px; display:block;}
+    .topbar .tt{font-family:'Zilla Slab',serif; font-weight:700; font-size:20px; color:var(--ink);}
+    .topbar .tt .cur{color:var(--accent);}
+    .topbar .pgnum{margin-left:auto; font-family:'Spline Sans Mono',monospace; font-size:12px; color:var(--ink-mute);}
+    .main{padding:28px 20px 50px;}
+    .pg{max-width:48%;}
+  }
+  @media(min-width:901px){ .scrim{display:none;} }
+
+  @media (prefers-reduced-motion: reduce){
+    html{scroll-behavior:auto} *{transition:none !important; animation:none !important}
   }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="progress" id="progress"></div>
 
-  <header>
-    <p class="eyebrow">Guía de uso</p>
-    <h1>ccp<span class="dot">_</span></h1>
-    <p class="lede">Una <em>cuenta de Claude Code distinta en cada carpeta.</em> En tu repo de trabajo, tu cuenta de empresa; en tu proyecto personal, tu cuenta personal; en tus experimentos, DeepSeek. El cambio ocurre solo, con hacer <b>cd</b>.</p>
-  </header>
+<div class="topbar">
+  <button class="mb" id="mb" aria-label="Menú"><i></i><i></i><i></i></button>
+  <span class="tt">ccp<span class="cur">_</span></span>
+  <span class="pgnum" id="pgnum"></span>
+</div>
+<div class="scrim" id="scrim"></div>
 
-  <nav class="toc">
-    <h2>Contenido</h2>
-    <ol>
-      <li><a href="#modelo"><span class="n">·</span>El modelo mental</a></li>
-      <li><a href="#requisitos"><span class="n">·</span>Antes de empezar</a></li>
-      <li><a href="#instalacion"><span class="n">·</span>Instalación</a></li>
-      <li><a href="#c1"><span class="n">1</span>Cuenta de trabajo</a></li>
-      <li><a href="#c2"><span class="n">2</span>Cuenta personal</a></li>
-      <li><a href="#c3"><span class="n">3</span>Carpeta con DeepSeek</a></li>
-      <li><a href="#c4"><span class="n">4</span>Carve-out de subcarpeta</a></li>
-      <li><a href="#c5"><span class="n">5</span>Cambiar a mano</a></li>
-      <li><a href="#c6"><span class="n">6</span>Ver qué pasa</a></li>
-      <li><a href="#c7"><span class="n">7</span>Vengo de dsctl</a></li>
-      <li><a href="#trouble"><span class="n">·</span>Solución de problemas</a></li>
-      <li><a href="#ref"><span class="n">·</span>Referencia rápida</a></li>
-    </ol>
-  </nav>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">ccp<span class="cur">_</span></div>
+    <p class="brand-sub">Guía de uso · v2.0</p>
 
-  <section id="modelo" style="border-top:none;">
-    <span class="tag">Empieza aquí</span>
-    <h2 class="sec">El modelo mental — 30 segundos</h2>
-    <p class="intro">Tres ideas y ya:</p>
-    <p class="intro"><b>1.</b> Un <b>perfil</b> es una identidad: una cuenta oficial de Anthropic, un proveedor tipo DeepSeek, o tu login normal (<code>default</code>).<br>
-       <b>2.</b> Una <b>regla</b> dice "esta carpeta (y sus subcarpetas) usa tal perfil".<br>
-       <b>3.</b> Gana la regla <b>más específica</b>. Sin regla → tu login normal.</p>
-    <figure>
-      <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>~/.config/ccp/rules</span></div>
-<pre>~/work          → perfil <b>"work"</b>      (cuenta empresa)
-~/work/cliente  → perfil <b>"default"</b>   (carve-out: tu login normal)
-~/personal      → perfil <b>"personal"</b>  (cuenta personal)
+    <div class="nav-group">
+      <h3>Empezar</h3>
+      <a data-view="inicio"><span class="ix">·</span>Inicio</a>
+      <a data-view="modelo"><span class="ix">00</span>Modelo mental</a>
+      <a data-view="instalacion"><span class="ix">·</span>Instalación</a>
+    </div>
+    <div class="nav-group">
+      <h3>Casos</h3>
+      <a data-view="c1"><span class="ix">01</span>Cuenta de trabajo</a>
+      <a data-view="c2"><span class="ix">02</span>Cuenta personal</a>
+      <a data-view="c3"><span class="ix">03</span>Carpeta DeepSeek</a>
+      <a data-view="c4"><span class="ix">04</span>Carve-out</a>
+      <a data-view="c5"><span class="ix">05</span>Cambiar a mano</a>
+      <a data-view="c6"><span class="ix">06</span>Ver qué pasa</a>
+      <a data-view="c7"><span class="ix">07</span>Vengo de dsctl</a>
+    </div>
+    <div class="nav-group">
+      <h3>Avanzado</h3>
+      <a data-view="update"><span class="ix">·</span>Actualizar ccp</a>
+      <a data-view="backup"><span class="ix">·</span>Backup &amp; restore</a>
+      <a data-view="config"><span class="ix">·</span>Config manual (YAML)</a>
+    </div>
+    <div class="nav-group">
+      <h3>Ayuda</h3>
+      <a data-view="trouble"><span class="ix">·</span>Solución de problemas</a>
+      <a data-view="ref"><span class="ix">·</span>Referencia rápida</a>
+    </div>
+  </aside>
+
+  <main class="main" id="main">
+
+    <!-- ═══ INICIO ═══ -->
+    <section class="view" id="view-inicio">
+      <p class="kicker"><span class="s">Guía de uso</span><span class="t">v2.0 · CLI en Go</span></p>
+      <h1>ccp<span class="cur">_</span></h1>
+      <p class="lede">Una <em>cuenta de Claude Code distinta en cada carpeta.</em> En tu repo de trabajo, tu cuenta de empresa; en tu proyecto personal, tu cuenta personal; en tus experimentos, DeepSeek. El cambio ocurre solo, con hacer <b>cd</b>.</p>
+
+      <button class="start" data-go="modelo">Empezar la guía
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+
+      <div class="triad">
+        <div class="t"><p class="ic">// oficial</p><p class="tt">Cuenta Anthropic</p><p class="td">Tu login de empresa o personal, cada uno aislado.</p></div>
+        <div class="t"><p class="ic">// proveedor</p><p class="tt">DeepSeek &amp; cía</p><p class="td">Un endpoint compatible con su propia API key.</p></div>
+        <div class="t"><p class="ic">// default</p><p class="tt">Tu login normal</p><p class="td">Tu <code>~/.claude</code> de siempre. Sin reglas, gana este.</p></div>
+      </div>
+
+      <div class="meta">
+        <span><b>macOS · Linux</b></span><span class="dot"></span>
+        <span>bash · zsh</span><span class="dot"></span>
+        <span>requiere Claude Code + git</span>
+      </div>
+
+      <div class="kbd-hint"><span class="kbd">←</span><span class="kbd">→</span> navega entre páginas · <span class="kbd">G</span> abre el índice</div>
+    </section>
+
+    <!-- ═══ MODELO MENTAL ═══ -->
+    <section class="view" id="view-modelo">
+      <div class="kicker"><span class="s">§ 00</span><span class="t">Empieza aquí</span></div>
+      <h2 class="sec">El modelo mental — 30 segundos</h2>
+      <ol class="ideas">
+        <li>Un <span class="term" tabindex="0" data-tip="Una identidad de Claude Code: cuenta oficial de Anthropic, proveedor tipo DeepSeek, o tu login normal.">perfil</span> es una identidad: una cuenta oficial de Anthropic, un proveedor tipo DeepSeek, o tu login normal (<span class="term" tabindex="0" data-tip="El perfil reservado: tu ~/.claude de siempre. Es lo que se usa cuando ninguna regla aplica.">default</span>).</li>
+        <li>Una <span class="term" tabindex="0" data-tip="Asocia una carpeta (y todas sus subcarpetas) con un perfil. Vive en ~/.config/ccp.">regla</span> dice "esta carpeta (y sus subcarpetas) usa tal perfil".</li>
+        <li>Gana la regla <b class="acc">más específica</b>. Sin regla → tu login normal.</li>
+      </ol>
+
+      <p class="intro">Cuando entras a una carpeta, <code>ccp</code> aplica el perfil correcto en esa terminal mediante un <span class="term" tabindex="0" data-tip="Una función que corre en cada prompt del shell: detecta tu carpeta y aplica el perfil. Por eso cd solo basta.">hook</span>. Luego corres <code>claude</code> normal.</p>
+
+      <figure>
+        <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>~/.config/ccp/rules</span></div>
+<pre>~/work          → perfil <b>"work"</b>      <span class="c"># cuenta empresa</span>
+~/work/cliente  → perfil <b>"default"</b>   <span class="c"># carve-out: login normal</span>
+~/personal      → perfil <b>"personal"</b>  <span class="c"># cuenta personal</span>
 ~/labs          → perfil <b>"deepseek"</b>
 ~               → <b>default</b></pre>
-    </figure>
-    <p class="intro">Cuando entras a una carpeta, <code>ccp</code> aplica el perfil correcto en esa terminal. Luego corres <code>claude</code> normal.</p>
-  </section>
+      </figure>
 
-  <section id="requisitos">
-    <span class="tag">Requisitos</span>
-    <h2 class="sec">Antes de empezar</h2>
-    <p class="intro">Necesitas: macOS o Linux con <b>bash</b> o <b>zsh</b>, <b>Claude Code</b> instalado (que <code>claude --version</code> funcione), y <b>git</b>.</p>
-  </section>
+      <!-- INTERACTIVE PLAYGROUND -->
+      <div class="play">
+        <div class="play-head"><span class="pin"></span>Pruébalo · ¿qué perfil gana?</div>
+        <div class="play-body">
+          <label for="playIn">Escribe una carpeta (cwd)</label>
+          <div class="play-in"><span class="pr">cd</span><input id="playIn" value="~/work/cliente-x" spellcheck="false" autocomplete="off" aria-label="Ruta de carpeta"></div>
+          <div class="chips" id="playChips">
+            <button class="chip" data-p="~/work">~/work</button>
+            <button class="chip" data-p="~/work/cliente-x/api">~/work/cliente-x/api</button>
+            <button class="chip" data-p="~/personal/blog">~/personal/blog</button>
+            <button class="chip" data-p="~/labs/test">~/labs/test</button>
+            <button class="chip" data-p="~/Documentos">~/Documentos</button>
+          </div>
 
-  <section id="instalacion">
-    <span class="tag">Una sola vez</span>
-    <h2 class="sec">Instalación</h2>
-    <p class="sec-lede">Un paso a la vez.</p>
+          <div class="rules-list" id="rulesList"></div>
 
-    <div class="step"><div class="num">1</div><div class="body">
-      <p class="lead">Instala el <b>binario y las librerías</b>.</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>./install.sh</pre></div>
-    </div></div>
+          <div class="play-out" id="playOut">
+            <p class="ol">resuelve a</p>
+            <p class="ov"></p>
+            <p class="oe"></p>
+          </div>
+        </div>
+      </div>
+      <details class="why"><summary>¿por qué "la más profunda"?</summary>
+        <div class="why-body"><p>Las reglas anidan. <code>~/work</code> cubre todo lo de adentro, pero si una subcarpeta tiene su propia regla, esa es más específica y manda solo ahí. Así puedes tener una excepción puntual sin tocar la regla del padre. Eso es el <b>carve-out</b> del Caso 04.</p></div>
+      </details>
+    </section>
 
-    <div class="step"><div class="num">2</div><div class="body">
-      <p class="lead">Asegúrate de que <b><code>~/.local/bin</code> está en tu PATH</b>. Solo si el paso 1 te mostró una advertencia, añade esto a tu <code>~/.zshrc</code> o <code>~/.bashrc</code>:</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>export PATH="$HOME/.local/bin:$PATH"</pre></div>
-    </div></div>
-
-    <div class="step"><div class="num">3</div><div class="body">
-      <p class="lead">Instala la <b>función de shell y el hook</b> automático.</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp install</pre></div>
-    </div></div>
-
-    <div class="step"><div class="num">4</div><div class="body">
-      <p class="lead">Recarga tu shell — usa el archivo de <b>TU</b> shell.</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>source ~/.zshrc     <span class="c"># zsh</span>
+    <!-- ═══ INSTALACIÓN ═══ -->
+    <section class="view" id="view-instalacion">
+      <div class="kicker"><span class="s">·</span><span class="t">Una sola vez</span></div>
+      <h2 class="sec">Instalación</h2>
+      <p class="sec-lede">Cinco pasos. Cópialos en orden.</p>
+      <div class="steps">
+        <div class="step"><div class="num">01</div><div class="body">
+          <p class="lead">Instala el <b>binario y las librerías</b>.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>./install.sh</pre></div>
+        </div></div>
+        <div class="step"><div class="num">02</div><div class="body">
+          <p class="lead"><code>~/.local/bin</code> en tu <b>PATH</b>. Solo si el paso 1 te advirtió, añade a <code>~/.zshrc</code> o <code>~/.bashrc</code>:</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>export PATH="$HOME/.local/bin:$PATH"</pre></div>
+          <details class="why"><summary>¿qué es el PATH?</summary><div class="why-body"><p>La lista de carpetas donde tu shell busca comandos. Si <code>ccp</code> no está ahí, el shell no lo encuentra y verás <code>command not found</code>.</p></div></details>
+        </div></div>
+        <div class="step"><div class="num">03</div><div class="body">
+          <p class="lead">Instala la <b>función de shell y el hook</b> automático.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp install</pre></div>
+          <details class="why"><summary>¿por qué hace falta una función?</summary><div class="why-body"><p>El binario corre en un proceso hijo y no puede cambiar el entorno de tu terminal. La función de shell sí: por eso <code>ccp install</code> la agrega a tu rc, y ella aplica el perfil con <code>export</code>.</p></div></details>
+        </div></div>
+        <div class="step"><div class="num">04</div><div class="body">
+          <p class="lead">Recarga tu shell — usa el archivo de <b>TU</b> shell.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>source ~/.zshrc     <span class="c"># zsh</span>
 source ~/.bashrc    <span class="c"># bash</span></pre></div>
-    </div></div>
+        </div></div>
+        <div class="step"><div class="num">05</div><div class="body">
+          <p class="lead">Confirma que quedó bien.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp doctor</pre></div>
+          <p class="hint">Si ves "Función 'ccp' cargada", estás listo.</p>
+        </div></div>
+      </div>
+    </section>
 
-    <div class="step"><div class="num">5</div><div class="body">
-      <p class="lead">Confirma que quedó bien.</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp doctor</pre></div>
-      <p class="hint">Si ves "Función 'ccp' cargada", estás listo.</p>
-    </div></div>
-  </section>
+    <!-- ═══ CASO 1 ═══ -->
+    <section class="view" id="view-c1">
+      <div class="kicker"><span class="s">§ 01</span><span class="t">El más común</span></div>
+      <h2 class="sec">Tu cuenta de trabajo en tu carpeta de trabajo</h2>
+      <p class="sec-lede">El flujo base. Los demás casos son variaciones de este.</p>
+      <div class="steps">
+        <div class="step"><div class="num">01</div><div class="body">
+          <p class="lead">Crea el perfil oficial <b>"work"</b>.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile add work --official</pre></div>
+        </div></div>
+        <div class="step"><div class="num">02</div><div class="body">
+          <p class="lead">Inicia sesión en ese perfil <b>(una sola vez)</b>.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile login work</pre></div>
+          <p class="hint">Dentro de Claude Code: escribe <code>/login</code>, autentícate con tu cuenta de trabajo, y sal con <code>/quit</code>.</p>
+        </div></div>
+        <div class="step"><div class="num">03</div><div class="body">
+          <p class="lead">Dile a <code>ccp</code> qué carpeta usa "work".</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp path set ~/work work</pre></div>
+        </div></div>
+        <div class="step"><div class="num">04</div><div class="body">
+          <p class="lead">Pruébalo: entra y abre Claude.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>cd ~/work &amp;&amp; claude</pre></div>
+          <p class="hint">Arranca con tu cuenta de trabajo. No tuviste que hacer nada más.</p>
+        </div></div>
+      </div>
+    </section>
 
-  <section id="c1">
-    <span class="tag">Caso 1 · el más común</span>
-    <h2 class="sec">Tu cuenta de trabajo en tu carpeta de trabajo</h2>
+    <!-- ═══ CASO 2 ═══ -->
+    <section class="view" id="view-c2">
+      <div class="kicker"><span class="s">§ 02</span><span class="t">Otra identidad</span></div>
+      <h2 class="sec">Añadir tu cuenta personal</h2>
+      <p class="sec-lede">Igual que el caso 1, con otro nombre y otra carpeta.</p>
+      <div class="steps">
+        <div class="step"><div class="num">01</div><div class="body">
+          <p class="lead">Crea el perfil.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile add personal --official</pre></div>
+        </div></div>
+        <div class="step"><div class="num">02</div><div class="body">
+          <p class="lead">Inicia sesión (una vez), con tu <b>cuenta personal</b>.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile login personal</pre></div>
+          <p class="hint">Dentro: <code>/login</code> con tu cuenta personal, luego <code>/quit</code>.</p>
+        </div></div>
+        <div class="step"><div class="num">03</div><div class="body">
+          <p class="lead">Asigna tu carpeta personal.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp path set ~/personal personal</pre></div>
+          <p class="hint"><code>~/work</code> sigue siendo trabajo; <code>~/personal</code> ahora es personal.</p>
+        </div></div>
+      </div>
+    </section>
 
-    <div class="step"><div class="num">1</div><div class="body">
-      <p class="lead">Crea el perfil oficial <b>"work"</b>.</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp profile add work --official</pre></div>
-    </div></div>
+    <!-- ═══ CASO 3 ═══ -->
+    <section class="view" id="view-c3">
+      <div class="kicker"><span class="s">§ 03</span><span class="t">Proveedor</span></div>
+      <h2 class="sec">Una carpeta con DeepSeek</h2>
+      <p class="sec-lede">Para experimentos o trabajo donde prefieras DeepSeek en vez de tu cuenta Anthropic.</p>
+      <div class="steps">
+        <div class="step"><div class="num">01</div><div class="body">
+          <p class="lead">Crea el perfil de proveedor.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile add deepseek --deepseek</pre></div>
+        </div></div>
+        <div class="step"><div class="num">02</div><div class="body">
+          <p class="lead">Guarda tu API key de DeepSeek (te la pide oculta).</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp key deepseek</pre></div>
+          <details class="why"><summary>¿dónde queda la key?</summary><div class="why-body"><p>En <code>~/.config/ccp/profiles/deepseek/api_key</code> con permisos <code>600</code>. Nunca va al YAML, ni al rc, ni a git.</p></div></details>
+        </div></div>
+        <div class="step"><div class="num">03</div><div class="body">
+          <p class="lead">Asigna la carpeta.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp path set ~/labs deepseek</pre></div>
+        </div></div>
+        <div class="step"><div class="num">04</div><div class="body">
+          <p class="lead">Úsalo.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>cd ~/labs &amp;&amp; claude</pre></div>
+        </div></div>
+      </div>
+    </section>
 
-    <div class="step"><div class="num">2</div><div class="body">
-      <p class="lead">Inicia sesión en ese perfil <b>(una sola vez)</b>. Abre Claude Code con la config aislada de "work".</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp profile login work</pre></div>
-      <p class="hint">Dentro de Claude Code: escribe <code>/login</code>, autentícate con tu cuenta de trabajo, y sal con <code>/quit</code>.</p>
-    </div></div>
+    <!-- ═══ CASO 4 ═══ -->
+    <section class="view" id="view-c4">
+      <div class="kicker"><span class="s">§ 04</span><span class="t">Excepción</span></div>
+      <h2 class="sec">Sacar una subcarpeta de su regla (carve-out)</h2>
+      <p class="sec-lede">Tu <code>~/work</code> usa la cuenta de trabajo, pero hay un cliente puntual donde quieres tu login normal.</p>
+      <div class="do">
+        <p class="lead"><b>Un solo paso</b> — asigna esa subcarpeta al perfil <code>default</code>.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp path set ~/work/cliente-x default</pre></div>
+      </div>
+      <div class="tip"><span class="lbl">Por qué funciona</span><code>~/work</code> sigue en "work", pero <code>~/work/cliente-x</code> usa tu login normal. La subcarpeta más específica siempre manda. ¿Quieres verlo? Vuelve al <a data-go="modelo">playground del modelo mental</a> y escribe <code>~/work/cliente-x</code>.</div>
+    </section>
 
-    <div class="step"><div class="num">3</div><div class="body">
-      <p class="lead">Dile a <code>ccp</code> qué carpeta usa "work".</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp path set ~/work work</pre></div>
-    </div></div>
+    <!-- ═══ CASO 5 ═══ -->
+    <section class="view" id="view-c5">
+      <div class="kicker"><span class="s">§ 05</span><span class="t">Manual</span></div>
+      <h2 class="sec">Cambiar a mano en una terminal</h2>
+      <p class="sec-lede">Cuando quieres cambiar el perfil de la terminal actual sin moverte de carpeta.</p>
+      <div class="do">
+        <p class="lead">Activar un perfil <b>aquí</b>:</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp use personal</pre></div>
+      </div>
+      <div class="do">
+        <p class="lead">Volver a tu <b>login normal</b>:</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp default</pre></div>
+      </div>
+      <div class="do">
+        <p class="lead">Correr Claude <b>una sola vez</b> con el perfil de la carpeta, sin dejarlo fijo:</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp run claude</pre></div>
+      </div>
+    </section>
 
-    <div class="step"><div class="num">4</div><div class="body">
-      <p class="lead">Pruébalo: entra y abre Claude.</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>cd ~/work &amp;&amp; claude</pre></div>
-      <p class="hint">Arranca con tu cuenta de trabajo. No tuviste que hacer nada más.</p>
-    </div></div>
-  </section>
+    <!-- ═══ CASO 6 ═══ -->
+    <section class="view" id="view-c6">
+      <div class="kicker"><span class="s">§ 06</span><span class="t">Inspección</span></div>
+      <h2 class="sec">Ver qué está pasando</h2>
+      <div class="do">
+        <p class="lead">¿Qué perfil usa esta carpeta y qué hay activo en la terminal?</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp status</pre></div>
+      </div>
+      <div class="do">
+        <p class="lead">¿Qué reglas de carpeta tengo?</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp path list</pre></div>
+      </div>
+      <div class="do">
+        <p class="lead">¿Qué perfiles tengo creados?</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile list</pre></div>
+      </div>
+      <div class="do">
+        <p class="lead">¿Está todo bien (logins, keys, función de shell)?</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp doctor</pre></div>
+      </div>
+    </section>
 
-  <section id="c2">
-    <span class="tag">Caso 2</span>
-    <h2 class="sec">Añadir tu cuenta personal</h2>
-    <p class="sec-lede">Igual que el caso 1, con otro nombre y otra carpeta.</p>
+    <!-- ═══ CASO 7 ═══ -->
+    <section class="view" id="view-c7">
+      <div class="kicker"><span class="s">§ 07</span><span class="t">Migración</span></div>
+      <h2 class="sec">Vengo de <code>dsctl</code> (la versión vieja)</h2>
+      <p class="sec-lede"><code>ccp</code> reemplaza a <code>dsctl</code>. La migración es automática.</p>
+      <div class="steps">
+        <div class="step"><div class="num">01</div><div class="body">
+          <p class="lead">La <b>primera vez</b> que corras <code>ccp</code>, migra solo: crea un perfil <code>deepseek</code> con tu config vieja y convierte tus reglas. Solo úsalo:</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp status</pre></div>
+        </div></div>
+        <div class="step"><div class="num">02</div><div class="body">
+          <p class="lead">Quita el bloque viejo de <code>dsctl</code> de tu shell.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>dsctl uninstall</pre></div>
+          <p class="hint">Tus reglas viejas quedan respaldadas en <code>~/.config/ccp/rules.dsctl.bak</code>.</p>
+        </div></div>
+      </div>
+    </section>
 
-    <div class="step"><div class="num">1</div><div class="body">
-      <p class="lead">Crea el perfil.</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp profile add personal --official</pre></div>
-    </div></div>
+    <!-- ═══ ACTUALIZAR ═══ -->
+    <section class="view" id="view-update">
+      <div class="kicker"><span class="s">·</span><span class="t">Avanzado · Versiones</span></div>
+      <h2 class="sec">Actualizar ccp</h2>
+      <p class="sec-lede">De una versión anterior a la última. Tu config se migra sola; no pierdes perfiles ni reglas.</p>
 
-    <div class="step"><div class="num">2</div><div class="body">
-      <p class="lead">Inicia sesión (una vez), con tu <b>cuenta personal</b>.</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp profile login personal</pre></div>
-      <p class="hint">Dentro: <code>/login</code> con tu cuenta personal, luego <code>/quit</code>.</p>
-    </div></div>
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:8px 0 4px;">¿Qué versión tengo?</h3>
+      <div class="do">
+        <p class="lead">Imprime la versión del binario.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp version     <span class="c"># → 2.0.0</span></pre></div>
+        <p class="hint">También vale <code>ccp --version</code> o <code>ccp -v</code>.</p>
+      </div>
 
-    <div class="step"><div class="num">3</div><div class="body">
-      <p class="lead">Asigna tu carpeta personal.</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp path set ~/personal personal</pre></div>
-      <p class="hint"><code>~/work</code> sigue siendo trabajo; <code>~/personal</code> ahora es personal.</p>
-    </div></div>
-  </section>
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Subir a la última</h3>
+      <div class="do">
+        <p class="lead">Un comando. Reinstala el binario y re-sincroniza tus perfiles.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp upgrade</pre></div>
+        <p class="hint">Descarga el binario de release para tu OS/arch, verifica su <code>sha256</code>, y luego regenera cada <code>cc-home</code>. Si no hay release pero sí toolchain de Go, compila desde fuente.</p>
+        <details class="why"><summary>¿qué hace por dentro?</summary><div class="why-body">
+          <p><b>1.</b> Lee <code>~/.config/ccp/install-source</code> (la ruta del repo, registrada al instalar).</p>
+          <p><b>2.</b> Re-ejecuta <code>install.sh</code> desde ahí: detecta OS/arch, baja el binario, verifica checksum, y borra las libs viejas de bash (<code>~/.local/lib/ccp</code>).</p>
+          <p><b>3.</b> Corre <code>ccp profile sync</code> para regenerar la config de cada perfil.</p>
+          <p>Si el bloque de shell quedó viejo, te avisa: corre <code>ccp install</code> y recarga (<code>source ~/.zshrc</code>).</p>
+        </div></details>
+      </div>
+      <div class="do">
+        <p class="lead">Variantes.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp upgrade --pull       <span class="c"># git pull en el repo antes de reinstalar</span>
+ccp upgrade --no-sync    <span class="c"># solo el binario, no toca los perfiles</span></pre></div>
+      </div>
 
-  <section id="c3">
-    <span class="tag">Caso 3</span>
-    <h2 class="sec">Una carpeta con DeepSeek</h2>
-    <p class="sec-lede">Para experimentos o trabajo donde prefieras DeepSeek en vez de tu cuenta Anthropic.</p>
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Re-sincronizar sin reinstalar</h3>
+      <div class="do">
+        <p class="lead">Regenera <code>CLAUDE.md</code> + <code>settings.json</code> de cada perfil, re-fundiendo global ⊕ overlay. Útil tras cambiar tu config global o el overlay de un perfil.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile sync          <span class="c"># todos</span>
+ccp profile sync work     <span class="c"># solo uno</span></pre></div>
+        <p class="hint">No toca <code>default</code> (no tiene overlay ni cc-home).</p>
+      </div>
 
-    <div class="step"><div class="num">1</div><div class="body">
-      <p class="lead">Crea el perfil de proveedor.</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp profile add deepseek --deepseek</pre></div>
-    </div></div>
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Vienes de la versión legacy (Bash / dsctl)</h3>
+      <p class="intro">La migración es <b>automática</b> y <b>perezosa</b>: la primera vez que corras cualquier comando de <code>ccp</code> que toque la config, convierte tu estado viejo a <code>ccp.yaml</code> (schema v2). No tienes que hacer nada especial.</p>
+      <figure>
+        <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>cadena de migración</span></div>
+<pre>~/.config/dsctl   <span class="c"># config + rules.tsv viejos</span>
+      │
+      ▼  <b>(automático, una sola vez)</b>
+ccp (TSV)         <span class="c"># profiles.tsv / rules.tsv</span>
+      │
+      ▼
+~/.config/ccp/<b>ccp.yaml</b>   <span class="c"># schema v2, fuente única</span></pre>
+      </figure>
+      <div class="tip"><span class="lbl">Qué pasa exactamente</span>
+        Antes de tocar nada, <code>ccp</code> respalda todo en <code>~/.config/ccp/.backup-pre-go-&lt;fecha&gt;</code>. Crea un perfil <code>deepseek</code> con tu config DeepSeek vieja (la API key se mueve a <code>api_key</code>, <code>chmod 600</code>) y convierte tus reglas: las de <b>include</b> → <code>deepseek</code>, las de <b>exclude</b> → <code>default</code>. Es <b>idempotente</b>: corre cuantas veces quieras, migra una sola vez.
+      </div>
+      <p class="intro" style="margin-top:18px;">Después, quita el bloque viejo de tu shell — está en el <a data-go="c7">Caso 07 · Vengo de dsctl</a>.</p>
+    </section>
 
-    <div class="step"><div class="num">2</div><div class="body">
-      <p class="lead">Guarda tu API key de DeepSeek (te la pide oculta).</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp key deepseek</pre></div>
-    </div></div>
+    <!-- ═══ BACKUP ═══ -->
+    <section class="view" id="view-backup">
+      <div class="kicker"><span class="s">·</span><span class="t">Avanzado · Respaldo</span></div>
+      <h2 class="sec">Exportar e importar tu configuración</h2>
+      <p class="sec-lede">Llévate todo a otra máquina, o respáldalo antes de un cambio grande. Todo cabe en un <code>.tar.gz</code>.</p>
 
-    <div class="step"><div class="num">3</div><div class="body">
-      <p class="lead">Asigna la carpeta.</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp path set ~/labs deepseek</pre></div>
-    </div></div>
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:8px 0 4px;">Exportar</h3>
+      <div class="do">
+        <p class="lead">Crear un respaldo (sin secretos).</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp backup export ~/ccp-backup.tar.gz</pre></div>
+        <p class="hint">Incluye <code>manifest.yaml</code>, tu <code>ccp.yaml</code> y los <span class="term" tabindex="0" data-tip="La config propia de cada perfil: CLAUDE.md + settings.overlay.json. Es la base de menor precedencia.">overlays</span> de cada perfil. El archivo queda <code>chmod 644</code>.</p>
+      </div>
+      <div class="do">
+        <p class="lead">Incluir <b>secretos</b> (API keys + logins oficiales).</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp backup export ~/ccp-backup.tar.gz --with-secrets</pre></div>
+        <div class="tip"><span class="lbl">Cuidado</span>Añade tu <code>api_key</code> de DeepSeek y las credenciales OAuth de los perfiles oficiales (<code>.claude.json</code>). El archivo se escribe <code>chmod 600</code>. Guárdalo en un lugar seguro y nunca lo subas a git.</div>
+        <details class="why"><summary>¿qué entra y qué no?</summary><div class="why-body">
+          <p><b>Siempre:</b> <code>manifest.yaml</code> (con checksums sha256), <code>ccp.yaml</code>, y <code>overlay/</code> de cada perfil.</p>
+          <p><b>Solo con <code>--with-secrets</code>:</b> <code>profiles/&lt;n&gt;/api_key</code> y <code>cc-home/.claude.json</code>.</p>
+          <p><b>Nunca:</b> los symlinks (<code>plugins/ commands/ agents/ skills/</code>). Se vuelven a crear solos al restaurar.</p>
+        </div></details>
+      </div>
 
-    <div class="step"><div class="num">4</div><div class="body">
-      <p class="lead">Úsalo.</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>cd ~/labs &amp;&amp; claude</pre></div>
-    </div></div>
-  </section>
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Importar / restaurar</h3>
+      <div class="do">
+        <p class="lead">Restaurar en otra máquina (o sobre esta).</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp backup restore ~/ccp-backup.tar.gz</pre></div>
+        <p class="hint">Por defecto: <b>no pisa</b> nada. Crea los perfiles que falten y fusiona las reglas (rutas nuevas se agregan, las tuyas se conservan).</p>
+      </div>
 
-  <section id="c4">
-    <span class="tag">Caso 4</span>
-    <h2 class="sec">Sacar una subcarpeta de su regla (carve-out)</h2>
-    <p class="sec-lede">Tu <code>~/work</code> usa la cuenta de trabajo, pero hay un cliente puntual donde quieres tu login normal.</p>
+      <p class="intro" style="margin:24px 0 6px;"><b>Modos de colisión</b> — qué pasa con lo que ya tienes:</p>
+      <table>
+        <thead><tr><th>Comando</th><th>Perfiles existentes</th><th>Reglas</th></tr></thead>
+        <tbody>
+          <tr><td><code>restore</code></td><td>se conservan; solo agrega los nuevos</td><td>fusiona</td></tr>
+          <tr><td><code>restore --overwrite</code></td><td>reemplaza los que vengan en el backup</td><td>fusiona</td></tr>
+          <tr><td><code>restore --force</code></td><td>borra todo y restaura limpio</td><td>reemplaza todo</td></tr>
+        </tbody>
+      </table>
 
-    <div class="do">
-      <p class="lead"><b>Un solo paso</b> — asigna esa subcarpeta al perfil <code>default</code>.</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp path set ~/work/cliente-x default</pre></div>
-      <p class="hint"><code>~/work</code> sigue en "work", pero <code>~/work/cliente-x</code> usa tu login normal. La subcarpeta más específica siempre manda.</p>
-    </div>
-  </section>
+      <div class="tip"><span class="lbl">Red de seguridad</span>Antes de tocar nada, <code>ccp</code> guarda un snapshot automático en <code>~/.config/ccp/.backup-pre-restore-&lt;fecha&gt;</code>. Si algo sale mal, ahí está tu estado anterior. Y si el backup viene de un <code>ccp</code> más nuevo (schema superior), el restore <b>aborta</b> sin tocar nada: actualiza <code>ccp</code> primero.</div>
+    </section>
 
-  <section id="c5">
-    <span class="tag">Caso 5</span>
-    <h2 class="sec">Cambiar a mano en una terminal</h2>
-    <p class="sec-lede">Cuando quieres cambiar el perfil de la terminal actual sin moverte de carpeta.</p>
+    <!-- ═══ CONFIG MANUAL ═══ -->
+    <section class="view" id="view-config">
+      <div class="kicker"><span class="s">·</span><span class="t">Avanzado · YAML</span></div>
+      <h2 class="sec">Configurar a mano (<code>ccp.yaml</code>)</h2>
+      <p class="sec-lede">Todo vive en un solo archivo. Puedes tocarlo con comandos o editarlo a mano: ambos caminos llevan al mismo YAML.</p>
 
-    <div class="do">
-      <p class="lead">Activar un perfil <b>aquí</b>:</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp use personal</pre></div>
-    </div>
-    <div class="do">
-      <p class="lead">Volver a tu <b>login normal</b>:</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp default</pre></div>
-    </div>
-    <div class="do">
-      <p class="lead">Correr Claude <b>una sola vez</b> con el perfil de la carpeta, sin dejarlo fijo:</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp run claude</pre></div>
-    </div>
-  </section>
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:8px 0 4px;">Con comandos</h3>
+      <div class="do">
+        <p class="lead">Ver los <span class="term" tabindex="0" data-tip="Plantilla que se aplica solo al CREAR un perfil deepseek nuevo. Editarla no toca los perfiles que ya existen.">defaults</span> actuales.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp config show</pre></div>
+      </div>
+      <div class="do">
+        <p class="lead">Cambiar un campo de los defaults. Claves: <code>base_url</code>, <code>model_pro</code>, <code>model_flash</code>, <code>effort</code>.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp config set model_pro deepseek-reasoner</pre></div>
+        <p class="hint">Solo afecta a los perfiles deepseek que crees <b>después</b>. Los existentes guardan sus 4 campos explícitos.</p>
+      </div>
+      <div class="do">
+        <p class="lead">Volver los defaults a fábrica · elegir editor.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp config reset
+ccp config editor nano     <span class="c"># o vim, code, etc.</span></pre></div>
+      </div>
 
-  <section id="c6">
-    <span class="tag">Caso 6</span>
-    <h2 class="sec">Ver qué está pasando</h2>
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">El archivo, anotado</h3>
+      <p class="intro">Vive en <code>~/.config/ccp/ccp.yaml</code> (o <code>$CCP_HOME/ccp.yaml</code>).</p>
+      <figure>
+        <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>~/.config/ccp/ccp.yaml</span></div>
+<pre><span class="g">version</span>: 2                              <span class="c"># schema; no lo bajes a mano</span>
 
-    <div class="do">
-      <p class="lead">¿Qué perfil usa esta carpeta y qué hay activo en la terminal?</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp status</pre></div>
-    </div>
-    <div class="do">
-      <p class="lead">¿Qué reglas de carpeta tengo?</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp path list</pre></div>
-    </div>
-    <div class="do">
-      <p class="lead">¿Qué perfiles tengo creados?</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp profile list</pre></div>
-    </div>
-    <div class="do">
-      <p class="lead">¿Está todo bien (logins, keys, función de shell)?</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp doctor</pre></div>
-    </div>
-  </section>
+<span class="g">defaults</span>:                               <span class="c"># plantilla para perfiles deepseek NUEVOS</span>
+  base_url: https://api.deepseek.com/anthropic
+  model_pro: deepseek-chat
+  model_flash: deepseek-chat
+  effort: high
+  editor: nano
 
-  <section id="c7">
-    <span class="tag">Caso 7</span>
-    <h2 class="sec">Vengo de <code>dsctl</code> (la versión vieja)</h2>
-    <p class="sec-lede"><code>ccp</code> reemplaza a <code>dsctl</code>. La migración es automática.</p>
+<span class="g">profiles</span>:
+  work:                                 <span class="c"># oficial: solo 'type'</span>
+    type: <b>official</b>
+  personal:
+    type: <b>official</b>
+  deepseek:                             <span class="c"># proveedor: los 4 campos, explícitos</span>
+    type: <b>deepseek</b>
+    base_url: https://api.deepseek.com/anthropic
+    model_pro: deepseek-chat
+    model_flash: deepseek-chat
+    effort: high
 
-    <div class="step"><div class="num">1</div><div class="body">
-      <p class="lead">La <b>primera vez</b> que corras <code>ccp</code>, migra solo: crea un perfil <code>deepseek</code> con tu config vieja y convierte tus reglas. Solo úsalo:</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>ccp status</pre></div>
-    </div></div>
+<span class="g">rules</span>:                                  <span class="c"># carpeta -> perfil (ruta ABSOLUTA)</span>
+  - path: /Users/tu/work
+    profile: work
+  - path: /Users/tu/work/cliente-x
+    profile: <b>default</b>                    <span class="c"># carve-out</span>
+  - path: /Users/tu/labs
+    profile: deepseek
 
-    <div class="step"><div class="num">2</div><div class="body">
-      <p class="lead">Quita el bloque viejo de <code>dsctl</code> de tu shell.</p>
-      <div class="code"><button class="copy" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>copy</button><pre>dsctl uninstall</pre></div>
-      <p class="hint">Tus reglas viejas quedan respaldadas en <code>~/.config/ccp/rules.dsctl.bak</code>.</p>
-    </div></div>
-  </section>
+<span class="g">authored</span>: []                            <span class="c"># artefactos que ccp gestiona</span></pre>
+      </figure>
 
-  <section id="trouble">
-    <span class="tag">Ayuda</span>
-    <h2 class="sec">Solución de problemas</h2>
+      <details class="why"><summary>oficial vs deepseek</summary><div class="why-body">
+        <p>Un perfil <b>oficial</b> guarda solo <code>type: official</code>; su login vive aparte, en <code>cc-home/.claude.json</code>.</p>
+        <p>Un perfil <b>deepseek</b> guarda los 4 campos (<code>base_url, model_pro, model_flash, effort</code>) <b>explícitos</b>, sin herencia. <code>defaults</code> solo los siembra al crearlo.</p>
+      </div></details>
 
-    <div class="trouble">
-      <p class="q">ccp: command not found</p>
-      <p class="a"><code>~/.local/bin</code> no está en tu PATH. Vuelve al Paso 2 de Instalación.</p>
-    </div>
-    <div class="trouble">
-      <p class="q">ccp use … no cambia nada / "Función 'ccp' no cargada"</p>
-      <p class="a">Falta cargar la función de shell. Corre <code>ccp install</code> y luego <code>source ~/.zshrc</code> (o <code>~/.bashrc</code>).</p>
-    </div>
-    <div class="trouble">
-      <p class="q">Cambié de carpeta y el perfil no cambió</p>
-      <p class="a">El hook recuerda la última carpeta. Tras editar reglas, refresca con <code>cd .</code></p>
-    </div>
-    <div class="trouble">
-      <p class="q">Al abrir Claude dice "Not logged in"</p>
-      <p class="a">Ese perfil oficial todavía no tiene sesión. Inícialo una vez con <code>ccp profile login &lt;nombre&gt;</code>.</p>
-    </div>
-    <div class="trouble">
-      <p class="q">Quiero ver el perfil de una carpeta sin entrar en ella</p>
-      <p class="a"><code>ccp resolve ~/ruta/que/sea</code></p>
-    </div>
-  </section>
+      <div class="tip"><span class="lbl">Reglas de oro</span>
+        <b>1.</b> <code>default</code> es implícito: nunca lo pongas en <code>profiles</code>. Es tu login normal y gana cuando ninguna regla aplica. Para una excepción, usa <code>profile: default</code> en una regla.<br>
+        <b>2.</b> Las rutas en <code>rules</code> son absolutas y normalizadas (sin <code>~</code>). Mejor deja que ccp las normalice con <code>ccp path set ~/x perfil</code>.<br>
+        <b>3.</b> La API key <b>no</b> va aquí: vive en <code>~/.config/ccp/profiles/&lt;n&gt;/api_key</code> (<code>chmod 600</code>). Edítala con <code>ccp key &lt;n&gt;</code>.
+      </div>
 
-  <section id="ref">
-    <span class="tag">Cheatsheet</span>
-    <h2 class="sec">Referencia rápida</h2>
-    <p class="sec-lede">Cuando ya le agarraste la onda, este es todo el mapa.</p>
-    <table>
-      <thead><tr><th>Quiero…</th><th>Comando</th></tr></thead>
-      <tbody>
-        <tr><td>Crear cuenta oficial</td><td><code>ccp profile add &lt;n&gt; --official</code></td></tr>
-        <tr><td>Iniciar sesión en ella</td><td><code>ccp profile login &lt;n&gt;</code></td></tr>
-        <tr><td>Crear proveedor DeepSeek</td><td><code>ccp profile add &lt;n&gt; --deepseek</code></td></tr>
-        <tr><td>Guardar su API key</td><td><code>ccp key &lt;n&gt;</code></td></tr>
-        <tr><td>Asignar carpeta → perfil</td><td><code>ccp path set &lt;ruta&gt; &lt;perfil&gt;</code></td></tr>
-        <tr><td>Quitar una regla</td><td><code>ccp path rm &lt;ruta&gt;</code></td></tr>
-        <tr><td>Ver reglas / perfiles</td><td><code>ccp path list</code> · <code>ccp profile list</code></td></tr>
-        <tr><td>Cambiar a mano</td><td><code>ccp use &lt;n&gt;</code> · <code>ccp default</code></td></tr>
-        <tr><td>Estado / diagnóstico</td><td><code>ccp status</code> · <code>ccp doctor</code></td></tr>
-        <tr><td>Ayuda completa</td><td><code>ccp help</code></td></tr>
-      </tbody>
-    </table>
-    <div class="tip"><b>Para scripting:</b> <code>ccp resolve [ruta]</code> imprime el perfil (exit <code>0</code> = no-default, <code>1</code> = default), y <code>ccp status --json</code> devuelve un objeto JSON con <code>active</code>, <code>profile</code>, <code>profile_type</code>, <code>cwd</code> y <code>repo</code>.</div>
-  </section>
+      <details class="why"><summary>¿es seguro editarlo a mano?</summary><div class="why-body">
+        <p>Sí. <code>ccp</code> escribe de forma atómica (tmp + rename) bajo un <span class="term" tabindex="0" data-tip="Bloqueo de archivo (.ccp.lock). Evita que dos procesos escriban el YAML a la vez.">flock</span>, <b>conserva tus comentarios</b> y cualquier clave desconocida en round-trip.</p>
+        <p><b>Guard de versión:</b> si <code>version</code> es mayor que la que tu binario conoce, ccp se niega a leer o escribir y no toca el archivo. Actualiza <code>ccp</code>.</p>
+        <p>Tras editar a mano: refresca el hook con <code>cd .</code> y verifica con <code>ccp status</code> · <code>ccp path list</code>.</p>
+      </div></details>
+    </section>
 
-  <footer>
-    ccp · guía de uso &nbsp;·&nbsp; ¿cómo funciona por dentro? → <a href="docs/superpowers/specs/ccp-profiles.html">spec</a> · CLAUDE.md
-  </footer>
+    <!-- ═══ TROUBLESHOOTING ═══ -->
+    <section class="view" id="view-trouble">
+      <div class="kicker"><span class="s">·</span><span class="t">Ayuda</span></div>
+      <h2 class="sec">Solución de problemas</h2>
+      <p class="sec-lede">Toca una pregunta para ver la respuesta.</p>
+      <details class="tr"><summary><span class="plus">+</span>ccp: command not found</summary><p class="a"><code>~/.local/bin</code> no está en tu PATH. Vuelve al Paso 2 de Instalación.</p></details>
+      <details class="tr"><summary><span class="plus">+</span>ccp use … no cambia nada / "Función 'ccp' no cargada"</summary><p class="a">Falta cargar la función de shell. Corre <code>ccp install</code> y luego <code>source ~/.zshrc</code> (o <code>~/.bashrc</code>).</p></details>
+      <details class="tr"><summary><span class="plus">+</span>Cambié de carpeta y el perfil no cambió</summary><p class="a">El hook recuerda la última carpeta. Tras editar reglas, refresca con <code>cd .</code></p></details>
+      <details class="tr"><summary><span class="plus">+</span>Al abrir Claude dice "Not logged in"</summary><p class="a">Ese perfil oficial todavía no tiene sesión. Inícialo una vez con <code>ccp profile login &lt;nombre&gt;</code>.</p></details>
+      <details class="tr"><summary><span class="plus">+</span>Quiero ver el perfil de una carpeta sin entrar en ella</summary><p class="a">Usa <code>ccp resolve ~/ruta/que/sea</code></p></details>
+    </section>
 
+    <!-- ═══ REFERENCIA ═══ -->
+    <section class="view" id="view-ref">
+      <div class="kicker"><span class="s">·</span><span class="t">Cheatsheet</span></div>
+      <h2 class="sec">Referencia rápida</h2>
+      <p class="sec-lede">Cuando ya le agarraste la onda, este es todo el mapa.</p>
+      <table>
+        <thead><tr><th>Quiero…</th><th>Comando</th></tr></thead>
+        <tbody>
+          <tr><td>Crear cuenta oficial</td><td><code>ccp profile add &lt;n&gt; --official</code></td></tr>
+          <tr><td>Iniciar sesión en ella</td><td><code>ccp profile login &lt;n&gt;</code></td></tr>
+          <tr><td>Crear proveedor DeepSeek</td><td><code>ccp profile add &lt;n&gt; --deepseek</code></td></tr>
+          <tr><td>Guardar su API key</td><td><code>ccp key &lt;n&gt;</code></td></tr>
+          <tr><td>Asignar carpeta → perfil</td><td><code>ccp path set &lt;ruta&gt; &lt;perfil&gt;</code></td></tr>
+          <tr><td>Quitar una regla</td><td><code>ccp path rm &lt;ruta&gt;</code></td></tr>
+          <tr><td>Ver reglas / perfiles</td><td><code>ccp path list</code> · <code>ccp profile list</code></td></tr>
+          <tr><td>Cambiar a mano</td><td><code>ccp use &lt;n&gt;</code> · <code>ccp default</code></td></tr>
+          <tr><td>Estado / diagnóstico</td><td><code>ccp status</code> · <code>ccp doctor</code></td></tr>
+          <tr><td>Ayuda completa</td><td><code>ccp help</code></td></tr>
+        </tbody>
+      </table>
+      <div class="tip"><span class="lbl">Para scripting</span><code>ccp resolve [ruta]</code> imprime el perfil (exit <code>0</code> = no-default, <code>1</code> = default), y <code>ccp status --json</code> devuelve un objeto JSON con <code>active</code>, <code>profile</code>, <code>profile_type</code>, <code>cwd</code> y <code>repo</code>.</div>
+      <p class="intro" style="margin-top:28px;">¿Cómo funciona por dentro? → <a href="docs/superpowers/specs/ccp-profiles.html">spec</a> · CLAUDE.md</p>
+    </section>
+
+    <!-- pager (rendered by JS) -->
+    <nav class="pager" id="pager">
+      <button class="pg prev" id="pgPrev"><span class="pl">‹ Anterior</span><span class="pt"></span></button>
+      <button class="pg next" id="pgNext"><span class="pl">Siguiente ›</span><span class="pt"></span></button>
+    </nav>
+
+  </main>
 </div>
+
 <script>
-  document.querySelectorAll('.copy').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      var txt = btn.parentElement.querySelector('pre').innerText;
-      navigator.clipboard.writeText(txt).then(function(){
-        var prev = btn.lastChild;
-        var old = prev.textContent; prev.textContent = ' copiado';
-        setTimeout(function(){ prev.textContent = old; }, 1200);
+  (function(){
+    var ORDER = ['inicio','modelo','instalacion','c1','c2','c3','c4','c5','c6','c7','update','backup','config','trouble','ref'];
+    var TITLES = {inicio:'Inicio',modelo:'Modelo mental',instalacion:'Instalación',
+      c1:'Cuenta de trabajo',c2:'Cuenta personal',c3:'Carpeta DeepSeek',c4:'Carve-out',
+      c5:'Cambiar a mano',c6:'Ver qué pasa',c7:'Vengo de dsctl',
+      update:'Actualizar ccp',backup:'Backup & restore',config:'Config manual (YAML)',
+      trouble:'Solución de problemas',ref:'Referencia rápida'};
+
+    var navLinks = Array.prototype.slice.call(document.querySelectorAll('.nav-group a'));
+    var sidebar = document.getElementById('sidebar');
+    var scrim = document.getElementById('scrim');
+    var progress = document.getElementById('progress');
+    var pgnum = document.getElementById('pgnum');
+    var pgPrev = document.getElementById('pgPrev');
+    var pgNext = document.getElementById('pgNext');
+    var current = 'inicio';
+
+    function closeMenu(){ sidebar.classList.remove('open'); scrim.classList.remove('show'); }
+
+    function go(id, push){
+      if (ORDER.indexOf(id) < 0) id = 'inicio';
+      current = id;
+      document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+      var view = document.getElementById('view-'+id);
+      if (view) view.classList.add('active');
+      navLinks.forEach(function(a){ a.classList.toggle('active', a.getAttribute('data-view') === id); });
+
+      var i = ORDER.indexOf(id);
+      progress.style.width = ((i+1)/ORDER.length*100) + '%';
+      pgnum.textContent = (i+1) + ' / ' + ORDER.length;
+
+      // pager
+      if (i > 0){ pgPrev.removeAttribute('disabled'); pgPrev.querySelector('.pt').textContent = TITLES[ORDER[i-1]]; }
+      else pgPrev.setAttribute('disabled','');
+      if (i < ORDER.length-1){ pgNext.removeAttribute('disabled'); pgNext.querySelector('.pt').textContent = TITLES[ORDER[i+1]]; }
+      else pgNext.setAttribute('disabled','');
+
+      if (push !== false && location.hash !== '#'+id) history.replaceState(null,'','#'+id);
+      window.scrollTo(0,0);
+      document.getElementById('main').scrollTop = 0;
+      closeMenu();
+    }
+    function step(d){ var i = ORDER.indexOf(current) + d; if (i>=0 && i<ORDER.length) go(ORDER[i]); }
+
+    // nav clicks (delegated for data-view + data-go)
+    document.addEventListener('click', function(e){
+      var t = e.target.closest('[data-view],[data-go]');
+      if (!t) return;
+      var id = t.getAttribute('data-view') || t.getAttribute('data-go');
+      if (id){ e.preventDefault(); go(id); }
+    });
+    pgPrev.addEventListener('click', function(){ step(-1); });
+    pgNext.addEventListener('click', function(){ step(1); });
+
+    // mobile menu
+    document.getElementById('mb').addEventListener('click', function(){
+      var open = sidebar.classList.toggle('open'); scrim.classList.toggle('show', open);
+    });
+    scrim.addEventListener('click', closeMenu);
+
+    // keyboard
+    document.addEventListener('keydown', function(e){
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === 'ArrowLeft') step(-1);
+      else if (e.key === 'ArrowRight') step(1);
+      else if (e.key === 'g' || e.key === 'G'){ var o = sidebar.classList.toggle('open'); scrim.classList.toggle('show', o); }
+      else if (e.key === 'Escape') closeMenu();
+    });
+
+    window.addEventListener('hashchange', function(){ go(location.hash.slice(1)||'inicio', false); });
+    go(location.hash.slice(1) || 'inicio', false);
+
+    // ── copy buttons ──
+    document.querySelectorAll('.copy').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var pre = btn.parentElement.querySelector('pre');
+        var lbl = btn.querySelector('span');
+        navigator.clipboard.writeText(pre.innerText).then(function(){
+          var old = lbl.textContent; lbl.textContent = 'copiado';
+          setTimeout(function(){ lbl.textContent = old; }, 1200);
+        });
       });
     });
-  });
+
+    // ── ROUTING PLAYGROUND ──
+    var RULES = [
+      {path:'~/work',            prof:'work',     badge:'oficial'},
+      {path:'~/work/cliente-x',  prof:'default',  badge:'login normal'},
+      {path:'~/personal',        prof:'personal', badge:'oficial'},
+      {path:'~/labs',            prof:'deepseek', badge:'proveedor'},
+      {path:'~',                 prof:'default',  badge:'login normal'}
+    ];
+    var input = document.getElementById('playIn');
+    var listEl = document.getElementById('rulesList');
+    var outEl = document.getElementById('playOut');
+
+    function norm(p){
+      p = (p||'').trim();
+      if (!p) return '~';
+      p = p.replace(/\/+$/,'');       // sin slash final
+      return p === '' ? '~' : p;
+    }
+    function isAncestor(rule, q){
+      if (rule === '~') return q === '~' || q.indexOf('~/') === 0 || q.indexOf('/') === 0;
+      return q === rule || q.indexOf(rule + '/') === 0;
+    }
+    function resolve(q){
+      var best = null;
+      RULES.forEach(function(r){
+        if (isAncestor(r.path, q)){
+          if (!best || r.path.length > best.path.length) best = r;
+        }
+      });
+      return best || RULES[RULES.length-1];
+    }
+    function render(){
+      var q = norm(input.value);
+      var win = resolve(q);
+      listEl.innerHTML = '';
+      RULES.forEach(function(r){
+        var matched = isAncestor(r.path, q);
+        var isWin = r === win;
+        var row = document.createElement('div');
+        row.className = 'rule-row' + (matched ? ' match' : '') + (isWin ? ' win' : '');
+        row.innerHTML = '<span class="rp">'+r.path+'</span><span class="ra">→ '+r.prof+'</span>'+
+                        (isWin ? '<span class="rb">gana</span>' : (matched ? '<span class="rb">cubre</span>' : ''));
+        listEl.appendChild(row);
+      });
+      var ov = outEl.querySelector('.ov');
+      var oe = outEl.querySelector('.oe');
+      ov.innerHTML = '<span class="arrow">'+ (q || '~') +' →</span> <b>'+win.prof+'</b>';
+      if (win.path === '~'){
+        oe.innerHTML = 'Ninguna regla específica cubre <b>'+q+'</b>, así que cae a tu <b>login normal</b> (default).';
+      } else {
+        oe.innerHTML = 'Gana <b>'+win.path+'</b> porque es la regla <b>más profunda</b> que contiene a <b>'+q+'</b>.';
+      }
+    }
+    if (input){
+      input.addEventListener('input', render);
+      document.getElementById('playChips').addEventListener('click', function(e){
+        var c = e.target.closest('.chip'); if (!c) return;
+        input.value = c.getAttribute('data-p'); render();
+      });
+      render();
+    }
+  })();
 </script>
 </body>
 </html>
