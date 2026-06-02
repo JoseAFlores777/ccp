@@ -418,7 +418,11 @@ _instruct_add() {
       _instr_regen_if_profile "$scope"
       ok "Hook '$name' añadido ($scope) -> $dest"
       warn "El borrado de hooks no es automático (viven en arrays sin id estable)."
-      info "Para quitarlo: 'ccp profile config <perfil> settings' o edita $dest a mano." ;;
+      if [[ "$scope" == profile ]]; then
+        info "Para quitarlo: 'ccp profile config $(_instr_active_profile) settings' o edita el overlay a mano."
+      else
+        info "Para quitarlo: edita $dest a mano (el borrado de hooks no es automático)."
+      fi ;;
     *) err "tipo '$type' desconocido."; return 1 ;;
   esac
 }
@@ -467,7 +471,7 @@ _instruct_list() {
 # ccp instruct rm <scope> <index>
 _instruct_rm() {
   local scope="$1" idx="$2"
-  [[ -n "$scope" && "$idx" =~ ^[0-9]+$ ]] || { err "Uso: ccp instruct rm <scope> <index>"; return 1; }
+  [[ -n "$scope" && "$idx" =~ ^[1-9][0-9]*$ ]] || { err "Uso: ccp instruct rm <scope> <index>"; return 1; }
   local rfile; rfile="$(_instr_dest_or_die "$scope" rule)" || return 1
   local prof root m; prof="$(_instr_active_profile)"; root="$(_instr_repo_root)"
   [[ "$scope" != profile ]] && prof="-"
@@ -848,7 +852,7 @@ ${C_BOLD}REGLAS DE PATH${C_RESET}
                                  (gana la regla más específica; sin regla => 'default')
 
 ${C_BOLD}INSTRUCCIONES (memoria de Claude)${C_RESET}
-  ccp instruct add <scope> <type> <texto>   añade un artefacto (scope: global|profile|project)
+  ccp instruct add <scope> <type> <texto>   añade rule/hook/mcp; agent/command/skill: usa dest+record
   ccp instruct list <scope>                 lista las instrucciones del scope
   ccp instruct rm <scope> <index>           borra por índice
                                             (lo usan los comandos /ccp:remember-* /ccp:recall /ccp:forget)

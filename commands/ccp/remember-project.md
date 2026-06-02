@@ -22,5 +22,5 @@ Pasos:
      1. Pide la ruta destino: `ccp instruct dest project <type>` (devuelve el directorio oficial).
      2. Escribe el archivo del artefacto ahí con un slug claro (p.ej. `<dir>/auditor-seguridad.md`), en el formato oficial de Claude Code (frontmatter `name`/`description` + cuerpo para agent/command; estructura de skill para skill).
      3. Regístralo: `ccp instruct record project <type> "<ruta-escrita>" "<descripción corta>"`.
-5. Si ccp responde que no estás en un repo git, avísale al usuario (escribirá en el cwd como fallback).
+5. Si no estás dentro de un repo git, ccp usa el directorio actual (`$PWD/.claude/`) como fallback — avísale al usuario dónde quedó.
 6. Reporta la ruta destino. Recuérdale que el cambio queda en `.claude/` y conviene comitearlo.

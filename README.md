@@ -337,7 +337,7 @@ Notas importantes:
 Los comandos `/ccp:` son wrappers sobre esta API que también puedes usar desde scripts:
 
 ```bash
-ccp instruct add <scope> <type> <texto>          # añade rule/hook/mcp/agent/command/skill
+ccp instruct add <scope> <type> <texto>          # añade rule/hook/mcp (agent/command/skill: usa dest + record)
 ccp instruct add <scope> mcp 'name={"command":"...","args":[...]}'  # server MCP
 ccp instruct list <scope>                         # lista lo gestionado
 ccp instruct rm <scope> <index>                   # borra por índice
