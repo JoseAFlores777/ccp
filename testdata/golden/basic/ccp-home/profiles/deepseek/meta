@@ -1,0 +1,5 @@
+type=deepseek
+base_url=https://api.deepseek.com/anthropic
+model_pro=deepseek-chat
+model_flash=deepseek-chat
+effort=high

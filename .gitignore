@@ -3,3 +3,9 @@
 *.tmp
 .DS_Store
 .superpowers/
+
+# Go build artifacts (binario en raíz por `go build ./cmd/ccp`)
+/ccp
+/dist/
+*.test
+*.out
