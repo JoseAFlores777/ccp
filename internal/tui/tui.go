@@ -291,13 +291,41 @@ func min(a, b int) int {
 	return b
 }
 
-// estilos lipgloss; respetan NO_COLOR automáticamente (lipgloss degrada a
-// ANSI/none según termenv, que honra NO_COLOR).
+// Tema lipgloss — paleta terracota/papel (espeja la guía README.html).
+// Hex truecolor que termenv degrada a ANSI/none; honra NO_COLOR automáticamente.
 var (
-	styleTitle    = lipgloss.NewStyle().Bold(true)
-	styleFocused  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
-	styleDim      = lipgloss.NewStyle().Faint(true)
-	styleSelected = lipgloss.NewStyle().Reverse(true)
-	styleErr      = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
-	styleOK       = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+	cAccent = lipgloss.Color("#c96442") // terracota
+	cRule   = lipgloss.Color("#8a8378") // borde de panel sin foco
+	cOlive  = lipgloss.Color("#8a8b3f") // badge proveedor
+	cMute   = lipgloss.AdaptiveColor{Light: "#6f6a60", Dark: "#9a948a"}
+	cInk    = lipgloss.AdaptiveColor{Light: "#1a1915", Dark: "#ece7dd"}
+	cOK     = lipgloss.Color("#3f9b50")
+	cErr    = lipgloss.Color("#c0392b")
+
+	styleBrand    = lipgloss.NewStyle().Bold(true).Foreground(cAccent)
+	styleSub      = lipgloss.NewStyle().Foreground(cMute)
+	styleDim      = lipgloss.NewStyle().Foreground(cMute)
+	styleFocused  = lipgloss.NewStyle().Bold(true).Foreground(cAccent)
+	stylePanelTtl = lipgloss.NewStyle().Bold(true).Foreground(cMute)
+	styleSelected = lipgloss.NewStyle().Bold(true).Foreground(cAccent)
+	styleErr      = lipgloss.NewStyle().Foreground(cErr).Bold(true)
+	styleOK       = lipgloss.NewStyle().Foreground(cOK).Bold(true)
+	styleVal      = lipgloss.NewStyle().Foreground(cInk)
+	styleCheck    = lipgloss.NewStyle().Foreground(cOK)
+	styleCross    = lipgloss.NewStyle().Foreground(cErr)
+
+	boxStyle        = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(cRule).Padding(0, 1)
+	boxStyleFocused = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(cAccent).Padding(0, 1)
 )
+
+// badge pinta el tipo de perfil con su color.
+func badge(t string) string {
+	switch t {
+	case "official":
+		return lipgloss.NewStyle().Foreground(cAccent).Render("oficial")
+	case "deepseek":
+		return lipgloss.NewStyle().Foreground(cOlive).Render("proveedor")
+	default:
+		return lipgloss.NewStyle().Foreground(cMute).Render("default")
+	}
+}

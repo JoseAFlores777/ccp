@@ -17,6 +17,13 @@ type DoctorCheck struct {
 // lookPath se inyecta en tests para no depender del PATH real de la máquina.
 var lookPath = exec.LookPath
 
+// HasLogin indica si un perfil oficial ya tiene sesión iniciada: existe el
+// archivo cc-home/.claude.json. Para perfiles no oficiales no aplica el
+// concepto de login; el caller decide qué mostrar. Read-only, sin imprimir.
+func HasLogin(home, name string) bool {
+	return fileExists(filepath.Join(ccHomePath(home, name), ".claude.json"))
+}
+
 // Doctor reproduce cmd_doctor del bash: chequea node/claude/git en PATH y, por
 // cada perfil, su estado de login (official: cc-home/.claude.json) o key
 // (deepseek: api_key). Devuelve la lista de chequeos en orden estable; cli la

@@ -6,6 +6,7 @@ import (
 
 	"github.com/JoseAFlores777/ccp/internal/core"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // dashboard.go — navegación y acciones del modo dashboard (los 3 paneles) y la
@@ -238,112 +239,156 @@ func (m *model) View() string {
 	}
 }
 
-// viewForm muestra el form embebido con un encabezado de contexto.
-func (m *model) viewForm() string {
-	var b strings.Builder
-	b.WriteString(styleTitle.Render("ccp — formulario") + "\n\n")
-	b.WriteString(m.cur.form.View())
-	b.WriteString("\n" + styleDim.Render("esc cancela") + "\n")
-	return b.String()
+// panelWidth es el ancho de contenido de las cajas según la terminal.
+func (m *model) panelWidth() int {
+	w := m.width - 2
+	if m.width == 0 || w < 24 {
+		w = 76
+	}
+	if w > 100 {
+		w = 100
+	}
+	return w
 }
 
-// viewDashboard pinta los 3 paneles, la barra de comandos (si activa) y la
-// línea de estado.
+// box envuelve el cuerpo de un panel en una caja redondeada con título; el foco
+// tiñe el borde y el título de terracota.
+func (m *model) box(p panel, title, hint, body string) string {
+	bs, ts, mark := boxStyle, stylePanelTtl, "  "
+	if m.focus == p {
+		bs, ts, mark = boxStyleFocused, styleFocused, "▸ "
+	}
+	header := ts.Render(mark + title)
+	if hint != "" {
+		header += "  " + styleDim.Render(hint)
+	}
+	content := header
+	if body != "" {
+		content += "\n" + body
+	}
+	return bs.Width(m.panelWidth()).Render(content)
+}
+
+// viewForm muestra el form embebido dentro de una caja con foco.
+func (m *model) viewForm() string {
+	header := styleBrand.Render("ccp") + styleSub.Render("  formulario")
+	body := m.cur.form.View() + "\n" + styleDim.Render("esc cancela")
+	return "\n" + boxStyleFocused.Width(m.panelWidth()).Render(header+"\n\n"+body) + "\n"
+}
+
+// viewDashboard pinta el header con versión, los 3 paneles en cajas, la barra de
+// comandos (si activa), la línea de estado y el footer de teclas.
 func (m *model) viewDashboard() string {
 	var b strings.Builder
-	b.WriteString(styleTitle.Render("ccp — perfiles y cuentas de Claude Code") + "\n")
-	b.WriteString(styleDim.Render("tab: cambiar panel · j/k: navegar · :  comandos · q: salir") + "\n\n")
 
-	b.WriteString(m.viewProfiles())
-	b.WriteString("\n")
-	b.WriteString(m.viewRules())
-	b.WriteString("\n")
-	b.WriteString(m.viewStatus())
+	b.WriteString(styleBrand.Render("ccp") +
+		styleSub.Render(" v"+core.Version+" — perfiles y cuentas de Claude Code") + "\n\n")
+
+	b.WriteString(m.viewProfiles() + "\n")
+	b.WriteString(m.viewRules() + "\n")
+	b.WriteString(m.viewStatus() + "\n")
 
 	if m.mode == modeCommand {
-		b.WriteString("\n" + styleFocused.Render(": "+m.cmdInput+"_") + "\n")
+		b.WriteString("\n" + styleFocused.Render(": "+m.cmdInput+"▏") + "\n")
 		b.WriteString(styleDim.Render("backup-export · backup-restore · doctor · sync · install · (esc cancela)") + "\n")
 	}
 
 	if m.statusMsg != "" {
-		b.WriteString("\n")
+		st := styleOK
 		if m.statusErr {
-			b.WriteString(styleErr.Render(m.statusMsg))
-		} else {
-			b.WriteString(styleOK.Render(m.statusMsg))
+			st = styleErr
 		}
-		b.WriteString("\n")
+		b.WriteString("\n" + st.Render(m.statusMsg) + "\n")
 	}
-	return b.String()
-}
 
-// panelHeader pinta el título de un panel marcando el foco.
-func (m *model) panelHeader(p panel, label string) string {
-	if m.focus == p {
-		return styleFocused.Render("▸ " + label)
-	}
-	return styleDim.Render("  " + label)
+	b.WriteString("\n" + styleDim.Render("tab: panel · j/k: navegar · enter: detalle · : comandos · q: salir"))
+	return b.String()
 }
 
 func (m *model) viewProfiles() string {
-	var b strings.Builder
-	b.WriteString(m.panelHeader(panelProfiles, "Perfiles") + "  " +
-		styleDim.Render("a:añadir d:borrar s:key e:config L:login enter:detalle") + "\n")
+	const hint = "a:añadir d:borrar s:key e:config L:login enter:detalle"
 	if len(m.profiles) == 0 {
-		b.WriteString(styleDim.Render("  (sin perfiles — pulsa 'a' para añadir)") + "\n")
-		return b.String()
+		return m.box(panelProfiles, "Perfiles", hint,
+			styleDim.Render("(sin perfiles — pulsa 'a' para añadir)"))
 	}
+	rows := make([]string, 0, len(m.profiles))
 	for i, name := range m.profiles {
-		line := fmt.Sprintf("  %s (%s)", name, m.profileType(name))
-		if i == m.profIdx && m.focus == panelProfiles {
-			line = styleSelected.Render(line)
-		}
-		b.WriteString(line + "\n")
+		rows = append(rows, m.profileRow(i, name))
 	}
+	body := strings.Join(rows, "\n")
 	if m.showDetail {
 		if detail, err := core.ProfileShow(m.home, m.selectedProfile()); err == nil {
-			b.WriteString(indent(detail))
+			body += "\n" + styleDim.Render(strings.TrimRight(indent(detail), "\n"))
 		}
 	}
-	return b.String()
+	return m.box(panelProfiles, "Perfiles", hint, body)
+}
+
+// profileRow pinta una fila de perfil: cursor, nombre, badge de tipo y salud.
+func (m *model) profileRow(i int, name string) string {
+	sel := i == m.profIdx && m.focus == panelProfiles
+	cur, nameSt := "  ", styleVal
+	if sel {
+		cur, nameSt = styleFocused.Render("▸ "), styleSelected
+	}
+	t := m.profileType(name)
+	nameCell := lipgloss.NewStyle().Width(16).Render(nameSt.Render(name))
+	badgeCell := lipgloss.NewStyle().Width(11).Render(badge(t))
+	health := ""
+	switch t {
+	case "official":
+		if core.HasLogin(m.home, name) {
+			health = styleCheck.Render("✓ logueado")
+		} else {
+			health = styleCross.Render("✗ sin login")
+		}
+	case "deepseek":
+		if _, ok := core.GetKey(m.home, name); ok {
+			health = styleCheck.Render("✓ key")
+		} else {
+			health = styleCross.Render("✗ sin key")
+		}
+	}
+	return cur + nameCell + badgeCell + health
 }
 
 func (m *model) viewRules() string {
-	var b strings.Builder
-	b.WriteString(m.panelHeader(panelRules, "Reglas") + "  " +
-		styleDim.Render("a:añadir d:borrar") + "\n")
+	const hint = "a:añadir d:borrar"
 	if m.cfg == nil || len(m.cfg.Rules) == 0 {
-		b.WriteString(styleDim.Render("  (sin reglas — 'a' para añadir)") + "\n")
-		return b.String()
+		return m.box(panelRules, "Reglas", hint, styleDim.Render("(sin reglas — 'a' para añadir)"))
 	}
+	rows := make([]string, 0, len(m.cfg.Rules))
 	for i, r := range m.cfg.Rules {
-		line := fmt.Sprintf("  %s → %s", r.Path, r.Profile)
-		if i == m.ruleIdx && m.focus == panelRules {
-			line = styleSelected.Render(line)
+		sel := i == m.ruleIdx && m.focus == panelRules
+		cur, pathSt := "  ", styleVal
+		if sel {
+			cur, pathSt = styleFocused.Render("▸ "), styleSelected
 		}
-		b.WriteString(line + "\n")
+		pathCell := lipgloss.NewStyle().Width(40).Render(pathSt.Render(r.Path))
+		rows = append(rows, cur+pathCell+styleDim.Render("→ ")+styleVal.Render(r.Profile))
 	}
-	return b.String()
+	return m.box(panelRules, "Reglas", hint, strings.Join(rows, "\n"))
 }
 
 func (m *model) viewStatus() string {
-	var b strings.Builder
-	b.WriteString(m.panelHeader(panelStatus, "Estado") + "  " +
-		styleDim.Render("r:recomputar") + "\n")
 	if !m.estComputed {
-		// Cómputo perezoso la primera vez que se muestra.
-		m.refreshEstado()
+		m.refreshEstado() // cómputo perezoso la primera vez
 	}
 	e := m.est
-	repo := e.Repo
-	if repo == "" {
-		repo = "no es git"
+	repo := styleDim.Render("no es git")
+	if e.Repo != "" {
+		repo = styleVal.Render(e.Repo)
 	}
-	fmt.Fprintf(&b, "  Perfil activo (terminal): %s\n", e.Active)
-	fmt.Fprintf(&b, "  Perfil del cwd (regla):   %s  (%s)\n", e.Profile, e.ProfileType)
-	fmt.Fprintf(&b, "  Cwd:                      %s\n", e.Cwd)
-	fmt.Fprintf(&b, "  Repo:                     %s\n", repo)
-	return b.String()
+	kv := func(k, v string) string {
+		return lipgloss.NewStyle().Width(26).Foreground(cMute).Render(k) + v
+	}
+	body := strings.Join([]string{
+		kv("Perfil activo (terminal)", styleFocused.Render(e.Active)),
+		kv("Perfil del cwd (regla)", styleVal.Render(e.Profile)+styleDim.Render("  ("+e.ProfileType+")")),
+		kv("Cwd", styleVal.Render(e.Cwd)),
+		kv("Repo", repo),
+	}, "\n")
+	return m.box(panelStatus, "Estado", "r:recomputar", body)
 }
 
 // indent sangra cada línea de s con dos espacios (para el bloque de detalle).
