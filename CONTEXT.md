@@ -34,3 +34,7 @@ ccp's record of the artifacts it created, so `recall`/`forget` only ever touch c
 
 **cc-home**:
 A profile-private directory used as `CLAUDE_CONFIG_DIR`. Every non-`default` profile has one — official **and** deepseek (seeded with symlinked plugins/commands/agents/skills; `CLAUDE.md` and `settings.json` are generated, not copied).
+
+**Backup**:
+A portable, restorable snapshot of ccp's state. Two tiers by what they carry: a *config backup* (profiles, path rules, defaults, overlays — no secrets, safe to share/version) and a *full backup* (config **plus** secrets: provider api_keys and official-profile login credentials). Re-seedable, machine-local symlinks are never captured; they are rebuilt on restore. Distinct from the *pre-restore snapshot* and *pre-migration backup*, which are automatic safety copies ccp takes before a restore or a format migration so the prior state stays recoverable.
+_Avoid_: export (use only as the verb that writes a backup), dump.

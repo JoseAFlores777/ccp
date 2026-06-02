@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan de migración de ccp a Go — v2.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f4f1ea; --paper-2:#ece7dd;
+  --ink:#1a1915; --ink-soft:#3a3833; --ink-mute:#6f6a60;
+  --rule:#d8d2c4; --accent:#c96442; --accent-soft:#e8a48a;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:'Inter',sans-serif; font-size:17px; line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:980px; margin:0 auto; padding:64px 32px 96px;}
+.eyebrow{
+  font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.22em;
+  text-transform:uppercase; color:var(--accent); margin:0 0 18px;
+}
+h1{
+  font-family:'Tinos',serif; font-weight:700; font-size:56px; line-height:1.08;
+  margin:0 0 24px; letter-spacing:-.01em;
+}
+h1 em{color:var(--accent); font-style:italic;}
+.lede{font-size:20px; color:var(--ink-soft); max-width:70ch; margin:0 0 28px;}
+.meta{
+  font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--ink-mute);
+  display:flex; flex-wrap:wrap; gap:20px; padding:18px 0; border-top:1px solid var(--rule);
+  border-bottom:1px solid var(--rule);
+}
+.meta b{color:var(--ink-soft); font-weight:500;}
+nav.toc{margin:48px 0 8px;}
+nav.toc h2{
+  font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--ink-mute); margin:0 0 16px; font-weight:500;
+}
+nav.toc ol{
+  list-style:none; counter-reset:toc; margin:0; padding:0;
+  columns:2; column-gap:48px;
+}
+nav.toc li{counter-increment:toc; margin:0 0 10px; break-inside:avoid;}
+nav.toc a{
+  color:var(--ink-soft); text-decoration:none; display:flex; gap:12px; align-items:baseline;
+  border-bottom:1px solid transparent; padding-bottom:2px; transition:border-color .15s,color .15s;
+}
+nav.toc a:hover{color:var(--ink); border-bottom-color:var(--accent);}
+nav.toc a::before{
+  content:counter(toc,decimal-leading-zero);
+  font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--accent); min-width:22px;
+}
+section{padding:40px 0; border-bottom:1px solid var(--rule); scroll-margin-top:24px;}
+section h2{
+  font-family:'Tinos',serif; font-weight:700; font-size:30px; line-height:1.2;
+  margin:0 0 18px; display:flex; gap:14px; align-items:baseline;
+}
+.num{font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--accent); font-weight:400; white-space:nowrap;}
+.section-lede{color:var(--ink-mute); margin:-6px 0 22px; font-size:16px;}
+h3{font-family:'Inter',sans-serif; font-weight:600; font-size:18px; margin:28px 0 10px; color:var(--ink);}
+p{margin:0 0 16px;}
+ul,ol{margin:0 0 16px; padding-left:22px;}
+li{margin:0 0 8px;}
+strong{font-weight:600;}
+a{color:var(--accent);}
+code{
+  font-family:'JetBrains Mono',monospace; font-size:13.5px;
+  background:var(--paper-2); padding:1px 6px; border-radius:4px; color:var(--ink-soft);
+}
+pre{
+  background:#211f1a; color:#e9e4d8; border-radius:10px; padding:20px 22px;
+  overflow-x:auto; font-family:'JetBrains Mono',monospace; font-size:13px; line-height:1.6;
+  margin:0 0 20px; position:relative; border:1px solid #322f28;
+}
+pre code{background:none; padding:0; color:inherit; font-size:13px;}
+pre .c{color:#8c8676; font-style:italic;}
+pre .k{color:#e8a48a;}
+pre .s{color:#b7c98a;}
+.copy{
+  position:absolute; top:10px; right:10px; font-family:'JetBrains Mono',monospace;
+  font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:#8c8676;
+  background:#322f28; border:none; border-radius:5px; padding:4px 9px; cursor:pointer;
+}
+.copy:hover{color:#e9e4d8;}
+table{width:100%; border-collapse:collapse; margin:0 0 22px; font-size:14.5px;}
+th,td{text-align:left; padding:10px 12px; border-bottom:1px solid var(--rule); vertical-align:top;}
+th{
+  font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--ink-mute); font-weight:500;
+}
+td:first-child{font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--accent); white-space:nowrap;}
+.grid-2{display:grid; grid-template-columns:1fr 1fr; gap:24px;}
+.callout{
+  background:var(--paper-2); border-left:3px solid var(--accent); border-radius:0 8px 8px 0;
+  padding:16px 20px; margin:0 0 20px; font-size:15px;
+}
+.callout b{color:var(--accent);}
+footer{
+  margin-top:48px; font-family:'JetBrains Mono',monospace; font-size:12px;
+  color:var(--ink-mute); text-align:center;
+}
+@media (max-width:760px){
+  .wrap{padding:40px 20px 64px;}
+  h1{font-size:38px;}
+  nav.toc ol{columns:1;}
+  .grid-2{grid-template-columns:1fr;}
+  .meta{flex-direction:column; gap:6px;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <p class="eyebrow">Plan de migración · v2.0</p>
+  <h1>De Bash a <em>Go</em>, sin perder un solo byte de tu config</h1>
+  <p class="lede">Reescritura completa del binario <code>ccp</code> a Go conservando el contrato shell intacto: YAML canónico migrado con respaldo, backup/restore en dos niveles, y una TUI navegable con bubbletea + huh. Todo en un único release.</p>
+  <div class="meta">
+    <span><b>Fecha</b> 2026-06-02</span>
+    <span><b>Estado</b> propuesto</span>
+    <span><b>Scope</b> binario + libs → Go; cola shell sigue bash</span>
+    <span><b>Release</b> v2.0 (todo de una)</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>Contenido</h2>
+  <ol>
+    <li><a href="#s0">Objetivo e invariantes</a></li>
+    <li><a href="#s1">Decisiones resueltas</a></li>
+    <li><a href="#s2">Arquitectura objetivo</a></li>
+    <li><a href="#s3">Contrato congelado</a></li>
+    <li><a href="#s4">Modelo de datos — ccp.yaml</a></li>
+    <li><a href="#s5">Migración de datos</a></li>
+    <li><a href="#s6">Backup / restore</a></li>
+    <li><a href="#s7">TUI bubbletea + huh</a></li>
+    <li><a href="#s8">Distribución, install, upgrade</a></li>
+    <li><a href="#s9">Estrategia de tests</a></li>
+    <li><a href="#s10">Plan de ejecución por fases</a></li>
+    <li><a href="#s11">Riesgos</a></li>
+    <li><a href="#s12">Criterios de aceptación</a></li>
+    <li><a href="#s13">Decisiones de implementación</a></li>
+  </ol>
+</nav>
+
+<section id="s0">
+  <h2><span class="num">§ 00</span>Objetivo e invariantes</h2>
+  <p>Migrar <code>ccp</code> de Bash a Go <strong>sin que el usuario pierda data ni configuración</strong> al actualizar. Un <code>ccp upgrade</code> (todavía bash en ese momento) deja instalado el binario Go; el siguiente <code>command ccp</code> ya es Go y migra los datos a YAML de forma respaldada. El bloque rc no se toca.</p>
+  <h3>Invariantes que NO pueden romperse (contrato congelado)</h3>
+  <ol>
+    <li><code>ccp _env &lt;perfil&gt;</code> y <code>ccp _hook &lt;path&gt;</code> se hacen <code>eval</code> en el shell → salida equivalente byte-a-byte al bash (mismo <code>unset</code>/<code>export</code>, mismo quoting, mismo orden).</li>
+    <li><code>ccp completion-shellinit</code> produce el bloque rc entre <code>&#35; &gt;&gt;&gt; ccp shell init &gt;&gt;&gt;</code> / <code>&#35; &lt;&lt;&lt;</code>.</li>
+    <li><code>ccp completion zsh|bash</code> produce completions válidos (el rc los <code>eval</code> al arrancar).</li>
+    <li>Superficie scriptable estable: <code>resolve</code>, <code>path test</code> (exit 0/1), <code>status --json</code>.</li>
+    <li>Frontera binario↔shell: el binario EMITE entorno, el shell lo EVALúa. Nunca el binario muta el entorno.</li>
+  </ol>
+</section>
+
+<section id="s1">
+  <h2><span class="num">§ 01</span>Decisiones resueltas</h2>
+  <p class="section-lede">Quince decisiones fijadas en el grilling del 2026-06-02.</p>
+  <table>
+    <thead><tr><th>#</th><th>Decisión</th><th>Elegido</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Alcance Go</td><td>Solo el binario; cola shell sigue bash, emitida por Go</td></tr>
+      <tr><td>2</td><td>Gate compat</td><td>Golden diff bash-vs-go sobre fixtures (bash = oráculo)</td></tr>
+      <tr><td>3</td><td>Adopción YAML</td><td>Auto-migrar a YAML canónico con backup; secretos fuera</td></tr>
+      <tr><td>4</td><td>Layout YAML</td><td>Un solo <code>ccp.yaml</code> como fuente de verdad</td></tr>
+      <tr><td>5</td><td>Alcance backup</td><td>Dos niveles: config (default) y full (<code>--with-secrets</code>)</td></tr>
+      <tr><td>6</td><td>Formato backup</td><td><code>.tar.gz</code> con manifest + checksum</td></tr>
+      <tr><td>7</td><td>Restore</td><td>No-destructivo: auto-snapshot + skip; <code>--overwrite</code>/<code>--force</code></td></tr>
+      <tr><td>8</td><td>Alcance TUI</td><td>App bubbletea completa con huh embebido</td></tr>
+      <tr><td>9</td><td>Vistas TUI</td><td>3 paneles: Perfiles · Reglas · Estado</td></tr>
+      <tr><td>10</td><td>Distribución</td><td>Release prebuilt + checksum, fallback <code>go build</code></td></tr>
+      <tr><td>11</td><td>Cutover</td><td>Parity-first big-bang; bash = oráculo hasta v2.0</td></tr>
+      <tr><td>12</td><td>Tests</td><td><code>go test</code> + golden-diff integración</td></tr>
+      <tr><td>13</td><td>Migración dsctl</td><td>Go = migrador universal en cadena</td></tr>
+      <tr><td>14</td><td>Lib YAML</td><td><code>goccy/go-yaml</code> (preserva comentarios)</td></tr>
+      <tr><td>15</td><td>Secuencia</td><td>v2.0 incluye todo</td></tr>
+    </tbody>
+  </table>
+  <p>ADRs relacionados: <a href="../../adr/0006-rewrite-to-go-keeping-bash-shell-tail.md">0006 — reescritura a Go</a>, <a href="../../adr/0007-yaml-canonical-with-one-way-migration-and-backup.md">0007 — YAML canónico one-way</a>.</p>
+</section>
+
+<section id="s2">
+  <h2><span class="num">§ 02</span>Arquitectura objetivo</h2>
+  <p class="section-lede">Core en un paquete Go; dos front-ends (CLI y TUI) sobre el mismo core. La TUI nunca duplica lógica.</p>
+  <p>Module: <code>github.com/JoseAFlores777/ccp</code> · binario <code>ccp</code> · Go mínimo <strong>1.23</strong>. El repo se <strong>renombra</strong> dsctl → ccp (alinea repo=binario=module; coste: re-apuntar <code>install-source</code>, redirect de GitHub).</p>
+<pre><button class="copy">copy</button><code>ccp/
+├── cmd/ccp/main.go              <span class="c"># entrypoint: parse args -> dispatch (a mano, sin cobra)</span>
+├── internal/
+│   ├── core/                    <span class="c"># motor (sin I/O de presentación)</span>
+│   │   ├── profile.go           <span class="c"># CRUD perfiles (official/deepseek/default)</span>
+│   │   ├── rules.go             <span class="c"># path rules, resolve (deepest wins)</span>
+│   │   ├── env.go               <span class="c"># EnvDelta: unset/export %q-equivalente</span>
+│   │   ├── cfg.go               <span class="c"># overlay engine (@import + jq-like merge)</span>
+│   │   ├── store.go             <span class="c"># lee/escribe ccp.yaml (atómico)</span>
+│   │   ├── secrets.go           <span class="c"># api_key 600 + credenciales cc-home</span>
+│   │   ├── backup.go            <span class="c"># export/restore tar.gz + manifest</span>
+│   │   ├── migrate.go           <span class="c"># migrador universal dsctl->ccp->YAML</span>
+│   │   └── shellinit.go         <span class="c"># cola shell bash como string</span>
+│   ├── cli/                     <span class="c"># dispatch subcomandos, salida texto/JSON</span>
+│   └── tui/                     <span class="c"># bubbletea app + formularios huh</span>
+├── testdata/golden/             <span class="c"># fixtures CCP_HOME + salidas esperadas</span>
+├── install.sh                   <span class="c"># detecta OS/arch: release o go build</span>
+├── legacy/                      <span class="c"># bash archivado tras paridad</span>
+└── .github/workflows/           <span class="c"># build matrix + release + golden gate</span></code></pre>
+  <div class="callout"><b>Regla dura.</b> <code>internal/core</code> no imprime presentación; devuelve datos/strings y los front-ends formatean. Solo <code>env.go</code> y <code>shellinit.go</code> producen strings exactos — son el contrato.</div>
+</section>
+
+<section id="s3">
+  <h2><span class="num">§ 03</span>Contrato congelado — equivalencia</h2>
+  <p>El punto fino es el <strong>quoting</strong>. Bash <code>printf '%q'</code> quotea de forma específica (p.ej. <code>$'...'</code> para caracteres de control). Go debe producir algo que zsh <em>y</em> bash evalúen a la misma cadena.</p>
+  <ul>
+    <li>Implementar <code>core.shellQuote(s string) string</code> que replique <code>%q</code> de bash para valores reales (paths con espacios, base_url, tokens, modelos). <strong>No</strong> usar <code>strconv.Quote</code> (semántica Go ≠ shell).</li>
+    <li>Verificación por <strong>efecto</strong>: <code>eval</code> la salida de Go en un zsh y un bash reales, y comparar las variables resultantes contra el bash oráculo — no solo el texto.</li>
+    <li>Orden idéntico: primero <code>unset</code> de todas las managed vars, luego los <code>export</code> del perfil objetivo.</li>
+  </ul>
+</section>
+
+<section id="s4">
+  <h2><span class="num">§ 04</span>Modelo de datos — ccp.yaml</h2>
+  <p class="section-lede">Fuente de verdad única. Reemplaza profiles.tsv + rules.tsv + config + los meta + el authored global/profile. Secretos fuera.</p>
+<pre><button class="copy">copy</button><code><span class="k">version:</span> 2                      <span class="c"># si el binario conoce &lt; version -> ABORTA</span>
+
+<span class="k">defaults:</span>                       <span class="c"># SOLO siembra perfiles nuevos; editar no muta existentes</span>
+  <span class="k">base_url:</span> <span class="s">https://api.deepseek.com/anthropic</span>
+  <span class="k">model_pro:</span> <span class="s">deepseek-chat</span>
+  <span class="k">model_flash:</span> <span class="s">deepseek-chat</span>
+  <span class="k">effort:</span> <span class="s">high</span>
+  <span class="k">editor:</span> <span class="s">nano</span>
+
+<span class="k">profiles:</span>                       <span class="c"># 'default' es IMPLÍCITO (nunca aquí)</span>
+  <span class="k">work:</span>
+    <span class="k">type:</span> <span class="s">official</span>             <span class="c"># login vive en cc-home/.claude.json</span>
+  <span class="k">deepseek:</span>                     <span class="c"># literal load-bearing (env.go switchea sobre él)</span>
+    <span class="k">type:</span> <span class="s">deepseek</span>
+    <span class="k">base_url:</span> <span class="s">https://api.deepseek.com/anthropic</span>  <span class="c"># 4 campos EXPLÍCITOS</span>
+    <span class="k">model_pro:</span> <span class="s">deepseek-chat</span>
+    <span class="k">model_flash:</span> <span class="s">deepseek-chat</span>
+    <span class="k">effort:</span> <span class="s">high</span>
+    <span class="c"># api_key NO va aquí -> profiles/deepseek/api_key (chmod 600)</span>
+
+<span class="k">rules:</span>                          <span class="c"># lista {path, profile}. path abs único. deepest-wins runtime</span>
+  - <span class="k">path:</span> <span class="s">/Users/me/work</span>
+    <span class="k">profile:</span> <span class="s">work</span>
+
+<span class="k">authored:</span>                       <span class="c"># SOLO global+profile, machine-local</span>
+  - <span class="k">scope:</span> <span class="s">global</span>
+    <span class="k">type:</span> <span class="s">rule</span>
+    <span class="k">ref:</span> <span class="s">"..."</span>
+    <span class="k">desc:</span> <span class="s">"..."</span></code></pre>
+  <h3>Reglas del schema</h3>
+  <ul>
+    <li><strong>Versión:</strong> entero; binario con versión conocida menor a la del archivo → aborta, no escribe.</li>
+    <li><strong>Claves desconocidas:</strong> preservadas en round-trip (catch-all inline) — un ccp viejo no borra campos de uno nuevo.</li>
+    <li><strong>Comentarios:</strong> preservados vía <code>CommentMap</code> de goccy (decode por-path → re-adjunta en encode).</li>
+    <li><strong>Sin herencia:</strong> deepseek guarda sus 4 campos completos; <code>defaults</code> solo siembra al crear.</li>
+    <li><strong>Escritura atómica:</strong> <code>tmp</code> + <code>rename</code>. <code>default</code> nunca se serializa.</li>
+  </ul>
+  <div class="callout"><b>Fuera del YAML (igual en disco):</b> <code>cc-home/</code>, <code>overlay/</code>, <code>api_key</code> (600), credenciales OAuth, <code>install-source</code>, y el authored <b>project</b> <code>.claude/ccp-authored.tsv</code> — ccp no reescribe archivos del repo del usuario (cero churn de git). Asimetría a propósito.</div>
+</section>
+
+<section id="s5">
+  <h2><span class="num">§ 05</span>Migración de datos (migrador universal)</h2>
+  <p class="section-lede">Disparado en el primer arranque Go cuando detecta estado legacy. Atómico e idempotente.</p>
+<pre><button class="copy">copy</button><code><span class="c">detectar estado:</span>
+  ~/.config/dsctl && !~/.config/ccp  -> migrar dsctl -> ccp (TSV) -> seguir
+  ~/.config/ccp con *.tsv/meta sin ccp.yaml -> migrar TSV/meta -> ccp.yaml
+  ccp.yaml existe -> no-op
+<span class="c">antes de tocar nada:</span>
+  copiar estado legacy -> ~/.config/ccp/.backup-pre-go-&lt;fecha&gt;/
+<span class="c">migrar:</span>
+  profiles.tsv + meta -> profiles ; rules.tsv -> rules
+  config -> defaults ; authored.tsv -> authored
+  escribir ccp.yaml (atómico)
+  NO borrar api_key ni cc-home</code></pre>
+  <div class="callout"><b>Puerta de una vía.</b> Tras migrar, el bash viejo no lee YAML. Es <b>recuperable</b>: el <code>.backup-pre-go-*</code> conserva el TSV/meta; rollback = reinstalar bash + restaurar ese backup. Ver ADR 0007.</div>
+</section>
+
+<section id="s6">
+  <h2><span class="num">§ 06</span>Backup / restore</h2>
+  <h3>Export — <code>ccp backup export [archivo.tar.gz] [--with-secrets]</code></h3>
+  <ul>
+    <li><code>.tar.gz</code> (preserva permisos 600) con <code>manifest.yaml</code> (versión, fecha, perfiles, flag with_secrets, checksum) + <code>ccp.yaml</code> + <code>overlay/</code> de cada perfil.</li>
+    <li>Con <code>--with-secrets</code>: añade <code>api_key</code> + credenciales del <code>cc-home</code>; archivo <code>chmod 600</code> + warning.</li>
+    <li>Excluye symlinks re-seedables (plugins/commands/agents/skills) — se reconstruyen al restaurar.</li>
+  </ul>
+  <h3>Restore — <code>ccp backup restore archivo.tar.gz [--overwrite | --force]</code></h3>
+<pre><button class="copy">copy</button><code>verificar checksum del manifest
+auto-snapshot estado actual -> .backup-pre-restore-&lt;fecha&gt;/   <span class="c"># reversible</span>
+por cada perfil del backup:
+  no existe        -> crear (re-seed symlinks cc-home)
+  existe (default) -> skip + reportar
+  --overwrite      -> reemplazar ese perfil
+  --force          -> wipe + restore total
+reglas de path: merge (las que no chocan se añaden)
+secretos (si full) -> escribir chmod 600</code></pre>
+</section>
+
+<section id="s7">
+  <h2><span class="num">§ 07</span>TUI — bubbletea + huh</h2>
+  <p class="section-lede"><code>ccp</code> sin args y con TTY lanza la TUI. Sin TTY (pipe/script) imprime ayuda/estado.</p>
+  <div class="grid-2">
+    <div>
+      <h3>Perfiles</h3>
+      <p>Lista navegable; <code>enter</code> → detalle. Acciones vía huh: añadir (official/deepseek), editar config (<code>$EDITOR</code>), login, borrar (confirm), set key.</p>
+    </div>
+    <div>
+      <h3>Reglas</h3>
+      <p>Lista de path rules; añadir (huh: path + select de perfil), borrar (confirm).</p>
+    </div>
+    <div>
+      <h3>Estado</h3>
+      <p>Perfil del <code>cwd</code> resuelto en vivo, perfil activo de la terminal, repo.</p>
+    </div>
+    <div>
+      <h3>Barra de comandos</h3>
+      <p>backup export/restore (wizard huh), doctor, sync, install. Navegación: <code>tab</code> entre paneles, <code>j/k</code> dentro.</p>
+    </div>
+  </div>
+  <div class="callout"><b>Sin duplicar lógica.</b> La TUI solo llama <code>internal/core</code>; cada acción tiene su subcomando CLI equivalente. Degrada con <code>isatty</code>/<code>NO_COLOR</code>.</div>
+</section>
+
+<section id="s8">
+  <h2><span class="num">§ 08</span>Distribución, install, upgrade</h2>
+  <p><strong>CI:</strong> matriz <code>darwin/arm64·amd64</code>, <code>linux/amd64·arm64</code> → binarios + <code>checksums.txt</code> en GitHub Releases.</p>
+<pre><button class="copy">copy</button><code><span class="c"># install.sh (Go-aware)</span>
+detectar OS/arch
+release disponible -> descargar binario + verificar checksum -> ~/.local/bin/ccp
+si no, hay toolchain Go -> go build ./cmd/ccp
+rm -rf ~/.local/lib/ccp        <span class="c"># ya no hay libs bash</span>
+registrar install-source ; copiar commands/ccp/*.md</code></pre>
+  <div class="callout"><b>El corte bash→Go.</b> Usuario en bash corre <code>ccp upgrade</code> → re-ejecuta el install.sh nuevo → instala binario Go y borra libs bash. El bloque rc no cambia (solo llama <code>command ccp</code>), así el siguiente <code>command ccp</code> ya es Go, y la migración-a-YAML dispara en ese primer arranque.</div>
+  <div class="callout"><b>Nota operativa.</b> En la máquina actual <b>Go no está instalado</b> → el fallback <code>go build</code> no aplica; el camino prebuilt-release es el efectivo. El binario debe instalarse sin toolchain Go.</div>
+</section>
+
+<section id="s9">
+  <h2><span class="num">§ 09</span>Estrategia de tests</h2>
+  <ul>
+    <li><strong>go test (core):</strong> tablas para profile, rules (deepest-wins, norm-path), env (EnvDelta + quoting), cfg (overlay merge), store (round-trip YAML), backup (export/restore + colisiones), migrate (cadena + idempotencia).</li>
+    <li><strong>Golden-diff (gate CI):</strong> fixtures <code>testdata/golden/&lt;caso&gt;/CCP_HOME</code>. Correr binario bash (oráculo) y Go; exigir salida idéntica en <code>_env</code>, <code>_hook</code>, <code>completion*</code>, <code>status --json</code>, <code>resolve</code>, <code>path test</code> — <em>más</em> el efecto del <code>eval</code> en zsh y bash reales.</li>
+    <li><code>tests/run.sh</code> se mantiene mientras el bash es oráculo; se retira al lograr paridad.</li>
+  </ul>
+</section>
+
+<section id="s10">
+  <h2><span class="num">§ 10</span>Plan de ejecución por fases</h2>
+  <p class="section-lede">Cada fase deja algo verificable. El bash permanece intacto y funcional hasta la Fase 7.</p>
+  <table>
+    <thead><tr><th>Fase</th><th>Entregable</th><th>Verificación</th></tr></thead>
+    <tbody>
+      <tr><td>0</td><td>Scaffold módulo Go, CI build matrix, fixtures golden</td><td><code>go build</code> OK; fixtures generados</td></tr>
+      <tr><td>1</td><td><code>core.store</code> (lee legacy + YAML) + <code>core.migrate</code></td><td>migración idempotente</td></tr>
+      <tr><td>2</td><td><code>profile</code> + <code>rules</code> + <code>env</code> (EnvDelta, shellQuote)</td><td>golden-diff <code>_env</code>/<code>_hook</code>/<code>resolve</code></td></tr>
+      <tr><td>3</td><td><code>cfg</code> + <code>secrets</code> + <code>shellinit</code></td><td>golden-diff <code>completion*</code>/<code>status</code></td></tr>
+      <tr><td>4</td><td>CLI dispatch completo, paridad total</td><td>golden-diff superficie + eval real zsh+bash</td></tr>
+      <tr><td>5</td><td><code>backup</code> export/restore + subcomandos</td><td>round-trip + colisiones</td></tr>
+      <tr><td>6</td><td>TUI bubbletea+huh (3 paneles + wizards)</td><td>smoke manual; acciones = subcomandos</td></tr>
+      <tr><td>7</td><td>install.sh Go-aware + upgrade + release; bash → <code>legacy/</code></td><td>upgrade bash→Go en VM limpia</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="s11">
+  <h2><span class="num">§ 11</span>Riesgos</h2>
+  <table>
+    <thead><tr><th>Riesgo</th><th>Mitigación</th></tr></thead>
+    <tbody>
+      <tr><td>Quoting Go ≠ bash %q</td><td><code>shellQuote</code> dedicado + test de efecto del eval en zsh y bash, no solo diff de texto</td></tr>
+      <tr><td>Migración corrompe data (one-way)</td><td>Backup pre-migración atómico + idempotencia + golden-diff sobre estado migrado; rollback documentado</td></tr>
+      <tr><td>TUI acoplada al corte de datos en un v2.0</td><td>TUI solo llama core ya probado (Fases 1–5 verdes antes de Fase 6)</td></tr>
+      <tr><td>Credenciales OAuth no portables en restore full</td><td>Documentar: full restaura sesión solo en la misma máquina; config-restore + re-login como camino portable</td></tr>
+      <tr><td>Usuario en dsctl salta a Go</td><td>Migrador universal en cadena</td></tr>
+      <tr><td>rc viejo incompatible</td><td>El rc solo llama <code>command ccp</code>; Go emite shell-init idéntico → sin reinstall; <code>_upgrade_check_rc</code> avisa si difiere</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="s12">
+  <h2><span class="num">§ 12</span>Criterios de aceptación (v2.0)</h2>
+  <ol>
+    <li>Golden-diff verde: salida y efecto del eval de toda la superficie idénticos al bash, en zsh y bash.</li>
+    <li><code>ccp upgrade</code> desde una instalación bash real deja el binario Go, migra a <code>ccp.yaml</code> con backup, y <code>cd</code>/<code>claude</code> siguen funcionando sin reinstalar el rc.</li>
+    <li>Migración idempotente y reversible (el <code>.backup-pre-go-*</code> permite volver a bash).</li>
+    <li><code>backup export</code>/<code>restore</code> round-trip completo (config y full), restore no-destructivo con snapshot previo.</li>
+    <li>TUI lanza con <code>ccp</code> (TTY), cubre CRUD perfiles/reglas + backup/doctor, no rompe el modo no-interactivo.</li>
+    <li><code>install.sh</code> instala por release (fallback <code>go build</code>) en darwin/linux × arm64/amd64.</li>
+    <li>Secretos nunca en <code>ccp.yaml</code>; backups sin <code>--with-secrets</code> libres de secretos.</li>
+  </ol>
+</section>
+
+<section id="s13">
+  <h2><span class="num">§ 13</span>Decisiones de implementación</h2>
+  <p class="section-lede">Cabos atados tras el schema, antes de codear. Todas con el bash como oráculo del contrato.</p>
+  <table>
+    <thead><tr><th>Tema</th><th>Decisión</th><th>Por qué</th></tr></thead>
+    <tbody>
+      <tr><td>shellQuote</td><td>Replicar <code>printf %q</code> a mano; gate byte-idéntico + eval-equiv de respaldo</td><td>Libs como mvdan.cc/sh usan otro estilo → romperían el diff. Riesgo nº1.</td></tr>
+      <tr><td>Dispatch CLI</td><td>A mano (sin cobra); completion verbatim del bash</td><td>La completion de cobra difiere del texto que el rc espera.</td></tr>
+      <tr><td>Merge JSON</td><td>Deep-merge <code>. * $x</code> en Go puro, sin jq</td><td>Elimina la dep de jq. Mismo merge para overlay y hooks/mcp.</td></tr>
+      <tr><td>Locking</td><td><code>flock</code> advisory por write + tmp/rename</td><td>Un solo archivo → más contención; evita lost-update.</td></tr>
+      <tr><td>Backup checksum</td><td>sha256 por miembro en el manifest</td><td>Detecta corrupción parcial y reporta qué archivo.</td></tr>
+      <tr><td>Restore xver</td><td>Aborta si schema_version &gt; conocida</td><td>Espeja la política de lectura de ccp.yaml.</td></tr>
+      <tr><td>Forms TUI</td><td><code>huh.Form</code> subvista embebida; foco vuelve al panel</td><td>Mantiene el contexto de los 3 paneles.</td></tr>
+      <tr><td>Confirmaciones</td><td>Siempre en destructivas; CLI con <code>--yes</code></td><td>Red de seguridad para rm/force/clear.</td></tr>
+      <tr><td>Refresh Estado</td><td>On-focus + tecla <code>r</code>; sin ticker</td><td>El estado casi nunca cambia solo; cero polling.</td></tr>
+      <tr><td>Naming</td><td>Module <code>.../ccp</code>; repo dsctl→ccp; Go 1.23</td><td>Alinea repo=binario=module.</td></tr>
+    </tbody>
+  </table>
+  <h3>Parity a portar (sin re-grillar)</h3>
+  <ul>
+    <li><strong>_seed_cc_home:</strong> symlinks plugins/commands/agents/skills desde <code>~/.claude</code> (<code>CCP_CLAUDE_SRC</code>).</li>
+    <li><strong>cfg:</strong> CLAUDE.md = header + @import global + @import overlay; settings.json = merge; migración legacy.</li>
+    <li><strong>instruct:</strong> 6 tipos → estructura nativa; bloque con marcadores; merge JSON hook/mcp; manifest (global/profile→ccp.yaml, project→TSV).</li>
+    <li><strong>migrate dsctl:</strong> DS_*→defaults, include→deepseek, exclude→default, backup rules.dsctl.bak.</li>
+    <li><strong>Salida:</strong> ok/warn/err/info/say/hr con <code>NO_COLOR</code>/no-TTY; strings en español.</li>
+    <li><strong>Exit codes:</strong> resolve/path test 0/1; status --json con active/profile/profile_type/cwd/repo.</li>
+  </ul>
+</section>
+
+<footer>ccp · plan de migración a Go · v0.2 — 2026-06-02</footer>
+
+</div>
+<script>
+document.querySelectorAll('.copy').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var code = btn.parentElement.querySelector('code');
+    navigator.clipboard.writeText(code.innerText).then(function(){
+      var t = btn.textContent; btn.textContent = 'copiado'; setTimeout(function(){btn.textContent=t;},1200);
+    });
+  });
+});
+</script>
+</body>
+</html>
