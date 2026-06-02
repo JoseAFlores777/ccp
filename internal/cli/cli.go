@@ -45,6 +45,8 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case "profile":
 		return dispatchProfile(args[1:], stdout, stderr)
+	case "instruct":
+		return dispatchInstruct(args[1:], stdout, stderr)
 	case "backup":
 		return dispatchBackup(args[1:], stdout, stderr)
 	default:

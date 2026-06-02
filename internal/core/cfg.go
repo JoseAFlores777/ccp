@@ -158,8 +158,15 @@ func CfgValidateJSON(file string) error {
 	if err != nil {
 		return fmt.Errorf("no se pudo leer %s: %w", file, err)
 	}
+	return CfgValidateBytes(data)
+}
+
+// CfgValidateBytes devuelve error si data no es JSON válido. Helper compartido
+// por el motor de instrucciones (#9) para no reimportar encoding/json fuera de
+// este archivo.
+func CfgValidateBytes(data []byte) error {
 	if !json.Valid(data) {
-		return fmt.Errorf("JSON inválido en %s", file)
+		return fmt.Errorf("JSON inválido")
 	}
 	return nil
 }
