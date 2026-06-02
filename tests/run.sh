@@ -543,7 +543,7 @@ test_bin_upgrade_runs() {
 test_instruct_dest_global() {
   assert_eq "$(ccp_instruct_dest global rule    /h ds /src /root)" "/src/CLAUDE.md"     "global rule"
   assert_eq "$(ccp_instruct_dest global hook    /h ds /src /root)" "/src/settings.json" "global hook"
-  assert_eq "$(ccp_instruct_dest global mcp     /h ds /src /root)" "/src/settings.json" "global mcp"
+  assert_eq "$(ccp_instruct_dest global mcp     /h ds /src /root)" "/src.json"          "global mcp"
   assert_eq "$(ccp_instruct_dest global agent   /h ds /src /root)" "/src/agents"        "global agent"
   assert_eq "$(ccp_instruct_dest global command /h ds /src /root)" "/src/commands"      "global command"
   assert_eq "$(ccp_instruct_dest global skill   /h ds /src /root)" "/src/skills"        "global skill"
@@ -559,7 +559,9 @@ test_instruct_dest_project() {
 test_instruct_dest_profile_overlay() {
   assert_eq "$(ccp_instruct_dest profile rule /h work /src /root)" "/h/profiles/work/overlay/CLAUDE.md"             "prof rule"
   assert_eq "$(ccp_instruct_dest profile hook /h work /src /root)" "/h/profiles/work/overlay/settings.overlay.json" "prof hook"
-  assert_eq "$(ccp_instruct_dest profile mcp  /h work /src /root)" "/h/profiles/work/overlay/settings.overlay.json" "prof mcp"
+}
+test_instruct_dest_profile_mcp_rc5() {
+  ccp_instruct_dest profile mcp /h work /src /root >/dev/null 2>&1; assert_rc "$?" 5 "profile mcp => rc5 (no soportado)"
 }
 test_instruct_dest_profile_default_rc2() {
   ccp_instruct_dest profile rule /h default /src /root >/dev/null 2>&1; assert_rc "$?" 2 "profile+default => rc2"
@@ -736,6 +738,67 @@ test_instruct_manifest_rm_returns_ref() {
 test_instruct_manifest_rm_out_of_range() {
   local m; m="$(newdir)/authored.tsv"; : > "$m"
   ccp_instruct_manifest_rm "$m" global - 1 >/dev/null 2>&1; assert_rc "$?" 1 "vacío => rc1"
+}
+
+test_bin_instruct_add_mcp_global() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local h s; h="$(newdir)"; s="$(newdir)"; printf '{}\n' > "$s.json"
+  _ccp_instr "$h" "$s" "" instruct add global mcp 'github={"command":"gh-mcp"}' >/dev/null
+  assert_eq "$(jq -r '.mcpServers.github.command' "$s.json")" "gh-mcp" "mcp escrito en ~/.claude.json (=\${src}.json)"
+}
+test_bin_instruct_add_mcp_profile_rejected() {
+  local h s; h="$(newdir)"; s="$(newdir)"
+  _ccp "$h" profile add work --official >/dev/null
+  local rc; CCP_HOME="$h" CCP_CLAUDE_SRC="$s" CCP_PROFILE=work bash "$ROOT/bin/ccp" instruct add profile mcp 'x={"command":"y"}' >/dev/null 2>&1; rc=$?
+  assert_rc "$rc" 1 "mcp a nivel perfil => error (rc1)"
+}
+test_bin_instruct_add_hook_global() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local h s; h="$(newdir)"; s="$(newdir)"; printf '{}\n' > "$s/settings.json"
+  _ccp_instr "$h" "$s" "" instruct add global hook 'fmt={"hooks":{"PostToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"prettier"}]}]}}' >/dev/null
+  assert_eq "$(jq -r '.hooks.PostToolUse[0].hooks[0].command' "$s/settings.json")" "prettier" "hook escrito en settings.json global"
+}
+test_bin_instruct_add_hook_profile_regenerates() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local h s; h="$(newdir)"; s="$(newdir)"; printf '{}\n' > "$s/settings.json"
+  _ccp "$h" profile add work --official >/dev/null
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$s" CCP_PROFILE=work bash "$ROOT/bin/ccp" \
+    instruct add profile hook 'fmt={"hooks":{"PostToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"fmt"}]}]}}' >/dev/null
+  assert_eq "$(jq -r '.hooks.PostToolUse[0].hooks[0].command' "$h/profiles/work/overlay/settings.overlay.json")" "fmt" "hook en overlay"
+  assert_eq "$(jq -r '.hooks.PostToolUse[0].hooks[0].command' "$h/profiles/work/cc-home/settings.json")" "fmt" "regen propagó al cc-home"
+}
+test_bin_instruct_rm_mcp_by_name() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local h s; h="$(newdir)"; s="$(newdir)"; printf '{}\n' > "$s.json"
+  _ccp_instr "$h" "$s" "" instruct add global mcp 'gh={"command":"x"}' >/dev/null
+  # index 1 (no hay reglas) => borra la entrada mcp del manifest y del json
+  _ccp_instr "$h" "$s" "" instruct rm global 1 >/dev/null
+  assert_eq "$(jq -r '.mcpServers | has("gh")' "$s.json")" "false" "rm quitó el server del json"
+}
+
+test_instruct_json_merge_mcp() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local f; f="$(newdir)/settings.json"; printf '{}\n' > "$f"
+  ccp_instruct_json_merge "$f" '{"mcpServers":{"github":{"command":"gh-mcp"}}}'
+  assert_eq "$(jq -r '.mcpServers.github.command' "$f")" "gh-mcp" "mcp merge"
+}
+test_instruct_json_merge_preserves() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local f; f="$(newdir)/settings.json"; printf '{"existing":true}\n' > "$f"
+  ccp_instruct_json_merge "$f" '{"mcpServers":{"a":{"command":"x"}}}'
+  assert_eq "$(jq -r '.existing' "$f")" "true" "preserva claves previas"
+}
+test_instruct_json_merge_creates_missing_file() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local f; f="$(newdir)/sub/new.json"   # parent dir + file both absent
+  ccp_instruct_json_merge "$f" '{"mcpServers":{"a":{"command":"x"}}}'
+  assert_eq "$(jq -r '.mcpServers.a.command' "$f")" "x" "crea archivo (y dir) inexistente y mergea"
+}
+test_instruct_json_rm_mcp_by_name() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local f; f="$(newdir)/settings.json"; printf '{"mcpServers":{"a":{},"b":{}}}\n' > "$f"
+  ccp_instruct_json_rm_mcp "$f" a
+  assert_eq "$(jq -r '.mcpServers | keys | join(",")' "$f")" "b" "borró server a"
 }
 
 # ---- runner ----

@@ -12,7 +12,12 @@ Pasos:
 2. **Redacta** el texto.
 3. **Confirma** tipo + destino + texto. No escribas sin confirmación.
 4. **Escribe** llamando al CLI (él es el dueño de la mecánica):
-   - Para `rule`/`hook`/`mcp`: `ccp instruct add project <type> "<texto>"` (hook/mcp llegan en una versión próxima).
+   - Para `rule`: `ccp instruct add project rule "<texto>"`.
+   - Para `mcp`: construye el objeto de configuración del server y llama
+     `ccp instruct add project mcp 'nombre={"command":"...","args":[...]}'`.
+   - Para `hook`: construye el objeto de hook en formato oficial
+     `{"hooks":{"PostToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"..."}]}]}}`
+     y llama `ccp instruct add project hook 'id={...}'`. Avísale al usuario que el borrado de hooks es manual.
    - Para `agent`/`command`/`skill`:
      1. Pide la ruta destino: `ccp instruct dest project <type>` (devuelve el directorio oficial).
      2. Escribe el archivo del artefacto ahí con un slug claro (p.ej. `<dir>/auditor-seguridad.md`), en el formato oficial de Claude Code (frontmatter `name`/`description` + cuerpo para agent/command; estructura de skill para skill).

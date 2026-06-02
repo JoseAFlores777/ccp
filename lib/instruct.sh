@@ -15,8 +15,8 @@
 #    mcp     -> settings/.mcp.json .mcpServers (entrada JSON)
 #
 #  Scope: global (~/.claude) | profile (overlay) | project (repo/.claude).
-#  En profile solo rule/hook/mcp (agents/commands/skills van symlinkeados
-#  desde global; ver docs/adr/0005).
+#  En profile solo rule/hook (mcp es solo global/project; agents/commands/
+#  skills van symlinkeados desde global; ver docs/adr/0005).
 # ============================================================
 
 CCP_INSTR_BEGIN='<!-- >>> ccp instructions >>> -->'
@@ -28,24 +28,27 @@ CCP_INSTR_END='<!-- <<< ccp instructions <<< -->'
 #   2 profile scope con perfil 'default'/vacío
 #   3 tipo no soportado en profile (agent/command/skill)
 #   4 project scope sin repo_root
+#   5 mcp no soportado a nivel profile
 ccp_instruct_dest() {
   local scope="$1" type="$2" home="$3" prof="$4" src="$5" root="$6"
   case "$scope" in
     global)
       case "$type" in
-        rule)     printf '%s/CLAUDE.md' "$src" ;;
-        hook|mcp) printf '%s/settings.json' "$src" ;;
-        agent)    printf '%s/agents' "$src" ;;
-        command)  printf '%s/commands' "$src" ;;
-        skill)    printf '%s/skills' "$src" ;;
+        rule)    printf '%s/CLAUDE.md' "$src" ;;
+        hook)    printf '%s/settings.json' "$src" ;;
+        mcp)     printf '%s.json' "$src" ;;
+        agent)   printf '%s/agents' "$src" ;;
+        command) printf '%s/commands' "$src" ;;
+        skill)   printf '%s/skills' "$src" ;;
         *) return 1 ;;
       esac ;;
     profile)
       [[ -n "$prof" && "$prof" != "default" ]] || return 2
       local ov="$home/profiles/$prof/overlay"
       case "$type" in
-        rule)     printf '%s/CLAUDE.md' "$ov" ;;
-        hook|mcp) printf '%s/settings.overlay.json' "$ov" ;;
+        rule)    printf '%s/CLAUDE.md' "$ov" ;;
+        hook)    printf '%s/settings.overlay.json' "$ov" ;;
+        mcp)     return 5 ;;
         agent|command|skill) return 3 ;;
         *) return 1 ;;
       esac ;;
@@ -141,6 +144,29 @@ ccp_instruct_manifest_list() { # manifest scope profile
   awk -F'\t' -v s="$scope" -v p="$prof" '
     $1==s && (s!="profile" || $2==p) { printf "%s\t%s\t%s\n", $3, $4, $5 }
   ' "$m"
+}
+
+# ---- artefactos JSON (hook/mcp) ------------------------------------------
+
+# deep-merge de <snippet-json> sobre <file> (snippet gana). requiere jq.
+# rc 1 si jq ausente o snippet inválido.
+ccp_instruct_json_merge() { # file snippet_json
+  local f="$1" snippet="$2"
+  command -v jq >/dev/null 2>&1 || return 1
+  mkdir -p "$(dirname "$f")"
+  [[ -f "$f" ]] && jq -e . "$f" >/dev/null 2>&1 || printf '{}\n' > "$f"
+  printf '%s' "$snippet" | jq -e . >/dev/null 2>&1 || return 1
+  local tmp; tmp="$(mktemp)"
+  jq --argjson add "$snippet" '. * $add' "$f" > "$tmp" && mv "$tmp" "$f"
+}
+
+# borra un server MCP por nombre. rc 1 si jq ausente o archivo inexistente.
+ccp_instruct_json_rm_mcp() { # file server_name
+  local f="$1" name="$2"
+  command -v jq >/dev/null 2>&1 || return 1
+  [[ -f "$f" ]] || return 1
+  local tmp; tmp="$(mktemp)"
+  jq --arg n "$name" 'if .mcpServers then .mcpServers |= del(.[$n]) else . end' "$f" > "$tmp" && mv "$tmp" "$f"
 }
 
 # borra la fila N (1-based, mismo orden que _list) e imprime "type<TAB>ref".

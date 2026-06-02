@@ -354,8 +354,25 @@ _instr_dest_or_die() { # scope type
     3) err "tipo '$type' no existe a nivel de perfil (se comparten desde global)."
        info "Usa scope 'global' (aplica a todos los perfiles) o 'project' (acota al repo)." >&2; return 3 ;;
     4) err "scope 'project': no estás en un repo git y no hay CCP_REPO_ROOT."; return 4 ;;
+    5) err "scope 'profile': MCP por-perfil no está soportado todavía."
+       info "Usa 'ccp instruct add global mcp ...' (todos los perfiles) o 'project' (este repo)." >&2; return 5 ;;
     *) err "scope/tipo inválido: '$scope'/'$type'."; return 1 ;;
   esac
+}
+
+# registra en el manifest una entrada JSON (mcp/hook) por nombre.
+_instr_record_json() { # scope type name desc...
+  local scope="$1" type="$2" name="$3"; shift 3 2>/dev/null
+  local prof root m; prof="$(_instr_active_profile)"; root="$(_instr_repo_root)"
+  [[ "$scope" != profile ]] && prof="-"
+  m="$(ccp_instruct_manifest_file "$scope" "$CCP_HOME" "$root")"
+  ccp_instruct_manifest_add "$m" "$scope" "$prof" "$type" "$name" "$*"
+}
+
+# si el scope es profile, regenera el cc-home (overlay -> settings.json efectivo).
+_instr_regen_if_profile() { # scope
+  [[ "$1" == profile ]] || return 0
+  ccp_cfg_regenerate "$CCP_HOME" "$(_instr_active_profile)" "$CCP_CLAUDE_SRC"
 }
 
 cmd_instruct() {
@@ -384,7 +401,25 @@ _instruct_add() {
         warn "Ya existía esa instrucción en $dest (no se duplica)."
       fi
       ;;
-    *) err "tipo '$type' aún no implementado por 'instruct add' (ver Milestones 3-4)."; return 1 ;;
+    mcp)
+      command -v jq >/dev/null 2>&1 || { err "mcp/hook requieren jq."; return 1; }
+      local name="${text%%=*}" json="${text#*=}"
+      [[ "$name" != "$text" && -n "$json" ]] || { err "Uso: mcp -> nombre={json}"; return 1; }
+      local snippet; snippet="$(printf '{"mcpServers":{"%s":%s}}' "$name" "$json")"
+      ccp_instruct_json_merge "$dest" "$snippet" || { err "JSON inválido para el server '$name'."; return 1; }
+      _instr_record_json "$scope" mcp "$name" "mcp $name"
+      ok "MCP '$name' añadido ($scope) -> $dest" ;;
+    hook)
+      command -v jq >/dev/null 2>&1 || { err "mcp/hook requieren jq."; return 1; }
+      local name="${text%%=*}" json="${text#*=}"
+      [[ "$name" != "$text" && -n "$json" ]] || { err "Uso: hook -> id={json}"; return 1; }
+      ccp_instruct_json_merge "$dest" "$json" || { err "JSON inválido para el hook '$name'."; return 1; }
+      _instr_record_json "$scope" hook "$name" "hook $name"
+      _instr_regen_if_profile "$scope"
+      ok "Hook '$name' añadido ($scope) -> $dest"
+      warn "El borrado de hooks no es automático (viven en arrays sin id estable)."
+      info "Para quitarlo: 'ccp profile config <perfil> settings' o edita $dest a mano." ;;
+    *) err "tipo '$type' desconocido."; return 1 ;;
   esac
 }
 
@@ -452,7 +487,11 @@ _instruct_rm() {
       # guard: nunca rm -rf sobre raíz/vacío
       if [[ -n "$ref" && "$ref" != "/" && -d "$ref" ]]; then rm -rf "$ref" || warn "No pude borrar el dir: $ref"
       elif [[ "$ref" == "/" || -z "$ref" ]]; then warn "ref inseguro en manifest, no borro: '$ref'"; fi ;;
-    hook|mcp) : ;;  # borrado de entrada JSON => Milestone 4
+    mcp)
+      local mfile; mfile="$(_instr_dest_or_die "$scope" mcp)" && ccp_instruct_json_rm_mcp "$mfile" "$ref" ;;
+    hook)
+      warn "El hook '$ref' se quitó del manifest, pero su entrada JSON sigue en el archivo."
+      info "Edítalo a mano: $(_instr_dest_or_die "$scope" hook 2>/dev/null)" ;;
   esac
   ok "Artefacto #$idx eliminado del manifest ($scope/$type): $ref"
 }
