@@ -56,73 +56,60 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 	case "version", "--version", "-v":
 		fmt.Fprintf(stdout, "ccp v%s\n", core.Version)
 		return 0
+
+	// --- frontera binario↔shell (contrato eval-able) ---
+	case "resolve", "_resolve":
+		return cmdResolve(rest, stdout, stderr)
+	case "_env":
+		return cmdEnv(rest, stdout, stderr)
+	case "_hook":
+		return cmdHook(rest, stdout, stderr)
+	case "completion":
+		return cmdCompletion(rest, stdout, stderr)
+	case "completion-shellinit":
+		if _, err := core.WriteShellInit(stdout); err != nil {
+			fmt.Fprintf(stderr, "[error] %v\n", err)
+			return 1
+		}
+		return 0
+
+	// --- superficie scriptable + gestión ---
+	case "status":
+		return cmdStatus(rest, stdout, stderr)
+	case "path":
+		return cmdPath(rest, stdout, stderr)
+	case "key":
+		return cmdKey(rest, stdout, stderr)
+	case "profile", "account":
+		return dispatchProfile(rest, stdout, stderr)
+	case "instruct":
+		return dispatchInstruct(rest, stdout, stderr)
+	case "backup":
+		return dispatchBackup(rest, stdout, stderr)
 	case "config":
 		return cmdConfig(rest, stdout, stderr)
 	case "doctor":
 		return cmdDoctor(rest, stdout, stderr)
-	case "", "help", "--help", "-h":
-		fmt.Fprintf(stdout, "ccp v%s — router de perfiles y cuentas de Claude Code\n", core.Version)
-		fmt.Fprintln(stdout, "  (rewrite Go en curso — superficie completa en fases siguientes)")
-		return 0
-	case "profile":
-		return dispatchProfile(args[1:], stdout, stderr)
-	case "instruct":
-		return dispatchInstruct(args[1:], stdout, stderr)
-	case "backup":
-		return dispatchBackup(args[1:], stdout, stderr)
+
+	// --- ciclo de vida ---
+	case "install":
+		return cmdInstall(rest, stdout, stderr)
+	case "uninstall":
+		return cmdUninstall(rest, stdout, stderr)
+	case "upgrade", "update":
+		return cmdUpgrade(rest, stdout, stderr)
+
+	case "", "help", "--help", "-h", "menu":
+		return cmdHelp(stdout)
+
+	// Estos solo funcionan vía la función shell 'ccp' (el binario corre en un
+	// proceso hijo y no puede mutar el entorno del shell padre).
+	case "use", "default", "off", "on", "run":
+		fmt.Fprintf(stderr, "[error] '%s' solo funciona vía la función shell 'ccp' (corre 'ccp install' y recarga tu shell).\n", cmd)
+		return 1
+
 	default:
 		fmt.Fprintf(stderr, "Comando desconocido: '%s'\n", cmd)
-		return 1
-	}
-}
-
-// dispatchProfile maneja `ccp profile <sub> ...`. En esta fase (#7) solo
-// `config` y `sync` están cableados; el resto de la superficie se conecta en
-// fases siguientes.
-func dispatchProfile(args []string, stdout, stderr io.Writer) int {
-	var sub string
-	if len(args) > 0 {
-		sub = args[0]
-	}
-	switch sub {
-	case "config":
-		var name string
-		if len(args) > 1 {
-			name = args[1]
-		}
-		home, err := ccpHome()
-		if err != nil {
-			fmt.Fprintf(stderr, "Error: %v\n", err)
-			return 1
-		}
-		if err := core.ProfileConfig(home, name, core.ProfileConfigOpts{}); err != nil {
-			fmt.Fprintf(stderr, "Error: %v\n", err)
-			return 1
-		}
-		fmt.Fprintf(stdout, "Config de '%s' actualizada (global ⊕ overlay).\n", name)
-		return 0
-	case "sync":
-		var name string
-		if len(args) > 1 {
-			name = args[1]
-		}
-		home, err := ccpHome()
-		if err != nil {
-			fmt.Fprintf(stderr, "Error: %v\n", err)
-			return 1
-		}
-		if err := core.ProfileSync(home, name); err != nil {
-			fmt.Fprintf(stderr, "Error: %v\n", err)
-			return 1
-		}
-		if name == "" {
-			fmt.Fprintln(stdout, "Todos los perfiles re-sincronizados.")
-		} else {
-			fmt.Fprintf(stdout, "Perfil '%s' re-sincronizado (global ⊕ overlay).\n", name)
-		}
-		return 0
-	default:
-		fmt.Fprintf(stderr, "profile: subcomando no cableado en esta fase: '%s'\n", sub)
 		return 1
 	}
 }
@@ -135,6 +122,10 @@ func dispatchBackup(args []string, stdout, stderr io.Writer) int {
 	}
 	home, err := ccpHome()
 	if err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return 1
+	}
+	if err := ensureMigrated(home); err != nil {
 		fmt.Fprintf(stderr, "Error: %v\n", err)
 		return 1
 	}

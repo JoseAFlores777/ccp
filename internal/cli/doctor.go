@@ -11,7 +11,12 @@ import (
 // login/key por perfil. Exit 0 si todos pasan, 1 si alguno falla, para que el
 // comando sea utilizable en scripts.
 func cmdDoctor(_ []string, stdout, stderr io.Writer) int {
-	checks, err := core.Doctor(resolveHome())
+	home := resolveHome()
+	if err := ensureMigrated(home); err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", err)
+		return 1
+	}
+	checks, err := core.Doctor(home)
 	if err != nil {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
