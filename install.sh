@@ -74,18 +74,27 @@ sha256_of() {
 
 # --- instala vía GitHub Release con verificación de checksum ---
 install_from_release() {
-  local asset base bin_tmp sums want have
+  local asset bin_tmp sums want have base
   asset="$(detect_platform)"
-  if [[ "$RELEASE" == "latest" ]]; then
-    base="https://github.com/$REPO/releases/latest/download"
-  else
-    base="https://github.com/$REPO/releases/download/$RELEASE"
-  fi
   bin_tmp="$TMP/$asset"; sums="$TMP/checksums.txt"
 
   info "Descargando $asset desde $REPO ($RELEASE)…"
-  fetch "$base/$asset" "$bin_tmp" || return 1
-  fetch "$base/checksums.txt" "$sums" || return 1
+  if command -v gh >/dev/null 2>&1; then
+    # gh autentica (repos privados) y resuelve los redirects de los assets.
+    local tag=()
+    if [[ "$RELEASE" != "latest" ]]; then tag=("$RELEASE"); fi
+    gh release download "${tag[@]}" --repo "$REPO" \
+       --pattern "$asset" --pattern "checksums.txt" --dir "$TMP" --clobber >/dev/null 2>&1 || return 1
+  else
+    # repo público sin gh: descarga directa por URL.
+    if [[ "$RELEASE" == "latest" ]]; then
+      base="https://github.com/$REPO/releases/latest/download"
+    else
+      base="https://github.com/$REPO/releases/download/$RELEASE"
+    fi
+    fetch "$base/$asset" "$bin_tmp" || return 1
+    fetch "$base/checksums.txt" "$sums" || return 1
+  fi
 
   # checksums.txt: líneas "<sha256>  <asset>". Extrae la del asset.
   want="$(awk -v a="$asset" '$2==a || $2=="*"a {print $1}' "$sums" | head -n1)"
@@ -103,7 +112,10 @@ install_from_source() {
   command -v go >/dev/null 2>&1 || return 1
   [[ -f "$SRC_DIR/cmd/ccp/main.go" ]] || return 1
   info "Compilando desde el código (go build)…"
-  ( cd "$SRC_DIR" && CGO_ENABLED=0 go build -o "$BIN_DIR/ccp" ./cmd/ccp ) || return 1
+  # build a un temp y luego instala: go build -o se niega a sobrescribir un
+  # archivo que no creó él (p.ej. el ccp bash legacy o un binario en uso).
+  ( cd "$SRC_DIR" && CGO_ENABLED=0 go build -o "$TMP/ccp" ./cmd/ccp ) || return 1
+  install -m 0755 "$TMP/ccp" "$BIN_DIR/ccp"
   ok "Binario (go build) -> $BIN_DIR/ccp"
   return 0
 }
