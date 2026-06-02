@@ -248,9 +248,21 @@ test_seed_official_symlinks() {
   CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile add work --official >/dev/null
   local cch="$h/profiles/work/cc-home"
   [[ -L "$cch/plugins" ]]; assert_rc "$?" 0 "plugins symlinked"
-  [[ -L "$cch/CLAUDE.md" ]]; assert_rc "$?" 0 "CLAUDE.md symlinked"
-  [[ -f "$cch/settings.json" && ! -L "$cch/settings.json" ]]; assert_rc "$?" 0 "settings.json copied not linked"
+  [[ -f "$cch/CLAUDE.md" && ! -L "$cch/CLAUDE.md" ]]; assert_rc "$?" 0 "CLAUDE.md is generated real file"
+  case "$(cat "$cch/CLAUDE.md")" in *"@$src/CLAUDE.md"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: cc-home CLAUDE.md missing global @import" >&2;; esac
+  [[ -f "$cch/settings.json" && ! -L "$cch/settings.json" ]]; assert_rc "$?" 0 "settings.json generated not linked"
+  [[ -f "$h/profiles/work/overlay/settings.overlay.json" ]]; assert_rc "$?" 0 "overlay seeded"
   [[ ! -e "$cch/.claude.json" ]]; assert_rc "$?" 0 "no creds seeded"
+}
+
+test_seed_deepseek_gets_cchome() {
+  local h; h="$(newdir)"; local src; src="$(newdir)"
+  mkdir -p "$src/plugins"; printf 'G' > "$src/CLAUDE.md"; printf '{"m":1}' > "$src/settings.json"
+  CCP_HOME="$h" CCP_CLAUDE_SRC="$src" bash "$ROOT/bin/ccp" profile add ds --deepseek --base-url u --pro p --flash f --effort max >/dev/null
+  local cch="$h/profiles/ds/cc-home"
+  [[ -L "$cch/plugins" ]]; assert_rc "$?" 0 "deepseek cc-home has symlinked plugins"
+  [[ -f "$cch/CLAUDE.md" && -f "$cch/settings.json" ]]; assert_rc "$?" 0 "deepseek cc-home generated config"
 }
 
 test_shell_init_valid_bash() {
