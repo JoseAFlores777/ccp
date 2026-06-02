@@ -302,8 +302,8 @@ test_migrate_creates_deepseek_profile() {
 test_bin_help_mentions_profile() {
   local h; h="$(newdir)"
   local out; out="$(_ccp "$h" help)"
-  case "$out" in *"profile"*"path set"*) _pass=$((_pass+1));;
-    *) _fail=$((_fail+1)); echo "FAIL: help missing profile/path set" >&2;; esac
+  case "$out" in *"profile config"*"path set"*) _pass=$((_pass+1));;
+    *) _fail=$((_fail+1)); echo "FAIL: help missing profile config/path set" >&2;; esac
 }
 test_bin_unknown_cmd_exit1() {
   local h; h="$(newdir)"

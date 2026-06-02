@@ -449,8 +449,9 @@ _ccp() {
   local top="install uninstall key path profile status config doctor menu completion resolve version help use default on off run"
   if [[ $COMP_CWORD -eq 1 ]]; then COMPREPLY=( $(compgen -W "$top" -- "$cur") ); return; fi
   case "${COMP_WORDS[1]}" in
-    profile) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "add rm list show login" -- "$cur") )
-             [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" =~ ^(rm|show|login)$ ]] && COMPREPLY=( $(compgen -W "$(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
+    profile) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "add rm list show login config sync" -- "$cur") )
+             [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" =~ ^(rm|show|login|config|sync)$ ]] && COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") )
+             [[ $COMP_CWORD -eq 4 && "${COMP_WORDS[2]}" == "config" ]] && COMPREPLY=( $(compgen -W "instructions settings" -- "$cur") ) ;;
     path)    [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "set rm list test clear edit" -- "$cur") )
              [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" =~ ^(set|rm|test)$ ]] && COMPREPLY=( $(compgen -d -- "$cur") )
              [[ $COMP_CWORD -eq 4 && "${COMP_WORDS[2]}" == "set" ]] && COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
@@ -469,8 +470,9 @@ _ccp() {
   local -a top; top=(install uninstall key path profile status config doctor menu completion resolve version help use default on off run)
   if (( CURRENT == 2 )); then compadd -- $top; return; fi
   case "${words[2]}" in
-    profile) (( CURRENT == 3 )) && compadd -- add rm list show login
-             (( CURRENT == 4 )) && [[ "${words[3]}" =~ ^(rm|show|login)$ ]] && compadd -- ${(f)"$(ccp profile list 2>/dev/null)"} ;;
+    profile) (( CURRENT == 3 )) && compadd -- add rm list show login config sync
+             (( CURRENT == 4 )) && [[ "${words[3]}" =~ ^(rm|show|login|config|sync)$ ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"}
+             (( CURRENT == 5 )) && [[ "${words[3]}" == config ]] && compadd -- instructions settings ;;
     path)    (( CURRENT == 3 )) && compadd -- set rm list test clear edit
              (( CURRENT == 3 )) || { [[ "${words[3]}" =~ ^(set|rm|test)$ ]] && _path_files -/ }
              (( CURRENT == 4 )) && [[ "${words[3]}" == set ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
@@ -614,6 +616,8 @@ ${C_BOLD}PERFILES${C_RESET}
   ccp profile add <n> --official            crea cuenta oficial (config dir propio)
   ccp profile add <n> --deepseek [opts]     crea provider (--base-url --pro --flash --effort)
   ccp profile login <n>                     abre claude para /login (perfiles oficiales)
+  ccp profile config <n> [instructions|settings]  edita la config del perfil (editor)
+  ccp profile sync [<n>]                    re-mergea el global en el/los cc-home
   ccp profile list | show <n> | rm <n>
   ccp key <perfil> [API_KEY]                guarda la key de un perfil deepseek
 
@@ -629,7 +633,7 @@ ${C_BOLD}SCRIPTING${C_RESET}
 
 ${C_BOLD}OTROS${C_RESET}
   ccp install [rc] | uninstall [rc] | migrate
-  ccp config show|set|reset | completion bash|zsh | doctor | menu | version | help
+  ccp config show|set|reset|editor <cmd> | completion bash|zsh | doctor | menu | version | help
 
 ${C_BOLD}EJEMPLO${C_RESET}
   ccp profile add work --official && ccp profile login work
@@ -658,6 +662,7 @@ BANNER
     say "   ${C_BOLD}4)${C_RESET} Diagnóstico (doctor)"
     say "   ${C_BOLD}5)${C_RESET} Instalar shell init"
     say "   ${C_BOLD}6)${C_RESET} Ayuda"
+    say "   ${C_BOLD}7)${C_RESET} Editar config de un perfil"
     say "   ${C_BOLD}0)${C_RESET} Salir"
     echo; printf '   Opción: '; read -r opt; echo
     case "$opt" in
@@ -667,6 +672,7 @@ BANNER
       4) cmd_doctor ;;
       5) cmd_install ;;
       6) cmd_help ;;
+      7) printf '   Perfil: '; read -r _pn; [[ -n "$_pn" ]] && _profile_config "$_pn" ;;
       0) break ;;
       *) warn "Opción inválida." ;;
     esac
