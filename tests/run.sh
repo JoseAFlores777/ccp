@@ -672,6 +672,40 @@ test_install_copies_commands() {
   [[ -f "$cd/commands/ccp/forget.md" ]];          assert_rc "$?" 0 "install copió forget"
 }
 
+# ===== instruct: manifest =====
+test_instruct_manifest_file() {
+  assert_eq "$(ccp_instruct_manifest_file global /h /root)"  "/h/authored.tsv"             "global manifest local"
+  assert_eq "$(ccp_instruct_manifest_file profile /h /root)" "/h/authored.tsv"             "profile manifest local"
+  assert_eq "$(ccp_instruct_manifest_file project /h /root)" "/root/.claude/ccp-authored.tsv" "project manifest repo"
+}
+test_instruct_manifest_add_list() {
+  local m; m="$(newdir)/authored.tsv"
+  ccp_instruct_manifest_add "$m" global - agent   /src/agents/sec.md  "auditor de seguridad"
+  ccp_instruct_manifest_add "$m" global - command /src/commands/dep.md "deploy"
+  assert_eq "$(ccp_instruct_manifest_list "$m" global -)" \
+"agent	/src/agents/sec.md	auditor de seguridad
+command	/src/commands/dep.md	deploy" "lista 2 entradas globales"
+}
+test_instruct_manifest_list_filters_profile() {
+  local m; m="$(newdir)/authored.tsv"
+  ccp_instruct_manifest_add "$m" profile work  hook /ov/work/settings.overlay.json  "hook A"
+  ccp_instruct_manifest_add "$m" profile other hook /ov/other/settings.overlay.json "hook B"
+  assert_eq "$(ccp_instruct_manifest_list "$m" profile work | grep -c .)" "1" "filtra por perfil activo"
+  assert_eq "$(ccp_instruct_manifest_list "$m" profile work)" "hook	/ov/work/settings.overlay.json	hook A" "desc round-trips para el perfil filtrado"
+}
+test_instruct_manifest_rm_returns_ref() {
+  local m; m="$(newdir)/authored.tsv"
+  ccp_instruct_manifest_add "$m" global - agent   /a.md "A"
+  ccp_instruct_manifest_add "$m" global - command /b.md "B"
+  local out; out="$(ccp_instruct_manifest_rm "$m" global - 1)"; assert_rc "$?" 0 "rm índice 1"
+  assert_eq "$out" "agent	/a.md" "rm devuelve type+ref de la fila borrada"
+  assert_eq "$(ccp_instruct_manifest_list "$m" global - | grep -c .)" "1" "queda 1"
+}
+test_instruct_manifest_rm_out_of_range() {
+  local m; m="$(newdir)/authored.tsv"; : > "$m"
+  ccp_instruct_manifest_rm "$m" global - 1 >/dev/null 2>&1; assert_rc "$?" 1 "vacío => rc1"
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"

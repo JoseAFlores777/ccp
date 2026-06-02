@@ -114,3 +114,46 @@ ccp_instruct_rule_rm() { # file index
     { print }
   ' "$f" > "$tmp" && mv "$tmp" "$f"
 }
+
+# ---- manifest de artefactos creados por ccp ------------------------------
+# formato por fila: scope<TAB>profile<TAB>type<TAB>ref<TAB>desc
+#   profile = '-' salvo scope=profile
+#   ref     = ruta de archivo (agent/command/skill) o nombre de entrada (mcp/hook)
+
+ccp_instruct_manifest_file() { # scope ccp_home repo_root
+  case "$1" in
+    global|profile) printf '%s/authored.tsv' "$2" ;;
+    project)        printf '%s/.claude/ccp-authored.tsv' "$3" ;;
+    *) return 1 ;;
+  esac
+}
+
+ccp_instruct_manifest_add() { # manifest scope profile type ref desc
+  local m="$1"; shift
+  mkdir -p "$(dirname "$m")"; touch "$m"
+  printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" >> "$m"
+}
+
+# imprime "type<TAB>ref<TAB>desc" de las filas que matchean (scope[,profile]).
+ccp_instruct_manifest_list() { # manifest scope profile
+  local m="$1" scope="$2" prof="$3"
+  [[ -f "$m" ]] || return 0
+  awk -F'\t' -v s="$scope" -v p="$prof" '
+    $1==s && (s!="profile" || $2==p) { printf "%s\t%s\t%s\n", $3, $4, $5 }
+  ' "$m"
+}
+
+# borra la fila N (1-based, mismo orden que _list) e imprime "type<TAB>ref".
+ccp_instruct_manifest_rm() { # manifest scope profile index
+  local m="$1" scope="$2" prof="$3" idx="$4"
+  [[ -f "$m" ]] || return 1
+  [[ "$idx" =~ ^[0-9]+$ && "$idx" -ge 1 ]] || return 1
+  # encuentra el número de línea físico de la N-ésima fila que matchea.
+  local target; target="$(awk -F'\t' -v s="$scope" -v p="$prof" -v want="$idx" '
+    $1==s && (s!="profile" || $2==p) { c++; if (c==want) { print NR; exit } }
+  ' "$m")"
+  [[ -n "$target" ]] || return 1
+  sed -n "${target}p" "$m" | cut -f3,4
+  local tmp; tmp="$(mktemp)"
+  awk -v t="$target" 'NR!=t' "$m" > "$tmp" && mv "$tmp" "$m"
+}
