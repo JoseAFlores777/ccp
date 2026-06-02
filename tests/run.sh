@@ -385,6 +385,34 @@ test_cfg_regenerate() {
   fi
 }
 
+test_cfg_migrate_legacy() {
+  local h; h="$(newdir)"
+  local cch="$h/profiles/work/cc-home"; mkdir -p "$cch"
+  # estado viejo: settings.json copia (archivo real) + CLAUDE.md symlink
+  printf '{"hooks":{"X":1}}' > "$cch/settings.json"
+  printf 'G' > "$h/global-claude.md"
+  ln -s "$h/global-claude.md" "$cch/CLAUDE.md"
+  ccp_cfg_migrate_legacy "$h" work
+  local ov="$h/profiles/work/overlay/settings.overlay.json"
+  [[ -f "$ov" ]]; assert_rc "$?" 0 "old settings.json moved into overlay"
+  [[ ! -e "$cch/settings.json" ]]; assert_rc "$?" 0 "old cc-home settings.json removed"
+  [[ ! -L "$cch/CLAUDE.md" ]]; assert_rc "$?" 0 "old CLAUDE.md symlink removed"
+  if command -v jq >/dev/null 2>&1; then
+    assert_eq "$(jq -r '.hooks.X' "$ov")" "1" "edits preserved in overlay"
+  fi
+}
+test_cfg_migrate_legacy_idempotent() {
+  local h; h="$(newdir)"
+  ccp_cfg_init_overlay "$h" work
+  printf '{"keep":1}' > "$h/profiles/work/overlay/settings.overlay.json"
+  ccp_cfg_migrate_legacy "$h" work   # ya migrado: no debe pisar el overlay
+  if command -v jq >/dev/null 2>&1; then
+    assert_eq "$(jq -r '.keep' "$h/profiles/work/overlay/settings.overlay.json")" "1" "overlay untouched when already migrated"
+  else
+    _pass=$((_pass+1))
+  fi
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"

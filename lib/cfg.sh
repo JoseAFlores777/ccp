@@ -77,3 +77,20 @@ ccp_cfg_regenerate() { # home name src
   ccp_cfg_write_claude_md "$home" "$name" "$src"
   ccp_cfg_merge_settings "$src/settings.json" "$overlay_s" "$cch/settings.json"
 }
+
+# convierte un cc-home viejo al modelo overlay. Idempotente: solo actúa si
+# detecta el estado viejo (settings.json copia real + CLAUDE.md symlink).
+ccp_cfg_migrate_legacy() { # home name
+  local home="$1" name="$2"
+  local cch overlay_s
+  cch="$(ccp_cfg_cchome "$home" "$name")"
+  overlay_s="$(ccp_cfg_settings_file "$home" "$name")"
+  mkdir -p "$(ccp_cfg_overlay_dir "$home" "$name")"
+  # settings.json copia (archivo real, no symlink) y sin overlay aún => muévelo
+  if [[ -f "$cch/settings.json" && ! -L "$cch/settings.json" && ! -f "$overlay_s" ]]; then
+    mv "$cch/settings.json" "$overlay_s"
+  fi
+  # CLAUDE.md symlink viejo => quítalo (se regenerará como @import)
+  [[ -L "$cch/CLAUDE.md" ]] && rm -f "$cch/CLAUDE.md"
+  return 0
+}
