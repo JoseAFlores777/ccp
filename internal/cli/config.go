@@ -13,6 +13,10 @@ import (
 // editarlos no muta perfiles existentes.
 func cmdConfig(args []string, stdout, stderr io.Writer) int {
 	home := resolveHome()
+	if err := ensureMigrated(home); err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", err)
+		return 1
+	}
 	var sub string
 	if len(args) > 0 {
 		sub = args[0]

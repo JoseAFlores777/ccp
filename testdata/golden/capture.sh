@@ -20,7 +20,7 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-ORACLE="$REPO_ROOT/bin/ccp"
+ORACLE="$REPO_ROOT/legacy/bin/ccp"
 CASE="basic"
 CASE_DIR="$SCRIPT_DIR/$CASE"
 FIXTURE="$CASE_DIR/ccp-home"

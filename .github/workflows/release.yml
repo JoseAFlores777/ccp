@@ -1,0 +1,55 @@
+name: release
+
+# Publica binarios prebuilt de ccp por OS/arch + checksums.txt en el GitHub
+# Release del tag. install.sh descarga de aquí y verifica el sha256. Disparar
+# con un tag de versión:  git tag v2.0.0 && git push origin v2.0.0
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # crear el release y subir assets
+
+env:
+  GO_VERSION: "1.23"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build matrix (darwin/linux × amd64/arm64)
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for target in darwin/amd64 darwin/arm64 linux/amd64 linux/arm64; do
+            goos="${target%/*}"; goarch="${target#*/}"
+            out="dist/ccp-${goos}-${goarch}"
+            echo "==> $out"
+            GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
+              go build -trimpath -ldflags "-s -w" -o "$out" ./cmd/ccp
+          done
+
+      - name: Generate checksums.txt
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum ccp-* > checksums.txt
+          cat checksums.txt
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/ccp-darwin-amd64
+            dist/ccp-darwin-arm64
+            dist/ccp-linux-amd64
+            dist/ccp-linux-arm64
+            dist/checksums.txt
+          generate_release_notes: true

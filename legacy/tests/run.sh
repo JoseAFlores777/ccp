@@ -514,11 +514,11 @@ test_bin_profile_sync_default_rejected() {
   assert_rc "$rc" 1 "sync default => error (no cc-home)"
 }
 
-test_install_records_source() {
-  local bd ld h; bd="$(newdir)"; ld="$(newdir)"; h="$(newdir)"
-  CCP_BIN_DIR="$bd" CCP_LIB_DIR="$ld" CCP_HOME="$h" bash "$ROOT/install.sh" >/dev/null 2>&1
-  assert_eq "$(cat "$h/install-source")" "$ROOT" "install.sh records the source repo path"
-}
+# NOTA: los tests de `install.sh` (registro de fuente, copia de comandos) y de
+# `upgrade --no-sync` que RE-EJECUTABAN install.sh se retiraron al archivar el
+# bash: install.sh es ahora Go-aware (descarga release prebuilt, ya no copia
+# libs bash) y su ciclo de vida se prueba en internal/cli (Go). Aquí solo
+# quedan las validaciones de argumentos del binario bash oráculo.
 test_bin_upgrade_no_source_errors() {
   local h; h="$(newdir)"
   local rc; _ccp "$h" upgrade >/dev/null 2>&1; rc=$?
@@ -528,17 +528,6 @@ test_bin_upgrade_bad_arg() {
   local h; h="$(newdir)"; printf '%s' "$ROOT" > "$h/install-source"
   local rc; _ccp "$h" upgrade --bogus >/dev/null 2>&1; rc=$?
   assert_rc "$rc" 1 "upgrade with unknown flag => error"
-}
-test_bin_upgrade_runs() {
-  # instala en dirs temporales (registra la fuente = $ROOT), luego upgrade --no-sync
-  local bd ld h; bd="$(newdir)"; ld="$(newdir)"; h="$(newdir)"
-  CCP_BIN_DIR="$bd" CCP_LIB_DIR="$ld" CCP_HOME="$h" bash "$ROOT/install.sh" >/dev/null 2>&1
-  # rc temporal SIN bloque => _upgrade_check_rc es no-op (no toca ningún rc real)
-  local rcfile; rcfile="$(newdir)/rc"; : > "$rcfile"
-  local out; out="$(CCP_BIN_DIR="$bd" CCP_HOME="$h" CCP_RC="$rcfile" bash "$ROOT/bin/ccp" upgrade --no-sync 2>&1)"
-  case "$out" in *"actualizado"*) _pass=$((_pass+1));;
-    *) _fail=$((_fail+1)); echo "FAIL: upgrade run did not report: $out" >&2;; esac
-  [[ -x "$bd/ccp" ]]; assert_rc "$?" 0 "upgrade reinstalled the binary"
 }
 
 # ===== instruct: resolución de destino =====
@@ -700,13 +689,8 @@ test_bin_instruct_rm_rule_then_manifest_indexing() {
     *) _fail=$((_fail+1)); echo "FAIL: el agente debe seguir listado: $out" >&2;; esac
 }
 
-test_install_copies_commands() {
-  local bd ld h cd; bd="$(newdir)"; ld="$(newdir)"; h="$(newdir)"; cd="$(newdir)/claude"
-  CCP_BIN_DIR="$bd" CCP_LIB_DIR="$ld" CCP_HOME="$h" CCP_CLAUDE_SRC="$cd" \
-    bash "$ROOT/install.sh" >/dev/null 2>&1
-  [[ -f "$cd/commands/ccp/remember-global.md" ]]; assert_rc "$?" 0 "install copió remember-global"
-  [[ -f "$cd/commands/ccp/forget.md" ]];          assert_rc "$?" 0 "install copió forget"
-}
+# test_install_copies_commands se retiró: la copia de comandos /ccp: la hace
+# ahora el install.sh Go-aware (ver internal/cli + el smoke de install.sh).
 
 # ===== instruct: manifest =====
 test_instruct_manifest_file() {

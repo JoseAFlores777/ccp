@@ -5,6 +5,8 @@ env:
   GO_VERSION: "1.23"
 
 jobs:
+  # El bash es el ORÁCULO del contrato (archivado en legacy/ tras la paridad Go).
+  # Se sigue lintando y corriendo para que el golden-diff Go↔bash tenga base.
   shellcheck:
     runs-on: ubuntu-latest
     steps:
@@ -12,11 +14,11 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: Lint
-        run: shellcheck -S warning bin/ccp lib/paths.sh lib/profiles.sh lib/env.sh install.sh tests/run.sh || true
+        run: shellcheck -S warning legacy/bin/ccp legacy/lib/paths.sh legacy/lib/profiles.sh legacy/lib/env.sh install.sh legacy/tests/run.sh || true
       - name: Syntax check
-        run: bash -n bin/ccp && bash -n lib/paths.sh && bash -n lib/profiles.sh && bash -n lib/env.sh
-      - name: Test suite
-        run: bash tests/run.sh
+        run: bash -n legacy/bin/ccp && bash -n legacy/lib/paths.sh && bash -n legacy/lib/profiles.sh && bash -n legacy/lib/env.sh && bash -n install.sh
+      - name: Oracle test suite (legacy bash)
+        run: bash legacy/tests/run.sh
 
   go-lint:
     runs-on: ubuntu-latest
