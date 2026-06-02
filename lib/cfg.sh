@@ -25,3 +25,26 @@ ccp_cfg_init_overlay() { # home name
   [[ -e "$d/CLAUDE.md" ]] || : > "$d/CLAUDE.md"
   [[ -e "$d/settings.overlay.json" ]] || printf '{}\n' > "$d/settings.overlay.json"
 }
+
+# valida JSON (rc 0 = válido). Sin jq => no-op (rc 0): no podemos validar.
+ccp_cfg_validate_json() { # file
+  [[ -f "$1" ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 0
+  jq -e . "$1" >/dev/null 2>&1 || return 1
+}
+
+# merge global ⊕ overlay => out (overlay gana).
+#   con jq:  deep-merge recursivo de objetos; arrays se reemplazan.
+#   sin jq:  snapshot — copia el global si existe, si no el overlay.
+# global ausente o inválido => se ignora (solo overlay).
+ccp_cfg_merge_settings() { # global_file overlay_file out_file
+  local g="$1" o="$2" out="$3"
+  if command -v jq >/dev/null 2>&1; then
+    local -a files=()
+    [[ -f "$g" ]] && jq -e . "$g" >/dev/null 2>&1 && files+=("$g")
+    files+=("$o")
+    jq -s 'reduce .[] as $x ({}; . * $x)' "${files[@]}" > "$out" || return 1
+  else
+    if [[ -f "$g" ]]; then cp "$g" "$out"; else cp "$o" "$out"; fi
+  fi
+}

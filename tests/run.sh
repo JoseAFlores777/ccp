@@ -324,6 +324,33 @@ test_cfg_init_overlay() {
   assert_eq "$(cat "$h/profiles/work/overlay/settings.overlay.json")" "{}" "overlay seeded as {}"
 }
 
+test_cfg_validate_json() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }  # sin jq: validador es no-op
+  local d; d="$(newdir)"
+  printf '{"a":1}' > "$d/good.json"; printf '{bad' > "$d/bad.json"
+  ccp_cfg_validate_json "$d/good.json"; assert_rc "$?" 0 "valid json ok"
+  ccp_cfg_validate_json "$d/bad.json";  assert_rc "$?" 1 "invalid json rc1"
+}
+test_cfg_merge_overlay_wins() {
+  command -v jq >/dev/null 2>&1 || { _pass=$((_pass+1)); return; }
+  local d; d="$(newdir)"
+  printf '{"model":"opus","env":{"A":"1"}}' > "$d/global.json"
+  printf '{"env":{"B":"2"},"model":"sonnet"}' > "$d/overlay.json"
+  ccp_cfg_merge_settings "$d/global.json" "$d/overlay.json" "$d/out.json"
+  assert_eq "$(jq -r '.model' "$d/out.json")" "sonnet" "overlay overrides scalar"
+  assert_eq "$(jq -r '.env.A' "$d/out.json")" "1" "global key kept (deep merge)"
+  assert_eq "$(jq -r '.env.B' "$d/out.json")" "2" "overlay key added (deep merge)"
+}
+test_cfg_merge_no_global() {
+  local d; d="$(newdir)"
+  printf '{"env":{"B":"2"}}' > "$d/overlay.json"
+  ccp_cfg_merge_settings "$d/missing.json" "$d/overlay.json" "$d/out.json"
+  [[ -s "$d/out.json" ]]; assert_rc "$?" 0 "out written even without global"
+  if command -v jq >/dev/null 2>&1; then
+    assert_eq "$(jq -r '.env.B' "$d/out.json")" "2" "overlay-only merge"
+  fi
+}
+
 # ---- runner ----
 _filter="${1:-}"
 _tests="$(declare -F | awk '{print $3}' | grep '^test_' | { [[ -n "$_filter" ]] && grep -- "$_filter" || cat; } | sort)"
