@@ -339,6 +339,7 @@ func min(a, b int) int {
 var (
 	cAccent = lipgloss.Color("#c96442") // terracota (bicho 1)
 	cPale   = lipgloss.Color("#e0a487") // terracota pálido (bicho 2)
+	cShadow = lipgloss.Color("#7a3a28") // sombra 3D del título
 	cRule   = lipgloss.Color("#8a8378") // borde de panel sin foco
 	cOlive  = lipgloss.Color("#8a8b3f") // badge proveedor
 	cMute   = lipgloss.AdaptiveColor{Light: "#6f6a60", Dark: "#9a948a"}

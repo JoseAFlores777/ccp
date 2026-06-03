@@ -28,6 +28,63 @@ func cmdHelp(w io.Writer) int {
 // cliLogo es el banner ANSI de ccp: dos bichos pixel-art tomados de la mano (uno
 // terracota y otro terracota pálido, las dos identidades que ccp enruta) con el
 // wordmark y la versión debajo. Solo se llama con color disponible.
+// cliTitleBitmap es "CCP" en rejilla de █ (base del wordmark 3D).
+var cliTitleBitmap = []string{
+	"█████ █████ █████",
+	"█     █     █   █",
+	"█     █     █████",
+	"█     █     █    ",
+	"█████ █████ █    ",
+}
+
+// cliTitle3D renderiza el wordmark con sombra 3D (capa oscura desplazada +1
+// abajo/derecha). Devuelve len+1 líneas ANSI.
+func cliTitle3D() []string {
+	rows := make([][]rune, len(cliTitleBitmap))
+	w := 0
+	for i, r := range cliTitleBitmap {
+		rows[i] = []rune(r)
+		if len(rows[i]) > w {
+			w = len(rows[i])
+		}
+	}
+	oh, ow := len(rows)+1, w+1
+	grid := make([][]int, oh)
+	for i := range grid {
+		grid[i] = make([]int, ow)
+	}
+	for r := range rows {
+		for c, ch := range rows[r] {
+			if ch == '█' {
+				grid[r+1][c+1] = 1 // sombra
+			}
+		}
+	}
+	for r := range rows {
+		for c, ch := range rows[r] {
+			if ch == '█' {
+				grid[r][c] = 2 // letra
+			}
+		}
+	}
+	lines := make([]string, oh)
+	for r := 0; r < oh; r++ {
+		var b strings.Builder
+		for c := 0; c < ow; c++ {
+			switch grid[r][c] {
+			case 2:
+				b.WriteString(ansiAccent + "█" + ansiReset)
+			case 1:
+				b.WriteString(ansiShadow + "█" + ansiReset)
+			default:
+				b.WriteByte(' ')
+			}
+		}
+		lines[r] = b.String()
+	}
+	return lines
+}
+
 func cliLogo() string {
 	body := [5]string{
 		" ████████ ",
@@ -36,24 +93,25 @@ func cliLogo() string {
 		" ████████ ",
 		" █ █  █ █ ", // patas
 	}
-	// wordmark "CCP" en bloques (estilo Claude Code).
-	title := [5]string{
-		"█████ █████ █████",
-		"█     █     █   █",
-		"█     █     █████",
-		"█     █     █    ",
-		"█████ █████ █    ",
-	}
-	var sb strings.Builder
+	bug := make([]string, 5)
 	for i := 0; i < 5; i++ {
-		sb.WriteString(ansiAccent + body[i] + ansiReset)
+		s := ansiAccent + body[i] + ansiReset
 		if i == 2 { // fila de los brazos: manos unidas en el centro
-			sb.WriteString(ansiAccent + "▬" + ansiReset + ansiPale + "▬" + ansiReset)
+			s += ansiAccent + "▬" + ansiReset + ansiPale + "▬" + ansiReset
 		} else {
-			sb.WriteString("  ")
+			s += "  "
 		}
-		sb.WriteString(ansiPale + body[i] + ansiReset)
-		sb.WriteString("   " + ansiAccent + title[i] + ansiReset + "\n")
+		bug[i] = s + ansiPale + body[i] + ansiReset
+	}
+	const bugW = 22 // ancho visible del bloque de bichos (10 + 2 + 10)
+	title := cliTitle3D()
+	var sb strings.Builder
+	for i := 0; i < len(title); i++ {
+		left := strings.Repeat(" ", bugW)
+		if i < len(bug) {
+			left = bug[i]
+		}
+		sb.WriteString(left + "   " + title[i] + "\n")
 	}
 	sb.WriteString(ansiMute + "v" + core.Version + " — router de perfiles y cuentas de Claude Code" + ansiReset)
 	return sb.String()

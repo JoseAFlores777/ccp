@@ -325,6 +325,65 @@ func (m *model) viewForm() string {
 // logoBanner pinta el logo de ccp: dos bichos pixel-art tomados de la mano (uno
 // terracota y otro terracota pálido, las dos identidades que ccp enruta) con el
 // wordmark y la versión debajo.
+// titleBitmap es "CCP" en una rejilla de █ (5 filas), base del wordmark 3D.
+var titleBitmap = []string{
+	"█████ █████ █████",
+	"█     █     █   █",
+	"█     █     █████",
+	"█     █     █    ",
+	"█████ █████ █    ",
+}
+
+// title3D renderiza el wordmark con sombra 3D: una capa oscura desplazada +1
+// abajo/derecha detrás de la letra brillante. Devuelve len+1 líneas.
+func title3D() string {
+	rows := make([][]rune, len(titleBitmap))
+	w := 0
+	for i, r := range titleBitmap {
+		rows[i] = []rune(r)
+		if len(rows[i]) > w {
+			w = len(rows[i])
+		}
+	}
+	oh, ow := len(rows)+1, w+1
+	grid := make([][]int, oh)
+	for i := range grid {
+		grid[i] = make([]int, ow)
+	}
+	for r := range rows { // sombra primero (offset +1,+1)
+		for c, ch := range rows[r] {
+			if ch == '█' {
+				grid[r+1][c+1] = 1
+			}
+		}
+	}
+	for r := range rows { // letra brillante encima
+		for c, ch := range rows[r] {
+			if ch == '█' {
+				grid[r][c] = 2
+			}
+		}
+	}
+	bright := lipgloss.NewStyle().Foreground(cAccent)
+	shadow := lipgloss.NewStyle().Foreground(cShadow)
+	lines := make([]string, oh)
+	for r := 0; r < oh; r++ {
+		var b strings.Builder
+		for c := 0; c < ow; c++ {
+			switch grid[r][c] {
+			case 2:
+				b.WriteString(bright.Render("█"))
+			case 1:
+				b.WriteString(shadow.Render("█"))
+			default:
+				b.WriteByte(' ')
+			}
+		}
+		lines[r] = b.String()
+	}
+	return strings.Join(lines, "\n")
+}
+
 func logoBanner() string {
 	orange := lipgloss.NewStyle().Foreground(cAccent)
 	pale := lipgloss.NewStyle().Foreground(cPale)
@@ -335,15 +394,7 @@ func logoBanner() string {
 		" ████████ ",
 		" █ █  █ █ ", // patas
 	}
-	// wordmark "CCP" en bloques (estilo Claude Code), 5 filas.
-	title := [5]string{
-		"█████ █████ █████",
-		"█     █     █   █",
-		"█     █     █████",
-		"█     █     █    ",
-		"█████ █████ █    ",
-	}
-	var bugs, ttl strings.Builder
+	var bugs strings.Builder
 	for i := 0; i < 5; i++ {
 		bugs.WriteString(orange.Render(body[i]))
 		if i == 2 { // fila de los brazos: manos unidas
@@ -352,13 +403,11 @@ func logoBanner() string {
 			bugs.WriteString("  ")
 		}
 		bugs.WriteString(pale.Render(body[i]))
-		ttl.WriteString(orange.Render(title[i]))
 		if i < 4 {
 			bugs.WriteByte('\n')
-			ttl.WriteByte('\n')
 		}
 	}
-	head := lipgloss.JoinHorizontal(lipgloss.Top, bugs.String(), "   ", ttl.String())
+	head := lipgloss.JoinHorizontal(lipgloss.Top, bugs.String(), "   ", title3D())
 	return head + "\n" + styleSub.Render("v"+core.Version+" — perfiles y cuentas de Claude Code")
 }
 

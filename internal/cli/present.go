@@ -14,6 +14,7 @@ const hrLine = "─────────────────────�
 const (
 	ansiAccent = "\x1b[38;2;201;100;66m"  // #c96442 terracota (bicho 1)
 	ansiPale   = "\x1b[38;2;224;164;135m" // #e0a487 terracota pálido (bicho 2)
+	ansiShadow = "\x1b[38;2;122;58;40m"   // #7a3a28 sombra 3D del título
 	ansiMute   = "\x1b[38;2;138;131;120m" // #8a8378
 	ansiOlive  = "\x1b[38;2;138;139;63m"  // #8a8b3f proveedor
 	ansiBold   = "\x1b[1m"
