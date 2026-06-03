@@ -297,27 +297,27 @@
   .tbtn svg{width:15px; height:15px; flex:none;}
   .hero-actions{display:flex; gap:10px; flex-wrap:wrap; margin:2px 0 20px;}
   /* ── config-inheritance interactive map ── */
-  .inherit{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:22px; margin:18px 0 6px; align-items:start;}
-  .inherit-stack{display:flex; flex-direction:column; gap:0;}
-  .layer{appearance:none; text-align:left; width:100%; cursor:pointer; color:inherit;
-    background:var(--paper-2); border:1px solid var(--rule); border-left:3px solid var(--rule);
-    border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:3px;
-    transition:border-color .15s var(--ease), background .15s var(--ease), transform .15s var(--ease);
-    font-family:'Hanken Grotesk',system-ui,sans-serif;}
-  .layer:hover{border-color:var(--accent-line);}
-  .layer.is-active{border-color:var(--accent); border-left-color:var(--accent); background:var(--accent-soft); transform:translateX(2px);}
-  .layer .ly-tag{font:600 10.5px/1 'Spline Sans Mono',monospace; text-transform:uppercase; letter-spacing:.08em; color:var(--accent-deep);}
-  .layer .ly-name{font:600 14px/1.25 'Spline Sans Mono',monospace; color:var(--ink); word-break:break-word;}
-  .layer .ly-files{font-size:12px; color:var(--ink-mute);}
-  .layer-repo{border-style:dashed;}
-  .ly-flow{display:flex; justify-content:center; padding:7px 0; font:500 11.5px/1 'Spline Sans Mono',monospace; color:var(--ink-mute); text-align:center;}
-  .ly-flow-win{color:var(--accent-deep); font-weight:600;}
-  .inherit-detail{background:var(--paper); border:1px solid var(--rule); border-radius:11px; padding:16px 18px; min-height:120px; position:sticky; top:24px;}
+  .inherit{display:flex; flex-direction:column; align-items:center; gap:20px; margin:24px 0 6px;}
+  .inherit-tree{width:100%; max-width:680px; height:auto; user-select:none; font-family:'Spline Sans Mono',monospace;}
+  .inherit-tree .edge{fill:none; stroke:var(--rule); stroke-width:1.5;}
+  .inherit-tree .edge-win{stroke:var(--accent-line); stroke-width:1.5; stroke-dasharray:5 4;}
+  .inherit-tree .edge-lbl{fill:var(--ink-mute); font-size:11px;}
+  .inherit-tree .edge-lbl-win{fill:var(--accent-deep); font-size:11px; font-weight:600;}
+  .inherit-tree .node{cursor:pointer; outline:none;}
+  .inherit-tree .node .box{fill:var(--paper-2); stroke:var(--rule); stroke-width:1.5;
+    transition:fill .15s var(--ease), stroke .15s var(--ease), stroke-width .15s var(--ease);}
+  .inherit-tree .node:hover .box,.inherit-tree .node:focus .box{stroke:var(--accent-line);}
+  .inherit-tree .node.is-active .box{fill:var(--accent-soft); stroke:var(--accent); stroke-width:2;}
+  .inherit-tree .node-repo .box{stroke-dasharray:6 4;}
+  .inherit-tree .ly-tag{fill:var(--accent-deep); font-size:10.5px; letter-spacing:.07em; font-weight:600;}
+  .inherit-tree .ly-name{fill:var(--ink); font-size:13px; font-weight:600;}
+  .inherit-tree .ly-files{fill:var(--ink-mute); font-size:10.5px;}
+  .inherit-detail{width:100%; max-width:680px; background:var(--paper); border:1px solid var(--rule); border-radius:11px; padding:16px 18px; min-height:96px;}
   .inherit-detail h4{margin:0 0 8px; font-family:'Zilla Slab',serif; font-size:17px; color:var(--ink);}
   .inherit-detail p{margin:0 0 8px; font-size:13.5px; color:var(--ink-soft); line-height:1.55;}
   .inherit-detail code{font-family:'Spline Sans Mono',monospace; font-size:12px;}
   .inherit-detail .note{color:var(--ink-mute); font-size:12.5px; border-top:1px solid var(--rule-soft); padding-top:8px; margin-top:4px;}
-  @media (max-width:760px){ .inherit{grid-template-columns:1fr;} .inherit-detail{position:static;} }
+  @media (max-width:760px){ .inherit-tree{max-width:460px;} }
 
   .triad{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin:28px 0 0;}
   .triad .t{padding:16px 16px 18px; border:1px solid var(--rule); border-radius:11px; background:var(--paper-2);}
@@ -509,33 +509,57 @@
         <div class="why-body"><p>Rules nest. <code>~/work</code> covers everything inside it, but if a subfolder has its own rule, that one is more specific and rules only there. That way you can have a one-off exception without touching the parent's rule. That's the <b>carve-out</b> from Case 04.</p></div>
       </details>
       <h3 class="sub">Config inheritance — Claude ↔ profiles</h3>
-      <p class="intro">Each profile is an isolated <code>CLAUDE_CONFIG_DIR</code>. ccp <b>builds it by layering</b> your global Claude config with the profile's overlay. Click a layer.</p>
+      <p class="intro">Each profile is an isolated <code>CLAUDE_CONFIG_DIR</code> that <b>inherits</b> from your global Claude config. Your <code>~/.claude</code> is the root; the <code>default</code> profile uses it as-is, named profiles extend it with an overlay. Click a node.</p>
       <div class="inherit" id="inherit">
-        <div class="inherit-stack">
-          <button class="layer is-active" type="button" data-layer="global">
-            <span class="ly-tag">global</span>
-            <span class="ly-name">~/.claude</span>
-            <span class="ly-files">CLAUDE.md · settings.json</span>
-          </button>
-          <div class="ly-flow">@import &nbsp;·&nbsp; ⊕ deep-merge&nbsp; ↓</div>
-          <button class="layer" type="button" data-layer="overlay">
-            <span class="ly-tag">overlay</span>
-            <span class="ly-name">profiles/&lt;name&gt;/overlay</span>
-            <span class="ly-files">CLAUDE.md · settings.overlay.json</span>
-          </button>
-          <div class="ly-flow">= &nbsp; ↓</div>
-          <button class="layer layer-cc" type="button" data-layer="cchome">
-            <span class="ly-tag">generated</span>
-            <span class="ly-name">profiles/&lt;name&gt;/cc-home</span>
-            <span class="ly-files">the CLAUDE_CONFIG_DIR Claude reads</span>
-          </button>
-          <div class="ly-flow ly-flow-win">baseline — overridden by ↓</div>
-          <button class="layer layer-repo" type="button" data-layer="repo">
-            <span class="ly-tag">wins</span>
-            <span class="ly-name">&lt;repo&gt;/.claude/settings.json</span>
-            <span class="ly-files">project config beats the baseline</span>
-          </button>
-        </div>
+        <svg class="inherit-tree" id="inheritTree" viewBox="0 0 640 446" role="img" aria-label="Config inheritance tree">
+          <!-- edges -->
+          <path class="edge" d="M320,88 V108"/>
+          <path class="edge" d="M124,108 H516"/>
+          <path class="edge" d="M124,108 V128"/>
+          <path class="edge" d="M516,108 V128"/>
+          <text class="edge-lbl" x="120" y="102" text-anchor="end">uses as-is</text>
+          <text class="edge-lbl" x="520" y="102">+ overlay</text>
+          <path class="edge" d="M516,204 V232"/>
+          <text class="edge-lbl" x="524" y="222">merged with global</text>
+          <path class="edge edge-win" d="M516,308 V336"/>
+          <text class="edge-lbl-win" x="524" y="326">repo wins</text>
+          <!-- legend -->
+          <path class="edge" d="M196,430 H224"/>
+          <text class="edge-lbl" x="230" y="434">inherits</text>
+          <path class="edge edge-win" d="M306,430 H334"/>
+          <text class="edge-lbl-win" x="340" y="434">overrides</text>
+          <!-- nodes -->
+          <g class="node is-active" data-layer="global" tabindex="0" role="button" aria-label="global ~/.claude">
+            <rect class="box" x="220" y="12" width="200" height="76" rx="11"/>
+            <text class="ly-tag"   x="236" y="36">GLOBAL · ROOT</text>
+            <text class="ly-name"  x="236" y="57">~/.claude</text>
+            <text class="ly-files" x="236" y="76">CLAUDE.md + settings.json</text>
+          </g>
+          <g class="node" data-layer="default" tabindex="0" role="button" aria-label="default profile">
+            <rect class="box" x="24" y="128" width="200" height="76" rx="11"/>
+            <text class="ly-tag"   x="40" y="152">DEFAULT</text>
+            <text class="ly-name"  x="40" y="173">default profile</text>
+            <text class="ly-files" x="40" y="192">= global, as-is</text>
+          </g>
+          <g class="node" data-layer="overlay" tabindex="0" role="button" aria-label="profile overlay">
+            <rect class="box" x="416" y="128" width="200" height="76" rx="11"/>
+            <text class="ly-tag"   x="432" y="152">OVERLAY</text>
+            <text class="ly-name"  x="432" y="173">&lt;name&gt;/overlay</text>
+            <text class="ly-files" x="432" y="192">your profile layer</text>
+          </g>
+          <g class="node" data-layer="cchome" tabindex="0" role="button" aria-label="cc-home generated">
+            <rect class="box" x="416" y="232" width="200" height="76" rx="11"/>
+            <text class="ly-tag"   x="432" y="256">GENERATED</text>
+            <text class="ly-name"  x="432" y="277">&lt;name&gt;/cc-home</text>
+            <text class="ly-files" x="432" y="296">CLAUDE_CONFIG_DIR</text>
+          </g>
+          <g class="node node-repo" data-layer="repo" tabindex="0" role="button" aria-label="repo .claude wins">
+            <rect class="box" x="416" y="336" width="200" height="76" rx="11"/>
+            <text class="ly-tag"   x="432" y="360">WINS</text>
+            <text class="ly-name"  x="432" y="381">&lt;repo&gt;/.claude</text>
+            <text class="ly-files" x="432" y="400">project config</text>
+          </g>
+        </svg>
         <aside class="inherit-detail" id="inheritDetail" aria-live="polite"></aside>
       </div>
     </section>
@@ -1144,22 +1168,25 @@ ccp lang es     <span class="c"># Spanish</span></pre></div>
       if (!box) return;
       var detail = document.getElementById('inheritDetail');
       var DATA = {
-        global:  {h:'Global ~/.claude', p:'Your normal Claude Code config: <code>CLAUDE.md</code> (instructions) and <code>settings.json</code>. The shared base every profile builds on.', note:'The <b>default</b> profile uses this directly — no overlay, no copy.'},
-        overlay: {h:'Profile overlay', p:'Each non-default profile keeps its own <code>overlay/CLAUDE.md</code> and <code>settings.overlay.json</code> under <code>~/.config/ccp/profiles/&lt;name&gt;</code> — the profile-specific layer.', note:'Lowest-precedence baseline: a repo’s own config still wins.'},
+        global:  {h:'Global ~/.claude (root)', p:'Your normal Claude Code config: <code>CLAUDE.md</code> (instructions) and <code>settings.json</code>. The shared base every profile inherits from.', note:'Every node below descends from here.'},
+        'default': {h:'default profile', p:'The reserved <code>default</code> profile inherits <code>~/.claude</code> <b>directly</b> — no overlay, no generated copy. It is your normal Claude login.', note:'Pick a directory with no rule → you land here.'},
+        overlay: {h:'Profile overlay', p:'Each non-default profile keeps its own <code>overlay/CLAUDE.md</code> and <code>settings.overlay.json</code> under <code>~/.config/ccp/profiles/&lt;name&gt;</code> — the profile-specific layer added on top of global.', note:'Lowest-precedence baseline: a repo’s own config still wins.'},
         cchome:  {h:'cc-home (generated)', p:'ccp generates each profile’s <code>cc-home/</code> = its <code>CLAUDE_CONFIG_DIR</code>. <code>CLAUDE.md</code> is an <code>@import</code> of global then overlay; <code>settings.json</code> is a pure-Go deep-merge of global ⊕ overlay.', note:'This is the directory Claude Code actually reads when the profile is active.'},
         repo:    {h:'Repo .claude wins', p:'A project’s own <code>.claude/settings.json</code> overrides the profile baseline on conflict. The profile is a starting point, not a cage.', note:'ccp never rewrites your repo files.'}
       };
       function show(k){
         var d = DATA[k]; if(!d) return;
         detail.innerHTML = '<h4>'+d.h+'</h4><p>'+d.p+'</p><p class="note">'+d.note+'</p>';
-        var bs = box.querySelectorAll('.layer');
+        var bs = box.querySelectorAll('.node');
         for (var i=0;i<bs.length;i++){ bs[i].classList.toggle('is-active', bs[i].getAttribute('data-layer')===k); }
       }
-      var bs = box.querySelectorAll('.layer');
+      var bs = box.querySelectorAll('.node');
       for (var i=0;i<bs.length;i++){ (function(b){
         var k = b.getAttribute('data-layer');
         b.addEventListener('click', function(){ show(k); });
         b.addEventListener('mouseenter', function(){ show(k); });
+        b.addEventListener('focus', function(){ show(k); });
+        b.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); show(k); } });
       })(bs[i]); }
       show('global');
     })();

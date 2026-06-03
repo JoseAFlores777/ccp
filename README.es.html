@@ -297,27 +297,27 @@
   .tbtn svg{width:15px; height:15px; flex:none;}
   .hero-actions{display:flex; gap:10px; flex-wrap:wrap; margin:2px 0 20px;}
   /* ── config-inheritance interactive map ── */
-  .inherit{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:22px; margin:18px 0 6px; align-items:start;}
-  .inherit-stack{display:flex; flex-direction:column; gap:0;}
-  .layer{appearance:none; text-align:left; width:100%; cursor:pointer; color:inherit;
-    background:var(--paper-2); border:1px solid var(--rule); border-left:3px solid var(--rule);
-    border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:3px;
-    transition:border-color .15s var(--ease), background .15s var(--ease), transform .15s var(--ease);
-    font-family:'Hanken Grotesk',system-ui,sans-serif;}
-  .layer:hover{border-color:var(--accent-line);}
-  .layer.is-active{border-color:var(--accent); border-left-color:var(--accent); background:var(--accent-soft); transform:translateX(2px);}
-  .layer .ly-tag{font:600 10.5px/1 'Spline Sans Mono',monospace; text-transform:uppercase; letter-spacing:.08em; color:var(--accent-deep);}
-  .layer .ly-name{font:600 14px/1.25 'Spline Sans Mono',monospace; color:var(--ink); word-break:break-word;}
-  .layer .ly-files{font-size:12px; color:var(--ink-mute);}
-  .layer-repo{border-style:dashed;}
-  .ly-flow{display:flex; justify-content:center; padding:7px 0; font:500 11.5px/1 'Spline Sans Mono',monospace; color:var(--ink-mute); text-align:center;}
-  .ly-flow-win{color:var(--accent-deep); font-weight:600;}
-  .inherit-detail{background:var(--paper); border:1px solid var(--rule); border-radius:11px; padding:16px 18px; min-height:120px; position:sticky; top:24px;}
+  .inherit{display:flex; flex-direction:column; align-items:center; gap:20px; margin:24px 0 6px;}
+  .inherit-tree{width:100%; max-width:680px; height:auto; user-select:none; font-family:'Spline Sans Mono',monospace;}
+  .inherit-tree .edge{fill:none; stroke:var(--rule); stroke-width:1.5;}
+  .inherit-tree .edge-win{stroke:var(--accent-line); stroke-width:1.5; stroke-dasharray:5 4;}
+  .inherit-tree .edge-lbl{fill:var(--ink-mute); font-size:11px;}
+  .inherit-tree .edge-lbl-win{fill:var(--accent-deep); font-size:11px; font-weight:600;}
+  .inherit-tree .node{cursor:pointer; outline:none;}
+  .inherit-tree .node .box{fill:var(--paper-2); stroke:var(--rule); stroke-width:1.5;
+    transition:fill .15s var(--ease), stroke .15s var(--ease), stroke-width .15s var(--ease);}
+  .inherit-tree .node:hover .box,.inherit-tree .node:focus .box{stroke:var(--accent-line);}
+  .inherit-tree .node.is-active .box{fill:var(--accent-soft); stroke:var(--accent); stroke-width:2;}
+  .inherit-tree .node-repo .box{stroke-dasharray:6 4;}
+  .inherit-tree .ly-tag{fill:var(--accent-deep); font-size:10.5px; letter-spacing:.07em; font-weight:600;}
+  .inherit-tree .ly-name{fill:var(--ink); font-size:13px; font-weight:600;}
+  .inherit-tree .ly-files{fill:var(--ink-mute); font-size:10.5px;}
+  .inherit-detail{width:100%; max-width:680px; background:var(--paper); border:1px solid var(--rule); border-radius:11px; padding:16px 18px; min-height:96px;}
   .inherit-detail h4{margin:0 0 8px; font-family:'Zilla Slab',serif; font-size:17px; color:var(--ink);}
   .inherit-detail p{margin:0 0 8px; font-size:13.5px; color:var(--ink-soft); line-height:1.55;}
   .inherit-detail code{font-family:'Spline Sans Mono',monospace; font-size:12px;}
   .inherit-detail .note{color:var(--ink-mute); font-size:12.5px; border-top:1px solid var(--rule-soft); padding-top:8px; margin-top:4px;}
-  @media (max-width:760px){ .inherit{grid-template-columns:1fr;} .inherit-detail{position:static;} }
+  @media (max-width:760px){ .inherit-tree{max-width:460px;} }
 
   .triad{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin:28px 0 0;}
   .triad .t{padding:16px 16px 18px; border:1px solid var(--rule); border-radius:11px; background:var(--paper-2);}
@@ -509,33 +509,57 @@
         <div class="why-body"><p>Las reglas anidan. <code>~/work</code> cubre todo lo de adentro, pero si una subcarpeta tiene su propia regla, esa es más específica y manda solo ahí. Así puedes tener una excepción puntual sin tocar la regla del padre. Eso es el <b>carve-out</b> del Caso 04.</p></div>
       </details>
       <h3 class="sub">Herencia de config — Claude ↔ perfiles</h3>
-      <p class="intro">Cada perfil es un <code>CLAUDE_CONFIG_DIR</code> aislado. ccp lo <b>arma por capas</b>: tu config global de Claude más el overlay del perfil. Haz clic en una capa.</p>
+      <p class="intro">Cada perfil es un <code>CLAUDE_CONFIG_DIR</code> aislado que <b>hereda</b> de tu config global de Claude. Tu <code>~/.claude</code> es la raíz; el perfil <code>default</code> la usa tal cual, los perfiles con nombre la extienden con un overlay. Haz clic en un nodo.</p>
       <div class="inherit" id="inherit">
-        <div class="inherit-stack">
-          <button class="layer is-active" type="button" data-layer="global">
-            <span class="ly-tag">global</span>
-            <span class="ly-name">~/.claude</span>
-            <span class="ly-files">CLAUDE.md · settings.json</span>
-          </button>
-          <div class="ly-flow">@import &nbsp;·&nbsp; ⊕ deep-merge&nbsp; ↓</div>
-          <button class="layer" type="button" data-layer="overlay">
-            <span class="ly-tag">overlay</span>
-            <span class="ly-name">profiles/&lt;nombre&gt;/overlay</span>
-            <span class="ly-files">CLAUDE.md · settings.overlay.json</span>
-          </button>
-          <div class="ly-flow">= &nbsp; ↓</div>
-          <button class="layer layer-cc" type="button" data-layer="cchome">
-            <span class="ly-tag">generado</span>
-            <span class="ly-name">profiles/&lt;nombre&gt;/cc-home</span>
-            <span class="ly-files">el CLAUDE_CONFIG_DIR que Claude lee</span>
-          </button>
-          <div class="ly-flow ly-flow-win">baseline — lo sobreescribe ↓</div>
-          <button class="layer layer-repo" type="button" data-layer="repo">
-            <span class="ly-tag">gana</span>
-            <span class="ly-name">&lt;repo&gt;/.claude/settings.json</span>
-            <span class="ly-files">la config del proyecto gana</span>
-          </button>
-        </div>
+        <svg class="inherit-tree" id="inheritTree" viewBox="0 0 640 446" role="img" aria-label="Árbol de herencia de config">
+          <!-- aristas -->
+          <path class="edge" d="M320,88 V108"/>
+          <path class="edge" d="M124,108 H516"/>
+          <path class="edge" d="M124,108 V128"/>
+          <path class="edge" d="M516,108 V128"/>
+          <text class="edge-lbl" x="120" y="102" text-anchor="end">usa tal cual</text>
+          <text class="edge-lbl" x="520" y="102">+ overlay</text>
+          <path class="edge" d="M516,204 V232"/>
+          <text class="edge-lbl" x="524" y="222">se fusiona con global</text>
+          <path class="edge edge-win" d="M516,308 V336"/>
+          <text class="edge-lbl-win" x="524" y="326">el repo gana</text>
+          <!-- leyenda -->
+          <path class="edge" d="M188,430 H216"/>
+          <text class="edge-lbl" x="222" y="434">hereda</text>
+          <path class="edge edge-win" d="M300,430 H328"/>
+          <text class="edge-lbl-win" x="334" y="434">sobreescribe</text>
+          <!-- nodos -->
+          <g class="node is-active" data-layer="global" tabindex="0" role="button" aria-label="global ~/.claude">
+            <rect class="box" x="220" y="12" width="200" height="76" rx="11"/>
+            <text class="ly-tag"   x="236" y="36">GLOBAL · RAÍZ</text>
+            <text class="ly-name"  x="236" y="57">~/.claude</text>
+            <text class="ly-files" x="236" y="76">CLAUDE.md + settings.json</text>
+          </g>
+          <g class="node" data-layer="default" tabindex="0" role="button" aria-label="perfil default">
+            <rect class="box" x="24" y="128" width="200" height="76" rx="11"/>
+            <text class="ly-tag"   x="40" y="152">DEFAULT</text>
+            <text class="ly-name"  x="40" y="173">perfil default</text>
+            <text class="ly-files" x="40" y="192">= global, tal cual</text>
+          </g>
+          <g class="node" data-layer="overlay" tabindex="0" role="button" aria-label="overlay del perfil">
+            <rect class="box" x="416" y="128" width="200" height="76" rx="11"/>
+            <text class="ly-tag"   x="432" y="152">OVERLAY</text>
+            <text class="ly-name"  x="432" y="173">&lt;nombre&gt;/overlay</text>
+            <text class="ly-files" x="432" y="192">capa del perfil</text>
+          </g>
+          <g class="node" data-layer="cchome" tabindex="0" role="button" aria-label="cc-home generado">
+            <rect class="box" x="416" y="232" width="200" height="76" rx="11"/>
+            <text class="ly-tag"   x="432" y="256">GENERADO</text>
+            <text class="ly-name"  x="432" y="277">&lt;nombre&gt;/cc-home</text>
+            <text class="ly-files" x="432" y="296">CLAUDE_CONFIG_DIR</text>
+          </g>
+          <g class="node node-repo" data-layer="repo" tabindex="0" role="button" aria-label="repo .claude gana">
+            <rect class="box" x="416" y="336" width="200" height="76" rx="11"/>
+            <text class="ly-tag"   x="432" y="360">GANA</text>
+            <text class="ly-name"  x="432" y="381">&lt;repo&gt;/.claude</text>
+            <text class="ly-files" x="432" y="400">config del proyecto</text>
+          </g>
+        </svg>
         <aside class="inherit-detail" id="inheritDetail" aria-live="polite"></aside>
       </div>
     </section>
@@ -1144,22 +1168,25 @@ ccp lang es     <span class="c"># español</span></pre></div>
       if (!box) return;
       var detail = document.getElementById('inheritDetail');
       var DATA = {
-        global:  {h:'Global ~/.claude', p:'Tu config normal de Claude Code: <code>CLAUDE.md</code> (instrucciones) y <code>settings.json</code>. La base compartida sobre la que se arma cada perfil.', note:'El perfil <b>default</b> usa esto directo — sin overlay, sin copia.'},
-        overlay: {h:'Overlay del perfil', p:'Cada perfil no-default guarda su propio <code>overlay/CLAUDE.md</code> y <code>settings.overlay.json</code> en <code>~/.config/ccp/profiles/&lt;nombre&gt;</code> — la capa propia del perfil.', note:'Baseline de menor prioridad: la config del repo igual gana.'},
+        global:  {h:'Global ~/.claude (raíz)', p:'Tu config normal de Claude Code: <code>CLAUDE.md</code> (instrucciones) y <code>settings.json</code>. La base compartida de la que hereda cada perfil.', note:'Todos los nodos de abajo descienden de aquí.'},
+        'default': {h:'Perfil default', p:'El perfil reservado <code>default</code> hereda <code>~/.claude</code> <b>directo</b> — sin overlay, sin copia generada. Es tu login normal de Claude.', note:'Estás en un directorio sin regla → caes aquí.'},
+        overlay: {h:'Overlay del perfil', p:'Cada perfil no-default guarda su propio <code>overlay/CLAUDE.md</code> y <code>settings.overlay.json</code> en <code>~/.config/ccp/profiles/&lt;nombre&gt;</code> — la capa propia del perfil, encima del global.', note:'Baseline de menor prioridad: la config del repo igual gana.'},
         cchome:  {h:'cc-home (generado)', p:'ccp genera el <code>cc-home/</code> de cada perfil = su <code>CLAUDE_CONFIG_DIR</code>. <code>CLAUDE.md</code> hace <code>@import</code> del global y luego del overlay; <code>settings.json</code> es un deep-merge puro en Go de global ⊕ overlay.', note:'Es el directorio que Claude Code lee de verdad cuando el perfil está activo.'},
         repo:    {h:'El .claude del repo gana', p:'El <code>.claude/settings.json</code> del proyecto sobreescribe la baseline del perfil en conflicto. El perfil es un punto de partida, no una jaula.', note:'ccp nunca reescribe los archivos de tu repo.'}
       };
       function show(k){
         var d = DATA[k]; if(!d) return;
         detail.innerHTML = '<h4>'+d.h+'</h4><p>'+d.p+'</p><p class="note">'+d.note+'</p>';
-        var bs = box.querySelectorAll('.layer');
+        var bs = box.querySelectorAll('.node');
         for (var i=0;i<bs.length;i++){ bs[i].classList.toggle('is-active', bs[i].getAttribute('data-layer')===k); }
       }
-      var bs = box.querySelectorAll('.layer');
+      var bs = box.querySelectorAll('.node');
       for (var i=0;i<bs.length;i++){ (function(b){
         var k = b.getAttribute('data-layer');
         b.addEventListener('click', function(){ show(k); });
         b.addEventListener('mouseenter', function(){ show(k); });
+        b.addEventListener('focus', function(){ show(k); });
+        b.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); show(k); } });
       })(bs[i]); }
       show('global');
     })();
