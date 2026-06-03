@@ -296,6 +296,28 @@
   .tbtn:hover{border-color:var(--accent-line); color:var(--accent-deep); background:var(--accent-soft);}
   .tbtn svg{width:15px; height:15px; flex:none;}
   .hero-actions{display:flex; gap:10px; flex-wrap:wrap; margin:2px 0 20px;}
+  /* ── config-inheritance interactive map ── */
+  .inherit{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:22px; margin:18px 0 6px; align-items:start;}
+  .inherit-stack{display:flex; flex-direction:column; gap:0;}
+  .layer{appearance:none; text-align:left; width:100%; cursor:pointer; color:inherit;
+    background:var(--paper-2); border:1px solid var(--rule); border-left:3px solid var(--rule);
+    border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:3px;
+    transition:border-color .15s var(--ease), background .15s var(--ease), transform .15s var(--ease);
+    font-family:'Hanken Grotesk',system-ui,sans-serif;}
+  .layer:hover{border-color:var(--accent-line);}
+  .layer.is-active{border-color:var(--accent); border-left-color:var(--accent); background:var(--accent-soft); transform:translateX(2px);}
+  .layer .ly-tag{font:600 10.5px/1 'Spline Sans Mono',monospace; text-transform:uppercase; letter-spacing:.08em; color:var(--accent-deep);}
+  .layer .ly-name{font:600 14px/1.25 'Spline Sans Mono',monospace; color:var(--ink); word-break:break-word;}
+  .layer .ly-files{font-size:12px; color:var(--ink-mute);}
+  .layer-repo{border-style:dashed;}
+  .ly-flow{display:flex; justify-content:center; padding:7px 0; font:500 11.5px/1 'Spline Sans Mono',monospace; color:var(--ink-mute); text-align:center;}
+  .ly-flow-win{color:var(--accent-deep); font-weight:600;}
+  .inherit-detail{background:var(--paper); border:1px solid var(--rule); border-radius:11px; padding:16px 18px; min-height:120px; position:sticky; top:24px;}
+  .inherit-detail h4{margin:0 0 8px; font-family:'Zilla Slab',serif; font-size:17px; color:var(--ink);}
+  .inherit-detail p{margin:0 0 8px; font-size:13.5px; color:var(--ink-soft); line-height:1.55;}
+  .inherit-detail code{font-family:'Spline Sans Mono',monospace; font-size:12px;}
+  .inherit-detail .note{color:var(--ink-mute); font-size:12.5px; border-top:1px solid var(--rule-soft); padding-top:8px; margin-top:4px;}
+  @media (max-width:760px){ .inherit{grid-template-columns:1fr;} .inherit-detail{position:static;} }
 
   .triad{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin:28px 0 0;}
   .triad .t{padding:16px 16px 18px; border:1px solid var(--rule); border-radius:11px; background:var(--paper-2);}
@@ -486,6 +508,36 @@
       <details class="why"><summary>¿por qué "la más profunda"?</summary>
         <div class="why-body"><p>Las reglas anidan. <code>~/work</code> cubre todo lo de adentro, pero si una subcarpeta tiene su propia regla, esa es más específica y manda solo ahí. Así puedes tener una excepción puntual sin tocar la regla del padre. Eso es el <b>carve-out</b> del Caso 04.</p></div>
       </details>
+      <h3 class="sub">Herencia de config — Claude ↔ perfiles</h3>
+      <p class="intro">Cada perfil es un <code>CLAUDE_CONFIG_DIR</code> aislado. ccp lo <b>arma por capas</b>: tu config global de Claude más el overlay del perfil. Haz clic en una capa.</p>
+      <div class="inherit" id="inherit">
+        <div class="inherit-stack">
+          <button class="layer is-active" type="button" data-layer="global">
+            <span class="ly-tag">global</span>
+            <span class="ly-name">~/.claude</span>
+            <span class="ly-files">CLAUDE.md · settings.json</span>
+          </button>
+          <div class="ly-flow">@import &nbsp;·&nbsp; ⊕ deep-merge&nbsp; ↓</div>
+          <button class="layer" type="button" data-layer="overlay">
+            <span class="ly-tag">overlay</span>
+            <span class="ly-name">profiles/&lt;nombre&gt;/overlay</span>
+            <span class="ly-files">CLAUDE.md · settings.overlay.json</span>
+          </button>
+          <div class="ly-flow">= &nbsp; ↓</div>
+          <button class="layer layer-cc" type="button" data-layer="cchome">
+            <span class="ly-tag">generado</span>
+            <span class="ly-name">profiles/&lt;nombre&gt;/cc-home</span>
+            <span class="ly-files">el CLAUDE_CONFIG_DIR que Claude lee</span>
+          </button>
+          <div class="ly-flow ly-flow-win">baseline — lo sobreescribe ↓</div>
+          <button class="layer layer-repo" type="button" data-layer="repo">
+            <span class="ly-tag">gana</span>
+            <span class="ly-name">&lt;repo&gt;/.claude/settings.json</span>
+            <span class="ly-files">la config del proyecto gana</span>
+          </button>
+        </div>
+        <aside class="inherit-detail" id="inheritDetail" aria-live="polite"></aside>
+      </div>
     </section>
 
     <!-- ═══ INSTALACIÓN ═══ -->
@@ -1085,6 +1137,32 @@ ccp lang es     <span class="c"># español</span></pre></div>
       render();
     }
   })();
+
+    // config-inheritance interactive map (independent of the view router)
+    (function(){
+      var box = document.getElementById('inherit');
+      if (!box) return;
+      var detail = document.getElementById('inheritDetail');
+      var DATA = {
+        global:  {h:'Global ~/.claude', p:'Tu config normal de Claude Code: <code>CLAUDE.md</code> (instrucciones) y <code>settings.json</code>. La base compartida sobre la que se arma cada perfil.', note:'El perfil <b>default</b> usa esto directo — sin overlay, sin copia.'},
+        overlay: {h:'Overlay del perfil', p:'Cada perfil no-default guarda su propio <code>overlay/CLAUDE.md</code> y <code>settings.overlay.json</code> en <code>~/.config/ccp/profiles/&lt;nombre&gt;</code> — la capa propia del perfil.', note:'Baseline de menor prioridad: la config del repo igual gana.'},
+        cchome:  {h:'cc-home (generado)', p:'ccp genera el <code>cc-home/</code> de cada perfil = su <code>CLAUDE_CONFIG_DIR</code>. <code>CLAUDE.md</code> hace <code>@import</code> del global y luego del overlay; <code>settings.json</code> es un deep-merge puro en Go de global ⊕ overlay.', note:'Es el directorio que Claude Code lee de verdad cuando el perfil está activo.'},
+        repo:    {h:'El .claude del repo gana', p:'El <code>.claude/settings.json</code> del proyecto sobreescribe la baseline del perfil en conflicto. El perfil es un punto de partida, no una jaula.', note:'ccp nunca reescribe los archivos de tu repo.'}
+      };
+      function show(k){
+        var d = DATA[k]; if(!d) return;
+        detail.innerHTML = '<h4>'+d.h+'</h4><p>'+d.p+'</p><p class="note">'+d.note+'</p>';
+        var bs = box.querySelectorAll('.layer');
+        for (var i=0;i<bs.length;i++){ bs[i].classList.toggle('is-active', bs[i].getAttribute('data-layer')===k); }
+      }
+      var bs = box.querySelectorAll('.layer');
+      for (var i=0;i<bs.length;i++){ (function(b){
+        var k = b.getAttribute('data-layer');
+        b.addEventListener('click', function(){ show(k); });
+        b.addEventListener('mouseenter', function(){ show(k); });
+      })(bs[i]); }
+      show('global');
+    })();
 </script>
 </body>
 </html>
