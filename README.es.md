@@ -216,6 +216,22 @@ ccp lang es           # cambia a español y lo persiste en ccp.yaml
 - `CCP_LANG=en|es` — override por entorno; tiene prioridad sobre la config. El valor por defecto es inglés.
 - En el dashboard interactivo (TUI), pulsa **`L`** para cambiar el idioma en vivo (se persiste). Ojo: en el TUI, **iniciar sesión** (login) está en la **`l`** minúscula, y **`L`** (mayúscula) cambia el idioma.
 
+### Atajos de teclado del TUI
+
+| Tecla | Acción |
+|---|---|
+| `j` / `k` (o ↓/↑) | Mover la selección |
+| `Tab` / `Shift+Tab` | Cambiar de panel (Perfiles / Reglas / Estado) |
+| `Enter` | Mostrar/ocultar detalle (Perfiles) |
+| `a` | Añadir |
+| `d` | Borrar |
+| `s` | Guardar key (DeepSeek) |
+| `e` | Editar config |
+| `l` | Iniciar sesión (oficial) |
+| `L` | Cambiar idioma (EN/ES) |
+| `:` | Barra de comandos |
+| `q` / `Ctrl+C` | Salir |
+
 ---
 
 ## Configurar a mano (`ccp.yaml`)
@@ -264,6 +280,11 @@ Con comandos: `ccp config show` · `ccp config set <clave> <valor>` · `ccp conf
 | Cambié de carpeta y el perfil no cambió | El hook recuerda la última carpeta; refresca con `cd .` |
 | Al abrir Claude dice "Not logged in" | Ese perfil oficial no tiene sesión: `ccp profile login <n>`. |
 | Ver el perfil de una carpeta sin entrar | `ccp resolve ~/ruta/que/sea` |
+| ¿Cómo cambio el idioma de la salida? | `ccp lang en\|es`, `CCP_LANG=es`, o pulsa `L` en el TUI. |
+| ¿ccp cambia algo dentro de Claude Code? | No. Solo apunta Claude Code a un perfil por carpeta (su propio config dir / proveedor). Tus cuentas y ajustes quedan intactos. |
+| ¿Dónde se guardan mis API keys? | En `~/.config/ccp/profiles/<n>/api_key`, `chmod 600`. Nunca en `ccp.yaml`, en el rc del shell, ni en git. |
+| ¿Cómo actualizo ccp? | `ccp upgrade` (re-ejecuta el instalador + `profile sync`). |
+| ¿Cómo desinstalo? | `ccp uninstall` (quita el bloque del shell); opcionalmente `rm -rf ~/.config/ccp`. |
 
 ## Referencia rápida
 
@@ -302,7 +323,7 @@ rm -rf ~/.config/ccp    # (opcional) borra config y perfiles
 
 ---
 
-MIT — mira [`LICENSE`](LICENSE). ¿Curioso de cómo funciona por dentro? Mira [`CLAUDE.md`](CLAUDE.md) y `docs/superpowers/specs/ccp-profiles.html`.
+MIT — mira [`LICENSE`](LICENSE). ¿Curioso de cómo funciona por dentro? Mira [`CLAUDE.md`](CLAUDE.md) y el [código en GitHub](https://github.com/JoseAFlores777/ccp).
 
 ## Aviso legal y marcas
 

@@ -216,6 +216,22 @@ ccp lang es           # cambia a español y lo persiste en ccp.yaml
 - `CCP_LANG=en|es` — environment override; it takes precedence over the config. The default is English.
 - In the interactive TUI, press **`L`** to toggle the language live (it persists). Note: in the TUI, profile **login** is on lowercase **`l`**, and **`L`** (uppercase) toggles the language.
 
+### TUI keyboard shortcuts
+
+| Key | Action |
+|---|---|
+| `j` / `k` (or ↓/↑) | Move the selection |
+| `Tab` / `Shift+Tab` | Switch panel (Profiles / Rules / Status) |
+| `Enter` | Toggle detail (Profiles) |
+| `a` | Add |
+| `d` | Delete |
+| `s` | Set key (DeepSeek) |
+| `e` | Edit config |
+| `l` | Login (official) |
+| `L` | Toggle language (EN/ES) |
+| `:` | Command bar |
+| `q` / `Ctrl+C` | Quit |
+
 ---
 
 ## Configure by hand (`ccp.yaml`)
@@ -264,6 +280,11 @@ With commands: `ccp config show` · `ccp config set <clave> <valor>` · `ccp con
 | I changed folders and the profile didn't change | The hook remembers the last folder; refresh with `cd .` |
 | Opening Claude says "Not logged in" | That official profile has no session: `ccp profile login <n>`. |
 | See a folder's profile without entering it | `ccp resolve ~/ruta/que/sea` |
+| How do I switch the output language? | `ccp lang en\|es`, `CCP_LANG=es`, or press `L` in the TUI. |
+| Does ccp change anything inside Claude Code? | No. It only points Claude Code at a per-folder profile (its own config dir / provider). Your accounts and settings are untouched. |
+| Where are my API keys stored? | Under `~/.config/ccp/profiles/<n>/api_key`, `chmod 600`. Never in `ccp.yaml`, the shell rc, or git. |
+| How do I update ccp? | `ccp upgrade` (re-runs the installer + `profile sync`). |
+| How do I uninstall? | `ccp uninstall` (removes the shell block); optionally `rm -rf ~/.config/ccp`. |
 
 ## Quick reference
 
@@ -302,7 +323,7 @@ rm -rf ~/.config/ccp    # (opcional) borra config y perfiles
 
 ---
 
-MIT — see [`LICENSE`](LICENSE). Curious how it works under the hood? Check [`CLAUDE.md`](CLAUDE.md) and `docs/superpowers/specs/ccp-profiles.html`.
+MIT — see [`LICENSE`](LICENSE). Curious how it works under the hood? Check [`CLAUDE.md`](CLAUDE.md) and the [source on GitHub](https://github.com/JoseAFlores777/ccp).
 
 ## Disclaimer & trademarks
 

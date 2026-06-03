@@ -286,6 +286,17 @@
   .start:hover{background:var(--accent-deep); transform:translateY(-1px);}
   .start svg{width:17px; height:17px;}
 
+  /* ── header action buttons (GitHub + language) ── */
+  .side-actions{display:flex; gap:8px; margin:-6px 0 22px; padding:0 2px; flex-wrap:wrap;}
+  .tbtn{display:inline-flex; align-items:center; gap:7px;
+    font:600 12.5px/1 'Hanken Grotesk',system-ui,sans-serif;
+    color:var(--ink-soft); background:var(--paper-2); border:1px solid var(--rule);
+    border-radius:8px; padding:7px 11px; text-decoration:none; cursor:pointer;
+    transition:border-color .15s var(--ease), color .15s var(--ease), background .15s var(--ease);}
+  .tbtn:hover{border-color:var(--accent-line); color:var(--accent-deep); background:var(--accent-soft);}
+  .tbtn svg{width:15px; height:15px; flex:none;}
+  .hero-actions{display:flex; gap:10px; flex-wrap:wrap; margin:2px 0 20px;}
+
   .triad{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin:28px 0 0;}
   .triad .t{padding:16px 16px 18px; border:1px solid var(--rule); border-radius:11px; background:var(--paper-2);}
   .triad .t .ic{font-family:'Spline Sans Mono',monospace; font-size:11px; color:var(--accent-deep); font-weight:600; margin:0 0 8px; letter-spacing:.06em;}
@@ -355,7 +366,12 @@
 <div class="app">
   <aside class="sidebar" id="sidebar">
     <div class="brand">ccp<span class="cur">_</span></div>
-    <p class="brand-sub">User guide · v2.0</p>
+    <p class="brand-sub">User guide · v2.6.1</p>
+
+    <div class="side-actions">
+      <a class="tbtn" href="https://github.com/JoseAFlores777/ccp" target="_blank" rel="noopener" aria-label="GitHub repository"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg> GitHub</a>
+      <a class="tbtn" href="README.es.html" aria-label="Ver en español"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z"/></svg> Español</a>
+    </div>
 
     <div class="nav-group">
       <h3>Get started</h3>
@@ -392,7 +408,10 @@
     <!-- ═══ INICIO ═══ -->
     <section class="view" id="view-inicio">
       <p class="kicker"><span class="s">User guide</span><span class="t">v2.6.1 · Go CLI</span></p>
-      <p class="kicker"><span class="t"><strong>English</strong> · <a href="README.es.html">Español</a></span></p>
+      <div class="hero-actions">
+        <a class="tbtn" href="https://github.com/JoseAFlores777/ccp" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg> View on GitHub</a>
+        <a class="tbtn" href="README.es.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z"/></svg> Español</a>
+      </div>
       <h1>ccp<span class="cur">_</span></h1>
       <p class="lede">A <em>different Claude Code account in every folder.</em> In your work repo, your company account; in your personal project, your personal account; in your experiments, DeepSeek. The switch happens on its own, just by <b>cd</b>-ing.</p>
 
@@ -658,7 +677,7 @@ source ~/.bashrc    <span class="c"># bash</span></pre></div>
       <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:8px 0 4px;">Which version do I have?</h3>
       <div class="do">
         <p class="lead">Print the binary's version.</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp version     <span class="c"># → 2.5.1</span></pre></div>
+        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp version     <span class="c"># → 2.6.1</span></pre></div>
         <p class="hint"><code>ccp --version</code> or <code>ccp -v</code> work too.</p>
       </div>
 
@@ -843,6 +862,25 @@ ccp lang es     <span class="c"># Spanish</span></pre></div>
         <b>1.</b> <code>CCP_LANG=en|es</code> is an environment override and takes precedence over the config. The default is <b>English</b>.<br>
         <b>2.</b> In the interactive dashboard (TUI), press <b>L</b> to toggle the language live — it persists. Note: <b>login</b> is on the lowercase <code>l</code>, and <code>L</code> (uppercase) toggles the language.
       </div>
+
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">TUI keyboard shortcuts</h3>
+      <p class="intro">The full keymap for the interactive dashboard.</p>
+      <table>
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><code>j</code> / <code>k</code> (or ↓/↑)</td><td>Move the selection</td></tr>
+          <tr><td><code>Tab</code> / <code>Shift+Tab</code></td><td>Switch panel (Profiles / Rules / Status)</td></tr>
+          <tr><td><code>Enter</code></td><td>Toggle detail (Profiles)</td></tr>
+          <tr><td><code>a</code></td><td>Add</td></tr>
+          <tr><td><code>d</code></td><td>Delete</td></tr>
+          <tr><td><code>s</code></td><td>Set key (DeepSeek)</td></tr>
+          <tr><td><code>e</code></td><td>Edit config</td></tr>
+          <tr><td><code>l</code></td><td>Login (official)</td></tr>
+          <tr><td><code>L</code></td><td>Toggle language (EN/ES)</td></tr>
+          <tr><td><code>:</code></td><td>Command bar</td></tr>
+          <tr><td><code>q</code> / <code>Ctrl+C</code></td><td>Quit</td></tr>
+        </tbody>
+      </table>
     </section>
 
     <!-- ═══ TROUBLESHOOTING ═══ -->
@@ -855,6 +893,11 @@ ccp lang es     <span class="c"># Spanish</span></pre></div>
       <details class="tr"><summary><span class="plus">+</span>I changed folders and the profile didn't change</summary><p class="a">The hook remembers the last folder. After editing rules, refresh with <code>cd .</code></p></details>
       <details class="tr"><summary><span class="plus">+</span>Opening Claude says "Not logged in"</summary><p class="a">That official profile has no session yet. Start it once with <code>ccp profile login &lt;nombre&gt;</code>.</p></details>
       <details class="tr"><summary><span class="plus">+</span>I want to see a folder's profile without entering it</summary><p class="a">Use <code>ccp resolve ~/ruta/que/sea</code></p></details>
+      <details class="tr"><summary><span class="plus">+</span>How do I switch the output language?</summary><p class="a">Run <code>ccp lang en|es</code>, set <code>CCP_LANG=es</code>, or press <code>L</code> in the interactive dashboard (TUI).</p></details>
+      <details class="tr"><summary><span class="plus">+</span>Does ccp change anything inside Claude Code itself?</summary><p class="a">No. It only points Claude Code at a per-folder profile (its own config dir / provider). Your accounts and settings are untouched.</p></details>
+      <details class="tr"><summary><span class="plus">+</span>Where are my API keys stored?</summary><p class="a">Under <code>~/.config/ccp/profiles/&lt;nombre&gt;/api_key</code>, <code>chmod 600</code>. Never in <code>ccp.yaml</code>, the shell rc, or git.</p></details>
+      <details class="tr"><summary><span class="plus">+</span>How do I update ccp?</summary><p class="a">Run <code>ccp upgrade</code> — it re-runs the installer and <code>profile sync</code>.</p></details>
+      <details class="tr"><summary><span class="plus">+</span>How do I uninstall?</summary><p class="a">Run <code>ccp uninstall</code> to remove the shell block; optionally <code>rm -rf ~/.config/ccp</code> to delete config and profiles.</p></details>
     </section>
 
     <!-- ═══ REFERENCIA ═══ -->
@@ -882,7 +925,7 @@ ccp lang es     <span class="c"># Spanish</span></pre></div>
         </tbody>
       </table>
       <div class="tip"><span class="lbl">For scripting</span><code>ccp resolve [ruta]</code> prints the profile (exit <code>0</code> = non-default, <code>1</code> = default), and <code>ccp status --json</code> returns a JSON object with <code>active</code>, <code>profile</code>, <code>profile_type</code>, <code>cwd</code> and <code>repo</code>.</div>
-      <p class="intro" style="margin-top:28px;">How does it work under the hood? → <a href="docs/superpowers/specs/ccp-profiles.html">spec</a> · CLAUDE.md</p>
+      <p class="intro" style="margin-top:28px;">How does it work under the hood? → <a href="https://github.com/JoseAFlores777/ccp/blob/main/CLAUDE.md" target="_blank" rel="noopener">CLAUDE.md</a> · <a href="https://github.com/JoseAFlores777/ccp" target="_blank" rel="noopener">source on GitHub</a></p>
       <div class="tip" style="margin-top:28px;"><span class="lbl">License &amp; trademarks</span>MIT — use at your own risk, no warranty; you are responsible for your own API keys and accounts. <code>ccp</code> (profiles for Claude Code) is an independent project, <strong>not affiliated with, endorsed by, or sponsored by</strong> Anthropic or DeepSeek. "Claude" and "Claude Code" are trademarks of Anthropic, PBC; "DeepSeek" is a trademark of its owner — used only to describe interoperability.</div>
     </section>
 
