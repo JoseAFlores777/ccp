@@ -57,6 +57,7 @@ type Authored struct {
 // round-trip (forward-compat). comments preserva los comentarios por-path.
 type Config struct {
 	Version  int                `yaml:"version"`
+	Lang     string             `yaml:"lang,omitempty"` // en|es ; vacío = en
 	Defaults Defaults           `yaml:"defaults"`
 	Profiles map[string]Profile `yaml:"profiles"`
 	Rules    []Rule             `yaml:"rules"`
@@ -75,6 +76,7 @@ type Config struct {
 // explícitamente; se filtran del catch-all Extra para evitar redundancia.
 var knownTopKeys = map[string]struct{}{
 	"version":  {},
+	"lang":     {},
 	"defaults": {},
 	"profiles": {},
 	"rules":    {},
