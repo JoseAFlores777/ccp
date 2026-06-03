@@ -145,6 +145,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // updateForm delega en el huh.Form embebido y recupera el foco al panel cuando
 // el form se completa o cancela (sin salir ni limpiar pantalla, plan §13).
 func (m *model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// huh no aborta con Esc por defecto; lo interceptamos para que "esc cancela"
+	// funcione siempre (ctrl+c sigue abortando vía huh.StateAborted).
+	if km, ok := msg.(tea.KeyMsg); ok && km.Type == tea.KeyEsc {
+		m.setStatus("Cancelado.", nil)
+		m.exitForm()
+		return m, nil
+	}
 	fm, cmd := m.cur.form.Update(msg)
 	if f, ok := fm.(*huh.Form); ok {
 		m.cur.form = f
@@ -187,6 +194,9 @@ func (m *model) updateCommand(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.cmdInput = ""
 		m.mode = modeDashboard
 		return m.runCommand(cmd)
+	case tea.KeyTab:
+		m.cmdInput = completeCmd(m.cmdInput)
+		return m, nil
 	case tea.KeyBackspace:
 		if len(m.cmdInput) > 0 {
 			m.cmdInput = m.cmdInput[:len(m.cmdInput)-1]
@@ -197,6 +207,39 @@ func (m *model) updateCommand(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, nil
+}
+
+// cmdList son los comandos de la barra `:` (para autocompletar y sugerir).
+var cmdList = []string{"backup-export", "backup-restore", "doctor", "sync", "install", "help"}
+
+// cmdMatches devuelve los comandos que empiezan con prefix.
+func cmdMatches(prefix string) []string {
+	var out []string
+	for _, c := range cmdList {
+		if strings.HasPrefix(c, prefix) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// completeCmd autocompleta: si hay una sola coincidencia la usa; si hay varias,
+// completa al prefijo común más largo (estilo shell). Tab repetido no rompe.
+func completeCmd(prefix string) string {
+	matches := cmdMatches(prefix)
+	if len(matches) == 0 {
+		return prefix
+	}
+	if len(matches) == 1 {
+		return matches[0]
+	}
+	lcp := matches[0]
+	for _, m := range matches[1:] {
+		for !strings.HasPrefix(m, lcp) {
+			lcp = lcp[:len(lcp)-1]
+		}
+	}
+	return lcp
 }
 
 // runCommand ejecuta un comando de la barra. Las acciones con wizard abren un

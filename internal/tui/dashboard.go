@@ -335,19 +335,31 @@ func logoBanner() string {
 		" ████████ ",
 		" █ █  █ █ ", // patas
 	}
-	var b strings.Builder
-	for i := 0; i < 5; i++ {
-		b.WriteString(orange.Render(body[i]))
-		if i == 2 { // fila de los brazos: manos unidas
-			b.WriteString(orange.Render("▬") + pale.Render("▬"))
-		} else {
-			b.WriteString("  ")
-		}
-		b.WriteString(pale.Render(body[i]) + "\n")
+	// wordmark "CCP" en bloques (estilo Claude Code), 5 filas.
+	title := [5]string{
+		"█████ █████ █████",
+		"█     █     █   █",
+		"█     █     █████",
+		"█     █     █    ",
+		"█████ █████ █    ",
 	}
-	b.WriteString(styleBrand.Render("ccp") +
-		styleSub.Render(" v"+core.Version+" — perfiles y cuentas de Claude Code"))
-	return b.String()
+	var bugs, ttl strings.Builder
+	for i := 0; i < 5; i++ {
+		bugs.WriteString(orange.Render(body[i]))
+		if i == 2 { // fila de los brazos: manos unidas
+			bugs.WriteString(orange.Render("▬") + pale.Render("▬"))
+		} else {
+			bugs.WriteString("  ")
+		}
+		bugs.WriteString(pale.Render(body[i]))
+		ttl.WriteString(orange.Render(title[i]))
+		if i < 4 {
+			bugs.WriteByte('\n')
+			ttl.WriteByte('\n')
+		}
+	}
+	head := lipgloss.JoinHorizontal(lipgloss.Top, bugs.String(), "   ", ttl.String())
+	return head + "\n" + styleSub.Render("v"+core.Version+" — perfiles y cuentas de Claude Code")
 }
 
 // viewDashboard pinta el header con el logo, los 3 paneles en cajas, la barra de
@@ -363,7 +375,16 @@ func (m *model) viewDashboard() string {
 
 	if m.mode == modeCommand {
 		b.WriteString("\n" + styleFocused.Render(": "+m.cmdInput+"▏") + "\n")
-		b.WriteString(styleDim.Render("backup-export · backup-restore · doctor · sync · install · (esc cancela)") + "\n")
+		matches := cmdMatches(m.cmdInput)
+		if len(matches) == 0 {
+			matches = cmdList
+		}
+		sug := make([]string, len(matches))
+		for i, c := range matches {
+			sug[i] = styleSelected.Render(c)
+		}
+		b.WriteString("  " + strings.Join(sug, styleDim.Render(" · ")) +
+			styleDim.Render("   (tab completa · esc cancela)") + "\n")
 	}
 
 	if m.statusMsg != "" {

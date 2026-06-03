@@ -36,6 +36,14 @@ func cliLogo() string {
 		" ████████ ",
 		" █ █  █ █ ", // patas
 	}
+	// wordmark "CCP" en bloques (estilo Claude Code).
+	title := [5]string{
+		"█████ █████ █████",
+		"█     █     █   █",
+		"█     █     █████",
+		"█     █     █    ",
+		"█████ █████ █    ",
+	}
 	var sb strings.Builder
 	for i := 0; i < 5; i++ {
 		sb.WriteString(ansiAccent + body[i] + ansiReset)
@@ -44,10 +52,10 @@ func cliLogo() string {
 		} else {
 			sb.WriteString("  ")
 		}
-		sb.WriteString(ansiPale + body[i] + ansiReset + "\n")
+		sb.WriteString(ansiPale + body[i] + ansiReset)
+		sb.WriteString("   " + ansiAccent + title[i] + ansiReset + "\n")
 	}
-	sb.WriteString(ansiAccent + ansiBold + "ccp" + ansiReset + " " +
-		ansiMute + "v" + core.Version + " — router de perfiles y cuentas de Claude Code" + ansiReset)
+	sb.WriteString(ansiMute + "v" + core.Version + " — router de perfiles y cuentas de Claude Code" + ansiReset)
 	return sb.String()
 }
 
