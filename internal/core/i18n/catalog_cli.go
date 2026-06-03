@@ -484,12 +484,12 @@ var catalogCLI = map[string]map[Lang]string{
 
 	// --- help.go ---
 	"cli.help.tagline": {
-		En: "ccp v%s — Claude Code Profiles\n\n",
-		Es: "ccp v%s — Claude Code Profiles\n\n",
+		En: "ccp v%s — profiles for Claude Code\n\n",
+		Es: "ccp v%s — perfiles para Claude Code\n\n",
 	},
 	"cli.help.logo_tagline": {
-		En: "Claude Code Profiles — profile & account router",
-		Es: "Claude Code Profiles — router de perfiles y cuentas",
+		En: "profiles for Claude Code",
+		Es: "perfiles para Claude Code",
 	},
 	"cli.help.body": {
 		En: `TERMINAL (shell function)

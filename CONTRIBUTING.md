@@ -1,4 +1,4 @@
-# Contributing to Claude Code Profiles (`ccp`)
+# Contributing to ccp (profiles for Claude Code)
 
 Thanks for your interest in improving `ccp`. This guide covers how to build,
 test, and submit changes.

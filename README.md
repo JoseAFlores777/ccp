@@ -1,6 +1,8 @@
 <div align="center">
 
-# Claude Code Profiles
+# ccp
+
+**Profiles for Claude Code.**
 
 **English** · [Español](README.es.md)
 
@@ -308,7 +310,7 @@ MIT — see [`LICENSE`](LICENSE). Curious how it works under the hood? Check [`C
 any kind (see [`LICENSE`](LICENSE)). You are responsible for your own API keys,
 accounts, and configuration.
 
-**Not affiliated.** Claude Code Profiles (`ccp`) is an independent, community
+**Not affiliated.** `ccp` (profiles for Claude Code) is an independent, community
 project. It is **not affiliated with, endorsed by, or sponsored by** Anthropic
 or DeepSeek. "Claude" and "Claude Code" are trademarks of Anthropic, PBC;
 "DeepSeek" is a trademark of its respective owner. These names are used only to

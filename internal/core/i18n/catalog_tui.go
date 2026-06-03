@@ -51,8 +51,8 @@ var catalogTUI = map[string]map[Lang]string{
 		Es: "esc cancela",
 	},
 	"tui.logo.tagline": {
-		En: "Claude Code Profiles",
-		Es: "Claude Code Profiles",
+		En: "profiles for Claude Code",
+		Es: "perfiles para Claude Code",
 	},
 
 	// --- dashboard.go: panels, hints, footer ---

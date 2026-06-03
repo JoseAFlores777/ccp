@@ -3,7 +3,7 @@
 ## Our pledge
 
 We as members, contributors, and maintainers pledge to make participation in
-the **Claude Code Profiles** (`ccp`) project a harassment-free and welcoming
+the `ccp` (profiles for Claude Code) project a harassment-free and welcoming
 experience for everyone, regardless of background or identity. We commit to
 acting in ways that foster an open, inclusive, and respectful community.
 
