@@ -3,6 +3,8 @@ package cli
 import (
 	"io"
 	"os"
+
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // hrLine es la divisoria que usa el bash (hr) en modo NO_COLOR / non-TTY.
@@ -52,30 +54,32 @@ func hr(w io.Writer) string {
 	return hrLine
 }
 
-// humanType traduce el tipo interno del perfil a su etiqueta en español.
-func humanType(t string) string {
+// humanType traduce el tipo interno del perfil a su etiqueta localizada.
+func humanType(l i18n.Lang, t string) string {
 	switch t {
 	case "official":
-		return "oficial"
+		return i18n.T(l, "cli.ptype.official")
 	case "deepseek":
-		return "proveedor"
+		return i18n.T(l, "cli.ptype.deepseek")
 	default:
-		return "default"
+		return i18n.T(l, "cli.ptype.default")
 	}
 }
 
-// badgeType tiñe el tipo de perfil (oficial/proveedor/default) cuando hay color.
-func badgeType(w io.Writer, t string) string {
+// badgeType tiñe la etiqueta del tipo de perfil cuando hay color. El color se
+// decide por el tipo crudo (official/deepseek/default) para que sea estable
+// entre idiomas; label es el texto ya localizado que se muestra.
+func badgeType(w io.Writer, rawType, label string) string {
 	if !useColor(w) {
-		return t
+		return label
 	}
-	switch t {
-	case "official", "oficial":
-		return ansiAccent + t + ansiReset
-	case "deepseek", "proveedor":
-		return ansiOlive + t + ansiReset
+	switch rawType {
+	case "official":
+		return ansiAccent + label + ansiReset
+	case "deepseek":
+		return ansiOlive + label + ansiReset
 	default:
-		return ansiMute + t + ansiReset
+		return ansiMute + label + ansiReset
 	}
 }
 

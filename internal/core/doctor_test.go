@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // findCheck busca un chequeo cuya Label contenga substr.
@@ -19,6 +21,7 @@ func findCheck(checks []DoctorCheck, substr string) (DoctorCheck, bool) {
 }
 
 func TestDoctor_PathBinaries(t *testing.T) {
+	t.Setenv("CCP_LANG", "es")
 	home := t.TempDir()
 
 	// Simula que solo 'git' está en PATH.
@@ -31,7 +34,7 @@ func TestDoctor_PathBinaries(t *testing.T) {
 		return "", fmt.Errorf("not found")
 	}
 
-	checks, err := Doctor(home)
+	checks, err := Doctor(i18n.Es, home)
 	if err != nil {
 		t.Fatalf("Doctor: %v", err)
 	}
@@ -48,6 +51,7 @@ func TestDoctor_PathBinaries(t *testing.T) {
 }
 
 func TestDoctor_ProfileLoginAndKey(t *testing.T) {
+	t.Setenv("CCP_LANG", "es")
 	home := t.TempDir()
 	src := makeFakeClaudeSrc(t)
 	t.Setenv("CCP_CLAUDE_SRC", src)
@@ -81,7 +85,7 @@ func TestDoctor_ProfileLoginAndKey(t *testing.T) {
 		t.Fatalf("SetKey: %v", err)
 	}
 
-	checks, err := Doctor(home)
+	checks, err := Doctor(i18n.Es, home)
 	if err != nil {
 		t.Fatalf("Doctor: %v", err)
 	}

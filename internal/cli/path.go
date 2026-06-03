@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // cmdPath despacha `ccp path <set|rm|list|test|clear|edit>`. La resolución
@@ -21,6 +22,7 @@ func cmdPath(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
 	}
+	lang := currentLang()
 
 	var sub string
 	if len(args) > 0 {
@@ -34,7 +36,7 @@ func cmdPath(args []string, stdout, stderr io.Writer) int {
 	switch sub {
 	case "set":
 		if len(rest) < 2 {
-			fmt.Fprintln(stderr, "Uso: ccp path set <ruta> <perfil>")
+			fmt.Fprintln(stderr, i18n.T(lang, "cli.path.usage_set"))
 			return 1
 		}
 		norm, err := core.RuleSet(home, rest[0], rest[1])
@@ -42,12 +44,12 @@ func cmdPath(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "[error] %v\n", err)
 			return 1
 		}
-		fmt.Fprintln(stdout, okLine(stdout, fmt.Sprintf("REGLA: %s  ->  %s  (y subcarpetas)", norm, rest[1])))
+		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.path.rule_set", norm, rest[1])))
 		return 0
 
 	case "rm", "remove", "del":
 		if len(rest) < 1 {
-			fmt.Fprintln(stderr, "Uso: ccp path rm <ruta>")
+			fmt.Fprintln(stderr, i18n.T(lang, "cli.path.usage_rm"))
 			return 1
 		}
 		norm, err := core.RuleDel(home, rest[0])
@@ -55,11 +57,11 @@ func cmdPath(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "[error] %v\n", err)
 			return 1
 		}
-		fmt.Fprintln(stdout, okLine(stdout, "Regla eliminada: "+norm))
+		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.path.rule_removed", norm)))
 		return 0
 
 	case "list", "ls", "":
-		return pathList(home, stdout, stderr)
+		return pathList(lang, home, stdout, stderr)
 
 	case "test", "check":
 		cfg, err := core.Load(home)
@@ -83,7 +85,7 @@ func cmdPath(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "[error] %v\n", err)
 			return 1
 		}
-		fmt.Fprintln(stdout, okLine(stdout, "Todas las reglas eliminadas."))
+		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.path.cleared")))
 		return 0
 
 	case "edit":
@@ -97,13 +99,13 @@ func cmdPath(args []string, stdout, stderr io.Writer) int {
 		return 0
 
 	default:
-		fmt.Fprintf(stderr, "path: subcomando desconocido '%s'\n", sub)
-		fmt.Fprintln(stderr, "Usa: set | rm | list | test | clear | edit")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.path.unknown_sub", sub))
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.path.sub_help"))
 		return 1
 	}
 }
 
-func pathList(home string, stdout, stderr io.Writer) int {
+func pathList(lang i18n.Lang, home string, stdout, stderr io.Writer) int {
 	rules, err := core.RulesList(home)
 	if err != nil {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
@@ -115,10 +117,10 @@ func pathList(home string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	fmt.Fprintln(stdout, hr(stdout))
-	fmt.Fprintf(stdout, " %s\n", boldLine(stdout, "Reglas de PATH"))
+	fmt.Fprintf(stdout, " %s\n", boldLine(stdout, i18n.T(lang, "cli.path.list_header")))
 	fmt.Fprintln(stdout, hr(stdout))
 	if len(rules) == 0 {
-		fmt.Fprintln(stdout, "  (sin reglas — todo usa 'default')")
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.path.list_empty"))
 		fmt.Fprintln(stdout, hr(stdout))
 		return 0
 	}
@@ -136,7 +138,7 @@ func pathList(home string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintln(stdout, hr(stdout))
 	cwd := currentDir()
-	fmt.Fprintln(stdout, "Regla efectiva para el cwd:")
+	fmt.Fprintln(stdout, i18n.T(lang, "cli.path.effective"))
 	fmt.Fprintf(stdout, "   %s %s %s\n", accent(stdout, cwd), mute(stdout, "->"), accent(stdout, core.Resolve(cwd, cfg.Rules)))
 	fmt.Fprintln(stdout, hr(stdout))
 	return 0

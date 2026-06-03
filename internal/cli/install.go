@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // install.go cablea el ciclo de vida del binario en el shell del usuario:
@@ -50,6 +51,7 @@ func fileContains(path, needle string) bool {
 
 // cmdInstall añade el bloque shell-init al rc (idempotente). Espeja cmd_install.
 func cmdInstall(args []string, stdout, stderr io.Writer) int {
+	lang := currentLang()
 	home := resolveHome()
 	if err := os.MkdirAll(home, 0o755); err != nil {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
@@ -62,20 +64,20 @@ func cmdInstall(args []string, stdout, stderr io.Writer) int {
 	rc := rcPath(override)
 
 	if fileContains(rc, "dsctl shell init") {
-		fmt.Fprintln(stderr, warnLine(stderr, "Detecté el init viejo de dsctl en "+rc+"."))
-		fmt.Fprintln(stderr, "  Quítalo con:  ccp uninstall   (o edita el bloque '# >>> dsctl shell init >>>')")
+		fmt.Fprintln(stderr, warnLine(stderr, i18n.T(lang, "cli.install.old_dsctl", rc)))
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.install.old_dsctl_hint"))
 	}
 	if fileContains(rc, "ccp shell init") {
-		fmt.Fprintln(stdout, okLine(stdout, "El init de ccp ya está en "+rc))
+		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.install.already", rc)))
 		fmt.Fprintln(stdout, hrLine)
-		fmt.Fprintln(stdout, "Recarga con:  source "+rc)
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.install.reload", rc))
 		fmt.Fprintln(stdout, hrLine)
 		return 0
 	}
 
 	f, err := os.OpenFile(rc, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
-		fmt.Fprintf(stderr, "[error] no se pudo abrir %s: %v\n", rc, err)
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.install.open_fail", rc, err))
 		return 1
 	}
 	fmt.Fprintf(f, "\n%s\n", rcComment)
@@ -88,9 +90,9 @@ func cmdInstall(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
 	}
-	fmt.Fprintln(stdout, okLine(stdout, "Init añadido a "+rc))
+	fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.install.added", rc)))
 	fmt.Fprintln(stdout, hrLine)
-	fmt.Fprintln(stdout, "Recarga con:  source "+rc)
+	fmt.Fprintln(stdout, i18n.T(lang, "cli.install.reload", rc))
 	fmt.Fprintln(stdout, hrLine)
 	return 0
 }
@@ -98,13 +100,14 @@ func cmdInstall(args []string, stdout, stderr io.Writer) int {
 // cmdUninstall remueve el bloque shell-init del rc. Espeja cmd_uninstall: borra
 // desde la línea de comentario o el marcador de apertura hasta el de cierre.
 func cmdUninstall(args []string, stdout, stderr io.Writer) int {
+	lang := currentLang()
 	var override string
 	if len(args) > 0 {
 		override = args[0]
 	}
 	rc := rcPath(override)
 	if !fileContains(rc, "ccp shell init") {
-		fmt.Fprintln(stderr, warnLine(stderr, "No encontré el init en "+rc))
+		fmt.Fprintln(stderr, warnLine(stderr, i18n.T(lang, "cli.uninstall.not_found", rc)))
 		return 0
 	}
 	in, err := os.Open(rc)
@@ -140,7 +143,7 @@ func cmdUninstall(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
 	}
-	fmt.Fprintln(stdout, okLine(stdout, "Init de ccp removido de "+rc))
+	fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.uninstall.removed", rc)))
 	return 0
 }
 
@@ -150,6 +153,7 @@ func cmdUninstall(args []string, stdout, stderr io.Writer) int {
 //
 //	ccp upgrade [--pull] [--no-sync]
 func cmdUpgrade(args []string, stdout, stderr io.Writer) int {
+	lang := currentLang()
 	home := resolveHome()
 	doPull, doSync := false, true
 	for _, a := range args {
@@ -159,7 +163,7 @@ func cmdUpgrade(args []string, stdout, stderr io.Writer) int {
 		case "--no-sync":
 			doSync = false
 		default:
-			fmt.Fprintln(stderr, "Uso: ccp upgrade [--pull] [--no-sync]")
+			fmt.Fprintln(stderr, i18n.T(lang, "cli.upgrade.usage"))
 			return 1
 		}
 	}
@@ -167,35 +171,35 @@ func cmdUpgrade(args []string, stdout, stderr io.Writer) int {
 	srcFile := filepath.Join(home, "install-source")
 	srcBytes, err := os.ReadFile(srcFile)
 	if err != nil {
-		fmt.Fprintln(stderr, "[error] No hay fuente registrada. Corre 'bash install.sh' desde el repo una vez.")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.upgrade.no_source"))
 		return 1
 	}
 	src := strings.TrimSpace(string(srcBytes))
 	installSh := filepath.Join(src, "install.sh")
 	if fi, err := os.Stat(installSh); err != nil || fi.IsDir() {
-		fmt.Fprintf(stderr, "[error] Repo registrado inválido: %s (re-corre install.sh).\n", src)
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.upgrade.bad_repo", src))
 		return 1
 	}
 
 	if doPull {
 		if _, err := exec.LookPath("git"); err != nil {
-			fmt.Fprintln(stderr, "[error] git no está instalado (--pull no disponible).")
+			fmt.Fprintln(stderr, i18n.T(lang, "cli.upgrade.git_missing"))
 			return 1
 		}
-		fmt.Fprintln(stdout, "git pull en "+src+"...")
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.upgrade.git_pull", src))
 		pull := exec.Command("git", "-C", src, "pull")
 		pull.Stdout, pull.Stderr = stdout, stderr
 		if err := pull.Run(); err != nil {
-			fmt.Fprintln(stderr, "[error] git pull falló.")
+			fmt.Fprintln(stderr, i18n.T(lang, "cli.upgrade.git_pull_fail"))
 			return 1
 		}
 	}
 
-	fmt.Fprintln(stdout, "Reinstalando desde "+src+"...")
+	fmt.Fprintln(stdout, i18n.T(lang, "cli.upgrade.reinstalling", src))
 	inst := exec.Command("bash", installSh)
 	inst.Stdout, inst.Stderr = stdout, stderr
 	if err := inst.Run(); err != nil {
-		fmt.Fprintln(stderr, "[error] install.sh falló.")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.upgrade.install_fail"))
 		return 1
 	}
 
@@ -206,27 +210,27 @@ func cmdUpgrade(args []string, stdout, stderr io.Writer) int {
 	}
 	newbin := filepath.Join(binDir, "ccp")
 
-	warnIfStaleRC(newbin, stdout, stderr)
+	warnIfStaleRC(lang, newbin, stdout, stderr)
 
 	if doSync {
-		fmt.Fprintln(stdout, "Sincronizando perfiles (migración overlay + regen)...")
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.upgrade.syncing"))
 		sync := exec.Command(newbin, "profile", "sync")
 		sync.Stdout, sync.Stderr = stdout, stderr
 		if err := sync.Run(); err != nil {
-			fmt.Fprintln(stderr, warnLine(stderr, "profile sync tuvo problemas; revisa con 'ccp doctor'."))
+			fmt.Fprintln(stderr, warnLine(stderr, i18n.T(lang, "cli.upgrade.sync_trouble")))
 		}
 	}
 
 	fmt.Fprintln(stdout, hrLine)
-	fmt.Fprintln(stdout, okLine(stdout, "ccp actualizado."))
+	fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.upgrade.done")))
 	fmt.Fprintln(stdout, hrLine)
-	fmt.Fprintln(stdout, "Completions nuevos: abre una terminal nueva o 'source' tu rc.")
+	fmt.Fprintln(stdout, i18n.T(lang, "cli.upgrade.completions"))
 	return 0
 }
 
 // warnIfStaleRC compara el bloque shell-init del rc con el que emite el binario
 // nuevo; avisa (no edita) si difieren. Espeja _upgrade_check_rc.
-func warnIfStaleRC(newbin string, stdout, stderr io.Writer) {
+func warnIfStaleRC(lang i18n.Lang, newbin string, stdout, stderr io.Writer) {
 	rc := rcPath("")
 	if !fileContains(rc, rcMarkerOpen) {
 		return
@@ -243,8 +247,8 @@ func warnIfStaleRC(newbin string, stdout, stderr io.Writer) {
 	if current == string(out) {
 		return
 	}
-	fmt.Fprintln(stderr, warnLine(stderr, "El shell-init de ccp cambió en esta versión (tu rc tiene el viejo)."))
-	fmt.Fprintln(stderr, "  Actualízalo:  ccp uninstall && ccp install && source "+rc)
+	fmt.Fprintln(stderr, warnLine(stderr, i18n.T(lang, "cli.upgrade.stale_rc")))
+	fmt.Fprintln(stderr, i18n.T(lang, "cli.upgrade.stale_rc_hint", rc))
 }
 
 // extractBlock devuelve el bloque entre los marcadores (inclusive), con \n

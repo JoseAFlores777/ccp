@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 	"github.com/mattn/go-isatty"
 )
 
@@ -21,8 +22,9 @@ func cmdKey(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
 	}
+	lang := currentLang()
 	if len(args) == 0 || args[0] == "" {
-		fmt.Fprintln(stderr, "Uso: ccp key <perfil> [API_KEY]")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.key.usage"))
 		return 1
 	}
 	name := args[0]
@@ -31,7 +33,7 @@ func cmdKey(args []string, stdout, stderr io.Writer) int {
 	if len(args) > 1 {
 		key = args[1]
 	} else {
-		k, err := promptSecret(stderr, fmt.Sprintf("Pega la API key de %s (oculta): ", name))
+		k, err := promptSecret(stderr, i18n.T(lang, "cli.key.prompt", name))
 		if err != nil {
 			fmt.Fprintf(stderr, "[error] %v\n", err)
 			return 1
@@ -39,7 +41,7 @@ func cmdKey(args []string, stdout, stderr io.Writer) int {
 		key = k
 	}
 	if strings.TrimSpace(key) == "" {
-		fmt.Fprintln(stderr, "[error] No ingresaste ninguna key.")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.key.empty"))
 		return 1
 	}
 
@@ -47,7 +49,7 @@ func cmdKey(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
 	}
-	fmt.Fprintln(stdout, okLine(stdout, fmt.Sprintf("API key guardada para '%s' (600).", name)))
+	fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.key.saved", name)))
 	return 0
 }
 

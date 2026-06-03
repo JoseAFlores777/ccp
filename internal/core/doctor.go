@@ -4,6 +4,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // DoctorCheck es un resultado de diagnóstico: OK indica si el chequeo pasó,
@@ -28,14 +30,14 @@ func HasLogin(home, name string) bool {
 // cada perfil, su estado de login (official: cc-home/.claude.json) o key
 // (deepseek: api_key). Devuelve la lista de chequeos en orden estable; cli la
 // presenta. No imprime nada: lógica pura sobre home + PATH.
-func Doctor(home string) ([]DoctorCheck, error) {
+func Doctor(l i18n.Lang, home string) ([]DoctorCheck, error) {
 	var checks []DoctorCheck
 
 	for _, bin := range []string{"node", "claude", "git"} {
 		if _, err := lookPath(bin); err == nil {
-			checks = append(checks, DoctorCheck{OK: true, Label: bin + ": encontrado en PATH."})
+			checks = append(checks, DoctorCheck{OK: true, Label: i18n.T(l, "doctor.path_found", bin)})
 		} else {
-			checks = append(checks, DoctorCheck{OK: false, Label: bin + ": no encontrado en PATH."})
+			checks = append(checks, DoctorCheck{OK: false, Label: i18n.T(l, "doctor.path_missing", bin)})
 		}
 	}
 
@@ -56,18 +58,18 @@ func Doctor(home string) ([]DoctorCheck, error) {
 			claudeJSON := filepath.Join(ccHomePath(home, name), ".claude.json")
 			if fileExists(claudeJSON) {
 				checks = append(checks, DoctorCheck{
-					OK: true, Label: "Perfil '" + name + "' (oficial): logueado."})
+					OK: true, Label: i18n.T(l, "doctor.official_logged", name)})
 			} else {
 				checks = append(checks, DoctorCheck{
-					OK: false, Label: "Perfil '" + name + "' (oficial): SIN login (ccp profile login " + name + ")."})
+					OK: false, Label: i18n.T(l, "doctor.official_nologin", name, name)})
 			}
 		case "deepseek":
 			if _, ok := GetKey(home, name); ok {
 				checks = append(checks, DoctorCheck{
-					OK: true, Label: "Perfil '" + name + "' (deepseek): key OK."})
+					OK: true, Label: i18n.T(l, "doctor.deepseek_keyok", name)})
 			} else {
 				checks = append(checks, DoctorCheck{
-					OK: false, Label: "Perfil '" + name + "' (deepseek): SIN key (ccp key " + name + ")."})
+					OK: false, Label: i18n.T(l, "doctor.deepseek_nokey", name, name)})
 			}
 		}
 	}

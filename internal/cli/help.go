@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // cmdHelp imprime la ayuda de ccp. Espeja cmd_help del oráculo bash (resumen
@@ -13,13 +14,15 @@ import (
 // Con color: título de marca, headers de sección en terracota y el token del
 // comando resaltado. Sin color (pipe/NO_COLOR) la salida queda byte-idéntica.
 func cmdHelp(w io.Writer) int {
+	lang := currentLang()
 	if useColor(w) {
-		fmt.Fprintln(w, cliLogo())
+		fmt.Fprintln(w, cliLogo(lang))
 		fmt.Fprintln(w)
 	} else {
-		fmt.Fprintf(w, "ccp v%s — router de perfiles y cuentas de Claude Code\n\n", core.Version)
+		fmt.Fprint(w, i18n.T(lang, "cli.help.tagline", core.Version))
 	}
-	for _, line := range strings.Split(strings.TrimSuffix(helpBody, "\n"), "\n") {
+	body := i18n.T(lang, "cli.help.body")
+	for _, line := range strings.Split(strings.TrimSuffix(body, "\n"), "\n") {
 		fmt.Fprintln(w, colorHelpLine(w, line))
 	}
 	return 0
@@ -85,7 +88,7 @@ func cliTitle3D() []string {
 	return lines
 }
 
-func cliLogo() string {
+func cliLogo(lang i18n.Lang) string {
 	body := [5]string{
 		" ████████ ",
 		" ██ ██ ██ ", // 2 ojos
@@ -113,7 +116,7 @@ func cliLogo() string {
 		}
 		sb.WriteString(left + "   " + title[i] + "\n")
 	}
-	sb.WriteString(ansiMute + "v" + core.Version + " — router de perfiles y cuentas de Claude Code" + ansiReset)
+	sb.WriteString(ansiMute + "v" + core.Version + " — " + i18n.T(lang, "cli.help.logo_tagline") + ansiReset)
 	return sb.String()
 }
 
@@ -135,43 +138,7 @@ func colorHelpLine(w io.Writer, line string) string {
 	return indent + ansiAccent + trimmed + ansiReset
 }
 
-// helpBody es el cuerpo de la ayuda (sin el título). Se recorre por líneas; el
-// \n de cierre se recorta antes del Split para no emitir una línea en blanco de
-// más, dejando la salida plain byte-idéntica a la del oráculo bash.
-const helpBody = `TERMINAL (función shell)
-  ccp use <perfil>            activa un perfil en esta terminal
-  ccp default | off           vuelve a tu login ~/.claude
-  ccp run [cmd]               corre cmd/claude con el perfil del cwd
-
-PERFILES
-  ccp profile add <n> --official            crea cuenta oficial
-  ccp profile add <n> --deepseek [opts]     crea provider (--base-url --pro --flash --effort)
-  ccp profile login <n>                     /login (perfiles oficiales)
-  ccp profile config <n>                    edita la config del perfil
-  ccp profile sync [<n>]                    re-mergea el global en el/los cc-home
-  ccp profile list | show <n> | rm <n>
-  ccp key <perfil> [API_KEY]                guarda la key de un perfil deepseek
-
-REGLAS DE PATH
-  ccp path set <ruta> <perfil>   asigna ruta (y subcarpetas) a un perfil
-  ccp path rm <ruta>             quita la regla
-  ccp path list | test <ruta> | clear | edit
-
-INSTRUCCIONES
-  ccp instruct add|list|rm <scope> ...      memoria de Claude (lo usan /ccp:*)
-
-BACKUP
-  ccp backup export [archivo] [--with-secrets]
-  ccp backup restore <archivo> [--overwrite | --force]
-
-SCRIPTING
-  ccp resolve [ruta]          imprime el perfil del path (exit 0=regla, 1=default)
-  ccp status [--json]         estado de la terminal
-  ccp completion bash|zsh     scripts de autocompletado
-
-CICLO DE VIDA
-  ccp install | uninstall     añade/quita el bloque shell-init del rc
-  ccp upgrade [--pull]        reinstala desde la fuente registrada + sync
-  ccp doctor                  diagnóstico
-  ccp config [show|set|reset|editor]
-`
+// El cuerpo de la ayuda (sin el título) vive en el catálogo i18n bajo la key
+// "cli.help.body". cmdHelp lo recorre por líneas; el \n de cierre se recorta
+// antes del Split para no emitir una línea en blanco de más, dejando la salida
+// plain byte-idéntica a la del oráculo bash (modo ES).

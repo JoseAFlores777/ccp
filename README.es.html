@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light">
-<title>ccp — User guide</title>
+<title>ccp — Guía de uso</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -346,7 +346,7 @@
 <div class="progress" id="progress"></div>
 
 <div class="topbar">
-  <button class="mb" id="mb" aria-label="Menu"><i></i><i></i><i></i></button>
+  <button class="mb" id="mb" aria-label="Menú"><i></i><i></i><i></i></button>
   <span class="tt">ccp<span class="cur">_</span></span>
   <span class="pgnum" id="pgnum"></span>
 </div>
@@ -355,35 +355,35 @@
 <div class="app">
   <aside class="sidebar" id="sidebar">
     <div class="brand">ccp<span class="cur">_</span></div>
-    <p class="brand-sub">User guide · v2.0</p>
+    <p class="brand-sub">Guía de uso · v2.0</p>
 
     <div class="nav-group">
-      <h3>Get started</h3>
-      <a data-view="inicio"><span class="ix">·</span>Home</a>
-      <a data-view="modelo"><span class="ix">00</span>Mental model</a>
-      <a data-view="instalacion"><span class="ix">·</span>Installation</a>
+      <h3>Empezar</h3>
+      <a data-view="inicio"><span class="ix">·</span>Inicio</a>
+      <a data-view="modelo"><span class="ix">00</span>Modelo mental</a>
+      <a data-view="instalacion"><span class="ix">·</span>Instalación</a>
     </div>
     <div class="nav-group">
-      <h3>Cases</h3>
-      <a data-view="c1"><span class="ix">01</span>Work account</a>
-      <a data-view="c2"><span class="ix">02</span>Personal account</a>
-      <a data-view="c3"><span class="ix">03</span>DeepSeek folder</a>
+      <h3>Casos</h3>
+      <a data-view="c1"><span class="ix">01</span>Cuenta de trabajo</a>
+      <a data-view="c2"><span class="ix">02</span>Cuenta personal</a>
+      <a data-view="c3"><span class="ix">03</span>Carpeta DeepSeek</a>
       <a data-view="c4"><span class="ix">04</span>Carve-out</a>
-      <a data-view="c5"><span class="ix">05</span>Switch by hand</a>
-      <a data-view="c6"><span class="ix">06</span>See what's going on</a>
-      <a data-view="c7"><span class="ix">07</span>Coming from dsctl</a>
+      <a data-view="c5"><span class="ix">05</span>Cambiar a mano</a>
+      <a data-view="c6"><span class="ix">06</span>Ver qué pasa</a>
+      <a data-view="c7"><span class="ix">07</span>Vengo de dsctl</a>
     </div>
     <div class="nav-group">
-      <h3>Advanced</h3>
-      <a data-view="update"><span class="ix">·</span>Update ccp</a>
+      <h3>Avanzado</h3>
+      <a data-view="update"><span class="ix">·</span>Actualizar ccp</a>
       <a data-view="backup"><span class="ix">·</span>Backup &amp; restore</a>
-      <a data-view="config"><span class="ix">·</span>Manual config (YAML)</a>
-      <a data-view="idioma"><span class="ix">·</span>Language</a>
+      <a data-view="config"><span class="ix">·</span>Config manual (YAML)</a>
+      <a data-view="idioma"><span class="ix">·</span>Idioma</a>
     </div>
     <div class="nav-group">
-      <h3>Help</h3>
-      <a data-view="trouble"><span class="ix">·</span>Troubleshooting</a>
-      <a data-view="ref"><span class="ix">·</span>Quick reference</a>
+      <h3>Ayuda</h3>
+      <a data-view="trouble"><span class="ix">·</span>Solución de problemas</a>
+      <a data-view="ref"><span class="ix">·</span>Referencia rápida</a>
     </div>
   </aside>
 
@@ -391,46 +391,46 @@
 
     <!-- ═══ INICIO ═══ -->
     <section class="view" id="view-inicio">
-      <p class="kicker"><span class="s">User guide</span><span class="t">v2.5.1 · Go CLI</span></p>
-      <p class="kicker"><span class="t"><strong>English</strong> · <a href="README.es.html">Español</a></span></p>
+      <p class="kicker"><span class="s">Guía de uso</span><span class="t">v2.5.1 · CLI en Go</span></p>
+      <p class="kicker"><span class="t"><a href="README.html">English</a> · <strong>Español</strong></span></p>
       <h1>ccp<span class="cur">_</span></h1>
-      <p class="lede">A <em>different Claude Code account in every folder.</em> In your work repo, your company account; in your personal project, your personal account; in your experiments, DeepSeek. The switch happens on its own, just by <b>cd</b>-ing.</p>
+      <p class="lede">Una <em>cuenta de Claude Code distinta en cada carpeta.</em> En tu repo de trabajo, tu cuenta de empresa; en tu proyecto personal, tu cuenta personal; en tus experimentos, DeepSeek. El cambio ocurre solo, con hacer <b>cd</b>.</p>
 
       <figure class="shot">
-        <img src="docs/screenshots/tui.png" alt="ccp interactive dashboard: Profiles, Rules and Status panels">
-        <figcaption>Run <b>ccp</b> with no arguments → the interactive dashboard (3 panels, color, autocompletion).</figcaption>
+        <img src="docs/screenshots/tui.png" alt="Dashboard interactivo de ccp: paneles de Perfiles, Reglas y Estado">
+        <figcaption>Corre <b>ccp</b> sin argumentos → el dashboard interactivo (3 paneles, color, autocompletado).</figcaption>
       </figure>
 
-      <button class="start" data-go="modelo">Start the guide
+      <button class="start" data-go="modelo">Empezar la guía
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </button>
 
       <div class="triad">
-        <div class="t"><p class="ic">// oficial</p><p class="tt">Anthropic account</p><p class="td">Your company or personal login, each one isolated.</p></div>
-        <div class="t"><p class="ic">// proveedor</p><p class="tt">DeepSeek &amp; co.</p><p class="td">A compatible endpoint with its own API key.</p></div>
-        <div class="t"><p class="ic">// default</p><p class="tt">Your normal login</p><p class="td">Your usual <code>~/.claude</code>. With no rules, this one wins.</p></div>
+        <div class="t"><p class="ic">// oficial</p><p class="tt">Cuenta Anthropic</p><p class="td">Tu login de empresa o personal, cada uno aislado.</p></div>
+        <div class="t"><p class="ic">// proveedor</p><p class="tt">DeepSeek &amp; cía</p><p class="td">Un endpoint compatible con su propia API key.</p></div>
+        <div class="t"><p class="ic">// default</p><p class="tt">Tu login normal</p><p class="td">Tu <code>~/.claude</code> de siempre. Sin reglas, gana este.</p></div>
       </div>
 
       <div class="meta">
         <span><b>macOS · Linux</b></span><span class="dot"></span>
         <span>bash · zsh</span><span class="dot"></span>
-        <span>requires Claude Code + git</span>
+        <span>requiere Claude Code + git</span>
       </div>
 
-      <div class="kbd-hint"><span class="kbd">←</span><span class="kbd">→</span> navigate between pages · <span class="kbd">G</span> opens the index</div>
+      <div class="kbd-hint"><span class="kbd">←</span><span class="kbd">→</span> navega entre páginas · <span class="kbd">G</span> abre el índice</div>
     </section>
 
     <!-- ═══ MODELO MENTAL ═══ -->
     <section class="view" id="view-modelo">
-      <div class="kicker"><span class="s">§ 00</span><span class="t">Start here</span></div>
-      <h2 class="sec">The mental model — 30 seconds</h2>
+      <div class="kicker"><span class="s">§ 00</span><span class="t">Empieza aquí</span></div>
+      <h2 class="sec">El modelo mental — 30 segundos</h2>
       <ol class="ideas">
-        <li>A <span class="term" tabindex="0" data-tip="A Claude Code identity: official Anthropic account, DeepSeek-style provider, or your normal login.">profile</span> is an identity: an official Anthropic account, a DeepSeek-style provider, or your normal login (<span class="term" tabindex="0" data-tip="The reserved profile: your usual ~/.claude. It's what's used when no rule applies.">default</span>).</li>
-        <li>A <span class="term" tabindex="0" data-tip="Associates a folder (and all its subfolders) with a profile. It lives in ~/.config/ccp.">rule</span> says "this folder (and its subfolders) uses such-and-such profile".</li>
-        <li>The <b class="acc">most specific</b> rule wins. No rule → your normal login.</li>
+        <li>Un <span class="term" tabindex="0" data-tip="Una identidad de Claude Code: cuenta oficial de Anthropic, proveedor tipo DeepSeek, o tu login normal.">perfil</span> es una identidad: una cuenta oficial de Anthropic, un proveedor tipo DeepSeek, o tu login normal (<span class="term" tabindex="0" data-tip="El perfil reservado: tu ~/.claude de siempre. Es lo que se usa cuando ninguna regla aplica.">default</span>).</li>
+        <li>Una <span class="term" tabindex="0" data-tip="Asocia una carpeta (y todas sus subcarpetas) con un perfil. Vive en ~/.config/ccp.">regla</span> dice "esta carpeta (y sus subcarpetas) usa tal perfil".</li>
+        <li>Gana la regla <b class="acc">más específica</b>. Sin regla → tu login normal.</li>
       </ol>
 
-      <p class="intro">When you enter a folder, <code>ccp</code> applies the right profile in that terminal via a <span class="term" tabindex="0" data-tip="A function that runs on every shell prompt: it detects your folder and applies the profile. That's why cd alone is enough.">hook</span>. Then you run <code>claude</code> as usual.</p>
+      <p class="intro">Cuando entras a una carpeta, <code>ccp</code> aplica el perfil correcto en esa terminal mediante un <span class="term" tabindex="0" data-tip="Una función que corre en cada prompt del shell: detecta tu carpeta y aplica el perfil. Por eso cd solo basta.">hook</span>. Luego corres <code>claude</code> normal.</p>
 
       <figure>
         <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>~/.config/ccp/rules</span></div>
@@ -443,10 +443,10 @@
 
       <!-- INTERACTIVE PLAYGROUND -->
       <div class="play">
-        <div class="play-head"><span class="pin"></span>Try it · which profile wins?</div>
+        <div class="play-head"><span class="pin"></span>Pruébalo · ¿qué perfil gana?</div>
         <div class="play-body">
-          <label for="playIn">Type a folder (cwd)</label>
-          <div class="play-in"><span class="pr">cd</span><input id="playIn" value="~/work/cliente-x" spellcheck="false" autocomplete="off" aria-label="Folder path"></div>
+          <label for="playIn">Escribe una carpeta (cwd)</label>
+          <div class="play-in"><span class="pr">cd</span><input id="playIn" value="~/work/cliente-x" spellcheck="false" autocomplete="off" aria-label="Ruta de carpeta"></div>
           <div class="chips" id="playChips">
             <button class="chip" data-p="~/work">~/work</button>
             <button class="chip" data-p="~/work/cliente-x/api">~/work/cliente-x/api</button>
@@ -458,240 +458,240 @@
           <div class="rules-list" id="rulesList"></div>
 
           <div class="play-out" id="playOut">
-            <p class="ol">resolves to</p>
+            <p class="ol">resuelve a</p>
             <p class="ov"></p>
             <p class="oe"></p>
           </div>
         </div>
       </div>
-      <details class="why"><summary>why "the deepest one"?</summary>
-        <div class="why-body"><p>Rules nest. <code>~/work</code> covers everything inside it, but if a subfolder has its own rule, that one is more specific and rules only there. That way you can have a one-off exception without touching the parent's rule. That's the <b>carve-out</b> from Case 04.</p></div>
+      <details class="why"><summary>¿por qué "la más profunda"?</summary>
+        <div class="why-body"><p>Las reglas anidan. <code>~/work</code> cubre todo lo de adentro, pero si una subcarpeta tiene su propia regla, esa es más específica y manda solo ahí. Así puedes tener una excepción puntual sin tocar la regla del padre. Eso es el <b>carve-out</b> del Caso 04.</p></div>
       </details>
     </section>
 
     <!-- ═══ INSTALACIÓN ═══ -->
     <section class="view" id="view-instalacion">
-      <div class="kicker"><span class="s">·</span><span class="t">Just once</span></div>
-      <h2 class="sec">Installation</h2>
-      <p class="sec-lede">Five steps. Copy them in order.</p>
+      <div class="kicker"><span class="s">·</span><span class="t">Una sola vez</span></div>
+      <h2 class="sec">Instalación</h2>
+      <p class="sec-lede">Cinco pasos. Cópialos en orden.</p>
       <div class="steps">
         <div class="step"><div class="num">01</div><div class="body">
-          <p class="lead">Install the <b>binary and the libraries</b>.</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>./install.sh</pre></div>
+          <p class="lead">Instala el <b>binario y las librerías</b>.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>./install.sh</pre></div>
         </div></div>
         <div class="step"><div class="num">02</div><div class="body">
-          <p class="lead"><code>~/.local/bin</code> on your <b>PATH</b>. Only if step 1 warned you, add to <code>~/.zshrc</code> or <code>~/.bashrc</code>:</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>export PATH="$HOME/.local/bin:$PATH"</pre></div>
-          <details class="why"><summary>what is the PATH?</summary><div class="why-body"><p>The list of folders where your shell looks for commands. If <code>ccp</code> isn't there, the shell can't find it and you'll see <code>command not found</code>.</p></div></details>
+          <p class="lead"><code>~/.local/bin</code> en tu <b>PATH</b>. Solo si el paso 1 te advirtió, añade a <code>~/.zshrc</code> o <code>~/.bashrc</code>:</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>export PATH="$HOME/.local/bin:$PATH"</pre></div>
+          <details class="why"><summary>¿qué es el PATH?</summary><div class="why-body"><p>La lista de carpetas donde tu shell busca comandos. Si <code>ccp</code> no está ahí, el shell no lo encuentra y verás <code>command not found</code>.</p></div></details>
         </div></div>
         <div class="step"><div class="num">03</div><div class="body">
-          <p class="lead">Install the automatic <b>shell function and hook</b>.</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp install</pre></div>
-          <details class="why"><summary>why is a function needed?</summary><div class="why-body"><p>The binary runs in a child process and can't change your terminal's environment. The shell function can: that's why <code>ccp install</code> adds it to your rc, and it applies the profile with <code>export</code>.</p></div></details>
+          <p class="lead">Instala la <b>función de shell y el hook</b> automático.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp install</pre></div>
+          <details class="why"><summary>¿por qué hace falta una función?</summary><div class="why-body"><p>El binario corre en un proceso hijo y no puede cambiar el entorno de tu terminal. La función de shell sí: por eso <code>ccp install</code> la agrega a tu rc, y ella aplica el perfil con <code>export</code>.</p></div></details>
         </div></div>
         <div class="step"><div class="num">04</div><div class="body">
-          <p class="lead">Reload your shell — use <b>YOUR</b> shell's file.</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>source ~/.zshrc     <span class="c"># zsh</span>
+          <p class="lead">Recarga tu shell — usa el archivo de <b>TU</b> shell.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>source ~/.zshrc     <span class="c"># zsh</span>
 source ~/.bashrc    <span class="c"># bash</span></pre></div>
         </div></div>
         <div class="step"><div class="num">05</div><div class="body">
-          <p class="lead">Confirm it all went well.</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp doctor</pre></div>
-          <p class="hint">If you see "Función 'ccp' cargada", you're set.</p>
+          <p class="lead">Confirma que quedó bien.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp doctor</pre></div>
+          <p class="hint">Si ves "Función 'ccp' cargada", estás listo.</p>
         </div></div>
       </div>
     </section>
 
     <!-- ═══ CASO 1 ═══ -->
     <section class="view" id="view-c1">
-      <div class="kicker"><span class="s">§ 01</span><span class="t">The most common</span></div>
-      <h2 class="sec">Your work account in your work folder</h2>
-      <p class="sec-lede">The base flow. The other cases are variations on this one.</p>
+      <div class="kicker"><span class="s">§ 01</span><span class="t">El más común</span></div>
+      <h2 class="sec">Tu cuenta de trabajo en tu carpeta de trabajo</h2>
+      <p class="sec-lede">El flujo base. Los demás casos son variaciones de este.</p>
       <div class="steps">
         <div class="step"><div class="num">01</div><div class="body">
-          <p class="lead">Create the official profile <b>"work"</b>.</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile add work --official</pre></div>
+          <p class="lead">Crea el perfil oficial <b>"work"</b>.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile add work --official</pre></div>
         </div></div>
         <div class="step"><div class="num">02</div><div class="body">
-          <p class="lead">Log in to that profile <b>(just once)</b>.</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile login work</pre></div>
-          <p class="hint">Inside Claude Code: type <code>/login</code>, authenticate with your work account, and exit with <code>/quit</code>.</p>
+          <p class="lead">Inicia sesión en ese perfil <b>(una sola vez)</b>.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile login work</pre></div>
+          <p class="hint">Dentro de Claude Code: escribe <code>/login</code>, autentícate con tu cuenta de trabajo, y sal con <code>/quit</code>.</p>
         </div></div>
         <div class="step"><div class="num">03</div><div class="body">
-          <p class="lead">Tell <code>ccp</code> which folder uses "work".</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp path set ~/work work</pre></div>
+          <p class="lead">Dile a <code>ccp</code> qué carpeta usa "work".</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp path set ~/work work</pre></div>
         </div></div>
         <div class="step"><div class="num">04</div><div class="body">
-          <p class="lead">Try it: enter and open Claude.</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>cd ~/work &amp;&amp; claude</pre></div>
-          <p class="hint">It starts with your work account. You didn't have to do anything else.</p>
+          <p class="lead">Pruébalo: entra y abre Claude.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>cd ~/work &amp;&amp; claude</pre></div>
+          <p class="hint">Arranca con tu cuenta de trabajo. No tuviste que hacer nada más.</p>
         </div></div>
       </div>
     </section>
 
     <!-- ═══ CASO 2 ═══ -->
     <section class="view" id="view-c2">
-      <div class="kicker"><span class="s">§ 02</span><span class="t">Another identity</span></div>
-      <h2 class="sec">Add your personal account</h2>
-      <p class="sec-lede">Same as case 1, with a different name and a different folder.</p>
+      <div class="kicker"><span class="s">§ 02</span><span class="t">Otra identidad</span></div>
+      <h2 class="sec">Añadir tu cuenta personal</h2>
+      <p class="sec-lede">Igual que el caso 1, con otro nombre y otra carpeta.</p>
       <div class="steps">
         <div class="step"><div class="num">01</div><div class="body">
-          <p class="lead">Create the profile.</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile add personal --official</pre></div>
+          <p class="lead">Crea el perfil.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile add personal --official</pre></div>
         </div></div>
         <div class="step"><div class="num">02</div><div class="body">
-          <p class="lead">Log in (once), with your <b>personal account</b>.</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile login personal</pre></div>
-          <p class="hint">Inside: <code>/login</code> with your personal account, then <code>/quit</code>.</p>
+          <p class="lead">Inicia sesión (una vez), con tu <b>cuenta personal</b>.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile login personal</pre></div>
+          <p class="hint">Dentro: <code>/login</code> con tu cuenta personal, luego <code>/quit</code>.</p>
         </div></div>
         <div class="step"><div class="num">03</div><div class="body">
-          <p class="lead">Assign your personal folder.</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp path set ~/personal personal</pre></div>
-          <p class="hint"><code>~/work</code> is still work; <code>~/personal</code> is now personal.</p>
+          <p class="lead">Asigna tu carpeta personal.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp path set ~/personal personal</pre></div>
+          <p class="hint"><code>~/work</code> sigue siendo trabajo; <code>~/personal</code> ahora es personal.</p>
         </div></div>
       </div>
     </section>
 
     <!-- ═══ CASO 3 ═══ -->
     <section class="view" id="view-c3">
-      <div class="kicker"><span class="s">§ 03</span><span class="t">Provider</span></div>
-      <h2 class="sec">A folder with DeepSeek</h2>
-      <p class="sec-lede">For experiments or work where you'd rather use DeepSeek instead of your Anthropic account.</p>
+      <div class="kicker"><span class="s">§ 03</span><span class="t">Proveedor</span></div>
+      <h2 class="sec">Una carpeta con DeepSeek</h2>
+      <p class="sec-lede">Para experimentos o trabajo donde prefieras DeepSeek en vez de tu cuenta Anthropic.</p>
       <div class="steps">
         <div class="step"><div class="num">01</div><div class="body">
-          <p class="lead">Create the provider profile.</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile add deepseek --deepseek</pre></div>
+          <p class="lead">Crea el perfil de proveedor.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile add deepseek --deepseek</pre></div>
         </div></div>
         <div class="step"><div class="num">02</div><div class="body">
-          <p class="lead">Save your DeepSeek API key (it's prompted hidden).</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp key deepseek</pre></div>
-          <details class="why"><summary>where does the key live?</summary><div class="why-body"><p>In <code>~/.config/ccp/profiles/deepseek/api_key</code> with <code>600</code> permissions. It never goes to the YAML, the rc, or git.</p></div></details>
+          <p class="lead">Guarda tu API key de DeepSeek (te la pide oculta).</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp key deepseek</pre></div>
+          <details class="why"><summary>¿dónde queda la key?</summary><div class="why-body"><p>En <code>~/.config/ccp/profiles/deepseek/api_key</code> con permisos <code>600</code>. Nunca va al YAML, ni al rc, ni a git.</p></div></details>
         </div></div>
         <div class="step"><div class="num">03</div><div class="body">
-          <p class="lead">Assign the folder.</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp path set ~/labs deepseek</pre></div>
+          <p class="lead">Asigna la carpeta.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp path set ~/labs deepseek</pre></div>
         </div></div>
         <div class="step"><div class="num">04</div><div class="body">
-          <p class="lead">Use it.</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>cd ~/labs &amp;&amp; claude</pre></div>
+          <p class="lead">Úsalo.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>cd ~/labs &amp;&amp; claude</pre></div>
         </div></div>
       </div>
     </section>
 
     <!-- ═══ CASO 4 ═══ -->
     <section class="view" id="view-c4">
-      <div class="kicker"><span class="s">§ 04</span><span class="t">Exception</span></div>
-      <h2 class="sec">Carve a subfolder out of its rule (carve-out)</h2>
-      <p class="sec-lede">Your <code>~/work</code> uses the work account, but there's one specific client where you want your normal login.</p>
+      <div class="kicker"><span class="s">§ 04</span><span class="t">Excepción</span></div>
+      <h2 class="sec">Sacar una subcarpeta de su regla (carve-out)</h2>
+      <p class="sec-lede">Tu <code>~/work</code> usa la cuenta de trabajo, pero hay un cliente puntual donde quieres tu login normal.</p>
       <div class="do">
-        <p class="lead"><b>A single step</b> — assign that subfolder to the <code>default</code> profile.</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp path set ~/work/cliente-x default</pre></div>
+        <p class="lead"><b>Un solo paso</b> — asigna esa subcarpeta al perfil <code>default</code>.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp path set ~/work/cliente-x default</pre></div>
       </div>
-      <div class="tip"><span class="lbl">Why it works</span><code>~/work</code> stays on "work", but <code>~/work/cliente-x</code> uses your normal login. The most specific subfolder always rules. Want to see it? Go back to the <a data-go="modelo">mental-model playground</a> and type <code>~/work/cliente-x</code>.</div>
+      <div class="tip"><span class="lbl">Por qué funciona</span><code>~/work</code> sigue en "work", pero <code>~/work/cliente-x</code> usa tu login normal. La subcarpeta más específica siempre manda. ¿Quieres verlo? Vuelve al <a data-go="modelo">playground del modelo mental</a> y escribe <code>~/work/cliente-x</code>.</div>
     </section>
 
     <!-- ═══ CASO 5 ═══ -->
     <section class="view" id="view-c5">
       <div class="kicker"><span class="s">§ 05</span><span class="t">Manual</span></div>
-      <h2 class="sec">Switch by hand in a terminal</h2>
-      <p class="sec-lede">When you want to change the current terminal's profile without moving out of the folder.</p>
+      <h2 class="sec">Cambiar a mano en una terminal</h2>
+      <p class="sec-lede">Cuando quieres cambiar el perfil de la terminal actual sin moverte de carpeta.</p>
       <div class="do">
-        <p class="lead">Activate a profile <b>here</b>:</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp use personal</pre></div>
+        <p class="lead">Activar un perfil <b>aquí</b>:</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp use personal</pre></div>
       </div>
       <div class="do">
-        <p class="lead">Go back to your <b>normal login</b>:</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp default</pre></div>
+        <p class="lead">Volver a tu <b>login normal</b>:</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp default</pre></div>
       </div>
       <div class="do">
-        <p class="lead">Run Claude <b>just once</b> with the folder's profile, without making it stick:</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp run claude</pre></div>
+        <p class="lead">Correr Claude <b>una sola vez</b> con el perfil de la carpeta, sin dejarlo fijo:</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp run claude</pre></div>
       </div>
     </section>
 
     <!-- ═══ CASO 6 ═══ -->
     <section class="view" id="view-c6">
-      <div class="kicker"><span class="s">§ 06</span><span class="t">Inspection</span></div>
-      <h2 class="sec">See what's going on</h2>
+      <div class="kicker"><span class="s">§ 06</span><span class="t">Inspección</span></div>
+      <h2 class="sec">Ver qué está pasando</h2>
       <div class="do">
-        <p class="lead">Which profile does this folder use, and what's active in the terminal?</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp status</pre></div>
+        <p class="lead">¿Qué perfil usa esta carpeta y qué hay activo en la terminal?</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp status</pre></div>
       </div>
       <div class="do">
-        <p class="lead">What folder rules do I have?</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp path list</pre></div>
+        <p class="lead">¿Qué reglas de carpeta tengo?</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp path list</pre></div>
       </div>
       <div class="do">
-        <p class="lead">What profiles have I created?</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile list</pre></div>
+        <p class="lead">¿Qué perfiles tengo creados?</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile list</pre></div>
       </div>
       <div class="do">
-        <p class="lead">Is everything fine (logins, keys, shell function)?</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp doctor</pre></div>
+        <p class="lead">¿Está todo bien (logins, keys, función de shell)?</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp doctor</pre></div>
       </div>
     </section>
 
     <!-- ═══ CASO 7 ═══ -->
     <section class="view" id="view-c7">
-      <div class="kicker"><span class="s">§ 07</span><span class="t">Migration</span></div>
-      <h2 class="sec">Coming from <code>dsctl</code> (the old version)</h2>
-      <p class="sec-lede"><code>ccp</code> replaces <code>dsctl</code>. Migration is automatic.</p>
+      <div class="kicker"><span class="s">§ 07</span><span class="t">Migración</span></div>
+      <h2 class="sec">Vengo de <code>dsctl</code> (la versión vieja)</h2>
+      <p class="sec-lede"><code>ccp</code> reemplaza a <code>dsctl</code>. La migración es automática.</p>
       <div class="steps">
         <div class="step"><div class="num">01</div><div class="body">
-          <p class="lead">The <b>first time</b> you run <code>ccp</code>, it migrates on its own: it creates a <code>deepseek</code> profile with your old config and converts your rules. Just use it:</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp status</pre></div>
+          <p class="lead">La <b>primera vez</b> que corras <code>ccp</code>, migra solo: crea un perfil <code>deepseek</code> con tu config vieja y convierte tus reglas. Solo úsalo:</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp status</pre></div>
         </div></div>
         <div class="step"><div class="num">02</div><div class="body">
-          <p class="lead">Remove the old <code>dsctl</code> block from your shell.</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>dsctl uninstall</pre></div>
-          <p class="hint">Your old rules are backed up in <code>~/.config/ccp/rules.dsctl.bak</code>.</p>
+          <p class="lead">Quita el bloque viejo de <code>dsctl</code> de tu shell.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>dsctl uninstall</pre></div>
+          <p class="hint">Tus reglas viejas quedan respaldadas en <code>~/.config/ccp/rules.dsctl.bak</code>.</p>
         </div></div>
       </div>
     </section>
 
     <!-- ═══ ACTUALIZAR ═══ -->
     <section class="view" id="view-update">
-      <div class="kicker"><span class="s">·</span><span class="t">Advanced · Versions</span></div>
-      <h2 class="sec">Update ccp</h2>
-      <p class="sec-lede">From an earlier version to the latest. Your config migrates on its own; you don't lose profiles or rules.</p>
+      <div class="kicker"><span class="s">·</span><span class="t">Avanzado · Versiones</span></div>
+      <h2 class="sec">Actualizar ccp</h2>
+      <p class="sec-lede">De una versión anterior a la última. Tu config se migra sola; no pierdes perfiles ni reglas.</p>
 
-      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:8px 0 4px;">Which version do I have?</h3>
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:8px 0 4px;">¿Qué versión tengo?</h3>
       <div class="do">
-        <p class="lead">Print the binary's version.</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp version     <span class="c"># → 2.5.1</span></pre></div>
-        <p class="hint"><code>ccp --version</code> or <code>ccp -v</code> work too.</p>
+        <p class="lead">Imprime la versión del binario.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp version     <span class="c"># → 2.5.1</span></pre></div>
+        <p class="hint">También vale <code>ccp --version</code> o <code>ccp -v</code>.</p>
       </div>
 
-      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Move up to the latest</h3>
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Subir a la última</h3>
       <div class="do">
-        <p class="lead">One command. It reinstalls the binary and re-syncs your profiles.</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp upgrade</pre></div>
-        <p class="hint">It downloads the release binary for your OS/arch, verifies its <code>sha256</code>, and then regenerates each <code>cc-home</code>. If there's no release but a Go toolchain, it builds from source.</p>
-        <details class="why"><summary>what does it do under the hood?</summary><div class="why-body">
-          <p><b>1.</b> Reads <code>~/.config/ccp/install-source</code> (the repo path, recorded at install time).</p>
-          <p><b>2.</b> Re-runs <code>install.sh</code> from there: detects OS/arch, downloads the binary, verifies the checksum, and removes the old bash libs (<code>~/.local/lib/ccp</code>).</p>
-          <p><b>3.</b> Runs <code>ccp profile sync</code> to regenerate each profile's config.</p>
-          <p>If the shell block got stale, it warns you: run <code>ccp install</code> and reload (<code>source ~/.zshrc</code>).</p>
+        <p class="lead">Un comando. Reinstala el binario y re-sincroniza tus perfiles.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp upgrade</pre></div>
+        <p class="hint">Descarga el binario de release para tu OS/arch, verifica su <code>sha256</code>, y luego regenera cada <code>cc-home</code>. Si no hay release pero sí toolchain de Go, compila desde fuente.</p>
+        <details class="why"><summary>¿qué hace por dentro?</summary><div class="why-body">
+          <p><b>1.</b> Lee <code>~/.config/ccp/install-source</code> (la ruta del repo, registrada al instalar).</p>
+          <p><b>2.</b> Re-ejecuta <code>install.sh</code> desde ahí: detecta OS/arch, baja el binario, verifica checksum, y borra las libs viejas de bash (<code>~/.local/lib/ccp</code>).</p>
+          <p><b>3.</b> Corre <code>ccp profile sync</code> para regenerar la config de cada perfil.</p>
+          <p>Si el bloque de shell quedó viejo, te avisa: corre <code>ccp install</code> y recarga (<code>source ~/.zshrc</code>).</p>
         </div></details>
       </div>
       <div class="do">
-        <p class="lead">Variants.</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp upgrade --pull       <span class="c"># git pull en el repo antes de reinstalar</span>
+        <p class="lead">Variantes.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp upgrade --pull       <span class="c"># git pull en el repo antes de reinstalar</span>
 ccp upgrade --no-sync    <span class="c"># solo el binario, no toca los perfiles</span></pre></div>
       </div>
 
-      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Re-sync without reinstalling</h3>
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Re-sincronizar sin reinstalar</h3>
       <div class="do">
-        <p class="lead">Regenerates each profile's <code>CLAUDE.md</code> + <code>settings.json</code>, re-merging global ⊕ overlay. Useful after changing your global config or a profile's overlay.</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile sync          <span class="c"># todos</span>
+        <p class="lead">Regenera <code>CLAUDE.md</code> + <code>settings.json</code> de cada perfil, re-fundiendo global ⊕ overlay. Útil tras cambiar tu config global o el overlay de un perfil.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile sync          <span class="c"># todos</span>
 ccp profile sync work     <span class="c"># solo uno</span></pre></div>
-        <p class="hint">It doesn't touch <code>default</code> (it has no overlay or cc-home).</p>
+        <p class="hint">No toca <code>default</code> (no tiene overlay ni cc-home).</p>
       </div>
 
-      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Coming from the legacy version (Bash / dsctl)</h3>
-      <p class="intro">Migration is <b>automatic</b> and <b>lazy</b>: the first time you run any <code>ccp</code> command that touches the config, it converts your old state to <code>ccp.yaml</code> (schema v2). You don't have to do anything special.</p>
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Vienes de la versión legacy (Bash / dsctl)</h3>
+      <p class="intro">La migración es <b>automática</b> y <b>perezosa</b>: la primera vez que corras cualquier comando de <code>ccp</code> que toque la config, convierte tu estado viejo a <code>ccp.yaml</code> (schema v2). No tienes que hacer nada especial.</p>
       <figure>
-        <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>migration chain</span></div>
+        <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>cadena de migración</span></div>
 <pre>~/.config/dsctl   <span class="c"># config + rules.tsv viejos</span>
       │
       ▼  <b>(automático, una sola vez)</b>
@@ -700,79 +700,79 @@ ccp (TSV)         <span class="c"># profiles.tsv / rules.tsv</span>
       ▼
 ~/.config/ccp/<b>ccp.yaml</b>   <span class="c"># schema v2, fuente única</span></pre>
       </figure>
-      <div class="tip"><span class="lbl">What happens exactly</span>
-        Before touching anything, <code>ccp</code> backs everything up in <code>~/.config/ccp/.backup-pre-go-&lt;fecha&gt;</code>. It creates a <code>deepseek</code> profile with your old DeepSeek config (the API key is moved to <code>api_key</code>, <code>chmod 600</code>) and converts your rules: <b>include</b> ones → <code>deepseek</code>, <b>exclude</b> ones → <code>default</code>. It's <b>idempotent</b>: run it as many times as you like, it migrates only once.
+      <div class="tip"><span class="lbl">Qué pasa exactamente</span>
+        Antes de tocar nada, <code>ccp</code> respalda todo en <code>~/.config/ccp/.backup-pre-go-&lt;fecha&gt;</code>. Crea un perfil <code>deepseek</code> con tu config DeepSeek vieja (la API key se mueve a <code>api_key</code>, <code>chmod 600</code>) y convierte tus reglas: las de <b>include</b> → <code>deepseek</code>, las de <b>exclude</b> → <code>default</code>. Es <b>idempotente</b>: corre cuantas veces quieras, migra una sola vez.
       </div>
-      <p class="intro" style="margin-top:18px;">Afterwards, remove the old block from your shell — it's in <a data-go="c7">Case 07 · Coming from dsctl</a>.</p>
+      <p class="intro" style="margin-top:18px;">Después, quita el bloque viejo de tu shell — está en el <a data-go="c7">Caso 07 · Vengo de dsctl</a>.</p>
     </section>
 
     <!-- ═══ BACKUP ═══ -->
     <section class="view" id="view-backup">
-      <div class="kicker"><span class="s">·</span><span class="t">Advanced · Backup</span></div>
-      <h2 class="sec">Export and import your configuration</h2>
-      <p class="sec-lede">Take everything to another machine, or back it up before a big change. It all fits in a <code>.tar.gz</code>.</p>
+      <div class="kicker"><span class="s">·</span><span class="t">Avanzado · Respaldo</span></div>
+      <h2 class="sec">Exportar e importar tu configuración</h2>
+      <p class="sec-lede">Llévate todo a otra máquina, o respáldalo antes de un cambio grande. Todo cabe en un <code>.tar.gz</code>.</p>
 
-      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:8px 0 4px;">Export</h3>
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:8px 0 4px;">Exportar</h3>
       <div class="do">
-        <p class="lead">Create a backup (without secrets).</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp backup export ~/ccp-backup.tar.gz</pre></div>
-        <p class="hint">Includes <code>manifest.yaml</code>, your <code>ccp.yaml</code> and each profile's <span class="term" tabindex="0" data-tip="Each profile's own config: CLAUDE.md + settings.overlay.json. It's the lowest-precedence baseline.">overlays</span>. The file is left <code>chmod 644</code>.</p>
+        <p class="lead">Crear un respaldo (sin secretos).</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp backup export ~/ccp-backup.tar.gz</pre></div>
+        <p class="hint">Incluye <code>manifest.yaml</code>, tu <code>ccp.yaml</code> y los <span class="term" tabindex="0" data-tip="La config propia de cada perfil: CLAUDE.md + settings.overlay.json. Es la base de menor precedencia.">overlays</span> de cada perfil. El archivo queda <code>chmod 644</code>.</p>
       </div>
       <div class="do">
-        <p class="lead">Include <b>secrets</b> (API keys + official logins).</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp backup export ~/ccp-backup.tar.gz --with-secrets</pre></div>
-        <div class="tip"><span class="lbl">Careful</span>It adds your DeepSeek <code>api_key</code> and the OAuth credentials of the official profiles (<code>.claude.json</code>). The file is written <code>chmod 600</code>. Keep it somewhere safe and never push it to git.</div>
-        <details class="why"><summary>what's in and what's out?</summary><div class="why-body">
-          <p><b>Always:</b> <code>manifest.yaml</code> (with sha256 checksums), <code>ccp.yaml</code>, and each profile's <code>overlay/</code>.</p>
-          <p><b>Only with <code>--with-secrets</code>:</b> <code>profiles/&lt;n&gt;/api_key</code> and <code>cc-home/.claude.json</code>.</p>
-          <p><b>Never:</b> the symlinks (<code>plugins/ commands/ agents/ skills/</code>). They're recreated on their own when you restore.</p>
+        <p class="lead">Incluir <b>secretos</b> (API keys + logins oficiales).</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp backup export ~/ccp-backup.tar.gz --with-secrets</pre></div>
+        <div class="tip"><span class="lbl">Cuidado</span>Añade tu <code>api_key</code> de DeepSeek y las credenciales OAuth de los perfiles oficiales (<code>.claude.json</code>). El archivo se escribe <code>chmod 600</code>. Guárdalo en un lugar seguro y nunca lo subas a git.</div>
+        <details class="why"><summary>¿qué entra y qué no?</summary><div class="why-body">
+          <p><b>Siempre:</b> <code>manifest.yaml</code> (con checksums sha256), <code>ccp.yaml</code>, y <code>overlay/</code> de cada perfil.</p>
+          <p><b>Solo con <code>--with-secrets</code>:</b> <code>profiles/&lt;n&gt;/api_key</code> y <code>cc-home/.claude.json</code>.</p>
+          <p><b>Nunca:</b> los symlinks (<code>plugins/ commands/ agents/ skills/</code>). Se vuelven a crear solos al restaurar.</p>
         </div></details>
       </div>
 
-      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Import / restore</h3>
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Importar / restaurar</h3>
       <div class="do">
-        <p class="lead">Restore on another machine (or over this one).</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp backup restore ~/ccp-backup.tar.gz</pre></div>
-        <p class="hint">By default: it <b>doesn't overwrite</b> anything. It creates the missing profiles and merges the rules (new paths are added, yours are kept).</p>
+        <p class="lead">Restaurar en otra máquina (o sobre esta).</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp backup restore ~/ccp-backup.tar.gz</pre></div>
+        <p class="hint">Por defecto: <b>no pisa</b> nada. Crea los perfiles que falten y fusiona las reglas (rutas nuevas se agregan, las tuyas se conservan).</p>
       </div>
 
-      <p class="intro" style="margin:24px 0 6px;"><b>Collision modes</b> — what happens to what you already have:</p>
+      <p class="intro" style="margin:24px 0 6px;"><b>Modos de colisión</b> — qué pasa con lo que ya tienes:</p>
       <table>
-        <thead><tr><th>Command</th><th>Existing profiles</th><th>Rules</th></tr></thead>
+        <thead><tr><th>Comando</th><th>Perfiles existentes</th><th>Reglas</th></tr></thead>
         <tbody>
-          <tr><td><code>restore</code></td><td>kept; only adds the new ones</td><td>merges</td></tr>
-          <tr><td><code>restore --overwrite</code></td><td>replaces the ones that come in the backup</td><td>merges</td></tr>
-          <tr><td><code>restore --force</code></td><td>wipes everything and restores clean</td><td>replaces all</td></tr>
+          <tr><td><code>restore</code></td><td>se conservan; solo agrega los nuevos</td><td>fusiona</td></tr>
+          <tr><td><code>restore --overwrite</code></td><td>reemplaza los que vengan en el backup</td><td>fusiona</td></tr>
+          <tr><td><code>restore --force</code></td><td>borra todo y restaura limpio</td><td>reemplaza todo</td></tr>
         </tbody>
       </table>
 
-      <div class="tip"><span class="lbl">Safety net</span>Before touching anything, <code>ccp</code> saves an automatic snapshot in <code>~/.config/ccp/.backup-pre-restore-&lt;fecha&gt;</code>. If something goes wrong, your previous state is there. And if the backup comes from a newer <code>ccp</code> (higher schema), the restore <b>aborts</b> without touching anything: update <code>ccp</code> first.</div>
+      <div class="tip"><span class="lbl">Red de seguridad</span>Antes de tocar nada, <code>ccp</code> guarda un snapshot automático en <code>~/.config/ccp/.backup-pre-restore-&lt;fecha&gt;</code>. Si algo sale mal, ahí está tu estado anterior. Y si el backup viene de un <code>ccp</code> más nuevo (schema superior), el restore <b>aborta</b> sin tocar nada: actualiza <code>ccp</code> primero.</div>
     </section>
 
     <!-- ═══ CONFIG MANUAL ═══ -->
     <section class="view" id="view-config">
-      <div class="kicker"><span class="s">·</span><span class="t">Advanced · YAML</span></div>
-      <h2 class="sec">Configure by hand (<code>ccp.yaml</code>)</h2>
-      <p class="sec-lede">Everything lives in a single file. You can touch it with commands or edit it by hand: both paths lead to the same YAML.</p>
+      <div class="kicker"><span class="s">·</span><span class="t">Avanzado · YAML</span></div>
+      <h2 class="sec">Configurar a mano (<code>ccp.yaml</code>)</h2>
+      <p class="sec-lede">Todo vive en un solo archivo. Puedes tocarlo con comandos o editarlo a mano: ambos caminos llevan al mismo YAML.</p>
 
-      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:8px 0 4px;">With commands</h3>
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:8px 0 4px;">Con comandos</h3>
       <div class="do">
-        <p class="lead">See the current <span class="term" tabindex="0" data-tip="Template applied only when CREATING a new deepseek profile. Editing it doesn't touch existing profiles.">defaults</span>.</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp config show</pre></div>
+        <p class="lead">Ver los <span class="term" tabindex="0" data-tip="Plantilla que se aplica solo al CREAR un perfil deepseek nuevo. Editarla no toca los perfiles que ya existen.">defaults</span> actuales.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp config show</pre></div>
       </div>
       <div class="do">
-        <p class="lead">Change a defaults field. Keys: <code>base_url</code>, <code>model_pro</code>, <code>model_flash</code>, <code>effort</code>.</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp config set model_pro deepseek-reasoner</pre></div>
-        <p class="hint">It only affects the deepseek profiles you create <b>afterwards</b>. Existing ones keep their 4 explicit fields.</p>
+        <p class="lead">Cambiar un campo de los defaults. Claves: <code>base_url</code>, <code>model_pro</code>, <code>model_flash</code>, <code>effort</code>.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp config set model_pro deepseek-reasoner</pre></div>
+        <p class="hint">Solo afecta a los perfiles deepseek que crees <b>después</b>. Los existentes guardan sus 4 campos explícitos.</p>
       </div>
       <div class="do">
-        <p class="lead">Reset the defaults to factory · choose editor.</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp config reset
+        <p class="lead">Volver los defaults a fábrica · elegir editor.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp config reset
 ccp config editor nano     <span class="c"># o vim, code, etc.</span></pre></div>
       </div>
 
-      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">The file, annotated</h3>
-      <p class="intro">It lives in <code>~/.config/ccp/ccp.yaml</code> (or <code>$CCP_HOME/ccp.yaml</code>).</p>
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">El archivo, anotado</h3>
+      <p class="intro">Vive en <code>~/.config/ccp/ccp.yaml</code> (o <code>$CCP_HOME/ccp.yaml</code>).</p>
       <figure>
         <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>~/.config/ccp/ccp.yaml</span></div>
 <pre><span class="g">version</span>: 2                              <span class="c"># schema; no lo bajes a mano</span>
@@ -807,88 +807,88 @@ ccp config editor nano     <span class="c"># o vim, code, etc.</span></pre></div
 <span class="g">authored</span>: []                            <span class="c"># artefactos que ccp gestiona</span></pre>
       </figure>
 
-      <details class="why"><summary>official vs deepseek</summary><div class="why-body">
-        <p>An <b>official</b> profile stores only <code>type: official</code>; its login lives apart, in <code>cc-home/.claude.json</code>.</p>
-        <p>A <b>deepseek</b> profile stores the 4 fields (<code>base_url, model_pro, model_flash, effort</code>) <b>explicitly</b>, with no inheritance. <code>defaults</code> only seeds them when it's created.</p>
+      <details class="why"><summary>oficial vs deepseek</summary><div class="why-body">
+        <p>Un perfil <b>oficial</b> guarda solo <code>type: official</code>; su login vive aparte, en <code>cc-home/.claude.json</code>.</p>
+        <p>Un perfil <b>deepseek</b> guarda los 4 campos (<code>base_url, model_pro, model_flash, effort</code>) <b>explícitos</b>, sin herencia. <code>defaults</code> solo los siembra al crearlo.</p>
       </div></details>
 
-      <div class="tip"><span class="lbl">Golden rules</span>
-        <b>1.</b> <code>default</code> is implicit: never put it in <code>profiles</code>. It's your normal login and wins when no rule applies. For an exception, use <code>profile: default</code> in a rule.<br>
-        <b>2.</b> The paths in <code>rules</code> are absolute and normalized (no <code>~</code>). Better to let ccp normalize them with <code>ccp path set ~/x perfil</code>.<br>
-        <b>3.</b> The API key does <b>not</b> go here: it lives in <code>~/.config/ccp/profiles/&lt;n&gt;/api_key</code> (<code>chmod 600</code>). Edit it with <code>ccp key &lt;n&gt;</code>.
+      <div class="tip"><span class="lbl">Reglas de oro</span>
+        <b>1.</b> <code>default</code> es implícito: nunca lo pongas en <code>profiles</code>. Es tu login normal y gana cuando ninguna regla aplica. Para una excepción, usa <code>profile: default</code> en una regla.<br>
+        <b>2.</b> Las rutas en <code>rules</code> son absolutas y normalizadas (sin <code>~</code>). Mejor deja que ccp las normalice con <code>ccp path set ~/x perfil</code>.<br>
+        <b>3.</b> La API key <b>no</b> va aquí: vive en <code>~/.config/ccp/profiles/&lt;n&gt;/api_key</code> (<code>chmod 600</code>). Edítala con <code>ccp key &lt;n&gt;</code>.
       </div>
 
-      <details class="why"><summary>is it safe to edit by hand?</summary><div class="why-body">
-        <p>Yes. <code>ccp</code> writes atomically (tmp + rename) under a <span class="term" tabindex="0" data-tip="File lock (.ccp.lock). Prevents two processes from writing the YAML at the same time.">flock</span>, <b>preserves your comments</b> and any unknown key on round-trip.</p>
-        <p><b>Version guard:</b> if <code>version</code> is higher than the one your binary knows, ccp refuses to read or write and doesn't touch the file. Update <code>ccp</code>.</p>
-        <p>After editing by hand: refresh the hook with <code>cd .</code> and verify with <code>ccp status</code> · <code>ccp path list</code>.</p>
+      <details class="why"><summary>¿es seguro editarlo a mano?</summary><div class="why-body">
+        <p>Sí. <code>ccp</code> escribe de forma atómica (tmp + rename) bajo un <span class="term" tabindex="0" data-tip="Bloqueo de archivo (.ccp.lock). Evita que dos procesos escriban el YAML a la vez.">flock</span>, <b>conserva tus comentarios</b> y cualquier clave desconocida en round-trip.</p>
+        <p><b>Guard de versión:</b> si <code>version</code> es mayor que la que tu binario conoce, ccp se niega a leer o escribir y no toca el archivo. Actualiza <code>ccp</code>.</p>
+        <p>Tras editar a mano: refresca el hook con <code>cd .</code> y verifica con <code>ccp status</code> · <code>ccp path list</code>.</p>
       </div></details>
     </section>
 
     <!-- ═══ IDIOMA ═══ -->
     <section class="view" id="view-idioma">
-      <div class="kicker"><span class="s">·</span><span class="t">Advanced · Language</span></div>
-      <h2 class="sec">Language</h2>
-      <p class="sec-lede"><code>ccp</code> speaks English by default and also Spanish. Pick whichever you like; the choice persists in <code>ccp.yaml</code>.</p>
+      <div class="kicker"><span class="s">·</span><span class="t">Avanzado · Idioma</span></div>
+      <h2 class="sec">Idioma</h2>
+      <p class="sec-lede"><code>ccp</code> habla inglés por defecto y también español. Elige el que prefieras; la elección se persiste en <code>ccp.yaml</code>.</p>
       <div class="do">
-        <p class="lead">See the current language and where it comes from.</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp lang        <span class="c"># current language + source (env/config/default)</span></pre></div>
+        <p class="lead">Ver el idioma actual y de dónde sale.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp lang        <span class="c"># idioma actual + origen (env/config/default)</span></pre></div>
       </div>
       <div class="do">
-        <p class="lead">Switch language and persist it in <code>ccp.yaml</code>.</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp lang en     <span class="c"># English</span>
-ccp lang es     <span class="c"># Spanish</span></pre></div>
+        <p class="lead">Cambiar de idioma y persistirlo en <code>ccp.yaml</code>.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp lang en     <span class="c"># inglés</span>
+ccp lang es     <span class="c"># español</span></pre></div>
       </div>
-      <div class="tip"><span class="lbl">Precedence and shortcuts</span>
-        <b>1.</b> <code>CCP_LANG=en|es</code> is an environment override and takes precedence over the config. The default is <b>English</b>.<br>
-        <b>2.</b> In the interactive dashboard (TUI), press <b>L</b> to toggle the language live — it persists. Note: <b>login</b> is on the lowercase <code>l</code>, and <code>L</code> (uppercase) toggles the language.
+      <div class="tip"><span class="lbl">Prioridad y atajos</span>
+        <b>1.</b> <code>CCP_LANG=en|es</code> es un override por entorno y tiene prioridad sobre la config. El valor por defecto es <b>inglés</b>.<br>
+        <b>2.</b> En el dashboard interactivo (TUI), pulsa <b>L</b> para cambiar el idioma en vivo — se persiste. Ojo: <b>iniciar sesión</b> (login) está en la <code>l</code> minúscula, y <code>L</code> (mayúscula) cambia el idioma.
       </div>
     </section>
 
     <!-- ═══ TROUBLESHOOTING ═══ -->
     <section class="view" id="view-trouble">
-      <div class="kicker"><span class="s">·</span><span class="t">Help</span></div>
-      <h2 class="sec">Troubleshooting</h2>
-      <p class="sec-lede">Tap a question to see the answer.</p>
-      <details class="tr"><summary><span class="plus">+</span>ccp: command not found</summary><p class="a"><code>~/.local/bin</code> is not on your PATH. Go back to Installation Step 2.</p></details>
-      <details class="tr"><summary><span class="plus">+</span>ccp use … does nothing / "Función 'ccp' no cargada"</summary><p class="a">The shell function isn't loaded. Run <code>ccp install</code> and then <code>source ~/.zshrc</code> (or <code>~/.bashrc</code>).</p></details>
-      <details class="tr"><summary><span class="plus">+</span>I changed folders and the profile didn't change</summary><p class="a">The hook remembers the last folder. After editing rules, refresh with <code>cd .</code></p></details>
-      <details class="tr"><summary><span class="plus">+</span>Opening Claude says "Not logged in"</summary><p class="a">That official profile has no session yet. Start it once with <code>ccp profile login &lt;nombre&gt;</code>.</p></details>
-      <details class="tr"><summary><span class="plus">+</span>I want to see a folder's profile without entering it</summary><p class="a">Use <code>ccp resolve ~/ruta/que/sea</code></p></details>
+      <div class="kicker"><span class="s">·</span><span class="t">Ayuda</span></div>
+      <h2 class="sec">Solución de problemas</h2>
+      <p class="sec-lede">Toca una pregunta para ver la respuesta.</p>
+      <details class="tr"><summary><span class="plus">+</span>ccp: command not found</summary><p class="a"><code>~/.local/bin</code> no está en tu PATH. Vuelve al Paso 2 de Instalación.</p></details>
+      <details class="tr"><summary><span class="plus">+</span>ccp use … no cambia nada / "Función 'ccp' no cargada"</summary><p class="a">Falta cargar la función de shell. Corre <code>ccp install</code> y luego <code>source ~/.zshrc</code> (o <code>~/.bashrc</code>).</p></details>
+      <details class="tr"><summary><span class="plus">+</span>Cambié de carpeta y el perfil no cambió</summary><p class="a">El hook recuerda la última carpeta. Tras editar reglas, refresca con <code>cd .</code></p></details>
+      <details class="tr"><summary><span class="plus">+</span>Al abrir Claude dice "Not logged in"</summary><p class="a">Ese perfil oficial todavía no tiene sesión. Inícialo una vez con <code>ccp profile login &lt;nombre&gt;</code>.</p></details>
+      <details class="tr"><summary><span class="plus">+</span>Quiero ver el perfil de una carpeta sin entrar en ella</summary><p class="a">Usa <code>ccp resolve ~/ruta/que/sea</code></p></details>
     </section>
 
     <!-- ═══ REFERENCIA ═══ -->
     <section class="view" id="view-ref">
       <div class="kicker"><span class="s">·</span><span class="t">Cheatsheet</span></div>
-      <h2 class="sec">Quick reference</h2>
-      <p class="sec-lede">Once you've got the hang of it, this is the whole map.</p>
+      <h2 class="sec">Referencia rápida</h2>
+      <p class="sec-lede">Cuando ya le agarraste la onda, este es todo el mapa.</p>
       <figure class="shot">
-        <img src="docs/screenshots/cli-help.png" alt="ccp help output: banner and colored commands">
-        <figcaption><b>ccp help</b> — the whole surface, with the same palette.</figcaption>
+        <img src="docs/screenshots/cli-help.png" alt="Salida de ccp help: banner y comandos coloreados">
+        <figcaption><b>ccp help</b> — toda la superficie, con la misma paleta.</figcaption>
       </figure>
       <table>
-        <thead><tr><th>I want to…</th><th>Command</th></tr></thead>
+        <thead><tr><th>Quiero…</th><th>Comando</th></tr></thead>
         <tbody>
-          <tr><td>Create an official account</td><td><code>ccp profile add &lt;n&gt; --official</code></td></tr>
-          <tr><td>Log in to it</td><td><code>ccp profile login &lt;n&gt;</code></td></tr>
-          <tr><td>Create a DeepSeek provider</td><td><code>ccp profile add &lt;n&gt; --deepseek</code></td></tr>
-          <tr><td>Save its API key</td><td><code>ccp key &lt;n&gt;</code></td></tr>
-          <tr><td>Assign folder → profile</td><td><code>ccp path set &lt;ruta&gt; &lt;perfil&gt;</code></td></tr>
-          <tr><td>Remove a rule</td><td><code>ccp path rm &lt;ruta&gt;</code></td></tr>
-          <tr><td>See rules / profiles</td><td><code>ccp path list</code> · <code>ccp profile list</code></td></tr>
-          <tr><td>Switch by hand</td><td><code>ccp use &lt;n&gt;</code> · <code>ccp default</code></td></tr>
-          <tr><td>Status / diagnostics</td><td><code>ccp status</code> · <code>ccp doctor</code></td></tr>
-          <tr><td>Full help</td><td><code>ccp help</code></td></tr>
+          <tr><td>Crear cuenta oficial</td><td><code>ccp profile add &lt;n&gt; --official</code></td></tr>
+          <tr><td>Iniciar sesión en ella</td><td><code>ccp profile login &lt;n&gt;</code></td></tr>
+          <tr><td>Crear proveedor DeepSeek</td><td><code>ccp profile add &lt;n&gt; --deepseek</code></td></tr>
+          <tr><td>Guardar su API key</td><td><code>ccp key &lt;n&gt;</code></td></tr>
+          <tr><td>Asignar carpeta → perfil</td><td><code>ccp path set &lt;ruta&gt; &lt;perfil&gt;</code></td></tr>
+          <tr><td>Quitar una regla</td><td><code>ccp path rm &lt;ruta&gt;</code></td></tr>
+          <tr><td>Ver reglas / perfiles</td><td><code>ccp path list</code> · <code>ccp profile list</code></td></tr>
+          <tr><td>Cambiar a mano</td><td><code>ccp use &lt;n&gt;</code> · <code>ccp default</code></td></tr>
+          <tr><td>Estado / diagnóstico</td><td><code>ccp status</code> · <code>ccp doctor</code></td></tr>
+          <tr><td>Ayuda completa</td><td><code>ccp help</code></td></tr>
         </tbody>
       </table>
-      <div class="tip"><span class="lbl">For scripting</span><code>ccp resolve [ruta]</code> prints the profile (exit <code>0</code> = non-default, <code>1</code> = default), and <code>ccp status --json</code> returns a JSON object with <code>active</code>, <code>profile</code>, <code>profile_type</code>, <code>cwd</code> and <code>repo</code>.</div>
-      <p class="intro" style="margin-top:28px;">How does it work under the hood? → <a href="docs/superpowers/specs/ccp-profiles.html">spec</a> · CLAUDE.md</p>
+      <div class="tip"><span class="lbl">Para scripting</span><code>ccp resolve [ruta]</code> imprime el perfil (exit <code>0</code> = no-default, <code>1</code> = default), y <code>ccp status --json</code> devuelve un objeto JSON con <code>active</code>, <code>profile</code>, <code>profile_type</code>, <code>cwd</code> y <code>repo</code>.</div>
+      <p class="intro" style="margin-top:28px;">¿Cómo funciona por dentro? → <a href="docs/superpowers/specs/ccp-profiles.html">spec</a> · CLAUDE.md</p>
     </section>
 
     <!-- pager (rendered by JS) -->
     <nav class="pager" id="pager">
-      <button class="pg prev" id="pgPrev"><span class="pl">‹ Previous</span><span class="pt"></span></button>
-      <button class="pg next" id="pgNext"><span class="pl">Next ›</span><span class="pt"></span></button>
+      <button class="pg prev" id="pgPrev"><span class="pl">‹ Anterior</span><span class="pt"></span></button>
+      <button class="pg next" id="pgNext"><span class="pl">Siguiente ›</span><span class="pt"></span></button>
     </nav>
 
   </main>
@@ -897,11 +897,11 @@ ccp lang es     <span class="c"># Spanish</span></pre></div>
 <script>
   (function(){
     var ORDER = ['inicio','modelo','instalacion','c1','c2','c3','c4','c5','c6','c7','update','backup','config','idioma','trouble','ref'];
-    var TITLES = {inicio:'Home',modelo:'Mental model',instalacion:'Installation',
-      c1:'Work account',c2:'Personal account',c3:'DeepSeek folder',c4:'Carve-out',
-      c5:'Switch by hand',c6:"See what's going on",c7:'Coming from dsctl',
-      update:'Update ccp',backup:'Backup & restore',config:'Manual config (YAML)',
-      idioma:'Language',trouble:'Troubleshooting',ref:'Quick reference'};
+    var TITLES = {inicio:'Inicio',modelo:'Modelo mental',instalacion:'Instalación',
+      c1:'Cuenta de trabajo',c2:'Cuenta personal',c3:'Carpeta DeepSeek',c4:'Carve-out',
+      c5:'Cambiar a mano',c6:'Ver qué pasa',c7:'Vengo de dsctl',
+      update:'Actualizar ccp',backup:'Backup & restore',config:'Config manual (YAML)',
+      idioma:'Idioma',trouble:'Solución de problemas',ref:'Referencia rápida'};
 
     var navLinks = Array.prototype.slice.call(document.querySelectorAll('.nav-group a'));
     var sidebar = document.getElementById('sidebar');
@@ -973,7 +973,7 @@ ccp lang es     <span class="c"># Spanish</span></pre></div>
         var pre = btn.parentElement.querySelector('pre');
         var lbl = btn.querySelector('span');
         navigator.clipboard.writeText(pre.innerText).then(function(){
-          var old = lbl.textContent; lbl.textContent = 'copied';
+          var old = lbl.textContent; lbl.textContent = 'copiado';
           setTimeout(function(){ lbl.textContent = old; }, 1200);
         });
       });
@@ -1020,16 +1020,16 @@ ccp lang es     <span class="c"># Spanish</span></pre></div>
         var row = document.createElement('div');
         row.className = 'rule-row' + (matched ? ' match' : '') + (isWin ? ' win' : '');
         row.innerHTML = '<span class="rp">'+r.path+'</span><span class="ra">→ '+r.prof+'</span>'+
-                        (isWin ? '<span class="rb">wins</span>' : (matched ? '<span class="rb">covers</span>' : ''));
+                        (isWin ? '<span class="rb">gana</span>' : (matched ? '<span class="rb">cubre</span>' : ''));
         listEl.appendChild(row);
       });
       var ov = outEl.querySelector('.ov');
       var oe = outEl.querySelector('.oe');
       ov.innerHTML = '<span class="arrow">'+ (q || '~') +' →</span> <b>'+win.prof+'</b>';
       if (win.path === '~'){
-        oe.innerHTML = 'No specific rule covers <b>'+q+'</b>, so it falls back to your <b>normal login</b> (default).';
+        oe.innerHTML = 'Ninguna regla específica cubre <b>'+q+'</b>, así que cae a tu <b>login normal</b> (default).';
       } else {
-        oe.innerHTML = '<b>'+win.path+'</b> wins because it\'s the <b>deepest</b> rule that contains <b>'+q+'</b>.';
+        oe.innerHTML = 'Gana <b>'+win.path+'</b> porque es la regla <b>más profunda</b> que contiene a <b>'+q+'</b>.';
       }
     }
     if (input){

@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // cmdConfig despacha `ccp config [show|set|reset|editor]` sobre el bloque
@@ -17,6 +18,7 @@ func cmdConfig(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
 	}
+	lang := currentLang()
 	var sub string
 	if len(args) > 0 {
 		sub = args[0]
@@ -24,45 +26,45 @@ func cmdConfig(args []string, stdout, stderr io.Writer) int {
 
 	switch sub {
 	case "", "show":
-		return configShow(home, stdout, stderr)
+		return configShow(lang, home, stdout, stderr)
 	case "set":
-		return configSet(home, args[1:], stdout, stderr)
+		return configSet(lang, home, args[1:], stdout, stderr)
 	case "editor":
-		return configEditor(home, args[1:], stdout, stderr)
+		return configEditor(lang, home, args[1:], stdout, stderr)
 	case "reset":
 		if err := core.ResetDefaults(home); err != nil {
 			fmt.Fprintf(stderr, "[error] %v\n", err)
 			return 1
 		}
-		fmt.Fprintln(stdout, okLine(stdout, "Defaults restaurados."))
+		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.config.reset")))
 		return 0
 	default:
-		fmt.Fprintln(stderr, "Uso: ccp config [show|set|reset|editor]")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.config.usage"))
 		return 1
 	}
 }
 
-func configShow(home string, stdout, stderr io.Writer) int {
+func configShow(lang i18n.Lang, home string, stdout, stderr io.Writer) int {
 	d, err := core.GetDefaults(home)
 	if err != nil {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
 	}
 	fmt.Fprintln(stdout, hr(stdout))
-	fmt.Fprintf(stdout, " %s\n", boldLine(stdout, "Plantilla para perfiles deepseek nuevos"))
+	fmt.Fprintf(stdout, " %s\n", boldLine(stdout, i18n.T(lang, "cli.config.tpl_header")))
 	fmt.Fprintln(stdout, hr(stdout))
-	fmt.Fprintf(stdout, " Base URL:    %s\n", accent(stdout, d.BaseURL))
-	fmt.Fprintf(stdout, " Modelo pro:  %s\n", accent(stdout, d.ModelPro))
-	fmt.Fprintf(stdout, " Modelo flash:%s\n", accent(stdout, d.ModelFlash))
-	fmt.Fprintf(stdout, " Effort:      %s\n", accent(stdout, d.Effort))
-	fmt.Fprintf(stdout, " Editor:      %s\n", accent(stdout, d.Editor))
+	fmt.Fprint(stdout, i18n.T(lang, "cli.config.base_url", accent(stdout, d.BaseURL)))
+	fmt.Fprint(stdout, i18n.T(lang, "cli.config.model_pro", accent(stdout, d.ModelPro)))
+	fmt.Fprint(stdout, i18n.T(lang, "cli.config.model_flash", accent(stdout, d.ModelFlash)))
+	fmt.Fprint(stdout, i18n.T(lang, "cli.config.effort", accent(stdout, d.Effort)))
+	fmt.Fprint(stdout, i18n.T(lang, "cli.config.editor", accent(stdout, d.Editor)))
 	fmt.Fprintln(stdout, hr(stdout))
 	return 0
 }
 
-func configSet(home string, args []string, stdout, stderr io.Writer) int {
+func configSet(lang i18n.Lang, home string, args []string, stdout, stderr io.Writer) int {
 	if len(args) < 2 {
-		fmt.Fprintln(stderr, "Uso: ccp config set <clave> <valor>")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.config.usage_set"))
 		return 1
 	}
 	key, value := args[0], args[1]
@@ -70,11 +72,11 @@ func configSet(home string, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
 	}
-	fmt.Fprintln(stdout, okLine(stdout, fmt.Sprintf("Config: %s = %s", key, value)))
+	fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.config.set_ok", key, value)))
 	return 0
 }
 
-func configEditor(home string, args []string, stdout, stderr io.Writer) int {
+func configEditor(lang i18n.Lang, home string, args []string, stdout, stderr io.Writer) int {
 	// Sin argumento: muestra el editor resuelto (defaults -> $EDITOR -> nano).
 	if len(args) == 0 {
 		ed, err := core.GetEditor(home, os.Getenv("EDITOR"))
@@ -89,6 +91,6 @@ func configEditor(home string, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
 	}
-	fmt.Fprintln(stdout, okLine(stdout, "Editor: "+args[0]))
+	fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.config.editor_set", args[0])))
 	return 0
 }

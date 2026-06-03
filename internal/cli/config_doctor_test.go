@@ -11,6 +11,7 @@ func run(t *testing.T, home string, args ...string) (int, string, string) {
 	t.Helper()
 	t.Setenv("CCP_HOME", home)
 	t.Setenv("NO_COLOR", "1")
+	t.Setenv("CCP_LANG", "es") // estas aserciones verifican la prosa ES del contrato
 	var out, errb bytes.Buffer
 	code := Dispatch(args, &out, &errb)
 	return code, out.String(), errb.String()

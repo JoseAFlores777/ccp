@@ -1,12 +1,12 @@
 package tui
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -67,6 +67,19 @@ func (m *model) handleDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = modeCommand
 		m.cmdInput = ""
 		return m, nil
+	case "L":
+		// Toggle de idioma en vivo; se persiste en ccp.yaml. Un error al
+		// guardar no debe romper la TUI.
+		if m.lang == i18n.Es {
+			m.lang = i18n.En
+		} else {
+			m.lang = i18n.Es
+		}
+		if m.cfg != nil {
+			m.cfg.Lang = string(m.lang)
+			_ = core.Save(m.home, m.cfg)
+		}
+		return m, nil
 	}
 
 	switch m.focus {
@@ -80,7 +93,8 @@ func (m *model) handleDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// keyProfiles: j/k navega, enter alterna detalle, a/d/k/l/c acciones.
+// keyProfiles: j/k navega, enter alterna detalle, a/d/s/e/l acciones. (L global
+// = toggle de idioma; el login del perfil usa la 'l' minúscula.)
 func (m *model) keyProfiles(key string) (tea.Model, tea.Cmd) {
 	switch key {
 	case "j", "down":
@@ -96,24 +110,24 @@ func (m *model) keyProfiles(key string) (tea.Model, tea.Cmd) {
 			m.showDetail = !m.showDetail
 		}
 	case "a": // añadir
-		return m.start(formAddProfile(m.home, m.defaults()))
+		return m.start(formAddProfile(m.home, m.defaults(), m.lang))
 	case "d": // borrar (confirma)
 		if name := m.selectedProfile(); name != "" {
-			return m.start(formDeleteProfile(m.home, name))
+			return m.start(formDeleteProfile(m.home, name, m.lang))
 		}
 	case "s": // set key (deepseek)
 		if name := m.selectedProfile(); name != "" {
 			if m.profileType(name) != "deepseek" {
-				m.setStatus(fmt.Sprintf("'%s' no es deepseek (set key solo aplica a deepseek)", name), errCmd{})
+				m.setStatus(i18n.T(m.lang, "tui.profiles.not_deepseek", name), errCmd{})
 				return m, nil
 			}
-			return m.start(formSetKey(m.home, name))
+			return m.start(formSetKey(m.home, name, m.lang))
 		}
 	case "e": // editar config (abre $EDITOR)
 		if name := m.selectedProfile(); name != "" {
 			return m.editConfig(name)
 		}
-	case "L": // login (official)
+	case "l": // login (official)
 		if name := m.selectedProfile(); name != "" {
 			return m.login(name)
 		}
@@ -137,10 +151,10 @@ func (m *model) keyRules(key string) (tea.Model, tea.Cmd) {
 			m.ruleIdx--
 		}
 	case "a":
-		return m.start(formAddRule(m.home, m.profiles))
+		return m.start(formAddRule(m.home, m.profiles, m.lang))
 	case "d":
 		if n > 0 && m.ruleIdx < n {
-			return m.start(formDeleteRule(m.home, m.cfg.Rules[m.ruleIdx].Path))
+			return m.start(formDeleteRule(m.home, m.cfg.Rules[m.ruleIdx].Path, m.lang))
 		}
 	}
 	return m, nil
@@ -168,7 +182,7 @@ func (m *model) editConfig(name string) (tea.Model, tea.Cmd) {
 		if err != nil {
 			return cmdDoneMsg{err: err}
 		}
-		return cmdDoneMsg{ok: fmt.Sprintf("Config de '%s' regenerada (global ⊕ overlay).", name)}
+		return cmdDoneMsg{ok: i18n.T(m.lang, "tui.profiles.config_regen", name)}
 	}
 	// core.ProfileConfig lanza el editor él mismo; lo envolvemos en un
 	// ExecProcess "noop" para ceder la terminal no es trivial porque el core
@@ -189,10 +203,10 @@ type editDoneMsg struct{ msg tea.Msg }
 // apuntando al cc-home del perfil (espeja `ccp profile login`).
 func (m *model) login(name string) (tea.Model, tea.Cmd) {
 	if m.profileType(name) != "official" {
-		m.setStatus(fmt.Sprintf("'%s' no es official (login solo aplica a official)", name), errCmd{})
+		m.setStatus(i18n.T(m.lang, "tui.profiles.not_official", name), errCmd{})
 		return m, nil
 	}
-	return m.shellOut(fmt.Sprintf("login de '%s' completado", name), "profile", "login", name)
+	return m.shellOut(i18n.T(m.lang, "tui.profiles.login_done", name), "profile", "login", name)
 }
 
 // refreshEstado recomputa el snapshot del panel Estado.
@@ -317,8 +331,8 @@ func (m *model) box(p panel, title, hint, body string) string {
 
 // viewForm muestra el form embebido dentro de una caja con foco.
 func (m *model) viewForm() string {
-	header := styleBrand.Render("ccp") + styleSub.Render("  formulario")
-	body := m.cur.form.View() + "\n" + styleDim.Render("esc cancela")
+	header := styleBrand.Render("ccp") + styleSub.Render("  "+i18n.T(m.lang, "tui.form.eyebrow"))
+	body := m.cur.form.View() + "\n" + styleDim.Render(i18n.T(m.lang, "tui.form.esc_cancels"))
 	return "\n" + boxStyleFocused.Width(m.panelWidth()).Render(header+"\n\n"+body) + "\n"
 }
 
@@ -411,7 +425,7 @@ func bugSprite(body lipgloss.Style, acc string) string {
 	return strings.Join(lines, "\n")
 }
 
-func logoBanner() string {
+func logoBanner(lang i18n.Lang) string {
 	orange := lipgloss.NewStyle().Foreground(cAccent)
 	pale := lipgloss.NewStyle().Foreground(cPale)
 	bugs := lipgloss.JoinHorizontal(lipgloss.Bottom,
@@ -420,7 +434,7 @@ func logoBanner() string {
 		bugSprite(orange, "cap"),
 	)
 	head := lipgloss.JoinHorizontal(lipgloss.Bottom, bugs, "   ", title3D())
-	return head + "\n" + styleSub.Render("v"+core.Version+" — perfiles y cuentas de Claude Code")
+	return head + "\n" + styleSub.Render("v"+core.Version+" — "+i18n.T(lang, "tui.logo.tagline"))
 }
 
 // viewDashboard pinta el header con el logo, los 3 paneles en cajas, la barra de
@@ -428,7 +442,7 @@ func logoBanner() string {
 func (m *model) viewDashboard() string {
 	var b strings.Builder
 
-	b.WriteString(logoBanner() + "\n\n")
+	b.WriteString(logoBanner(m.lang) + "\n\n")
 
 	b.WriteString(m.viewProfiles() + "\n")
 	b.WriteString(m.viewRules() + "\n")
@@ -445,7 +459,7 @@ func (m *model) viewDashboard() string {
 			sug[i] = styleSelected.Render(c)
 		}
 		b.WriteString("  " + strings.Join(sug, styleDim.Render(" · ")) +
-			styleDim.Render("   (tab completa · esc cancela)") + "\n")
+			styleDim.Render(i18n.T(m.lang, "tui.cmd.hint")) + "\n")
 	}
 
 	if m.statusMsg != "" {
@@ -456,15 +470,16 @@ func (m *model) viewDashboard() string {
 		b.WriteString("\n" + st.Render(m.statusMsg) + "\n")
 	}
 
-	b.WriteString("\n" + styleDim.Render("tab: panel · j/k: navegar · enter: detalle · : comandos · q: salir"))
+	b.WriteString("\n" + styleDim.Render(i18n.T(m.lang, "tui.footer.keys")))
 	return b.String()
 }
 
 func (m *model) viewProfiles() string {
-	const hint = "a:añadir d:borrar s:key e:config L:login enter:detalle"
+	title := i18n.T(m.lang, "tui.profiles.title")
+	hint := i18n.T(m.lang, "tui.profiles.hint")
 	if len(m.profiles) == 0 {
-		return m.box(panelProfiles, "Perfiles", hint,
-			styleDim.Render("(sin perfiles — pulsa 'a' para añadir)"))
+		return m.box(panelProfiles, title, hint,
+			styleDim.Render(i18n.T(m.lang, "tui.profiles.empty")))
 	}
 	rows := make([]string, 0, len(m.profiles))
 	for i, name := range m.profiles {
@@ -476,7 +491,7 @@ func (m *model) viewProfiles() string {
 			body += "\n" + styleDim.Render(strings.TrimRight(indent(detail), "\n"))
 		}
 	}
-	return m.box(panelProfiles, "Perfiles", hint, body)
+	return m.box(panelProfiles, title, hint, body)
 }
 
 // profileRow pinta una fila de perfil: cursor, nombre, badge de tipo y salud.
@@ -488,29 +503,30 @@ func (m *model) profileRow(i int, name string) string {
 	}
 	t := m.profileType(name)
 	nameSeg := nameSt.Render(padRight(truncRight(name, 20), 21))
-	badgeSeg := typeStyle(t).Render(padRight(humanTypeES(t), 11))
+	badgeSeg := typeStyle(t).Render(padRight(humanType(m.lang, t), 11))
 	health := ""
 	switch t {
 	case "official":
 		if core.HasLogin(m.home, name) {
-			health = styleCheck.Render("✓ logueado")
+			health = styleCheck.Render(i18n.T(m.lang, "tui.profiles.health_logged_in"))
 		} else {
-			health = styleCross.Render("✗ sin login")
+			health = styleCross.Render(i18n.T(m.lang, "tui.profiles.health_no_login"))
 		}
 	case "deepseek":
 		if _, ok := core.GetKey(m.home, name); ok {
-			health = styleCheck.Render("✓ key")
+			health = styleCheck.Render(i18n.T(m.lang, "tui.profiles.health_key"))
 		} else {
-			health = styleCross.Render("✗ sin key")
+			health = styleCross.Render(i18n.T(m.lang, "tui.profiles.health_no_key"))
 		}
 	}
 	return cur + nameSeg + badgeSeg + health
 }
 
 func (m *model) viewRules() string {
-	const hint = "a:añadir d:borrar"
+	title := i18n.T(m.lang, "tui.rules.title")
+	hint := i18n.T(m.lang, "tui.rules.hint")
 	if m.cfg == nil || len(m.cfg.Rules) == 0 {
-		return m.box(panelRules, "Reglas", hint, styleDim.Render("(sin reglas — 'a' para añadir)"))
+		return m.box(panelRules, title, hint, styleDim.Render(i18n.T(m.lang, "tui.rules.empty")))
 	}
 	// columna de perfil = el nombre más largo; columna de ruta = la ruta más
 	// larga, ambas acotadas al ancho disponible (sin huecos enormes).
@@ -547,7 +563,7 @@ func (m *model) viewRules() string {
 		prof := typeStyle(m.profileType(r.Profile)).Render(truncRight(r.Profile, profW))
 		rows = append(rows, cur+pathSt.Render(p)+styleDim.Render(" → ")+prof)
 	}
-	return m.box(panelRules, "Reglas", hint, strings.Join(rows, "\n"))
+	return m.box(panelRules, title, hint, strings.Join(rows, "\n"))
 }
 
 func (m *model) viewStatus() string {
@@ -563,19 +579,19 @@ func (m *model) viewStatus() string {
 	kv := func(k, v string) string {
 		return lipgloss.NewStyle().Width(labelW).Foreground(cMute).Render(k) + v
 	}
-	repo := styleDim.Render("no es git")
+	repo := styleDim.Render(i18n.T(m.lang, "tui.status.not_git"))
 	if e.Repo != "" {
 		repo = styleVal.Render(truncLeft(tildeHome(e.Repo), valW))
 	}
 	profLine := styleFocused.Render(truncRight(e.Profile, valW-len(e.ProfileType)-4)) +
 		styleDim.Render(" ("+e.ProfileType+")")
 	body := strings.Join([]string{
-		kv("Perfil activo (terminal)", styleFocused.Render(truncRight(e.Active, valW))),
-		kv("Perfil del cwd (regla)", profLine),
-		kv("Cwd", styleVal.Render(truncLeft(tildeHome(e.Cwd), valW))),
-		kv("Repo", repo),
+		kv(i18n.T(m.lang, "tui.status.active"), styleFocused.Render(truncRight(e.Active, valW))),
+		kv(i18n.T(m.lang, "tui.status.cwd_rule"), profLine),
+		kv(i18n.T(m.lang, "tui.status.cwd"), styleVal.Render(truncLeft(tildeHome(e.Cwd), valW))),
+		kv(i18n.T(m.lang, "tui.status.repo"), repo),
 	}, "\n")
-	return m.box(panelStatus, "Estado", "r:recomputar", body)
+	return m.box(panelStatus, i18n.T(m.lang, "tui.status.title"), i18n.T(m.lang, "tui.status.hint"), body)
 }
 
 // indent sangra cada línea de s con dos espacios (para el bloque de detalle).

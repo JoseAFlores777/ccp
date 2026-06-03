@@ -2,37 +2,39 @@
 
 # ccp
 
-**Una cuenta de Claude Code distinta en cada carpeta.**
-En tu repo de trabajo, tu cuenta de empresa; en tu proyecto personal, la tuya; en tus experimentos, DeepSeek.
-El cambio ocurre solo, con hacer `cd`.
+**English** · [Español](README.es.md)
 
-![version](https://img.shields.io/badge/version-2.5.1-c96442)
+**A different Claude Code account in every folder.**
+In your work repo, your company account; in your personal project, your own; in your experiments, DeepSeek.
+The switch happens on its own, just by `cd`-ing.
+
+![version](https://img.shields.io/badge/version-2.6.0-c96442)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-c96442)
 ![shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-8a8378)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
 ![license](https://img.shields.io/badge/license-MIT-8a8378)
 
-<img src="docs/screenshots/tui.png" alt="Dashboard interactivo de ccp" width="760">
+<img src="docs/screenshots/tui.png" alt="ccp interactive dashboard" width="760">
 
 </div>
 
 ---
 
-## Qué es
+## What it is
 
-`ccp` enruta Claude Code a un **perfil** por terminal y por carpeta — nunca global. Un perfil es una de tres cosas:
+`ccp` routes Claude Code to a **profile** per terminal and per folder — never global. A profile is one of three things:
 
-- una **cuenta oficial** de Anthropic (su propio `CLAUDE_CONFIG_DIR` aislado),
-- un **proveedor** compatible tipo DeepSeek (su `ANTHROPIC_BASE_URL` + API key), o
-- el reservado **`default`**: tu login normal de `~/.claude`.
+- an **official** Anthropic account (its own isolated `CLAUDE_CONFIG_DIR`),
+- a DeepSeek-style **compatible provider** (its `ANTHROPIC_BASE_URL` + API key), or
+- the reserved **`default`**: your normal `~/.claude` login.
 
-Así: repo A → cuenta *work*, repo B → cuenta *personal*, repo C → *deepseek*. Sin tocar nada a mano.
+So: repo A → *work* account, repo B → *personal* account, repo C → *deepseek*. Without touching anything by hand.
 
-## El modelo mental (30 segundos)
+## The mental model (30 seconds)
 
-1. Un **perfil** es una identidad (oficial, proveedor, o `default`).
-2. Una **regla** dice "esta carpeta (y sus subcarpetas) usa tal perfil".
-3. Gana la regla **más específica**. Sin regla → tu login normal.
+1. A **profile** is an identity (official, provider, or `default`).
+2. A **rule** says "this folder (and its subfolders) uses such-and-such profile".
+3. The **most specific** rule wins. No rule → your normal login.
 
 ```text
 ~/work          → perfil "work"      (cuenta empresa)
@@ -42,29 +44,29 @@ Así: repo A → cuenta *work*, repo B → cuenta *personal*, repo C → *deepse
 ~               → default
 ```
 
-Cuando entras a una carpeta, `ccp` aplica el perfil correcto en esa terminal mediante un hook. Luego corres `claude` normal.
+When you enter a folder, `ccp` applies the right profile in that terminal via a hook. Then you run `claude` as usual.
 
-## La interfaz
+## The interface
 
-Corre `ccp` sin argumentos (con TTY) y obtienes el **dashboard interactivo** de la foto de arriba: tres paneles (Perfiles · Reglas · Estado) con navegación por teclado, indicadores de salud (`✓` login / key), y una barra de comandos `:` con **autocompletado** (Tab). Cada acción tiene su comando CLI equivalente.
+Run `ccp` with no arguments (with a TTY) and you get the **interactive dashboard** from the screenshot above: three panels (Profiles · Rules · Status) with keyboard navigation, health indicators (`✓` login / key), and a `:` command bar with **autocompletion** (Tab). Every action has its equivalent CLI command.
 
-¿Sin TTY o prefieres la terminal? Todo está en el CLI, con la misma paleta:
+No TTY, or prefer the terminal? Everything is in the CLI, with the same palette:
 
 <div align="center">
-<img src="docs/screenshots/cli-help.png" alt="ccp help — CLI coloreado" width="620">
+<img src="docs/screenshots/cli-help.png" alt="ccp help — colored CLI" width="620">
 </div>
 
 ---
 
-## Antes de empezar
+## Before you start
 
-- macOS o Linux con **bash** o **zsh**.
-- **Claude Code** instalado (que `claude --version` funcione).
+- macOS or Linux with **bash** or **zsh**.
+- **Claude Code** installed (`claude --version` should work).
 - **git**.
 
-## Instalación
+## Installation
 
-Una sola vez:
+Just once:
 
 ```bash
 ./install.sh          # 1. binario (descarga el release prebuilt y verifica sha256)
@@ -73,15 +75,15 @@ source ~/.zshrc       # 3. recarga TU shell (o ~/.bashrc)
 ccp doctor            # 4. confirma que quedó bien
 ```
 
-Si el paso 1 te avisa que `~/.local/bin` no está en tu PATH, añádelo a tu rc:
+If step 1 warns you that `~/.local/bin` is not on your PATH, add it to your rc:
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-## Actualizar
+## Updating
 
-`install.sh` registra de qué repo instalaste, así que actualizar es un comando:
+`install.sh` records which repo you installed from, so updating is a single command:
 
 ```bash
 ccp upgrade            # re-instala + re-sincroniza perfiles (profile sync)
@@ -89,13 +91,13 @@ ccp upgrade --pull     # hace 'git pull' antes de re-instalar
 ccp upgrade --no-sync  # solo el binario, sin tocar perfiles
 ```
 
-Si vienes de la versión Bash (`dsctl`) o de un `ccp` viejo, la **migración es automática y perezosa**: la primera vez que corras cualquier comando que toque la config, convierte tu estado a `ccp.yaml` (schema v2), respaldando antes en `~/.config/ccp/.backup-pre-go-<fecha>`.
+If you're coming from the Bash version (`dsctl`) or an old `ccp`, **migration is automatic and lazy**: the first time you run any command that touches the config, it converts your state to `ccp.yaml` (schema v2), backing it up first in `~/.config/ccp/.backup-pre-go-<fecha>`.
 
 ---
 
-## Uso
+## Usage
 
-### Caso 1 — Tu cuenta de trabajo en tu carpeta de trabajo
+### Case 1 — Your work account in your work folder
 
 ```bash
 ccp profile add work --official    # 1. crea el perfil oficial
@@ -104,9 +106,9 @@ ccp path set ~/work work           # 3. asigna la carpeta
 cd ~/work && claude                # 4. arranca con tu cuenta de trabajo
 ```
 
-### Caso 2 — Añadir tu cuenta personal
+### Case 2 — Add your personal account
 
-Igual que el caso 1, con otro nombre y otra carpeta:
+Same as case 1, with a different name and a different folder:
 
 ```bash
 ccp profile add personal --official
@@ -114,7 +116,7 @@ ccp profile login personal
 ccp path set ~/personal personal
 ```
 
-### Caso 3 — Una carpeta con DeepSeek
+### Case 3 — A folder with DeepSeek
 
 ```bash
 ccp profile add deepseek --deepseek   # perfil de proveedor
@@ -123,17 +125,17 @@ ccp path set ~/labs deepseek
 cd ~/labs && claude
 ```
 
-### Caso 4 — Sacar una subcarpeta de su regla (carve-out)
+### Case 4 — Carve a subfolder out of its rule (carve-out)
 
-Tu `~/work` usa la cuenta de trabajo, pero hay un cliente puntual donde quieres tu login normal:
+Your `~/work` uses the work account, but there's one specific client where you want your normal login:
 
 ```bash
 ccp path set ~/work/cliente-x default
 ```
 
-`~/work` sigue en "work", pero `~/work/cliente-x` usa tu login normal. La subcarpeta más específica siempre manda.
+`~/work` stays on "work", but `~/work/cliente-x` uses your normal login. The most specific subfolder always rules.
 
-### Caso 5 — Cambiar a mano en una terminal
+### Case 5 — Switch by hand in a terminal
 
 ```bash
 ccp use personal      # activa un perfil aquí
@@ -141,7 +143,7 @@ ccp default           # vuelve a tu login normal
 ccp run claude        # corre Claude una vez con el perfil del cwd, sin fijarlo
 ```
 
-### Caso 6 — Ver qué está pasando
+### Case 6 — See what's going on
 
 ```bash
 ccp status            # perfil activo + perfil del cwd
@@ -152,9 +154,9 @@ ccp doctor            # logins, keys, función de shell
 
 ---
 
-## Backup y restore
+## Backup and restore
 
-Llévate todo a otra máquina, o respáldalo antes de un cambio grande:
+Take everything to another machine, or back it up before a big change:
 
 ```bash
 ccp backup export ~/ccp-backup.tar.gz                 # ccp.yaml + overlays
@@ -164,11 +166,11 @@ ccp backup restore ~/ccp-backup.tar.gz --overwrite    # reemplaza perfiles del b
 ccp backup restore ~/ccp-backup.tar.gz --force        # borra todo y restaura limpio
 ```
 
-Antes de restaurar, `ccp` guarda un snapshot automático en `~/.config/ccp/.backup-pre-restore-<fecha>`.
+Before restoring, `ccp` saves an automatic snapshot in `~/.config/ccp/.backup-pre-restore-<fecha>`.
 
-## Config por perfil
+## Per-profile config
 
-Cada perfil tiene su propia config de Claude, aplicada como **capa baseline** cuando está activo:
+Each profile has its own Claude config, applied as a **baseline layer** when it's active:
 
 ```bash
 ccp profile config <perfil>                 # menú: instrucciones / settings / ambos
@@ -178,30 +180,45 @@ ccp profile sync [<perfil>]                  # re-mergea cambios del global ~/.c
 ccp config editor "code -w"                  # editor a usar (fallback: $EDITOR)
 ```
 
-- **Instrucciones**: `cc-home/CLAUDE.md` hace `@import` del global `~/.claude/CLAUDE.md` y luego de tu overlay.
-- **Settings**: `cc-home/settings.json` = global ⊕ overlay (deep-merge puro en Go).
-- **Prioridad real**: es una baseline — la config del repo (`.claude/settings.json`) gana en conflicto.
-- `default` no tiene overlay: `ccp profile config default` abre tu `~/.claude` global directo.
+- **Instructions**: `cc-home/CLAUDE.md` does an `@import` of the global `~/.claude/CLAUDE.md` and then of your overlay.
+- **Settings**: `cc-home/settings.json` = global ⊕ overlay (pure-Go deep-merge).
+- **Real precedence**: it's a baseline — the repo's config (`.claude/settings.json`) wins on conflict.
+- `default` has no overlay: `ccp profile config default` opens your global `~/.claude` directly.
 
-## Comandos `/ccp:` — recordar y explorar artefactos
+## `/ccp:` commands — remember and explore artifacts
 
-`ccp` incluye cinco comandos de Claude Code para persistir instrucciones, agents, hooks y MCP servers directo desde la conversación, sin editar archivos a mano:
+`ccp` includes five Claude Code commands to persist instructions, agents, hooks and MCP servers straight from the conversation, without editing files by hand:
 
-| Comando | Qué hace |
+| Command | What it does |
 |---|---|
-| `/ccp:remember-global <texto>` | Persiste al `~/.claude` global (todos los perfiles) |
-| `/ccp:remember-profile <texto>` | Persiste al overlay del perfil activo |
-| `/ccp:remember-project <texto>` | Persiste al `.claude/` del repo git actual (versionado) |
-| `/ccp:recall [scope]` | Lista lo que ccp gestiona (`global` · `profile` · `project`) |
-| `/ccp:forget [scope]` | Borra por índice (lista y confirma antes) |
+| `/ccp:remember-global <texto>` | Persists to the global `~/.claude` (all profiles) |
+| `/ccp:remember-profile <texto>` | Persists to the active profile's overlay |
+| `/ccp:remember-project <texto>` | Persists to the current git repo's `.claude/` (versioned) |
+| `/ccp:recall [scope]` | Lists what ccp manages (`global` · `profile` · `project`) |
+| `/ccp:forget [scope]` | Deletes by index (lists and confirms first) |
 
-Se instalan con `install.sh` en `~/.claude/commands/ccp/` y quedan disponibles en todos los perfiles. La superficie CLI equivalente es `ccp instruct <add\|list\|rm\|dest\|record>`.
+They install with `install.sh` into `~/.claude/commands/ccp/` and become available across all profiles. The equivalent CLI surface is `ccp instruct <add\|list\|rm\|dest\|record>`.
 
 ---
 
-## Configurar a mano (`ccp.yaml`)
+## Language
 
-Todo vive en `~/.config/ccp/ccp.yaml` (o `$CCP_HOME/ccp.yaml`). Puedes tocarlo con comandos o a mano:
+`ccp` speaks English by default and also Spanish. Pick whichever you like; the choice persists in `ccp.yaml`.
+
+```bash
+ccp lang              # muestra el idioma actual + de dónde sale (env/config/default)
+ccp lang en           # cambia a inglés y lo persiste en ccp.yaml
+ccp lang es           # cambia a español y lo persiste en ccp.yaml
+```
+
+- `CCP_LANG=en|es` — environment override; it takes precedence over the config. The default is English.
+- In the interactive TUI, press **`L`** to toggle the language live (it persists). Note: in the TUI, profile **login** is on lowercase **`l`**, and **`L`** (uppercase) toggles the language.
+
+---
+
+## Configure by hand (`ccp.yaml`)
+
+Everything lives in `~/.config/ccp/ccp.yaml` (or `$CCP_HOME/ccp.yaml`). You can touch it with commands or by hand:
 
 ```yaml
 version: 2
@@ -228,53 +245,53 @@ rules:                     # carpeta → perfil (ruta absoluta)
 authored: []
 ```
 
-- `default` es **implícito**: nunca lo pongas en `profiles`. Para una excepción, usa `profile: default` en una regla.
-- La API key **no** va aquí: vive en `~/.config/ccp/profiles/<n>/api_key` (`chmod 600`). Edítala con `ccp key <n>`.
-- `ccp` escribe atómico bajo un `flock`, conserva tus comentarios, y aborta si el `version` es mayor que el que conoce.
+- `default` is **implicit**: never put it in `profiles`. For an exception, use `profile: default` in a rule.
+- The API key does **not** go here: it lives in `~/.config/ccp/profiles/<n>/api_key` (`chmod 600`). Edit it with `ccp key <n>`.
+- `ccp` writes atomically under a `flock`, preserves your comments, and aborts if `version` is higher than the one it knows.
 
-Con comandos: `ccp config show` · `ccp config set <clave> <valor>` · `ccp config reset`.
+With commands: `ccp config show` · `ccp config set <clave> <valor>` · `ccp config reset`.
 
 ---
 
-## Solución de problemas
+## Troubleshooting
 
-| Síntoma | Arreglo |
+| Symptom | Fix |
 |---|---|
-| `ccp: command not found` | `~/.local/bin` no está en tu PATH (paso 2 de Instalación). |
-| `ccp use …` no cambia nada | Falta la función de shell: `ccp install` y luego `source ~/.zshrc`. |
-| Cambié de carpeta y el perfil no cambió | El hook recuerda la última carpeta; refresca con `cd .` |
-| Al abrir Claude dice "Not logged in" | Ese perfil oficial no tiene sesión: `ccp profile login <n>`. |
-| Ver el perfil de una carpeta sin entrar | `ccp resolve ~/ruta/que/sea` |
+| `ccp: command not found` | `~/.local/bin` is not on your PATH (Installation step 2). |
+| `ccp use …` does nothing | The shell function is missing: `ccp install` and then `source ~/.zshrc`. |
+| I changed folders and the profile didn't change | The hook remembers the last folder; refresh with `cd .` |
+| Opening Claude says "Not logged in" | That official profile has no session: `ccp profile login <n>`. |
+| See a folder's profile without entering it | `ccp resolve ~/ruta/que/sea` |
 
-## Referencia rápida
+## Quick reference
 
-| Quiero… | Comando |
+| I want to… | Command |
 |---|---|
-| Crear cuenta oficial | `ccp profile add <n> --official` |
-| Iniciar sesión en ella | `ccp profile login <n>` |
-| Crear proveedor DeepSeek | `ccp profile add <n> --deepseek` |
-| Guardar su API key | `ccp key <n>` |
-| Asignar carpeta → perfil | `ccp path set <ruta> <perfil>` |
-| Quitar una regla | `ccp path rm <ruta>` |
-| Ver reglas / perfiles | `ccp path list` · `ccp profile list` |
-| Cambiar a mano | `ccp use <n>` · `ccp default` |
-| Estado / diagnóstico | `ccp status` · `ccp doctor` |
+| Create an official account | `ccp profile add <n> --official` |
+| Log in to it | `ccp profile login <n>` |
+| Create a DeepSeek provider | `ccp profile add <n> --deepseek` |
+| Save its API key | `ccp key <n>` |
+| Assign folder → profile | `ccp path set <ruta> <perfil>` |
+| Remove a rule | `ccp path rm <ruta>` |
+| See rules / profiles | `ccp path list` · `ccp profile list` |
+| Switch by hand | `ccp use <n>` · `ccp default` |
+| Status / diagnostics | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
-| Actualizar | `ccp upgrade` |
-| Ayuda completa | `ccp help` |
+| Update | `ccp upgrade` |
+| Full help | `ccp help` |
 
-> **Para scripting:** `ccp resolve [ruta]` imprime el perfil (exit `0` = no-default, `1` = default), y `ccp status --json` devuelve `active`, `profile`, `profile_type`, `cwd` y `repo`.
+> **For scripting:** `ccp resolve [ruta]` prints the profile (exit `0` = non-default, `1` = default), and `ccp status --json` returns `active`, `profile`, `profile_type`, `cwd` and `repo`.
 
-## Guía interactiva
+## Interactive guide
 
-¿Prefieres una guía visual paso a paso? Abre [`README.html`](README.html) en tu navegador — es una app de una sola página con playground de routing, tooltips y todos los casos:
+Prefer a visual step-by-step guide? Open [`README.html`](README.html) in your browser — it's a single-page app with a routing playground, tooltips and all the cases:
 
 ```bash
 open README.html        # macOS
 xdg-open README.html    # Linux
 ```
 
-## Desinstalar
+## Uninstall
 
 ```bash
 ccp uninstall           # quita la función de shell del rc
@@ -283,4 +300,4 @@ rm -rf ~/.config/ccp    # (opcional) borra config y perfiles
 
 ---
 
-MIT. ¿Curioso de cómo funciona por dentro? Mira [`CLAUDE.md`](CLAUDE.md) y `docs/superpowers/specs/ccp-profiles.html`.
+MIT. Curious how it works under the hood? Check [`CLAUDE.md`](CLAUDE.md) and `docs/superpowers/specs/ccp-profiles.html`.

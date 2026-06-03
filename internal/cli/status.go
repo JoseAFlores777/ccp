@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // cmdStatus despacha `ccp status [--json]`. Reporta el perfil activo de la
@@ -41,29 +42,30 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 
+	lang := i18n.Resolve(cfg.Lang)
 	if useColor(stdout) {
-		io.WriteString(stdout, statusHumanColored(stdout, active, rule, profileType, cwd, repo))
+		io.WriteString(stdout, statusHumanColored(lang, stdout, active, rule, profileType, cwd, repo))
 	} else {
-		io.WriteString(stdout, core.StatusHuman(active, rule, profileType, cwd, repo))
+		io.WriteString(stdout, core.StatusHuman(lang, active, rule, profileType, cwd, repo))
 	}
 	return 0
 }
 
 // statusHumanColored replica el bloque de core.StatusHuman con la paleta
 // terracota. Solo se usa con TTY; sin color se delega en core (oráculo bash).
-func statusHumanColored(w io.Writer, active, profile, profileType, cwd, repo string) string {
+func statusHumanColored(lang i18n.Lang, w io.Writer, active, profile, profileType, cwd, repo string) string {
 	repoCell := accent(w, repo)
 	if repo == "" {
-		repoCell = mute(w, "no es git")
+		repoCell = mute(w, i18n.T(lang, "cli.status.not_git"))
 	}
 	var b strings.Builder
 	fmt.Fprintln(&b, hr(w))
-	fmt.Fprintf(&b, " %s\n", boldLine(w, "Estado de ccp en esta terminal"))
+	fmt.Fprintf(&b, " %s\n", boldLine(w, i18n.T(lang, "cli.status.header")))
 	fmt.Fprintln(&b, hr(w))
-	fmt.Fprintf(&b, " Perfil activo (terminal): %s\n", accent(w, active))
-	fmt.Fprintf(&b, " Perfil del cwd (regla):   %s  %s\n", accent(w, profile), mute(w, "("+profileType+")"))
-	fmt.Fprintf(&b, " Cwd:                      %s\n", mute(w, cwd))
-	fmt.Fprintf(&b, " Repo:                     %s\n", repoCell)
+	fmt.Fprint(&b, i18n.T(lang, "cli.status.active", accent(w, active)))
+	fmt.Fprint(&b, i18n.T(lang, "cli.status.rule", accent(w, profile), mute(w, "("+profileType+")")))
+	fmt.Fprint(&b, i18n.T(lang, "cli.status.cwd", mute(w, cwd)))
+	fmt.Fprint(&b, i18n.T(lang, "cli.status.repo", repoCell))
 	fmt.Fprintln(&b, hr(w))
 	return b.String()
 }

@@ -15,6 +15,7 @@ func TestInstallAddsBlockIdempotent(t *testing.T) {
 	rc := filepath.Join(t.TempDir(), ".zshrc")
 	t.Setenv("CCP_HOME", home)
 	t.Setenv("CCP_RC", rc)
+	t.Setenv("CCP_LANG", "es") // aserción sobre la prosa ES del contrato frozen
 
 	var out, errb bytes.Buffer
 	if code := cmdInstall(nil, &out, &errb); code != 0 {
@@ -74,6 +75,7 @@ func TestUninstallRemovesBlock(t *testing.T) {
 func TestUpgradeNoSourceErrors(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("CCP_HOME", home)
+	t.Setenv("CCP_LANG", "es") // aserción sobre la prosa ES del contrato frozen
 
 	var out, errb bytes.Buffer
 	if code := cmdUpgrade(nil, &out, &errb); code != 1 {

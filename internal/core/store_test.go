@@ -128,6 +128,22 @@ func TestLoadMissingReturnsEmpty(t *testing.T) {
 	}
 }
 
+func TestConfigLangRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	c := &Config{Version: SchemaVersion, Lang: "es",
+		Profiles: map[string]Profile{}, Rules: []Rule{}}
+	if err := Save(home, c); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	got, err := Load(home)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if got.Lang != "es" {
+		t.Fatalf("Lang=%q want es", got.Lang)
+	}
+}
+
 func TestSaveAtomicAndDefaultImplicit(t *testing.T) {
 	home := t.TempDir()
 	c := &Config{

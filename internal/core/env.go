@@ -3,6 +3,8 @@ package core
 import (
 	"fmt"
 	"strings"
+
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // env.go — emite el delta de entorno (eval-able) para un perfil. Espeja
@@ -20,6 +22,7 @@ const CCPManagedVars = "CLAUDE_CONFIG_DIR ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKE
 // `eval "$(...)"` desde la función shell o el hook.
 func EnvDelta(home, profile string, cfg *Config) string {
 	var b strings.Builder
+	lang := i18n.Resolve(cfg.Lang)
 
 	// 1) limpiar siempre.
 	fmt.Fprintf(&b, "unset %s\n", CCPManagedVars)
@@ -32,7 +35,7 @@ func EnvDelta(home, profile string, cfg *Config) string {
 
 	p, ok := cfg.Profiles[profile]
 	if !ok {
-		fmt.Fprintf(&b, "echo \"⚠️  ccp: perfil %s no existe; usando default\" >&2\n", shellQuote(profile))
+		fmt.Fprintf(&b, "echo \"%s\" >&2\n", fmt.Sprintf(i18n.T(lang, "core.env.profile_missing"), shellQuote(profile)))
 		fmt.Fprintf(&b, "export CCP_PROFILE=%s\n", shellQuote("default"))
 		return b.String()
 	}

@@ -59,6 +59,9 @@ func copyTreeTest(t *testing.T, src, dst string) {
 // materializeHome crea el CCP_HOME temporal y devuelve (home, cfg).
 func materializeHome(t *testing.T) (string, *Config) {
 	t.Helper()
+	// Los goldens de _env/_hook se capturaron del oráculo bash (prosa en
+	// español), así que la comparación byte-exacta debe correr bajo CCP_LANG=es.
+	t.Setenv("CCP_LANG", "es")
 	gd := envGoldenDir(t)
 	fixture := filepath.Join(gd, "ccp-home")
 

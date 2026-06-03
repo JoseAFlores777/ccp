@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // profile.go cablea `ccp profile <add|login|rm|list|show|config|sync>` sobre
@@ -22,6 +23,7 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
 	}
+	lang := currentLang()
 	var sub string
 	if len(args) > 0 {
 		sub = args[0]
@@ -38,14 +40,14 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 		return profileLogin(home, rest, stdout, stderr)
 	case "rm", "del":
 		if len(rest) < 1 {
-			fmt.Fprintln(stderr, "Uso: ccp profile rm <nombre>")
+			fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.usage_rm"))
 			return 1
 		}
 		if err := core.ProfileRm(home, rest[0]); err != nil {
 			fmt.Fprintf(stderr, "[error] %v\n", err)
 			return 1
 		}
-		fmt.Fprintln(stdout, okLine(stdout, "Perfil eliminado: "+rest[0]))
+		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.profile.removed", rest[0])))
 		return 0
 	case "list", "ls", "":
 		names, err := core.ProfileList(home)
@@ -74,12 +76,12 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 				pad = 1
 			}
 			fmt.Fprintf(stdout, "%s%s%s\n",
-				accent(stdout, n), strings.Repeat(" ", pad), badgeType(stdout, humanType(t)))
+				accent(stdout, n), strings.Repeat(" ", pad), badgeType(stdout, t, humanType(lang, t)))
 		}
 		return 0
 	case "show":
 		if len(rest) < 1 {
-			fmt.Fprintln(stderr, "Uso: ccp profile show <nombre>")
+			fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.usage_show"))
 			return 1
 		}
 		s, err := core.ProfileShow(home, rest[0])
@@ -98,7 +100,7 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "[error] %v\n", err)
 			return 1
 		}
-		fmt.Fprintf(stdout, "Config de '%s' actualizada (global ⊕ overlay).\n", name)
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.profile.config_updated", name))
 		return 0
 	case "sync":
 		var name string
@@ -110,14 +112,14 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		if name == "" {
-			fmt.Fprintln(stdout, "Todos los perfiles re-sincronizados.")
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.profile.synced_all"))
 		} else {
-			fmt.Fprintf(stdout, "Perfil '%s' re-sincronizado (global ⊕ overlay).\n", name)
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.profile.synced_one", name))
 		}
 		return 0
 	default:
-		fmt.Fprintf(stderr, "profile: subcomando desconocido '%s'\n", sub)
-		fmt.Fprintln(stderr, "Usa: add | rm | list | show | login | config | sync")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.unknown_sub", sub))
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.sub_help"))
 		return 1
 	}
 }
@@ -126,13 +128,14 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 // Los perfiles deepseek arrancan de los defaults configurables (ccp config set),
 // con override por flag. Espeja _profile_add.
 func profileAdd(home string, args []string, stdout, stderr io.Writer) int {
+	lang := currentLang()
 	if len(args) == 0 || args[0] == "" {
-		fmt.Fprintln(stderr, "Uso: ccp profile add <nombre> --official|--deepseek [opts]")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.usage_add"))
 		return 1
 	}
 	name := args[0]
 	if name == "default" {
-		fmt.Fprintln(stderr, "[error] 'default' es un perfil reservado.")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.reserved_default"))
 		return 1
 	}
 
@@ -171,7 +174,7 @@ func profileAdd(home string, args []string, stdout, stderr io.Writer) int {
 				d.Effort = rest[i]
 			}
 		default:
-			fmt.Fprintf(stderr, "[error] opción desconocida: %s\n", rest[i])
+			fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.unknown_opt", rest[i]))
 			return 1
 		}
 	}
@@ -182,19 +185,19 @@ func profileAdd(home string, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "[error] %v\n", err)
 			return 1
 		}
-		fmt.Fprintln(stdout, okLine(stdout, fmt.Sprintf("Perfil oficial '%s' creado (plugins/skills symlinked, config generada).", name)))
-		fmt.Fprintf(stdout, "Loguéate una vez:  ccp profile login %s   (corre /login dentro)\n", name)
+		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.profile.official_created", name)))
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.profile.official_login_hint", name))
 		return 0
 	case "deepseek":
 		if err := core.ProfileAddDeepseek(home, name, d); err != nil {
 			fmt.Fprintf(stderr, "[error] %v\n", err)
 			return 1
 		}
-		fmt.Fprintln(stdout, okLine(stdout, fmt.Sprintf("Perfil deepseek '%s' creado (cc-home + config generada).", name)))
-		fmt.Fprintf(stdout, "Añade su API key:  ccp key %s\n", name)
+		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.profile.deepseek_created", name)))
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.profile.deepseek_key_hint", name))
 		return 0
 	default:
-		fmt.Fprintln(stderr, "[error] Especifica --official o --deepseek")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.specify_kind"))
 		return 1
 	}
 }
@@ -202,8 +205,9 @@ func profileAdd(home string, args []string, stdout, stderr io.Writer) int {
 // profileLogin abre Claude Code con el config dir del perfil oficial para que
 // el usuario corra /login. Espeja _profile_login.
 func profileLogin(home string, args []string, stdout, stderr io.Writer) int {
+	lang := currentLang()
 	if len(args) == 0 || args[0] == "" {
-		fmt.Fprintln(stderr, "Uso: ccp profile login <nombre>")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.usage_login"))
 		return 1
 	}
 	name := args[0]
@@ -214,20 +218,20 @@ func profileLogin(home string, args []string, stdout, stderr io.Writer) int {
 	}
 	p, ok := cfg.Profiles[name]
 	if !ok {
-		fmt.Fprintf(stderr, "[error] No existe '%s'.\n", name)
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.not_found", name))
 		return 1
 	}
 	if p.Type != "official" {
-		fmt.Fprintf(stderr, "[error] '%s' no es oficial.\n", name)
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.not_official", name))
 		return 1
 	}
 	if _, err := exec.LookPath("claude"); err != nil {
-		fmt.Fprintln(stderr, "[error] Claude Code no está instalado.")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.claude_missing"))
 		return 1
 	}
 	cch := filepath.Join(home, "profiles", name, "cc-home")
-	fmt.Fprintf(stdout, "Abriendo Claude Code con el config dir de '%s'.\n", name)
-	fmt.Fprintln(stdout, "Dentro, corre  /login  con la cuenta de este perfil, luego /quit.")
+	fmt.Fprintln(stdout, i18n.T(lang, "cli.profile.login_opening", name))
+	fmt.Fprintln(stdout, i18n.T(lang, "cli.profile.login_inside"))
 	cmd := exec.Command("claude")
 	cmd.Env = append(os.Environ(), "CLAUDE_CONFIG_DIR="+cch)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, stdout, stderr
