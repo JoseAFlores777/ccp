@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // claudeSrc resuelve la fuente global (~/.claude o CCP_CLAUDE_SRC), igual que el
@@ -104,15 +105,16 @@ func dispatchInstruct(args []string, stdout, stderr io.Writer) int {
 	case "record":
 		return instructRecord(args[1:], stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "instruct: subcomando desconocido '%s' (add|list|rm|dest|record)\n", sub)
+		fmt.Fprintln(stderr, i18n.T(currentLang(), "cli.instruct.unknown_sub", sub))
 		return 1
 	}
 }
 
 // ccp instruct add <scope> <type> <texto...>
 func instructAdd(args []string, stdout, stderr io.Writer) int {
+	lang := currentLang()
 	if len(args) < 3 {
-		fmt.Fprintln(stderr, "Uso: ccp instruct add <scope> <type> <texto>")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.instruct.usage_add"))
 		return 1
 	}
 	scope, typ := args[0], args[1]
@@ -128,19 +130,19 @@ func instructAdd(args []string, stdout, stderr io.Writer) int {
 	switch res.Type {
 	case "rule":
 		if res.Duplicate {
-			fmt.Fprintf(stdout, "Ya existía esa instrucción en %s (no se duplica).\n", res.Dest)
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.instruct.rule_dup", res.Dest))
 		} else {
-			fmt.Fprintf(stdout, "Instrucción añadida (%s/rule) -> %s\n", res.Scope, res.Dest)
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.instruct.rule_added", res.Scope, res.Dest))
 		}
 	case "mcp":
-		fmt.Fprintf(stdout, "MCP '%s' añadido (%s) -> %s\n", res.Name, res.Scope, res.Dest)
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.instruct.mcp_added", res.Name, res.Scope, res.Dest))
 	case "hook":
-		fmt.Fprintf(stdout, "Hook '%s' añadido (%s) -> %s\n", res.Name, res.Scope, res.Dest)
-		fmt.Fprintln(stdout, "Aviso: el borrado de hooks no es automático (viven en arrays sin id estable).")
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.instruct.hook_added", res.Name, res.Scope, res.Dest))
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.instruct.hook_note"))
 		if res.Scope == "profile" {
-			fmt.Fprintf(stdout, "  Para quitarlo: 'ccp profile config %s settings' o edita el overlay a mano.\n", ctx.ActiveProfile)
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.instruct.hook_rm_profile", ctx.ActiveProfile))
 		} else {
-			fmt.Fprintf(stdout, "  Para quitarlo: edita %s a mano.\n", res.Dest)
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.instruct.hook_rm_other", res.Dest))
 		}
 	}
 	return 0
@@ -148,8 +150,9 @@ func instructAdd(args []string, stdout, stderr io.Writer) int {
 
 // ccp instruct list <scope>
 func instructList(args []string, stdout, stderr io.Writer) int {
+	lang := currentLang()
 	if len(args) < 1 {
-		fmt.Fprintln(stderr, "Uso: ccp instruct list <scope>")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.instruct.usage_list"))
 		return 1
 	}
 	scope := args[0]
@@ -162,7 +165,7 @@ func instructList(args []string, stdout, stderr io.Writer) int {
 		return emitErr(stderr, err)
 	}
 	if len(rows) == 0 {
-		fmt.Fprintf(stdout, "   (sin instrucciones ni artefactos en %s)\n", scope)
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.instruct.list_empty", scope))
 		return 0
 	}
 	for _, r := range rows {
@@ -173,14 +176,15 @@ func instructList(args []string, stdout, stderr io.Writer) int {
 
 // ccp instruct rm <scope> <index>
 func instructRm(args []string, stdout, stderr io.Writer) int {
+	lang := currentLang()
 	if len(args) < 2 {
-		fmt.Fprintln(stderr, "Uso: ccp instruct rm <scope> <index>")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.instruct.usage_rm"))
 		return 1
 	}
 	scope := args[0]
 	idx, err := strconv.Atoi(args[1])
 	if err != nil || idx < 1 {
-		fmt.Fprintln(stderr, "Uso: ccp instruct rm <scope> <index>")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.instruct.usage_rm"))
 		return 1
 	}
 	ctx, err := instructCtx()
@@ -192,20 +196,20 @@ func instructRm(args []string, stdout, stderr io.Writer) int {
 		return emitErr(stderr, err)
 	}
 	if res.WasRule {
-		fmt.Fprintf(stdout, "Instrucción #%d eliminada (%s).\n", idx, scope)
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.instruct.rm_rule", idx, scope))
 		return 0
 	}
 	if res.Type == "hook" {
-		fmt.Fprintf(stdout, "Aviso: el hook '%s' se quitó del manifiesto, pero su entrada JSON sigue en el archivo.\n", res.Ref)
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.instruct.rm_hook_note", res.Ref))
 	}
-	fmt.Fprintf(stdout, "Artefacto #%d eliminado del manifiesto (%s/%s): %s\n", idx, scope, res.Type, res.Ref)
+	fmt.Fprintln(stdout, i18n.T(lang, "cli.instruct.rm_artifact", idx, scope, res.Type, res.Ref))
 	return 0
 }
 
 // ccp instruct dest <scope> <type>  (imprime la ruta destino; lo usan /ccp:*)
 func instructDest(args []string, stdout, stderr io.Writer) int {
 	if len(args) < 2 {
-		fmt.Fprintln(stderr, "Uso: ccp instruct dest <scope> <type>")
+		fmt.Fprintln(stderr, i18n.T(currentLang(), "cli.instruct.usage_dest"))
 		return 1
 	}
 	ctx, err := instructCtx()
@@ -222,8 +226,9 @@ func instructDest(args []string, stdout, stderr io.Writer) int {
 
 // ccp instruct record <scope> <type> <ref> <desc...>
 func instructRecord(args []string, stdout, stderr io.Writer) int {
+	lang := currentLang()
 	if len(args) < 3 {
-		fmt.Fprintln(stderr, "Uso: ccp instruct record <scope> <type> <ref> <desc>")
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.instruct.usage_record"))
 		return 1
 	}
 	scope, typ, ref := args[0], args[1], args[2]
@@ -235,6 +240,6 @@ func instructRecord(args []string, stdout, stderr io.Writer) int {
 	if err := core.InstructRecord(ctx, scope, typ, ref, desc); err != nil {
 		return emitErr(stderr, err)
 	}
-	fmt.Fprintf(stdout, "Artefacto registrado (%s/%s): %s\n", scope, typ, ref)
+	fmt.Fprintln(stdout, i18n.T(lang, "cli.instruct.recorded", scope, typ, ref))
 	return 0
 }

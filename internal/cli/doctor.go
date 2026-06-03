@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // cmdDoctor presenta los chequeos de core.Doctor: node/claude/git en PATH y
@@ -16,14 +17,15 @@ func cmdDoctor(_ []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
 	}
-	checks, err := core.Doctor(home)
+	lang := currentLang()
+	checks, err := core.Doctor(lang, home)
 	if err != nil {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
 	}
 
 	fmt.Fprintln(stdout, hr(stdout))
-	fmt.Fprintf(stdout, " %s\n", boldLine(stdout, "Diagnóstico"))
+	fmt.Fprintf(stdout, " %s\n", boldLine(stdout, i18n.T(lang, "cli.doctor.header")))
 	fmt.Fprintln(stdout, hr(stdout))
 
 	allOK := true

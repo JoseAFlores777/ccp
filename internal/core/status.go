@@ -3,6 +3,8 @@ package core
 import (
 	"fmt"
 	"strings"
+
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // statusJSONEsc replica _json_esc de bin/ccp: escapa \ → \\ y " → \"
@@ -37,23 +39,23 @@ func StatusJSON(active, profile, profileType, cwd, repo string) string {
 // StatusHuman devuelve la representación en texto plano (NO_COLOR / non-TTY)
 // del bloque hr/printf de cmd_status, replicando el oráculo bash.
 // El string resultante termina con \n (la última hr incluye su propia newline).
-func StatusHuman(active, profile, profileType, cwd, repo string) string {
+func StatusHuman(l i18n.Lang, active, profile, profileType, cwd, repo string) string {
 	repoDisplay := repo
 	if repoDisplay == "" {
-		repoDisplay = "no es git"
+		repoDisplay = i18n.T(l, "status.not_git")
 	}
 
 	var b strings.Builder
 	b.WriteString(statusHR)
 	b.WriteByte('\n')
-	b.WriteString(" Estado de ccp en esta terminal")
+	b.WriteString(i18n.T(l, "status.header"))
 	b.WriteByte('\n')
 	b.WriteString(statusHR)
 	b.WriteByte('\n')
-	fmt.Fprintf(&b, " Perfil activo (terminal): %s\n", active)
-	fmt.Fprintf(&b, " Perfil del cwd (regla):   %s  (%s)\n", profile, profileType)
-	fmt.Fprintf(&b, " Cwd:                      %s\n", cwd)
-	fmt.Fprintf(&b, " Repo:                     %s\n", repoDisplay)
+	b.WriteString(i18n.T(l, "status.active", active))
+	b.WriteString(i18n.T(l, "status.rule", profile, profileType))
+	b.WriteString(i18n.T(l, "status.cwd", cwd))
+	b.WriteString(i18n.T(l, "status.repo", repoDisplay))
 	b.WriteString(statusHR)
 	b.WriteByte('\n')
 	return b.String()

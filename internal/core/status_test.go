@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // goldenStatusJSONPath devuelve la ruta absoluta al golden commiteado.
@@ -162,7 +164,8 @@ func TestStatusJSONFormat(t *testing.T) {
 
 // TestStatusHumanFormat verifica el formato de texto plano (NO_COLOR) de StatusHuman.
 func TestStatusHumanFormat(t *testing.T) {
-	got := StatusHuman("default", "work", "official", "/home/user/repos/work", "")
+	t.Setenv("CCP_LANG", "es")
+	got := StatusHuman(i18n.Es, "default", "work", "official", "/home/user/repos/work", "")
 
 	// Verifica que empieza y termina con la línea hr.
 	if got[:len(statusHR)] != statusHR {
@@ -190,7 +193,8 @@ func TestStatusHumanFormat(t *testing.T) {
 
 // TestStatusHumanConRepo verifica que cuando repo != "" se imprime el repo.
 func TestStatusHumanConRepo(t *testing.T) {
-	got := StatusHuman("work", "work", "official", "/home/user/repos/work", "/home/user/repos/work")
+	t.Setenv("CCP_LANG", "es")
+	got := StatusHuman(i18n.Es, "work", "work", "official", "/home/user/repos/work", "/home/user/repos/work")
 
 	if !contains(got, "Repo:                     /home/user/repos/work") {
 		t.Errorf("StatusHuman con repo no contiene la ruta del repo;\ngot:\n%s", got)

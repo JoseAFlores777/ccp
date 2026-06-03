@@ -19,6 +19,9 @@ func setupInstructEnv(t *testing.T) (home, src, root string) {
 	t.Setenv("CCP_CLAUDE_SRC", src)
 	t.Setenv("CCP_REPO_ROOT", root)
 	t.Setenv("CCP_PROFILE", "")
+	// Fija el idioma a ES: estas aserciones verifican la prosa del contrato
+	// frozen (paridad con el oráculo bash), que vive bajo CCP_LANG=es.
+	t.Setenv("CCP_LANG", "es")
 	return
 }
 
