@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
@@ -43,6 +44,7 @@ const (
 type model struct {
 	home string
 	cfg  *core.Config
+	lang i18n.Lang
 
 	focus  panel
 	mode   mode
@@ -110,6 +112,11 @@ func (m *model) reload() {
 	if cfg, err := core.Load(m.home); err == nil {
 		m.cfg = cfg
 	}
+	var cl string
+	if m.cfg != nil {
+		cl = m.cfg.Lang
+	}
+	m.lang = i18n.Resolve(cl)
 	names, _ := core.ProfileList(m.home)
 	m.profiles = names
 	if m.profIdx >= len(m.profiles) {
@@ -148,7 +155,7 @@ func (m *model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// huh no aborta con Esc por defecto; lo interceptamos para que "esc cancela"
 	// funcione siempre (ctrl+c sigue abortando vía huh.StateAborted).
 	if km, ok := msg.(tea.KeyMsg); ok && km.Type == tea.KeyEsc {
-		m.setStatus("Cancelado.", nil)
+		m.setStatus(i18n.T(m.lang, "tui.form.canceled"), nil)
 		m.exitForm()
 		return m, nil
 	}
@@ -163,7 +170,7 @@ func (m *model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.exitForm()
 		return m, nil
 	case huh.StateAborted:
-		m.setStatus("Cancelado.", nil)
+		m.setStatus(i18n.T(m.lang, "tui.form.canceled"), nil)
 		m.exitForm()
 		return m, nil
 	}
@@ -249,23 +256,23 @@ func completeCmd(prefix string) string {
 func (m *model) runCommand(cmd string) (tea.Model, tea.Cmd) {
 	switch cmd {
 	case "", "help", "?":
-		m.setStatus("Comandos: backup-export, backup-restore, doctor, sync, install", nil)
+		m.setStatus(i18n.T(m.lang, "tui.cmd.help"), nil)
 		return m, nil
 	case "backup-export":
-		return m.start(formBackupExport(m.home))
+		return m.start(formBackupExport(m.home, m.lang))
 	case "backup-restore":
-		return m.start(formBackupRestore(m.home))
+		return m.start(formBackupRestore(m.home, m.lang))
 	case "sync":
 		err := core.ProfileSync(m.home, "")
-		m.setStatus("Todos los perfiles re-sincronizados.", err)
+		m.setStatus(i18n.T(m.lang, "tui.cmd.synced_all"), err)
 		m.reload()
 		return m, nil
 	case "doctor":
-		return m.shellOut("diagnóstico (doctor) ejecutado", "doctor")
+		return m.shellOut(i18n.T(m.lang, "tui.cmd.doctor_done"), "doctor")
 	case "install":
-		return m.shellOut("shell init (install) ejecutado", "install")
+		return m.shellOut(i18n.T(m.lang, "tui.cmd.install_done"), "install")
 	default:
-		m.setStatus(fmt.Sprintf("Comando desconocido: '%s'", cmd), errCmd{})
+		m.setStatus(i18n.T(m.lang, "tui.cmd.unknown", cmd), errCmd{})
 		return m, nil
 	}
 }
@@ -277,7 +284,7 @@ func (m *model) runCommand(cmd string) (tea.Model, tea.Cmd) {
 func (m *model) shellOut(okMsg string, args ...string) (tea.Model, tea.Cmd) {
 	bin, err := exec.LookPath("ccp")
 	if err != nil {
-		m.setStatus("no se encontró el binario 'ccp' en PATH", err)
+		m.setStatus(i18n.T(m.lang, "tui.shell.no_binary"), err)
 		return m, nil
 	}
 	c := exec.Command(bin, args...)
@@ -312,7 +319,7 @@ func (m *model) enterForm(a action) {
 // setStatus fija la línea de estado. err != nil la marca como error.
 func (m *model) setStatus(msg string, err error) {
 	if err != nil {
-		m.statusMsg = "Error: " + err.Error()
+		m.statusMsg = i18n.T(m.lang, "tui.status.error_prefix") + err.Error()
 		m.statusErr = true
 		return
 	}
@@ -363,15 +370,15 @@ var (
 	boxStyleFocused = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(cAccent).Padding(0, 1)
 )
 
-// humanTypeES traduce el tipo interno del perfil a su etiqueta en español.
-func humanTypeES(t string) string {
+// humanType traduce el tipo interno del perfil a su etiqueta en el idioma dado.
+func humanType(lang i18n.Lang, t string) string {
 	switch t {
 	case "official":
-		return "oficial"
+		return i18n.T(lang, "tui.ptype.official")
 	case "deepseek":
-		return "proveedor"
+		return i18n.T(lang, "tui.ptype.deepseek")
 	default:
-		return "default"
+		return i18n.T(lang, "tui.ptype.default")
 	}
 }
 

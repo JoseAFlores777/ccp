@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 	"github.com/charmbracelet/huh"
 )
 
@@ -39,7 +40,7 @@ func profileOptions(names []string, includeDefault bool) []huh.Option[string] {
 }
 
 // formAddProfile pide tipo + nombre (+ campos deepseek) y crea el perfil.
-func formAddProfile(home string, defs core.Defaults) action {
+func formAddProfile(home string, defs core.Defaults, lang i18n.Lang) action {
 	var ptype = "official"
 	var name string
 	var baseURL = defs.BaseURL
@@ -51,31 +52,31 @@ func formAddProfile(home string, defs core.Defaults) action {
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().
-				Title("Tipo de perfil").
+				Title(i18n.T(lang, "tui.form.profile_type")).
 				Options(
-					huh.NewOption("official (cuenta Anthropic)", "official"),
-					huh.NewOption("deepseek (provider compatible)", "deepseek"),
+					huh.NewOption(i18n.T(lang, "tui.form.profile_type_official"), "official"),
+					huh.NewOption(i18n.T(lang, "tui.form.profile_type_deepseek"), "deepseek"),
 				).
 				Value(&ptype),
 			huh.NewInput().
-				Title("Nombre del perfil").
+				Title(i18n.T(lang, "tui.form.profile_name")).
 				Value(&name).
 				Validate(func(s string) error {
 					if s == "" {
-						return fmt.Errorf("el nombre no puede estar vacío")
+						return fmt.Errorf("%s", i18n.T(lang, "tui.form.name_empty"))
 					}
 					if s == "default" {
-						return fmt.Errorf("'default' es reservado")
+						return fmt.Errorf("%s", i18n.T(lang, "tui.form.name_reserved"))
 					}
 					return nil
 				}),
 		),
 		huh.NewGroup(
-			huh.NewInput().Title("Base URL").Value(&baseURL),
-			huh.NewInput().Title("Modelo pro").Value(&modelPro),
-			huh.NewInput().Title("Modelo flash").Value(&modelFlash),
-			huh.NewInput().Title("Effort").Value(&effort),
-			huh.NewInput().Title("API key (opcional ahora)").EchoMode(huh.EchoModePassword).Value(&apiKey),
+			huh.NewInput().Title(i18n.T(lang, "tui.form.base_url")).Value(&baseURL),
+			huh.NewInput().Title(i18n.T(lang, "tui.form.model_pro")).Value(&modelPro),
+			huh.NewInput().Title(i18n.T(lang, "tui.form.model_flash")).Value(&modelFlash),
+			huh.NewInput().Title(i18n.T(lang, "tui.form.effort")).Value(&effort),
+			huh.NewInput().Title(i18n.T(lang, "tui.form.api_key_optional")).EchoMode(huh.EchoModePassword).Value(&apiKey),
 		).WithHideFunc(func() bool { return ptype != "deepseek" }),
 	)
 
@@ -87,56 +88,56 @@ func formAddProfile(home string, defs core.Defaults) action {
 			}
 			if apiKey != "" {
 				if err := core.ProfileSetKey(home, name, apiKey); err != nil {
-					return "", fmt.Errorf("perfil creado, pero falló set key: %w", err)
+					return "", fmt.Errorf("%s: %w", i18n.T(lang, "tui.form.set_key_failed"), err)
 				}
 			}
-			return fmt.Sprintf("Perfil deepseek '%s' creado.", name), nil
+			return i18n.T(lang, "tui.form.deepseek_created", name), nil
 		}
 		if err := core.ProfileAddOfficial(home, name); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("Perfil official '%s' creado. Inicia sesión: login.", name), nil
+		return i18n.T(lang, "tui.form.official_created", name), nil
 	}
 	return action{form: form, apply: apply}
 }
 
 // formDeleteProfile confirma y borra el perfil dado.
-func formDeleteProfile(home, name string) action {
+func formDeleteProfile(home, name string, lang i18n.Lang) action {
 	var confirm bool
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().
-				Title(fmt.Sprintf("¿Borrar el perfil '%s'?", name)).
-				Description("Elimina su cc-home y config. No reversible.").
-				Affirmative("Sí, borrar").
-				Negative("Cancelar").
+				Title(i18n.T(lang, "tui.form.delete_profile_title", name)).
+				Description(i18n.T(lang, "tui.form.delete_profile_desc")).
+				Affirmative(i18n.T(lang, "tui.form.confirm_yes_delete")).
+				Negative(i18n.T(lang, "tui.form.confirm_cancel")).
 				Value(&confirm),
 		),
 	)
 	apply := func() (string, error) {
 		if !confirm {
-			return "Borrado cancelado.", nil
+			return i18n.T(lang, "tui.form.delete_canceled"), nil
 		}
 		if err := core.ProfileRm(home, name); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("Perfil '%s' borrado.", name), nil
+		return i18n.T(lang, "tui.form.profile_deleted", name), nil
 	}
 	return action{form: form, apply: apply}
 }
 
 // formSetKey pide la API key de un perfil deepseek.
-func formSetKey(home, name string) action {
+func formSetKey(home, name string, lang i18n.Lang) action {
 	var key string
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
-				Title(fmt.Sprintf("API key para '%s'", name)).
+				Title(i18n.T(lang, "tui.form.api_key_for", name)).
 				EchoMode(huh.EchoModePassword).
 				Value(&key).
 				Validate(func(s string) error {
 					if s == "" {
-						return fmt.Errorf("no ingresaste ninguna key")
+						return fmt.Errorf("%s", i18n.T(lang, "tui.form.key_empty"))
 					}
 					return nil
 				}),
@@ -146,13 +147,13 @@ func formSetKey(home, name string) action {
 		if err := core.ProfileSetKey(home, name, key); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("API key de '%s' guardada (chmod 600).", name), nil
+		return i18n.T(lang, "tui.form.key_saved", name), nil
 	}
 	return action{form: form, apply: apply}
 }
 
 // formAddRule pide path + perfil y registra la regla (deepest-wins en runtime).
-func formAddRule(home string, profiles []string) action {
+func formAddRule(home string, profiles []string, lang i18n.Lang) action {
 	var path string
 	var profile string
 	if len(profiles) > 0 {
@@ -161,16 +162,16 @@ func formAddRule(home string, profiles []string) action {
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
-				Title("Path absoluto de la regla").
+				Title(i18n.T(lang, "tui.form.rule_path")).
 				Value(&path).
 				Validate(func(s string) error {
 					if s == "" {
-						return fmt.Errorf("el path no puede estar vacío")
+						return fmt.Errorf("%s", i18n.T(lang, "tui.form.path_empty"))
 					}
 					return nil
 				}),
 			huh.NewSelect[string]().
-				Title("Perfil para este path").
+				Title(i18n.T(lang, "tui.form.rule_profile")).
 				Options(profileOptions(profiles, true)...).
 				Value(&profile),
 		),
@@ -196,26 +197,26 @@ func formAddRule(home string, profiles []string) action {
 		if err := core.Save(home, c); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("Regla %s → %s guardada.", norm, profile), nil
+		return i18n.T(lang, "tui.form.rule_saved", norm, profile), nil
 	}
 	return action{form: form, apply: apply}
 }
 
 // formDeleteRule confirma y borra la regla del path dado.
-func formDeleteRule(home, path string) action {
+func formDeleteRule(home, path string, lang i18n.Lang) action {
 	var confirm bool
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().
-				Title(fmt.Sprintf("¿Borrar la regla para '%s'?", path)).
-				Affirmative("Sí, borrar").
-				Negative("Cancelar").
+				Title(i18n.T(lang, "tui.form.delete_rule_title", path)).
+				Affirmative(i18n.T(lang, "tui.form.confirm_yes_delete")).
+				Negative(i18n.T(lang, "tui.form.confirm_cancel")).
 				Value(&confirm),
 		),
 	)
 	apply := func() (string, error) {
 		if !confirm {
-			return "Borrado cancelado.", nil
+			return i18n.T(lang, "tui.form.delete_canceled"), nil
 		}
 		c, err := core.Load(home)
 		if err != nil {
@@ -232,36 +233,36 @@ func formDeleteRule(home, path string) action {
 		}
 		c.Rules = out
 		if !removed {
-			return "", fmt.Errorf("no había regla para %s", path)
+			return "", fmt.Errorf("%s", i18n.T(lang, "tui.form.no_rule_for", path))
 		}
 		if err := core.Save(home, c); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("Regla para %s borrada.", path), nil
+		return i18n.T(lang, "tui.form.rule_deleted", path), nil
 	}
 	return action{form: form, apply: apply}
 }
 
 // formBackupExport corre el wizard de export (destino + secretos).
-func formBackupExport(home string) action {
+func formBackupExport(home string, lang i18n.Lang) action {
 	var dest string
 	var withSecrets bool
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
-				Title("Archivo destino (.tar.gz)").
+				Title(i18n.T(lang, "tui.form.dest_file")).
 				Value(&dest).
 				Validate(func(s string) error {
 					if s == "" {
-						return fmt.Errorf("indica un archivo destino")
+						return fmt.Errorf("%s", i18n.T(lang, "tui.form.dest_empty"))
 					}
 					return nil
 				}),
 			huh.NewConfirm().
-				Title("¿Incluir secretos (api_key + login)?").
-				Description("Un backup con secretos NO debe compartirse ni subirse a un repo.").
-				Affirmative("Con secretos").
-				Negative("Sin secretos").
+				Title(i18n.T(lang, "tui.form.include_secrets_title")).
+				Description(i18n.T(lang, "tui.form.include_secrets_desc")).
+				Affirmative(i18n.T(lang, "tui.form.with_secrets")).
+				Negative(i18n.T(lang, "tui.form.without_secrets")).
 				Value(&withSecrets),
 		),
 	)
@@ -270,35 +271,35 @@ func formBackupExport(home string) action {
 			return "", err
 		}
 		if withSecrets {
-			return fmt.Sprintf("Backup CON SECRETOS en %s (chmod 600; no lo compartas).", dest), nil
+			return i18n.T(lang, "tui.form.backup_with_secrets", dest), nil
 		}
-		return fmt.Sprintf("Backup en %s (sin secretos; seguro de compartir).", dest), nil
+		return i18n.T(lang, "tui.form.backup_safe", dest), nil
 	}
 	return action{form: form, apply: apply}
 }
 
 // formBackupRestore corre el wizard de restore (archivo + modo de colisión).
 // --force se considera destructivo y se confirma explícitamente.
-func formBackupRestore(home string) action {
+func formBackupRestore(home string, lang i18n.Lang) action {
 	var archive string
 	var mode = "skip"
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
-				Title("Archivo de backup (.tar.gz)").
+				Title(i18n.T(lang, "tui.form.backup_file")).
 				Value(&archive).
 				Validate(func(s string) error {
 					if s == "" {
-						return fmt.Errorf("indica el archivo a restaurar")
+						return fmt.Errorf("%s", i18n.T(lang, "tui.form.restore_empty"))
 					}
 					return nil
 				}),
 			huh.NewSelect[string]().
-				Title("Política ante colisiones").
+				Title(i18n.T(lang, "tui.form.collision_policy")).
 				Options(
-					huh.NewOption("Saltar existentes (no destructivo)", "skip"),
-					huh.NewOption("Sobrescribir existentes (--overwrite)", "overwrite"),
-					huh.NewOption("Forzar todo (--force, destructivo)", "force"),
+					huh.NewOption(i18n.T(lang, "tui.form.collision_skip"), "skip"),
+					huh.NewOption(i18n.T(lang, "tui.form.collision_overwrite"), "overwrite"),
+					huh.NewOption(i18n.T(lang, "tui.form.collision_force"), "force"),
 				).
 				Value(&mode),
 		),
@@ -315,7 +316,7 @@ func formBackupRestore(home string) action {
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("Restore OK. Snapshot reversible: %s (creados %d, reemplazados %d, saltados %d, reglas +%d).",
+		return i18n.T(lang, "tui.form.restore_done",
 			rep.SnapshotDir, len(rep.Created), len(rep.Overwritten), len(rep.Skipped), rep.RulesAdded), nil
 	}
 	return action{form: form, apply: apply}
