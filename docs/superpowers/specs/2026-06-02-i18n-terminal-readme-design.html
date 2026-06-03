@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ccp — terminal bilingüe (EN default) + README EN/ES</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f4f1ea; --paper-2:#ece7dd;
+    --ink:#1a1915; --ink-soft:#3a3833; --ink-mute:#6f6a60;
+    --rule:#d8d2c4; --accent:#c96442; --accent-soft:#e8a48a;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--paper); color:var(--ink-soft);
+    font-family:'Inter',sans-serif; font-size:17px; line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:980px; margin:0 auto; padding:64px 32px 96px;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .serif{font-family:'Tinos',serif;}
+
+  .eyebrow{font-family:'JetBrains Mono',monospace; text-transform:uppercase;
+    letter-spacing:.22em; font-size:12px; color:var(--accent); margin:0 0 18px;}
+  h1{font-family:'Tinos',serif; font-weight:700; font-size:56px; line-height:1.06;
+    color:var(--ink); margin:0 0 22px; letter-spacing:-.01em;}
+  h1 em{font-style:italic; color:var(--accent);}
+  .lede{font-size:21px; line-height:1.5; color:var(--ink-soft); max-width:46em; margin:0 0 28px;}
+  .meta{display:flex; flex-wrap:wrap; gap:10px 26px; font-family:'JetBrains Mono',monospace;
+    font-size:12.5px; color:var(--ink-mute); border-top:1px solid var(--rule);
+    border-bottom:1px solid var(--rule); padding:16px 0; margin:0 0 8px;}
+  .meta b{color:var(--ink); font-weight:500;}
+  .pass{color:#3f7d4e; font-weight:600;}
+
+  nav.toc{margin:48px 0 8px; padding:28px 32px; background:var(--paper-2);
+    border:1px solid var(--rule); border-radius:4px;}
+  nav.toc h2{font-family:'JetBrains Mono',monospace; text-transform:uppercase;
+    letter-spacing:.18em; font-size:11px; color:var(--ink-mute); margin:0 0 16px;}
+  nav.toc ol{list-style:none; margin:0; padding:0; columns:2; column-gap:48px;}
+  nav.toc li{margin:0 0 9px; break-inside:avoid;}
+  nav.toc a{color:var(--ink-soft); text-decoration:none; font-size:15px;
+    border-bottom:1px solid transparent; transition:border-color .15s,color .15s;}
+  nav.toc a:hover{color:var(--ink); border-bottom-color:var(--accent);}
+  nav.toc a .n{font-family:'JetBrains Mono',monospace; color:var(--accent);
+    font-size:12.5px; margin-right:10px;}
+
+  section{padding:46px 0; border-bottom:1px solid var(--rule); scroll-margin-top:24px;}
+  section:last-of-type{border-bottom:none;}
+  h2.sec{font-family:'Tinos',serif; font-weight:700; font-size:31px; color:var(--ink);
+    margin:0 0 6px; letter-spacing:-.005em; display:flex; align-items:baseline; gap:16px;}
+  h2.sec .num{font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--accent);
+    font-weight:500; flex:none;}
+  .section-lede{color:var(--ink-mute); font-size:16px; margin:0 0 22px; max-width:44em;}
+  h3{font-family:'Inter',sans-serif; font-weight:600; font-size:18px; color:var(--ink);
+    margin:30px 0 10px;}
+  p{margin:0 0 16px; max-width:46em;}
+  ul,ol.proc{max-width:46em; padding-left:22px;}
+  li{margin:0 0 7px;}
+  code{font-family:'JetBrains Mono',monospace; font-size:.86em; background:var(--paper-2);
+    padding:1.5px 6px; border-radius:3px; color:var(--ink); border:1px solid var(--rule);}
+  strong{color:var(--ink); font-weight:600;}
+  em{color:var(--ink-soft);}
+
+  table{width:100%; border-collapse:collapse; margin:8px 0 22px; font-size:14.5px;}
+  th,td{text-align:left; padding:10px 14px; border-bottom:1px solid var(--rule);
+    vertical-align:top;}
+  th{font-family:'JetBrains Mono',monospace; font-size:11.5px; text-transform:uppercase;
+    letter-spacing:.08em; color:var(--ink-mute); font-weight:500; background:var(--paper-2);}
+  td code{background:transparent; border:none; padding:0;}
+
+  .code{position:relative; margin:8px 0 24px;}
+  pre{font-family:'JetBrains Mono',monospace; font-size:13.5px; line-height:1.65;
+    background:#23211c; color:#e9e3d4; padding:20px 22px; border-radius:6px;
+    overflow-x:auto; margin:0;}
+  pre .c{color:#8a8270; font-style:italic;}
+  pre .k{color:#e8a48a;}
+  pre .s{color:#b7c89a;}
+  .copy{position:absolute; top:10px; right:10px; font-family:'JetBrains Mono',monospace;
+    font-size:11px; background:#39352c; color:#cfc7b4; border:1px solid #4a4538;
+    border-radius:4px; padding:4px 9px; cursor:pointer; opacity:.7; transition:opacity .15s;}
+  .copy:hover{opacity:1;}
+
+  .note{border-left:3px solid var(--accent); background:var(--paper-2);
+    padding:14px 18px; border-radius:0 4px 4px 0; margin:0 0 22px; font-size:15px;
+    max-width:46em;}
+  .note b{color:var(--accent);}
+
+  figure{margin:18px 0 26px; padding:24px; background:var(--paper-2);
+    border:1px solid var(--rule); border-radius:6px; overflow-x:auto;}
+  figcaption{font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--ink-mute);
+    text-transform:uppercase; letter-spacing:.1em; margin-top:14px; text-align:center;}
+
+  footer{margin-top:40px; padding-top:24px; border-top:1px solid var(--rule);
+    font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--ink-mute);
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;}
+
+  @media(max-width:760px){
+    .wrap{padding:40px 20px 64px;}
+    h1{font-size:38px;}
+    .lede{font-size:18px;}
+    nav.toc ol{columns:1;}
+    h2.sec{font-size:25px; gap:10px;}
+    figure{padding:16px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <p class="eyebrow">Spec · superpowers</p>
+    <h1>ccp — terminal <em>bilingüe</em>, inglés por defecto</h1>
+    <p class="lede">Internacionalizar <code>ccp</code>: la terminal habla <strong>inglés y español</strong>, el usuario elige, <strong>EN es el default</strong>. Lo mismo para <code>README.md</code> y su companion <code>README.html</code>. Invierte la convención "todo en español" sin cambiar comportamiento — solo la capa de presentación.</p>
+    <div class="meta">
+      <span><b>Versión</b> v0.1</span>
+      <span><b>Fecha</b> 2026-06-02</span>
+      <span><b>Status</b> <span class="pass">gate pasado · listo para plan</span></span>
+      <span><b>Scope</b> i18n terminal + README/HTML EN/ES</span>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <h2>Contenido</h2>
+    <ol>
+      <li><a href="#s1"><span class="n">01</span>Overview</a></li>
+      <li><a href="#s2"><span class="n">02</span>Goals / Non-goals</a></li>
+      <li><a href="#s3"><span class="n">03</span>Resolución de idioma</a></li>
+      <li><a href="#s4"><span class="n">04</span>Paquete i18n</a></li>
+      <li><a href="#s5"><span class="n">05</span>Storage: ccp.yaml</a></li>
+      <li><a href="#s6"><span class="n">06</span>Comando lang + TUI</a></li>
+      <li><a href="#s7"><span class="n">07</span>Alcance de traducción</a></li>
+      <li><a href="#s8"><span class="n">08</span>Paridad golden</a></li>
+      <li><a href="#s9"><span class="n">09</span>README bilingüe</a></li>
+      <li><a href="#s10"><span class="n">10</span>Testing</a></li>
+      <li><a href="#s11"><span class="n">11</span>Riesgos &amp; pendientes</a></li>
+      <li><a href="#s12"><span class="n">12</span>Criterios de aceptación</a></li>
+      <li><a href="#s13"><span class="n">13</span>Distribución / compartir</a></li>
+      <li><a href="#s14"><span class="n">14</span>Plan por fases</a></li>
+    </ol>
+  </nav>
+
+  <section id="s1">
+    <h2 class="sec"><span class="num">§ 01</span>Overview</h2>
+    <p class="section-lede">De "todo en español" a EN/ES seleccionable, con EN por defecto.</p>
+    <p>Hoy todo el texto de cara al usuario de <code>ccp</code> está hardcodeado en español (<em>"keep user-facing text Spanish"</em>). Este spec lo internacionaliza: la terminal ofrece <strong>inglés y español</strong>, el usuario elige, e <strong>inglés es el default</strong>. Igual para <code>README.md</code> y <code>README.html</code>.</p>
+    <p>El cambio invierte la convención (EN pasa a default), pero la mantiene como opción. No es rebrand ni cambia comportamiento — solo presentación textual. Tres superficies se internacionalizan:</p>
+    <ul>
+      <li><strong>Terminal</strong> — salida CLI (help, errores, mensajes, status) y TUI (labels, hints, paneles).</li>
+      <li><strong>README.md</strong> — EN default + <code>README.es.md</code>.</li>
+      <li><strong>README.html</strong> — EN default + <code>README.es.html</code>.</li>
+    </ul>
+    <p>No se toca: surfaces idioma-neutrales (nombres de perfil, exports de env, claves de <code>status --json</code>, word-lists de completion), el bloque shell-init / función rc, ni <code>install.sh</code> (queda EN-only).</p>
+  </section>
+
+  <section id="s2">
+    <h2 class="sec"><span class="num">§ 02</span>Goals / Non-goals</h2>
+    <h3>Goals</h3>
+    <ul>
+      <li>Terminal en EN o ES, seleccionable, <strong>EN por defecto</strong>.</li>
+      <li>Traducir las ~163 strings de cara al usuario (cli + core + tui) a un catálogo <code>en</code>/<code>es</code>.</li>
+      <li>Selección por <strong>3 vías</strong>: <code>ccp lang en|es</code> (persistente), <code>CCP_LANG</code> (override), toggle en TUI.</li>
+      <li>Mantener verde el gate de paridad golden contra el oráculo bash (congelado en español).</li>
+      <li>README + HTML bilingües, con selector de idioma entre versiones.</li>
+    </ul>
+    <h3>Non-goals</h3>
+    <ul>
+      <li>No localizar surfaces máquina (<code>resolve</code> / <code>_env</code> / <code>_hook</code> / <code>status --json</code> keys / completion).</li>
+      <li>No localizar el bloque shell-init / función rc (plumbing one-time, contrato congelado).</li>
+      <li>No localizar <code>install.sh</code> (corre antes de existir config; EN-only).</li>
+      <li>Sin librería i18n externa (filosofía hand-dispatch del repo).</li>
+      <li>Sin auto-detección de locale: EN siempre default; ES explícito.</li>
+      <li>Sin pluralización compleja ni más idiomas que EN/ES en v1.</li>
+    </ul>
+  </section>
+
+  <section id="s3">
+    <h2 class="sec"><span class="num">§ 03</span>Resolución de idioma</h2>
+    <p class="section-lede">Primero gana; valor inválido cae a <code>en</code>.</p>
+    <figure>
+      <svg viewBox="0 0 720 180" width="100%" height="auto" font-family="JetBrains Mono, monospace" font-size="13">
+        <g fill="#1a1915">
+          <circle cx="60" cy="40" r="5" fill="#c96442"/><text x="78" y="45">1 · <tspan fill="#c96442">CCP_LANG</tspan> (env)  →  override por invocación, no persiste</text>
+          <circle cx="60" cy="90" r="5" fill="#6f6a60"/><text x="78" y="95">2 · <tspan fill="#6f6a60">lang:</tspan> en ccp.yaml  →  preferencia persistente</text>
+          <circle cx="60" cy="140" r="5" fill="#3f7d4e"/><text x="78" y="145">3 · <tspan fill="#3f7d4e">en</tspan>  →  default duro</text>
+        </g>
+      </svg>
+      <figcaption>Precedencia env → config → en</figcaption>
+    </figure>
+    <p>Cualquier valor inválido (<code>CCP_LANG=fr</code>, typo) cae a <code>en</code> silenciosamente. La resolución vive en <code>i18n.Resolve(cfgLang string) Lang</code> y se calcula una vez por invocación, cerca del top de cada comando que imprime prosa.</p>
+  </section>
+
+  <section id="s4">
+    <h2 class="sec"><span class="num">§ 04</span>Paquete <code>internal/core/i18n</code></h2>
+    <p class="section-lede">Motor mínimo, sin deps.</p>
+    <div class="code">
+      <button class="copy">copy</button>
+<pre><span class="k">type</span> Lang <span class="k">string</span>
+<span class="k">const</span> ( En Lang = <span class="s">"en"</span>; Es Lang = <span class="s">"es"</span> )
+
+<span class="c">// catalog[key][lang] = plantilla. Keys = IDs estables por área.</span>
+<span class="k">var</span> catalog = <span class="k">map</span>[<span class="k">string</span>]<span class="k">map</span>[Lang]<span class="k">string</span>{ <span class="c">/* ... */</span> }
+
+<span class="c">// T: key→lang; falta lang → fallback En; falta key → devuelve la key (ruidoso).</span>
+<span class="k">func</span> T(l Lang, key <span class="k">string</span>, a ...<span class="k">any</span>) <span class="k">string</span>
+
+<span class="c">// Resolve: precedencia env → cfg → En.</span>
+<span class="k">func</span> Resolve(cfgLang <span class="k">string</span>) Lang</pre>
+    </div>
+    <ul>
+      <li><strong>Keys</strong>: IDs namespaced por área — <code>profile.added</code>, <code>err.profile.notfound</code>, <code>status.active</code>, <code>tui.panel.profiles</code>. Convención <code>&lt;area&gt;.&lt;concepto&gt;[.&lt;detalle&gt;]</code>.</li>
+      <li><strong>Args</strong>: plantillas con verbos <code>fmt</code> (<code>%s</code>, <code>%q</code>, <code>%d</code>); <code>T</code> hace <code>Sprintf</code>.</li>
+      <li><strong>Fallback ruidoso</strong>: key faltante → devuelve la key literal (visible), no panic. Un test la caza antes de release.</li>
+    </ul>
+    <div class="note"><b>core no imprime prosa.</b> <code>internal/core</code> sigue devolviendo datos/errores estructurados; los errores de cara al usuario se mapean a keys en la capa <code>cli</code>/<code>tui</code>. Se mantiene la regla del repo.</div>
+  </section>
+
+  <section id="s5">
+    <h2 class="sec"><span class="num">§ 05</span>Storage — <code>ccp.yaml</code></h2>
+    <div class="code">
+      <button class="copy">copy</button>
+<pre>version: <span class="s">2</span>
+lang: <span class="s">en</span>        <span class="c"># en | es ; ausente = en</span>
+defaults: { ... }
+profiles: { ... }
+rules: [ ... ]</pre>
+    </div>
+    <ul>
+      <li>Se añade <code>Lang string `yaml:"lang"`</code> al struct <code>Config</code> y <code>"lang"</code> a <code>knownTopKeys</code>.</li>
+      <li><strong>Schema sigue en version 2</strong>: campo aditivo y backward-compatible. Binarios viejos lo preservan vía el catch-all <code>Extra</code>; nuevos lo leen tipado.</li>
+      <li>Ausente o vacío ⇒ <code>en</code> (vía <code>Resolve</code>).</li>
+    </ul>
+  </section>
+
+  <section id="s6">
+    <h2 class="sec"><span class="num">§ 06</span>Selección: comando <code>ccp lang</code> + TUI</h2>
+    <div class="code">
+      <button class="copy">copy</button>
+<pre>ccp lang            <span class="c"># muestra idioma actual + fuente (env / config / default)</span>
+ccp lang en         <span class="c"># persiste lang: en en ccp.yaml, confirma</span>
+ccp lang es         <span class="c"># persiste lang: es en ccp.yaml, confirma</span></pre>
+    </div>
+    <ul>
+      <li>Se añade <code>case "lang":</code> al dispatch en <code>internal/cli/cli.go</code>.</li>
+      <li><code>ccp lang &lt;x&gt;</code> inválido → error traducido + exit no-cero.</li>
+      <li>Se añade <code>lang</code> al word-list de completion (<code>core/shellinit.go</code>) → toca el contrato verbatim, <strong>oráculo + golden en lockstep</strong> (§08).</li>
+    </ul>
+    <h3>TUI</h3>
+    <ul>
+      <li>Tecla <strong><code>L</code></strong> cicla <code>en ↔ es</code>, persiste en <code>ccp.yaml</code>, re-renderiza.</li>
+      <li>El footer de teclas y la línea de status muestran el binding y el idioma activo.</li>
+    </ul>
+  </section>
+
+  <section id="s7">
+    <h2 class="sec"><span class="num">§ 07</span>Alcance de traducción</h2>
+    <table>
+      <thead><tr><th>Superficie</th><th>¿Traduce?</th><th>Nota</th></tr></thead>
+      <tbody>
+        <tr><td>CLI help (<code>help.go</code>)</td><td><strong>Sí</strong></td><td>bloque grande de prosa</td></tr>
+        <tr><td>CLI errores / mensajes / status text</td><td><strong>Sí</strong></td><td>~mayoría de las 163 strings</td></tr>
+        <tr><td>TUI labels / hints / paneles / footer</td><td><strong>Sí</strong></td><td><code>internal/tui/*</code></td></tr>
+        <tr><td>Errores de core de cara al usuario</td><td><strong>Sí</strong> (vía keys)</td><td>core devuelve datos/errores estructurados</td></tr>
+        <tr><td><code>resolve</code> (nombre de perfil)</td><td>No</td><td>idioma-neutral</td></tr>
+        <tr><td><code>_env</code> / <code>_hook</code> (exports)</td><td>No</td><td>contrato máquina</td></tr>
+        <tr><td><code>status --json</code> (claves)</td><td>No</td><td>contrato máquina</td></tr>
+        <tr><td>completion word-lists</td><td>No (salvo añadir <code>lang</code>)</td><td>nombres de comando en inglés</td></tr>
+        <tr><td>shell-init / función rc (comentarios)</td><td><strong>No</strong></td><td>plumbing one-time, contrato congelado</td></tr>
+        <tr><td><code>install.sh</code> mensajes</td><td><strong>No</strong> (EN-only)</td><td>corre antes de existir config</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="s8">
+    <h2 class="sec"><span class="num">§ 08</span>Paridad golden / oráculo bash</h2>
+    <p>El oráculo bash en <code>legacy/</code> es el contrato congelado, en español. La estrategia:</p>
+    <ul>
+      <li><code>testdata/golden/capture.sh</code> y <code>internal/golden/parity_test.go</code> corren el binario Go con <strong><code>CCP_LANG=es</code></strong> para igualar al oráculo. Las surfaces con prosa (<code>env-missing</code>, etc.) salen en español y matchean.</li>
+      <li>Las surfaces máquina (<code>resolve</code>, <code>_env</code>, <code>_hook</code>, <code>status --json</code>, completion code) son idioma-neutrales y no cambian.</li>
+      <li><strong>Único cambio de contrato</strong>: el word-list de completion gana <code>lang</code>. Se actualiza el heredoc <code>COMPLETION_BASH</code>/<code>COMPLETION_ZSH</code> del oráculo, se regenera el golden con <code>capture.sh</code>, y se mantiene <code>parity_test.go</code> verde.</li>
+      <li>El oráculo bash <strong>no se traduce</strong>: queda como está.</li>
+    </ul>
+  </section>
+
+  <section id="s9">
+    <h2 class="sec"><span class="num">§ 09</span>README bilingüe</h2>
+    <ul>
+      <li><code>README.md</code> = <strong>EN</strong> (default, traducido del actual). <code>README.es.md</code> = <strong>ES</strong> (curado del actual).</li>
+      <li><code>README.html</code> = <strong>EN</strong>. <code>README.es.html</code> = <strong>ES</strong> (estilo Anthropic existente; se traduce el contenido, se conserva paleta/tipografía/layout).</li>
+      <li><strong>Selector</strong> arriba de cada archivo: en EN, <code>**English** · [Español](README.es.md)</code>; en ES, <code>[English](README.md) · **Español**</code>. Equivalente en los HTML (par de links arriba del hero).</li>
+    </ul>
+    <div class="note"><b>Fixture aparte.</b> <code>testdata/golden/README.md</code> es el readme del fixture y <strong>no se toca</strong>.</div>
+  </section>
+
+  <section id="s10">
+    <h2 class="sec"><span class="num">§ 10</span>Testing</h2>
+    <ul>
+      <li><code>i18n_test.go</code>: <code>Resolve</code> (orden env → cfg → En; inválido → En); <code>T</code> (args/Sprintf; key faltante → key; lang faltante → fallback En).</li>
+      <li><strong>Completitud</strong>: toda key referenciada existe con <strong>ambos</strong> <code>en</code> y <code>es</code> (no huérfanas, no incompletas).</li>
+      <li><strong>Parity gate</strong> verde con <code>CCP_LANG=es</code> (incluye el nuevo <code>lang</code> en completion).</li>
+      <li><strong>Smoke TUI</strong>: render del dashboard en <code>en</code> y <code>es</code> no rompe.</li>
+      <li><code>gofmt</code> / <code>go vet</code> / <code>golangci-lint</code> limpios.</li>
+    </ul>
+  </section>
+
+  <section id="s11">
+    <h2 class="sec"><span class="num">§ 11</span>Riesgos &amp; pendientes</h2>
+    <table>
+      <thead><tr><th>#</th><th>Item</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>11.1</td><td>Completion verbatim: añadir <code>lang</code> toca el contrato</td><td>Mitigado — oráculo + golden lockstep (§08)</td></tr>
+        <tr><td>11.2</td><td>Volumen: ~163 strings a traducción manual</td><td>Mecánico pero grande — por áreas/tandas</td></tr>
+        <tr><td>11.3</td><td>Keys huérfanas/incompletas al migrar literales</td><td>Mitigado — test de completitud (§10)</td></tr>
+        <tr><td>11.4</td><td>Deriva README EN/ES (se actualiza uno y no el otro)</td><td>Abierto — editar ambos en lockstep, nota en CLAUDE.md</td></tr>
+        <tr><td>11.5</td><td>Tests que asertan prosa ES literal (<code>version_test.go</code> etc.)</td><td>Auditar — comparar contra <code>i18n.T(Es, key)</code> o fijar lang</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="s12">
+    <h2 class="sec"><span class="num">§ 12</span>Criterios de aceptación</h2>
+    <ul>
+      <li><code>ccp help</code> sin config previa sale en <strong>inglés</strong>; <code>CCP_LANG=es ccp help</code> en español.</li>
+      <li><code>ccp lang es</code> persiste; invocación posterior (sin env) sale en español; <code>ccp lang</code> reporta <code>es</code> fuente <code>config</code>.</li>
+      <li><code>CCP_LANG=en ccp lang</code> (con <code>lang: es</code> en config) reporta <code>en</code> fuente <code>env</code>.</li>
+      <li>TUI: tecla <code>L</code> cambia el idioma en vivo y persiste.</li>
+      <li>Toda key tiene <code>en</code> + <code>es</code>; ninguna pantalla muestra una key cruda.</li>
+      <li><code>README.md</code>/<code>README.html</code> en inglés con selector a ES; <code>README.es.*</code> en español.</li>
+      <li><code>go test ./...</code> verde, incluido el parity gate (<code>CCP_LANG=es</code>) con <code>lang</code> en completion.</li>
+    </ul>
+  </section>
+
+  <section id="s13">
+    <h2 class="sec"><span class="num">§ 13</span>Distribución / compartir</h2>
+    <p class="section-lede">Apéndice a pedido: tangencial a i18n, pero deja por escrito el canal de distribución.</p>
+    <p><code>ccp</code> es un binario Go multiplataforma (darwin/linux × amd64/arm64) ya distribuido por <strong>GitHub Releases</strong> (prebuilt + <code>checksums.txt</code>) e <code>install.sh</code> (<code>release.yml</code> corre en cada tag <code>v*</code>). Para compartir <strong>solo con quien reciba el enlace</strong>, ese es el canal elegido:</p>
+    <ul>
+      <li>Compartes el one-liner <code>curl -fsSL &lt;url&gt;/install.sh | sh</code> (o el link directo al asset del release).</li>
+      <li><strong>Link-only real</strong>: le das la URL a quien quieras; nada se publica en un registro descubrible.</li>
+      <li><strong>Sin Node</strong>: el instalador detecta OS/arch, baja el binario del release y verifica <code>sha256</code>. El recipiente no necesita toolchain.</li>
+      <li>Versionado por tag: pinear a <code>vX.Y.Z</code> apuntando al asset de ese release.</li>
+    </ul>
+    <div class="note"><b>npm / pnpm / npx — descartado por ahora.</b> npm y pnpm son <em>gestores</em> (instalan lo mismo); npx solo <em>ejecuta</em> un paquete npm — no es un canal aparte. Publicar a npm daría <code>npx ccp</code> sin instalación, pero el registro es <strong>público y descubrible</strong> (contradice link-only), exige un <strong>wrapper</strong> que baje el release en <code>postinstall</code> (patrón esbuild) + <strong>Node</strong> en la máquina del recipiente. npm privado/scoped sería link+token gated pero añade npm auth (de pago) y fricción.</div>
+    <p>Evolución: si más adelante se quiere distribución pública con ergonomía <code>npx ccp</code>, se añade el wrapper npm <strong>sobre los mismos GitHub Releases</strong> (los binarios no cambian).</p>
+  </section>
+
+  <section id="s14">
+    <h2 class="sec"><span class="num">§ 14</span>Plan por fases</h2>
+    <ol class="proc">
+      <li><strong>Paquete i18n</strong> — <code>internal/core/i18n</code>: <code>Lang</code>, <code>Resolve</code>, <code>T</code>, catálogo vacío + tests del motor.</li>
+      <li><strong>Storage + comando</strong> — campo <code>lang</code> en <code>Config</code>/<code>knownTopKeys</code>; <code>ccp lang</code>; <code>lang</code> en completion + oráculo + regolden.</li>
+      <li><strong>Catálogo CLI</strong> — migrar literales de <code>internal/cli</code> (help, errores, status, mensajes) a keys en/es.</li>
+      <li><strong>Catálogo TUI</strong> — migrar <code>internal/tui</code> (labels/hints/paneles/footer); toggle <code>L</code>.</li>
+      <li><strong>Core errors</strong> — mapear errores de cara al usuario a keys; auditar tests que asertan prosa.</li>
+      <li><strong>README bilingüe</strong> — <code>README.md</code>/<code>README.es.md</code> + <code>README.html</code>/<code>README.es.html</code> + selectores.</li>
+      <li><strong>Verify</strong> — completitud de keys, parity verde, smoke EN/ES, criterios end-to-end.</li>
+    </ol>
+  </section>
+
+  <footer>
+    <span>ccp spec · terminal bilingüe + README EN/ES</span>
+    <span>v0.1 — 2026-06-02</span>
+  </footer>
+
+</div>
+<script>
+  document.querySelectorAll('.copy').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var pre = btn.parentElement.querySelector('pre');
+      var txt = pre.innerText;
+      navigator.clipboard.writeText(txt).then(function(){
+        var old = btn.textContent; btn.textContent = 'copied';
+        setTimeout(function(){ btn.textContent = old; }, 1200);
+      });
+    });
+  });
+</script>
+</body>
+</html>

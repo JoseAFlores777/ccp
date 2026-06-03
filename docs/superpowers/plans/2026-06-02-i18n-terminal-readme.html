@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ccp — Plan de implementación: terminal bilingüe + README EN/ES</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f4f1ea; --paper-2:#ece7dd;
+    --ink:#1a1915; --ink-soft:#3a3833; --ink-mute:#6f6a60;
+    --rule:#d8d2c4; --accent:#c96442; --accent-soft:#e8a48a;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0; background:var(--paper); color:var(--ink-soft);
+    font-family:'Inter',sans-serif; font-size:17px; line-height:1.62; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:980px; margin:0 auto; padding:64px 32px 96px;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  .eyebrow{font-family:'JetBrains Mono',monospace; text-transform:uppercase;
+    letter-spacing:.22em; font-size:12px; color:var(--accent); margin:0 0 18px;}
+  h1{font-family:'Tinos',serif; font-weight:700; font-size:56px; line-height:1.06;
+    color:var(--ink); margin:0 0 22px; letter-spacing:-.01em;}
+  h1 em{font-style:italic; color:var(--accent);}
+  .lede{font-size:21px; line-height:1.5; color:var(--ink-soft); max-width:46em; margin:0 0 28px;}
+  .meta{display:flex; flex-wrap:wrap; gap:10px 26px; font-family:'JetBrains Mono',monospace;
+    font-size:12.5px; color:var(--ink-mute); border-top:1px solid var(--rule);
+    border-bottom:1px solid var(--rule); padding:16px 0; margin:0 0 8px;}
+  .meta b{color:var(--ink); font-weight:500;}
+  .pass{color:#3f7d4e; font-weight:600;}
+
+  nav.toc{margin:48px 0 8px; padding:28px 32px; background:var(--paper-2);
+    border:1px solid var(--rule); border-radius:4px;}
+  nav.toc h2{font-family:'JetBrains Mono',monospace; text-transform:uppercase;
+    letter-spacing:.18em; font-size:11px; color:var(--ink-mute); margin:0 0 16px;}
+  nav.toc ol{list-style:none; margin:0; padding:0; columns:2; column-gap:48px;}
+  nav.toc li{margin:0 0 9px; break-inside:avoid;}
+  nav.toc a{color:var(--ink-soft); text-decoration:none; font-size:15px;
+    border-bottom:1px solid transparent; transition:border-color .15s,color .15s;}
+  nav.toc a:hover{color:var(--ink); border-bottom-color:var(--accent);}
+  nav.toc a .n{font-family:'JetBrains Mono',monospace; color:var(--accent);
+    font-size:12.5px; margin-right:10px;}
+
+  section{padding:46px 0; border-bottom:1px solid var(--rule); scroll-margin-top:24px;}
+  section:last-of-type{border-bottom:none;}
+  h2.sec{font-family:'Tinos',serif; font-weight:700; font-size:31px; color:var(--ink);
+    margin:0 0 6px; letter-spacing:-.005em; display:flex; align-items:baseline; gap:16px;}
+  h2.sec .num{font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--accent);
+    font-weight:500; flex:none;}
+  .section-lede{color:var(--ink-mute); font-size:16px; margin:0 0 22px; max-width:44em;}
+  h3{font-family:'Inter',sans-serif; font-weight:600; font-size:18px; color:var(--ink); margin:30px 0 10px;}
+  .task{background:var(--paper-2); border:1px solid var(--rule); border-radius:6px;
+    padding:18px 22px; margin:18px 0;}
+  .task h3{margin:0 0 6px; color:var(--ink);}
+  .files{font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--ink-mute); margin:0 0 12px;}
+  .files b{color:var(--accent); font-weight:500;}
+  p{margin:0 0 16px; max-width:46em;}
+  ul,ol.proc{max-width:46em; padding-left:22px;}
+  li{margin:0 0 7px;}
+  code{font-family:'JetBrains Mono',monospace; font-size:.86em; background:var(--paper);
+    padding:1.5px 6px; border-radius:3px; color:var(--ink); border:1px solid var(--rule);}
+  strong{color:var(--ink); font-weight:600;}
+
+  .code{position:relative; margin:8px 0 18px;}
+  pre{font-family:'JetBrains Mono',monospace; font-size:13px; line-height:1.6;
+    background:#23211c; color:#e9e3d4; padding:18px 20px; border-radius:6px; overflow-x:auto; margin:0;}
+  pre .c{color:#8a8270; font-style:italic;}
+  pre .k{color:#e8a48a;}
+  pre .s{color:#b7c89a;}
+  .copy{position:absolute; top:9px; right:9px; font-family:'JetBrains Mono',monospace;
+    font-size:11px; background:#39352c; color:#cfc7b4; border:1px solid #4a4538;
+    border-radius:4px; padding:4px 9px; cursor:pointer; opacity:.7; transition:opacity .15s;}
+  .copy:hover{opacity:1;}
+
+  .note{border-left:3px solid var(--accent); background:var(--paper-2);
+    padding:14px 18px; border-radius:0 4px 4px 0; margin:0 0 18px; font-size:15px; max-width:46em;}
+  .note b{color:var(--accent);}
+
+  table{width:100%; border-collapse:collapse; margin:8px 0 22px; font-size:14.5px;}
+  th,td{text-align:left; padding:9px 13px; border-bottom:1px solid var(--rule); vertical-align:top;}
+  th{font-family:'JetBrains Mono',monospace; font-size:11.5px; text-transform:uppercase;
+    letter-spacing:.08em; color:var(--ink-mute); font-weight:500; background:var(--paper-2);}
+  td code{background:transparent; border:none; padding:0;}
+
+  footer{margin-top:40px; padding-top:24px; border-top:1px solid var(--rule);
+    font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--ink-mute);
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;}
+
+  @media(max-width:760px){
+    .wrap{padding:40px 20px 64px;}
+    h1{font-size:38px;}
+    .lede{font-size:18px;}
+    nav.toc ol{columns:1;}
+    h2.sec{font-size:25px; gap:10px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <p class="eyebrow">Plan · superpowers</p>
+    <h1>i18n para ccp — terminal <em>bilingüe</em>, EN default</h1>
+    <p class="lede">Plan de implementación por fases: paquete <code>i18n</code>, comando <code>ccp lang</code>, barrido de ~163 strings a un catálogo en/es, toggle <code>L</code> en la TUI, paridad golden en <code>CCP_LANG=es</code> y README/HTML bilingües.</p>
+    <div class="meta">
+      <span><b>Goal</b> terminal EN/ES seleccionable (EN default) + README EN/ES</span>
+      <span><b>Fecha</b> 2026-06-02</span>
+      <span><b>Spec</b> 2026-06-02-i18n-terminal-readme-design</span>
+      <span><b>Ejecución</b> subagent-driven (recomendado)</span>
+    </div>
+  </header>
+
+  <div class="note"><b>Regla del repo:</b> nunca <code>git commit</code>/<code>push</code> sin autorización explícita del usuario en el turno; los pasos "Commit" son el commit a <em>proponer</em> (staged + preguntar). Nunca añadir trailer <code>Co-Authored-By</code>.</div>
+
+  <nav class="toc">
+    <h2>Fases</h2>
+    <ol>
+      <li><a href="#p1"><span class="n">01</span>Motor i18n (Tasks 1-2)</a></li>
+      <li><a href="#p2"><span class="n">02</span>Storage + lang + golden (3-6)</a></li>
+      <li><a href="#p3"><span class="n">03</span>Traducción CLI (Task 7)</a></li>
+      <li><a href="#p4"><span class="n">04</span>Traducción TUI + toggle (8)</a></li>
+      <li><a href="#p5"><span class="n">05</span>Core errors + tests (9)</a></li>
+      <li><a href="#p6"><span class="n">06</span>README bilingüe (10)</a></li>
+      <li><a href="#p7"><span class="n">07</span>Verificación (11)</a></li>
+    </ol>
+  </nav>
+
+  <section id="p1">
+    <h2 class="sec"><span class="num">§ 01</span>Motor i18n</h2>
+    <p class="section-lede">Paquete <code>internal/core/i18n</code>: resolución + catálogo, todo bajo TDD.</p>
+
+    <div class="task">
+      <h3>Task 1 — Lang + Resolve</h3>
+      <p class="files"><b>Create</b> internal/core/i18n/i18n.go · <b>Test</b> i18n_test.go</p>
+      <p>Precedencia <code>CCP_LANG</code> (env) → <code>cfgLang</code> → <code>En</code>; valor inválido cae a <code>En</code>. <code>ResolveWithSource</code> reporta la fuente para <code>ccp lang</code>.</p>
+      <div class="code"><button class="copy">copy</button>
+<pre><span class="k">func</span> ResolveWithSource(cfgLang <span class="k">string</span>) (Lang, Source) {
+    <span class="k">if</span> l, ok := normalize(os.Getenv(<span class="s">"CCP_LANG"</span>)); ok { <span class="k">return</span> l, SourceEnv }
+    <span class="k">if</span> l, ok := normalize(cfgLang); ok { <span class="k">return</span> l, SourceConfig }
+    <span class="k">return</span> En, SourceDefault
+}
+<span class="c">// normalize: trim+lower, acepta solo en/es.</span></pre>
+      </div>
+    </div>
+
+    <div class="task">
+      <h3>Task 2 — Motor T + register + completitud</h3>
+      <p class="files"><b>Create</b> catalog.go · <b>Test</b> catalog_test.go</p>
+      <p><code>T</code>: falta lang → fallback <code>En</code>; falta key → devuelve la key cruda (ruidoso). <code>register</code> fusiona sub-catálogos por área y entra en pánico ante key duplicada. <strong>TestCatalogComplete</strong> exige en+es por key — la red de seguridad del barrido.</p>
+      <div class="code"><button class="copy">copy</button>
+<pre><span class="k">func</span> T(l Lang, key <span class="k">string</span>, a ...<span class="k">any</span>) <span class="k">string</span> {
+    m, ok := catalog[key];      <span class="k">if</span> !ok { <span class="k">return</span> key }
+    tmpl, ok := m[l];           <span class="k">if</span> !ok { tmpl = m[En] }
+    <span class="k">if</span> len(a) == <span class="s">0</span> { <span class="k">return</span> tmpl }
+    <span class="k">return</span> fmt.Sprintf(tmpl, a...)
+}</pre>
+      </div>
+    </div>
+  </section>
+
+  <section id="p2">
+    <h2 class="sec"><span class="num">§ 02</span>Storage + comando lang + golden</h2>
+
+    <div class="task">
+      <h3>Task 3 — Campo <code>lang</code> en Config</h3>
+      <p class="files"><b>Modify</b> internal/core/store.go (struct + knownTopKeys)</p>
+      <p>Campo aditivo, schema sigue <strong>v2</strong>. <code>Lang string `yaml:"lang,omitempty"`</code> + <code>"lang"</code> en <code>knownTopKeys</code>. Test de round-trip Save/Load.</p>
+    </div>
+
+    <div class="task">
+      <h3>Task 4 — Helper <code>currentLang()</code></h3>
+      <p class="files"><b>Create</b> internal/cli/i18n.go</p>
+      <p>Best-effort para paths sin cfg (help/version/unknown): carga cfg, cae a <code>Resolve("")</code> si falla. Comandos con cfg ya cargada usan <code>i18n.Resolve(cfg.Lang)</code> directo.</p>
+    </div>
+
+    <div class="task">
+      <h3>Task 5 — Comando <code>ccp lang</code></h3>
+      <p class="files"><b>Create</b> lang.go, lang_test.go · <b>Modify</b> cli.go (dispatch) · catalog_cli.go (keys lang.*)</p>
+      <div class="code"><button class="copy">copy</button>
+<pre><span class="k">if</span> len(args) == <span class="s">0</span> {
+    l, src := i18n.ResolveWithSource(cfg.Lang)
+    fmt.Fprintln(stdout, i18n.T(l, <span class="s">"lang.current"</span>, string(l), string(src)))
+    <span class="k">return</span> <span class="s">0</span>
+}
+want := args[<span class="s">0</span>]
+<span class="k">if</span> want != <span class="s">"en"</span> && want != <span class="s">"es"</span> {
+    fmt.Fprintln(stderr, i18n.T(i18n.Resolve(cfg.Lang), <span class="s">"lang.invalid"</span>, want)); <span class="k">return</span> <span class="s">1</span>
+}
+cfg.Lang = want; core.Save(home, cfg)
+fmt.Fprintln(stdout, i18n.T(i18n.Lang(want), <span class="s">"lang.set"</span>, want))</pre>
+      </div>
+    </div>
+
+    <div class="task">
+      <h3>Task 6 — <code>lang</code> en completion + paridad golden</h3>
+      <p class="files"><b>Modify</b> shellinit.go (3 word-lists), legacy/bin/ccp (2), parity_test.go · <b>Regen</b> golden completion-*.out</p>
+      <p>Único cambio de contrato: el word-list de completion gana <code>lang</code> (tras <code>resolve</code>). Se actualiza el oráculo bash en lockstep y se regenera el golden. <code>parity_test.go</code> inyecta <code>CCP_LANG=es</code> para igualar la prosa española del oráculo.</p>
+      <div class="code"><button class="copy">copy</button>
+<pre>cmd.Env = append(os.Environ(),
+    <span class="s">"CCP_HOME="</span>+work, <span class="s">"NO_COLOR=1"</span>, <span class="s">"PWD="</span>+pwd,
+    <span class="s">"CCP_LANG=es"</span>, <span class="c">// igualar al oráculo bash</span>
+)
+<span class="c"># luego: bash testdata/golden/capture.sh && ... --check && go test ./internal/golden/</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <section id="p3">
+    <h2 class="sec"><span class="num">§ 03</span>Traducción del CLI</h2>
+    <p class="section-lede">Task 7 — barrido mecánico, guardado por TestCatalogComplete + parity + build.</p>
+    <h3>Procedimiento por literal</h3>
+    <ol class="proc">
+      <li>Key namespaced <code>cli.&lt;área&gt;.&lt;concepto&gt;</code>.</li>
+      <li>Entrada <code>{En:"…", Es:"&lt;literal español actual byte-a-byte&gt;"}</code> en <code>catalog_cli.go</code>; traducir el EN.</li>
+      <li>Resolver lang: con cfg → <code>i18n.Resolve(cfg.Lang)</code>; sin cfg → <code>currentLang()</code>.</li>
+      <li>Reemplazar el literal por <code>i18n.T(lang, "key", args…)</code>, moviendo <code>%s/%d</code> a la plantilla.</li>
+    </ol>
+    <div class="note"><b>Constraint de paridad.</b> La única prosa que el golden captura es el warning de <code>_env</code> perfil-faltante. Su ES debe calcar exacto (incluido el <strong>doble espacio</strong> tras ⚠️): <code>⚠️&nbsp;&nbsp;ccp: perfil %s no existe; usando default</code>. Como parity corre en <code>CCP_LANG=es</code>, se usa el ES y debe matchear byte-a-byte.</div>
+    <p>Archivos del barrido: <code>cli.go</code>, <code>present.go</code> (<code>humanType</code>→keys), <code>status.go</code>, <code>config.go</code>, <code>doctor.go</code>, <code>install.go</code>, <code>instruct.go</code>, <code>help.go</code> (el bloque grande), <code>path.go</code>, <code>key.go</code>, <code>profile.go</code>, <code>backup.go</code>, <code>upgrade.go</code>. Smoke: <code>ccp help</code> EN vs <code>CCP_LANG=es ccp help</code> ES; ninguna key cruda.</p>
+  </section>
+
+  <section id="p4">
+    <h2 class="sec"><span class="num">§ 04</span>Traducción TUI + toggle</h2>
+    <p class="section-lede">Task 8 — <code>lang</code> en el model, tecla <code>L</code>, barrido de labels.</p>
+    <div class="code"><button class="copy">copy</button>
+<pre><span class="k">case</span> <span class="s">"L"</span>, <span class="s">"l"</span>:
+    <span class="k">if</span> m.lang == i18n.Es { m.lang = i18n.En } <span class="k">else</span> { m.lang = i18n.Es }
+    m.cfg.Lang = string(m.lang)
+    _ = core.Save(m.home, m.cfg) <span class="c">// persistir; error no rompe la TUI</span>
+    <span class="k">return</span> m, <span class="k">nil</span></pre>
+    </div>
+    <p>Barrido de <code>dashboard.go</code>/<code>forms.go</code>/<code>status.go</code>/<code>tui.go</code> con keys <code>tui.*</code>; añadir <code>L idioma</code> al footer. Smoke test que renderiza el dashboard en en y es y verifica que no aparezca ninguna key cruda (<code>tui.</code>).</p>
+  </section>
+
+  <section id="p5">
+    <h2 class="sec"><span class="num">§ 05</span>Core errors + auditoría de tests</h2>
+    <p class="section-lede">Task 9 — presentar errores de core de cara al usuario vía keys; auditar tests con prosa.</p>
+    <p><code>internal/core</code> sigue devolviendo errores estructurados; cli/tui los presentan con <code>i18n.T(lang, "core.err.x", …)</code>. No todo error técnico se traduce — solo el que el usuario ve textualmente. Tests que asertan prosa española (p.ej. <code>version_test.go</code>) se fijan a <code>CCP_LANG=es</code> o comparan contra <code>i18n.T(i18n.Es, key)</code>. Surfaces máquina (resolve/json/env) no se tocan.</p>
+  </section>
+
+  <section id="p6">
+    <h2 class="sec"><span class="num">§ 06</span>README bilingüe</h2>
+    <p class="section-lede">Task 10 — EN default + ES, con selector cruzado.</p>
+    <ol class="proc">
+      <li>Snapshot del README español actual como <code>README.es.md</code> / <code>README.es.html</code>.</li>
+      <li>Selector arriba: EN → <code>**English** · [Español](README.es.md)</code>; ES → <code>[English](README.md) · **Español**</code> (y equivalente en HTML).</li>
+      <li>Traducir <code>README.md</code> y <code>README.html</code> a inglés (comandos NO se traducen); conservar screenshots/estilo.</li>
+      <li>Añadir sección "Language / Idioma": <code>ccp lang en|es</code>, <code>CCP_LANG</code>, tecla <code>L</code>.</li>
+    </ol>
+  </section>
+
+  <section id="p7">
+    <h2 class="sec"><span class="num">§ 07</span>Verificación final</h2>
+    <p class="section-lede">Task 11 — gates verdes + criterios de aceptación.</p>
+    <div class="code"><button class="copy">copy</button>
+<pre>gofmt -l internal cmd && go vet ./... && golangci-lint run
+go test ./... && bash legacy/tests/run.sh && bash testdata/golden/capture.sh --check
+
+<span class="c"># aceptación</span>
+H=$(mktemp -d)
+CCP_HOME=$H ccp help | head -1                <span class="c"># EN (default)</span>
+CCP_HOME=$H CCP_LANG=es ccp help | head -1     <span class="c"># ES (env)</span>
+CCP_HOME=$H ccp lang es; CCP_HOME=$H ccp lang  <span class="c"># persiste => es/config</span>
+CCP_HOME=$H CCP_LANG=en ccp lang               <span class="c"># => en/env</span></pre>
+    </div>
+    <table>
+      <thead><tr><th>Criterio</th><th>Verifica</th></tr></thead>
+      <tbody>
+        <tr><td>EN por defecto, ES por env/config</td><td>acceptance manual</td></tr>
+        <tr><td>Toda key en+es; sin keys crudas</td><td>TestCatalogComplete + smoke</td></tr>
+        <tr><td>Parity verde con <code>lang</code> en completion</td><td>go test ./internal/golden/</td></tr>
+        <tr><td>README EN/ES con selector</td><td>open README.html / README.es.html</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <span>ccp plan · terminal bilingüe + README EN/ES</span>
+    <span>2026-06-02 · 11 tasks / 7 fases</span>
+  </footer>
+
+</div>
+<script>
+  document.querySelectorAll('.copy').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var pre = btn.parentElement.querySelector('pre');
+      navigator.clipboard.writeText(pre.innerText).then(function(){
+        var old = btn.textContent; btn.textContent = 'copied';
+        setTimeout(function(){ btn.textContent = old; }, 1200);
+      });
+    });
+  });
+</script>
+</body>
+</html>
