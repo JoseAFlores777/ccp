@@ -22,9 +22,9 @@ func cmdDoctor(_ []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	fmt.Fprintln(stdout, hrLine)
+	fmt.Fprintln(stdout, hr(stdout))
 	fmt.Fprintf(stdout, " %s\n", boldLine(stdout, "Diagnóstico"))
-	fmt.Fprintln(stdout, hrLine)
+	fmt.Fprintln(stdout, hr(stdout))
 
 	allOK := true
 	for _, c := range checks {
@@ -33,7 +33,7 @@ func cmdDoctor(_ []string, stdout, stderr io.Writer) int {
 			allOK = false
 		}
 	}
-	fmt.Fprintln(stdout, hrLine)
+	fmt.Fprintln(stdout, hr(stdout))
 
 	if allOK {
 		return 0

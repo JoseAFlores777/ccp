@@ -276,13 +276,40 @@ func (m *model) viewForm() string {
 	return "\n" + boxStyleFocused.Width(m.panelWidth()).Render(header+"\n\n"+body) + "\n"
 }
 
-// viewDashboard pinta el header con versión, los 3 paneles en cajas, la barra de
+// logoBanner pinta el logo de ccp: dos bichos pixel-art tomados de la mano (uno
+// terracota y otro terracota pálido, las dos identidades que ccp enruta) con el
+// wordmark y la versión debajo.
+func logoBanner() string {
+	orange := lipgloss.NewStyle().Foreground(cAccent)
+	pale := lipgloss.NewStyle().Foreground(cPale)
+	body := [5]string{
+		" ████████ ",
+		" ██ ██ ██ ", // 2 ojos
+		"██████████", // orejas/brazos
+		" ████████ ",
+		" █ █  █ █ ", // patas
+	}
+	var b strings.Builder
+	for i := 0; i < 5; i++ {
+		b.WriteString(orange.Render(body[i]))
+		if i == 2 { // fila de los brazos: manos unidas
+			b.WriteString(orange.Render("▬") + pale.Render("▬"))
+		} else {
+			b.WriteString("  ")
+		}
+		b.WriteString(pale.Render(body[i]) + "\n")
+	}
+	b.WriteString(styleBrand.Render("ccp") +
+		styleSub.Render(" v"+core.Version+" — perfiles y cuentas de Claude Code"))
+	return b.String()
+}
+
+// viewDashboard pinta el header con el logo, los 3 paneles en cajas, la barra de
 // comandos (si activa), la línea de estado y el footer de teclas.
 func (m *model) viewDashboard() string {
 	var b strings.Builder
 
-	b.WriteString(styleBrand.Render("ccp") +
-		styleSub.Render(" v"+core.Version+" — perfiles y cuentas de Claude Code") + "\n\n")
+	b.WriteString(logoBanner() + "\n\n")
 
 	b.WriteString(m.viewProfiles() + "\n")
 	b.WriteString(m.viewRules() + "\n")

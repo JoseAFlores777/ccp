@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
 )
@@ -51,8 +53,28 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "[error] %v\n", err)
 			return 1
 		}
+		// Con color: nombre en terracota + badge de tipo. Sin color (pipe): solo
+		// el nombre, una línea por perfil (byte-idéntico al oráculo bash).
+		if !useColor(stdout) {
+			for _, n := range names {
+				fmt.Fprintln(stdout, n)
+			}
+			return 0
+		}
+		cfg, _ := core.Load(home)
 		for _, n := range names {
-			fmt.Fprintln(stdout, n)
+			t := ""
+			if cfg != nil {
+				if p, ok := cfg.Profiles[n]; ok {
+					t = p.Type
+				}
+			}
+			pad := 18 - utf8.RuneCountInString(n)
+			if pad < 0 {
+				pad = 1
+			}
+			fmt.Fprintf(stdout, "%s%s%s\n",
+				accent(stdout, n), strings.Repeat(" ", pad), badgeType(stdout, humanType(t)))
 		}
 		return 0
 	case "show":

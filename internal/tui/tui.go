@@ -294,7 +294,8 @@ func min(a, b int) int {
 // Tema lipgloss — paleta terracota/papel (espeja la guía README.html).
 // Hex truecolor que termenv degrada a ANSI/none; honra NO_COLOR automáticamente.
 var (
-	cAccent = lipgloss.Color("#c96442") // terracota
+	cAccent = lipgloss.Color("#c96442") // terracota (bicho 1)
+	cPale   = lipgloss.Color("#e0a487") // terracota pálido (bicho 2)
 	cRule   = lipgloss.Color("#8a8378") // borde de panel sin foco
 	cOlive  = lipgloss.Color("#8a8b3f") // badge proveedor
 	cMute   = lipgloss.AdaptiveColor{Light: "#6f6a60", Dark: "#9a948a"}

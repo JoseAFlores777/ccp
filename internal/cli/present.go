@@ -9,6 +9,75 @@ import (
 // Coincide con statusHR de core para consistencia visual entre comandos.
 const hrLine = "──────────────────────────────────────────────"
 
+// Paleta terracota/papel (espeja la guía y el TUI). ANSI truecolor (38;2;r;g;b);
+// termenv del terminal lo degrada. Solo se emite tras pasar por useColor.
+const (
+	ansiAccent = "\x1b[38;2;201;100;66m"  // #c96442 terracota (bicho 1)
+	ansiPale   = "\x1b[38;2;224;164;135m" // #e0a487 terracota pálido (bicho 2)
+	ansiMute   = "\x1b[38;2;138;131;120m" // #8a8378
+	ansiOlive  = "\x1b[38;2;138;139;63m"  // #8a8b3f proveedor
+	ansiBold   = "\x1b[1m"
+	ansiReset  = "\x1b[0m"
+)
+
+// accent / mute / brand tiñen un fragmento solo si hay color; si no, lo devuelven
+// tal cual (la rama plain queda byte-idéntica para tests, golden y pipes).
+func accent(w io.Writer, s string) string {
+	if useColor(w) {
+		return ansiAccent + s + ansiReset
+	}
+	return s
+}
+
+func mute(w io.Writer, s string) string {
+	if useColor(w) {
+		return ansiMute + s + ansiReset
+	}
+	return s
+}
+
+func brand(w io.Writer, s string) string {
+	if useColor(w) {
+		return ansiAccent + ansiBold + s + ansiReset
+	}
+	return s
+}
+
+// hr devuelve la divisoria, atenuada cuando hay color.
+func hr(w io.Writer) string {
+	if useColor(w) {
+		return ansiMute + hrLine + ansiReset
+	}
+	return hrLine
+}
+
+// humanType traduce el tipo interno del perfil a su etiqueta en español.
+func humanType(t string) string {
+	switch t {
+	case "official":
+		return "oficial"
+	case "deepseek":
+		return "proveedor"
+	default:
+		return "default"
+	}
+}
+
+// badgeType tiñe el tipo de perfil (oficial/proveedor/default) cuando hay color.
+func badgeType(w io.Writer, t string) string {
+	if !useColor(w) {
+		return t
+	}
+	switch t {
+	case "official", "oficial":
+		return ansiAccent + t + ansiReset
+	case "deepseek", "proveedor":
+		return ansiOlive + t + ansiReset
+	default:
+		return ansiMute + t + ansiReset
+	}
+}
+
 // useColor decide si emitir secuencias ANSI: solo con TTY y sin NO_COLOR,
 // espejando los helpers ok/warn/err del bash.
 func useColor(w io.Writer) bool {
@@ -51,10 +120,10 @@ func statusLine(w io.Writer, ok bool, msg string) string {
 	return warnLine(w, msg)
 }
 
-// boldLine resalta un título de sección cuando hay color disponible.
+// boldLine resalta un título de sección en terracota cuando hay color.
 func boldLine(w io.Writer, msg string) string {
 	if useColor(w) {
-		return "\x1b[1m" + msg + "\x1b[0m"
+		return ansiAccent + ansiBold + msg + ansiReset
 	}
 	return msg
 }

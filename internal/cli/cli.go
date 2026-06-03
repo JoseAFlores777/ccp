@@ -54,7 +54,7 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 
 	switch cmd {
 	case "version", "--version", "-v":
-		fmt.Fprintf(stdout, "ccp v%s\n", core.Version)
+		fmt.Fprintf(stdout, "%s %s\n", brand(stdout, "ccp"), mute(stdout, "v"+core.Version))
 		return 0
 
 	// --- frontera binario↔shell (contrato eval-able) ---

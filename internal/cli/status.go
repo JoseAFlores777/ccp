@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
 )
@@ -40,6 +41,29 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 
-	io.WriteString(stdout, core.StatusHuman(active, rule, profileType, cwd, repo))
+	if useColor(stdout) {
+		io.WriteString(stdout, statusHumanColored(stdout, active, rule, profileType, cwd, repo))
+	} else {
+		io.WriteString(stdout, core.StatusHuman(active, rule, profileType, cwd, repo))
+	}
 	return 0
+}
+
+// statusHumanColored replica el bloque de core.StatusHuman con la paleta
+// terracota. Solo se usa con TTY; sin color se delega en core (oráculo bash).
+func statusHumanColored(w io.Writer, active, profile, profileType, cwd, repo string) string {
+	repoCell := accent(w, repo)
+	if repo == "" {
+		repoCell = mute(w, "no es git")
+	}
+	var b strings.Builder
+	fmt.Fprintln(&b, hr(w))
+	fmt.Fprintf(&b, " %s\n", boldLine(w, "Estado de ccp en esta terminal"))
+	fmt.Fprintln(&b, hr(w))
+	fmt.Fprintf(&b, " Perfil activo (terminal): %s\n", accent(w, active))
+	fmt.Fprintf(&b, " Perfil del cwd (regla):   %s  %s\n", accent(w, profile), mute(w, "("+profileType+")"))
+	fmt.Fprintf(&b, " Cwd:                      %s\n", mute(w, cwd))
+	fmt.Fprintf(&b, " Repo:                     %s\n", repoCell)
+	fmt.Fprintln(&b, hr(w))
+	return b.String()
 }

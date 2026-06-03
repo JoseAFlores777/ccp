@@ -48,15 +48,15 @@ func configShow(home string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
 	}
-	fmt.Fprintln(stdout, hrLine)
+	fmt.Fprintln(stdout, hr(stdout))
 	fmt.Fprintf(stdout, " %s\n", boldLine(stdout, "Plantilla para perfiles deepseek nuevos"))
-	fmt.Fprintln(stdout, hrLine)
-	fmt.Fprintf(stdout, " Base URL:    %s\n", d.BaseURL)
-	fmt.Fprintf(stdout, " Modelo pro:  %s\n", d.ModelPro)
-	fmt.Fprintf(stdout, " Modelo flash:%s\n", d.ModelFlash)
-	fmt.Fprintf(stdout, " Effort:      %s\n", d.Effort)
-	fmt.Fprintf(stdout, " Editor:      %s\n", d.Editor)
-	fmt.Fprintln(stdout, hrLine)
+	fmt.Fprintln(stdout, hr(stdout))
+	fmt.Fprintf(stdout, " Base URL:    %s\n", accent(stdout, d.BaseURL))
+	fmt.Fprintf(stdout, " Modelo pro:  %s\n", accent(stdout, d.ModelPro))
+	fmt.Fprintf(stdout, " Modelo flash:%s\n", accent(stdout, d.ModelFlash))
+	fmt.Fprintf(stdout, " Effort:      %s\n", accent(stdout, d.Effort))
+	fmt.Fprintf(stdout, " Editor:      %s\n", accent(stdout, d.Editor))
+	fmt.Fprintln(stdout, hr(stdout))
 	return 0
 }
 

@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
 )
@@ -112,21 +114,30 @@ func pathList(home string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
 	}
-	fmt.Fprintln(stdout, hrLine)
+	fmt.Fprintln(stdout, hr(stdout))
 	fmt.Fprintf(stdout, " %s\n", boldLine(stdout, "Reglas de PATH"))
-	fmt.Fprintln(stdout, hrLine)
+	fmt.Fprintln(stdout, hr(stdout))
 	if len(rules) == 0 {
 		fmt.Fprintln(stdout, "  (sin reglas — todo usa 'default')")
-		fmt.Fprintln(stdout, hrLine)
+		fmt.Fprintln(stdout, hr(stdout))
 		return 0
 	}
 	for _, r := range rules {
-		fmt.Fprintf(stdout, "   %-40s -> %s\n", r.Path, r.Profile)
+		if useColor(stdout) {
+			pad := 40 - utf8.RuneCountInString(r.Path)
+			if pad < 1 {
+				pad = 1
+			}
+			fmt.Fprintf(stdout, "   %s%s %s %s\n",
+				accent(stdout, r.Path), strings.Repeat(" ", pad), mute(stdout, "->"), accent(stdout, r.Profile))
+		} else {
+			fmt.Fprintf(stdout, "   %-40s -> %s\n", r.Path, r.Profile)
+		}
 	}
-	fmt.Fprintln(stdout, hrLine)
+	fmt.Fprintln(stdout, hr(stdout))
 	cwd := currentDir()
 	fmt.Fprintln(stdout, "Regla efectiva para el cwd:")
-	fmt.Fprintf(stdout, "   %s -> %s\n", cwd, core.Resolve(cwd, cfg.Rules))
-	fmt.Fprintln(stdout, hrLine)
+	fmt.Fprintf(stdout, "   %s %s %s\n", accent(stdout, cwd), mute(stdout, "->"), accent(stdout, core.Resolve(cwd, cfg.Rules)))
+	fmt.Fprintln(stdout, hr(stdout))
 	return 0
 }

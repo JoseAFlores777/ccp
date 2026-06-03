@@ -3,15 +3,76 @@ package cli
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
 )
 
 // cmdHelp imprime la ayuda de ccp. Espeja cmd_help del oráculo bash (resumen
 // de la superficie); sin args y con TTY, main.go lanza la TUI en su lugar.
+// Con color: título de marca, headers de sección en terracota y el token del
+// comando resaltado. Sin color (pipe/NO_COLOR) la salida queda byte-idéntica.
 func cmdHelp(w io.Writer) int {
-	fmt.Fprintf(w, "ccp v%s — router de perfiles y cuentas de Claude Code\n\n", core.Version)
-	fmt.Fprint(w, `TERMINAL (función shell)
+	if useColor(w) {
+		fmt.Fprintln(w, cliLogo())
+		fmt.Fprintln(w)
+	} else {
+		fmt.Fprintf(w, "ccp v%s — router de perfiles y cuentas de Claude Code\n\n", core.Version)
+	}
+	for _, line := range strings.Split(strings.TrimSuffix(helpBody, "\n"), "\n") {
+		fmt.Fprintln(w, colorHelpLine(w, line))
+	}
+	return 0
+}
+
+// cliLogo es el banner ANSI de ccp: dos bichos pixel-art tomados de la mano (uno
+// terracota y otro terracota pálido, las dos identidades que ccp enruta) con el
+// wordmark y la versión debajo. Solo se llama con color disponible.
+func cliLogo() string {
+	body := [5]string{
+		" ████████ ",
+		" ██ ██ ██ ", // 2 ojos
+		"██████████", // orejas/brazos
+		" ████████ ",
+		" █ █  █ █ ", // patas
+	}
+	var sb strings.Builder
+	for i := 0; i < 5; i++ {
+		sb.WriteString(ansiAccent + body[i] + ansiReset)
+		if i == 2 { // fila de los brazos: manos unidas en el centro
+			sb.WriteString(ansiAccent + "▬" + ansiReset + ansiPale + "▬" + ansiReset)
+		} else {
+			sb.WriteString("  ")
+		}
+		sb.WriteString(ansiPale + body[i] + ansiReset + "\n")
+	}
+	sb.WriteString(ansiAccent + ansiBold + "ccp" + ansiReset + " " +
+		ansiMute + "v" + core.Version + " — router de perfiles y cuentas de Claude Code" + ansiReset)
+	return sb.String()
+}
+
+// colorHelpLine tiñe una línea del cuerpo de ayuda: header de sección (sin
+// sangría) en terracota-bold; línea de comando (sangrada) con el comando en
+// terracota y la descripción atenuada. Sin color, devuelve la línea intacta.
+func colorHelpLine(w io.Writer, line string) string {
+	if !useColor(w) || line == "" {
+		return line
+	}
+	if line[0] != ' ' { // header de sección
+		return ansiAccent + ansiBold + line + ansiReset
+	}
+	trimmed := strings.TrimLeft(line, " ")
+	indent := line[:len(line)-len(trimmed)]
+	if idx := strings.Index(trimmed, "  "); idx >= 0 { // comando + descripción
+		return indent + ansiAccent + trimmed[:idx] + ansiReset + ansiMute + trimmed[idx:] + ansiReset
+	}
+	return indent + ansiAccent + trimmed + ansiReset
+}
+
+// helpBody es el cuerpo de la ayuda (sin el título). Se recorre por líneas; el
+// \n de cierre se recorta antes del Split para no emitir una línea en blanco de
+// más, dejando la salida plain byte-idéntica a la del oráculo bash.
+const helpBody = `TERMINAL (función shell)
   ccp use <perfil>            activa un perfil en esta terminal
   ccp default | off           vuelve a tu login ~/.claude
   ccp run [cmd]               corre cmd/claude con el perfil del cwd
@@ -47,6 +108,4 @@ CICLO DE VIDA
   ccp upgrade [--pull]        reinstala desde la fuente registrada + sync
   ccp doctor                  diagnóstico
   ccp config [show|set|reset|editor]
-`)
-	return 0
-}
+`
