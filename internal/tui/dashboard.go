@@ -322,9 +322,10 @@ func (m *model) viewForm() string {
 	return "\n" + boxStyleFocused.Width(m.panelWidth()).Render(header+"\n\n"+body) + "\n"
 }
 
-// logoBanner pinta el logo de ccp: dos bichos pixel-art tomados de la mano (uno
-// terracota y otro terracota pálido, las dos identidades que ccp enruta) con el
-// wordmark y la versión debajo.
+// logoBanner pinta el logo de ccp: tres bichos pixel-art en fila (el primero
+// liso, el segundo con lentes de sol, el tercero con gorra) junto al wordmark
+// "CCP" con sombra 3D y la versión debajo. El sprite del bicho calca el
+// invader terracota del icono (cúpula, dos ojos, brazos, cuerpo y cuatro patas).
 // titleBitmap es "CCP" en una rejilla de █ (5 filas), base del wordmark 3D.
 var titleBitmap = []string{
 	"█████ █████ █████",
@@ -384,30 +385,41 @@ func title3D() string {
 	return strings.Join(lines, "\n")
 }
 
+// bugSprite dibuja un bicho de 11 de ancho calcado del icono. acc añade un
+// accesorio: "glasses" cambia la fila de ojos por unas gafas de sol oscuras y
+// "cap" antepone dos filas de gorra. body es el color del cuerpo.
+func bugSprite(body lipgloss.Style, acc string) string {
+	B := body.Render
+	D := lipgloss.NewStyle().Foreground(cShadow).Render // accesorio oscuro
+
+	dome := " " + B("█████████") + " "
+	eyes := " " + B("██") + " " + B("███") + " " + B("██") + " " // 2 ojos (huecos)
+	if acc == "glasses" {
+		eyes = " " + B("██") + D("█████") + B("██") + " " // visera de gafas
+	}
+	arms := B("███████████")
+	trunk := " " + B("█████████") + " "
+	legs := " " + B("█") + " " + B("█") + "   " + B("█") + " " + B("█") + " " // 4 patas
+
+	lines := []string{dome, eyes, arms, trunk, legs}
+	if acc == "cap" {
+		lines = append([]string{
+			"  " + D("▄█████▄") + "  ", // copa
+			" " + D("▟███████▙▖"),      // ala + visera
+		}, lines...)
+	}
+	return strings.Join(lines, "\n")
+}
+
 func logoBanner() string {
 	orange := lipgloss.NewStyle().Foreground(cAccent)
 	pale := lipgloss.NewStyle().Foreground(cPale)
-	body := [5]string{
-		" ████████ ",
-		" ██ ██ ██ ", // 2 ojos
-		"██████████", // orejas/brazos
-		" ████████ ",
-		" █ █  █ █ ", // patas
-	}
-	var bugs strings.Builder
-	for i := 0; i < 5; i++ {
-		bugs.WriteString(orange.Render(body[i]))
-		if i == 2 { // fila de los brazos: manos unidas
-			bugs.WriteString(orange.Render("▬") + pale.Render("▬"))
-		} else {
-			bugs.WriteString("  ")
-		}
-		bugs.WriteString(pale.Render(body[i]))
-		if i < 4 {
-			bugs.WriteByte('\n')
-		}
-	}
-	head := lipgloss.JoinHorizontal(lipgloss.Top, bugs.String(), "   ", title3D())
+	bugs := lipgloss.JoinHorizontal(lipgloss.Bottom,
+		bugSprite(orange, ""), "  ",
+		bugSprite(pale, "glasses"), "  ",
+		bugSprite(orange, "cap"),
+	)
+	head := lipgloss.JoinHorizontal(lipgloss.Bottom, bugs, "   ", title3D())
 	return head + "\n" + styleSub.Render("v"+core.Version+" — perfiles y cuentas de Claude Code")
 }
 
