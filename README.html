@@ -292,6 +292,14 @@
   .triad .t .tt{font-weight:600; color:var(--ink); margin:0 0 4px;}
   .triad .t .td{font-size:13.5px; color:var(--ink-mute); margin:0;}
 
+  /* screenshots */
+  figure.shot{margin:30px 0 0; padding:0;}
+  figure.shot img{display:block; width:100%; border-radius:12px; border:1px solid var(--rule);
+    box-shadow:0 1px 0 oklch(1 0 0 / .5), 0 20px 50px oklch(0.2 0.02 60 / .18);}
+  figure.shot figcaption{font-family:'Spline Sans Mono',monospace; font-size:12px; color:var(--ink-mute);
+    margin:12px 0 0; text-align:center; letter-spacing:.04em;}
+  figure.shot figcaption b{color:var(--accent-deep); font-weight:600;}
+
   /* ── pager ─────────────────────────────────────────────── */
   .pager{display:flex; justify-content:space-between; gap:14px; margin-top:52px; padding-top:26px; border-top:1px solid var(--rule);}
   .pg{flex:1; max-width:48%; display:flex; flex-direction:column; gap:3px; padding:14px 18px;
@@ -382,9 +390,14 @@
 
     <!-- ═══ INICIO ═══ -->
     <section class="view" id="view-inicio">
-      <p class="kicker"><span class="s">Guía de uso</span><span class="t">v2.0 · CLI en Go</span></p>
+      <p class="kicker"><span class="s">Guía de uso</span><span class="t">v2.5.1 · CLI en Go</span></p>
       <h1>ccp<span class="cur">_</span></h1>
       <p class="lede">Una <em>cuenta de Claude Code distinta en cada carpeta.</em> En tu repo de trabajo, tu cuenta de empresa; en tu proyecto personal, tu cuenta personal; en tus experimentos, DeepSeek. El cambio ocurre solo, con hacer <b>cd</b>.</p>
+
+      <figure class="shot">
+        <img src="docs/screenshots/tui.png" alt="Dashboard interactivo de ccp: paneles de Perfiles, Reglas y Estado">
+        <figcaption>Corre <b>ccp</b> sin argumentos → el dashboard interactivo (3 paneles, color, autocompletado).</figcaption>
+      </figure>
 
       <button class="start" data-go="modelo">Empezar la guía
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -643,7 +656,7 @@ source ~/.bashrc    <span class="c"># bash</span></pre></div>
       <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:8px 0 4px;">¿Qué versión tengo?</h3>
       <div class="do">
         <p class="lead">Imprime la versión del binario.</p>
-        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp version     <span class="c"># → 2.0.0</span></pre></div>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp version     <span class="c"># → 2.5.1</span></pre></div>
         <p class="hint">También vale <code>ccp --version</code> o <code>ccp -v</code>.</p>
       </div>
 
@@ -827,6 +840,10 @@ ccp config editor nano     <span class="c"># o vim, code, etc.</span></pre></div
       <div class="kicker"><span class="s">·</span><span class="t">Cheatsheet</span></div>
       <h2 class="sec">Referencia rápida</h2>
       <p class="sec-lede">Cuando ya le agarraste la onda, este es todo el mapa.</p>
+      <figure class="shot">
+        <img src="docs/screenshots/cli-help.png" alt="Salida de ccp help: banner y comandos coloreados">
+        <figcaption><b>ccp help</b> — toda la superficie, con la misma paleta.</figcaption>
+      </figure>
       <table>
         <thead><tr><th>Quiero…</th><th>Comando</th></tr></thead>
         <tbody>

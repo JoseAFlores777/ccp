@@ -500,17 +500,27 @@ func (m *model) viewRules() string {
 	if m.cfg == nil || len(m.cfg.Rules) == 0 {
 		return m.box(panelRules, "Reglas", hint, styleDim.Render("(sin reglas — 'a' para añadir)"))
 	}
-	// ancho de la columna de perfil = el nombre más largo (acotado).
-	profW := 7
-	for _, r := range m.cfg.Rules {
+	// columna de perfil = el nombre más largo; columna de ruta = la ruta más
+	// larga, ambas acotadas al ancho disponible (sin huecos enormes).
+	disp := make([]string, len(m.cfg.Rules))
+	profW, maxPath := 7, 0
+	for i, r := range m.cfg.Rules {
+		disp[i] = tildeHome(r.Path)
 		if n := utf8.RuneCountInString(r.Profile); n > profW {
 			profW = n
+		}
+		if n := utf8.RuneCountInString(disp[i]); n > maxPath {
+			maxPath = n
 		}
 	}
 	if profW > 18 {
 		profW = 18
 	}
-	pathW := m.innerWidth() - profW - 5 // "▸ " + " → "
+	availPath := m.innerWidth() - profW - 5 // "▸ " + " → "
+	pathW := maxPath
+	if pathW > availPath {
+		pathW = availPath
+	}
 	if pathW < 14 {
 		pathW = 14
 	}
@@ -521,7 +531,7 @@ func (m *model) viewRules() string {
 		if sel {
 			cur, pathSt = styleFocused.Render("▸ "), styleSelected
 		}
-		p := padRight(truncLeft(tildeHome(r.Path), pathW), pathW)
+		p := padRight(truncLeft(disp[i], pathW), pathW)
 		prof := typeStyle(m.profileType(r.Profile)).Render(truncRight(r.Profile, profW))
 		rows = append(rows, cur+pathSt.Render(p)+styleDim.Render(" → ")+prof)
 	}
