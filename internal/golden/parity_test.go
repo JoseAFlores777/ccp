@@ -109,6 +109,7 @@ func TestGoBinaryMatchesBashGolden(t *testing.T) {
 				"CCP_HOME="+work,
 				"NO_COLOR=1",
 				"PWD="+pwd,
+				"CCP_LANG=es", // igualar al oráculo bash (prosa en español)
 			)
 			cmd.Env = filterEnv(cmd.Env, "CCP_PROFILE")
 

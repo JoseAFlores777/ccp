@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // resolveHome reproduce la resolución de CCP_HOME del bash: la env var si está
@@ -90,6 +91,8 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 		return cmdConfig(rest, stdout, stderr)
 	case "doctor":
 		return cmdDoctor(rest, stdout, stderr)
+	case "lang":
+		return cmdLang(rest, stdout, stderr)
 
 	// --- ciclo de vida ---
 	case "install":
@@ -105,11 +108,11 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 	// Estos solo funcionan vía la función shell 'ccp' (el binario corre en un
 	// proceso hijo y no puede mutar el entorno del shell padre).
 	case "use", "default", "off", "on", "run":
-		fmt.Fprintf(stderr, "[error] '%s' solo funciona vía la función shell 'ccp' (corre 'ccp install' y recarga tu shell).\n", cmd)
+		fmt.Fprintln(stderr, i18n.T(currentLang(), "cli.err.shell_only", cmd))
 		return 1
 
 	default:
-		fmt.Fprintf(stderr, "Comando desconocido: '%s'\n", cmd)
+		fmt.Fprintln(stderr, i18n.T(currentLang(), "cli.err.unknown_cmd", cmd))
 		return 1
 	}
 }
@@ -129,6 +132,7 @@ func dispatchBackup(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "Error: %v\n", err)
 		return 1
 	}
+	lang := currentLang()
 
 	switch sub {
 	case "export":
@@ -140,14 +144,14 @@ func dispatchBackup(args []string, stdout, stderr io.Writer) int {
 				withSecrets = true
 			default:
 				if strings.HasPrefix(a, "-") {
-					fmt.Fprintf(stderr, "backup export: opción desconocida '%s'\n", a)
+					fmt.Fprintln(stderr, i18n.T(lang, "cli.backup.unknown_opt", a))
 					return 1
 				}
 				dest = a
 			}
 		}
 		if dest == "" {
-			fmt.Fprintln(stderr, "Uso: ccp backup export <archivo.tar.gz> [--with-secrets]")
+			fmt.Fprintln(stderr, i18n.T(lang, "cli.backup.usage_export"))
 			return 1
 		}
 		if err := core.BackupExport(home, dest, withSecrets, time.Now()); err != nil {
@@ -155,10 +159,10 @@ func dispatchBackup(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		if withSecrets {
-			fmt.Fprintf(stdout, "Backup escrito en %s (chmod 600).\n", dest)
-			fmt.Fprintln(stderr, "ADVERTENCIA: este backup contiene SECRETOS (api_key + credenciales de login). No lo compartas ni lo subas a un repo.")
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.backup.written_secrets", dest))
+			fmt.Fprintln(stderr, i18n.T(lang, "cli.backup.warn_secrets"))
 		} else {
-			fmt.Fprintf(stdout, "Backup escrito en %s (sin secretos; seguro de compartir).\n", dest)
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.backup.written_safe", dest))
 		}
 		return 0
 
@@ -173,14 +177,14 @@ func dispatchBackup(args []string, stdout, stderr io.Writer) int {
 				opts.Force = true
 			default:
 				if strings.HasPrefix(a, "-") {
-					fmt.Fprintf(stderr, "backup restore: opción desconocida '%s'\n", a)
+					fmt.Fprintln(stderr, i18n.T(lang, "cli.backup.restore_unknown_opt", a))
 					return 1
 				}
 				archive = a
 			}
 		}
 		if archive == "" {
-			fmt.Fprintln(stderr, "Uso: ccp backup restore <archivo.tar.gz> [--overwrite | --force]")
+			fmt.Fprintln(stderr, i18n.T(lang, "cli.backup.usage_restore"))
 			return 1
 		}
 		opts.Now = time.Now()
@@ -189,23 +193,23 @@ func dispatchBackup(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "Error: %v\n", err)
 			return 1
 		}
-		fmt.Fprintf(stdout, "Restore completado. Snapshot reversible en %s\n", rep.SnapshotDir)
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.backup.restore_done", rep.SnapshotDir))
 		if len(rep.Created) > 0 {
-			fmt.Fprintf(stdout, "  Creados:     %s\n", strings.Join(rep.Created, ", "))
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.backup.restore_created", strings.Join(rep.Created, ", ")))
 		}
 		if len(rep.Overwritten) > 0 {
-			fmt.Fprintf(stdout, "  Reemplazados: %s\n", strings.Join(rep.Overwritten, ", "))
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.backup.restore_overwritten", strings.Join(rep.Overwritten, ", ")))
 		}
 		if len(rep.Skipped) > 0 {
-			fmt.Fprintf(stdout, "  Saltados:    %s (usa --overwrite para reemplazar)\n", strings.Join(rep.Skipped, ", "))
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.backup.restore_skipped", strings.Join(rep.Skipped, ", ")))
 		}
 		if rep.RulesAdded > 0 {
-			fmt.Fprintf(stdout, "  Reglas añadidas: %d\n", rep.RulesAdded)
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.backup.restore_rules", rep.RulesAdded))
 		}
 		return 0
 
 	default:
-		fmt.Fprintf(stderr, "backup: subcomando desconocido '%s' (export|restore)\n", sub)
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.backup.unknown_sub", sub))
 		return 1
 	}
 }

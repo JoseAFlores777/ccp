@@ -49,7 +49,7 @@ fi
 // CompletionBash es el bloque verbatim del heredoc COMPLETION_BASH en cmd_completion().
 const CompletionBash = `_ccp() {
   local cur prev; cur="${COMP_WORDS[COMP_CWORD]}"; prev="${COMP_WORDS[COMP_CWORD-1]}"
-  local top="install uninstall upgrade key path profile instruct status config doctor menu completion resolve version help use default on off run"
+  local top="install uninstall upgrade key path profile instruct status config doctor menu completion resolve lang version help use default on off run"
   if [[ $COMP_CWORD -eq 1 ]]; then COMPREPLY=( $(compgen -W "$top" -- "$cur") ); return; fi
   case "${COMP_WORDS[1]}" in
     profile) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "add rm list show login config sync" -- "$cur") )
@@ -69,7 +69,7 @@ complete -F _ccp ccp
 // CompletionZsh es el bloque verbatim del heredoc COMPLETION_ZSH en cmd_completion().
 const CompletionZsh = `if ! whence compdef >/dev/null 2>&1; then autoload -Uz compinit && compinit -C; fi
 _ccp() {
-  local -a top; top=(install uninstall upgrade key path profile instruct status config doctor menu completion resolve version help use default on off run)
+  local -a top; top=(install uninstall upgrade key path profile instruct status config doctor menu completion resolve lang version help use default on off run)
   if (( CURRENT == 2 )); then compadd -- $top; return; fi
   case "${words[2]}" in
     profile) (( CURRENT == 3 )) && compadd -- add rm list show login config sync
