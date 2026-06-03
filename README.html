@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light">
-<title>ccp — User guide</title>
+<title>Claude Code Profiles — User guide</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -391,9 +391,9 @@
 
     <!-- ═══ INICIO ═══ -->
     <section class="view" id="view-inicio">
-      <p class="kicker"><span class="s">User guide</span><span class="t">v2.5.1 · Go CLI</span></p>
+      <p class="kicker"><span class="s">User guide</span><span class="t">v2.6.0 · Go CLI</span></p>
       <p class="kicker"><span class="t"><strong>English</strong> · <a href="README.es.html">Español</a></span></p>
-      <h1>ccp<span class="cur">_</span></h1>
+      <h1>Claude Code Profiles<span class="cur">_</span></h1>
       <p class="lede">A <em>different Claude Code account in every folder.</em> In your work repo, your company account; in your personal project, your personal account; in your experiments, DeepSeek. The switch happens on its own, just by <b>cd</b>-ing.</p>
 
       <figure class="shot">
@@ -883,6 +883,7 @@ ccp lang es     <span class="c"># Spanish</span></pre></div>
       </table>
       <div class="tip"><span class="lbl">For scripting</span><code>ccp resolve [ruta]</code> prints the profile (exit <code>0</code> = non-default, <code>1</code> = default), and <code>ccp status --json</code> returns a JSON object with <code>active</code>, <code>profile</code>, <code>profile_type</code>, <code>cwd</code> and <code>repo</code>.</div>
       <p class="intro" style="margin-top:28px;">How does it work under the hood? → <a href="docs/superpowers/specs/ccp-profiles.html">spec</a> · CLAUDE.md</p>
+      <div class="tip" style="margin-top:28px;"><span class="lbl">License &amp; trademarks</span>MIT — use at your own risk, no warranty; you are responsible for your own API keys and accounts. Claude Code Profiles (<code>ccp</code>) is an independent project, <strong>not affiliated with, endorsed by, or sponsored by</strong> Anthropic or DeepSeek. "Claude" and "Claude Code" are trademarks of Anthropic, PBC; "DeepSeek" is a trademark of its owner — used only to describe interoperability.</div>
     </section>
 
     <!-- pager (rendered by JS) -->

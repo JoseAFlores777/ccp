@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`ccp` is a CLI (Go, v2.0) that routes Claude Code to a named **profile** per terminal and per directory — never global. A profile is one of: an **official** Anthropic account (its own `CLAUDE_CONFIG_DIR`), a **DeepSeek/compatible provider** (its own `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN` + models), or the reserved **`default`** (the user's normal `~/.claude` login). So repo A → account *work*, repo B → account *personal*, repo C → *deepseek*. User-facing strings are in Spanish.
+**Claude Code Profiles** (`ccp`) is a CLI (Go, v2.0) that routes Claude Code to a named **profile** per terminal and per directory — never global. A profile is one of: an **official** Anthropic account (its own `CLAUDE_CONFIG_DIR`), a **DeepSeek/compatible provider** (its own `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN` + models), or the reserved **`default`** (the user's normal `~/.claude` login). So repo A → account *work*, repo B → account *personal*, repo C → *deepseek*. User-facing strings are bilingual (English default, Spanish via `ccp lang es` / `CCP_LANG=es`).
 
 `ccp` was **rewritten from Bash to Go** in v2.0 (plan: `docs/superpowers/plans/migracion-go-v2.md`). The Bash implementation is **archived in `legacy/`** and is now the **contract oracle**: the Go binary's observable surface is held byte-identical to it by a golden-diff gate. The chained migrator still auto-upgrades old state: the first Go run migrates `~/.config/dsctl` → `ccp` (TSV) → `ccp.yaml`, backing up first (`~/.config/ccp/.backup-pre-go-*`). The old rc block is unchanged (it only calls `command ccp`), so no rc reinstall is needed.
 

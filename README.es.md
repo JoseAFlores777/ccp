@@ -1,6 +1,6 @@
 <div align="center">
 
-# ccp
+# Claude Code Profiles
 
 [English](README.md) · **Español**
 
@@ -300,4 +300,16 @@ rm -rf ~/.config/ccp    # (opcional) borra config y perfiles
 
 ---
 
-MIT. ¿Curioso de cómo funciona por dentro? Mira [`CLAUDE.md`](CLAUDE.md) y `docs/superpowers/specs/ccp-profiles.html`.
+MIT — mira [`LICENSE`](LICENSE). ¿Curioso de cómo funciona por dentro? Mira [`CLAUDE.md`](CLAUDE.md) y `docs/superpowers/specs/ccp-profiles.html`.
+
+## Aviso legal y marcas
+
+**Úsalo bajo tu propio riesgo.** Este software se provee "tal cual", sin
+garantía de ningún tipo (mira [`LICENSE`](LICENSE)). Eres responsable de tus
+propias API keys, cuentas y configuración.
+
+**Sin afiliación.** Claude Code Profiles (`ccp`) es un proyecto independiente y
+comunitario. **No está afiliado, avalado ni patrocinado por** Anthropic ni
+DeepSeek. "Claude" y "Claude Code" son marcas de Anthropic, PBC; "DeepSeek" es
+marca de su respectivo dueño. Estos nombres se usan solo para describir
+interoperabilidad. Mira [`NOTICE`](NOTICE).
