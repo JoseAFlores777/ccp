@@ -2,7 +2,9 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
 	tea "github.com/charmbracelet/bubbletea"
@@ -245,10 +247,54 @@ func (m *model) panelWidth() int {
 	if m.width == 0 || w < 24 {
 		w = 76
 	}
-	if w > 100 {
-		w = 100
+	if w > 120 {
+		w = 120
 	}
 	return w
+}
+
+// innerWidth es el ancho de texto utilizable dentro de una caja (descontando
+// borde + padding). Las filas se truncan a esto para no hacer wrap.
+func (m *model) innerWidth() int { return m.panelWidth() - 4 }
+
+// tildeHome reemplaza el HOME del usuario por ~ para acortar rutas.
+func tildeHome(p string) string {
+	if h, err := os.UserHomeDir(); err == nil && h != "" {
+		if p == h {
+			return "~"
+		}
+		if strings.HasPrefix(p, h+"/") {
+			return "~" + p[len(h):]
+		}
+	}
+	return p
+}
+
+// truncLeft recorta por la izquierda dejando la cola (lo distintivo de una ruta)
+// con "…" al inicio. max en runas.
+func truncLeft(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max || max < 1 {
+		return s
+	}
+	return "…" + string(r[len(r)-(max-1):])
+}
+
+// truncRight recorta por la derecha con "…" al final.
+func truncRight(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max || max < 1 {
+		return s
+	}
+	return string(r[:max-1]) + "…"
+}
+
+// padRight rellena s con espacios hasta w runas (para alinear columnas).
+func padRight(s string, w int) string {
+	if n := w - utf8.RuneCountInString(s); n > 0 {
+		return s + strings.Repeat(" ", n)
+	}
+	return s
 }
 
 // box envuelve el cuerpo de un panel en una caja redondeada con título; el foco
@@ -359,8 +405,8 @@ func (m *model) profileRow(i int, name string) string {
 		cur, nameSt = styleFocused.Render("▸ "), styleSelected
 	}
 	t := m.profileType(name)
-	nameCell := lipgloss.NewStyle().Width(16).Render(nameSt.Render(name))
-	badgeCell := lipgloss.NewStyle().Width(11).Render(badge(t))
+	nameSeg := nameSt.Render(padRight(truncRight(name, 20), 21))
+	badgeSeg := typeStyle(t).Render(padRight(humanTypeES(t), 11))
 	health := ""
 	switch t {
 	case "official":
@@ -376,13 +422,27 @@ func (m *model) profileRow(i int, name string) string {
 			health = styleCross.Render("✗ sin key")
 		}
 	}
-	return cur + nameCell + badgeCell + health
+	return cur + nameSeg + badgeSeg + health
 }
 
 func (m *model) viewRules() string {
 	const hint = "a:añadir d:borrar"
 	if m.cfg == nil || len(m.cfg.Rules) == 0 {
 		return m.box(panelRules, "Reglas", hint, styleDim.Render("(sin reglas — 'a' para añadir)"))
+	}
+	// ancho de la columna de perfil = el nombre más largo (acotado).
+	profW := 7
+	for _, r := range m.cfg.Rules {
+		if n := utf8.RuneCountInString(r.Profile); n > profW {
+			profW = n
+		}
+	}
+	if profW > 18 {
+		profW = 18
+	}
+	pathW := m.innerWidth() - profW - 5 // "▸ " + " → "
+	if pathW < 14 {
+		pathW = 14
 	}
 	rows := make([]string, 0, len(m.cfg.Rules))
 	for i, r := range m.cfg.Rules {
@@ -391,8 +451,9 @@ func (m *model) viewRules() string {
 		if sel {
 			cur, pathSt = styleFocused.Render("▸ "), styleSelected
 		}
-		pathCell := lipgloss.NewStyle().Width(40).Render(pathSt.Render(r.Path))
-		rows = append(rows, cur+pathCell+styleDim.Render("→ ")+styleVal.Render(r.Profile))
+		p := padRight(truncLeft(tildeHome(r.Path), pathW), pathW)
+		prof := typeStyle(m.profileType(r.Profile)).Render(truncRight(r.Profile, profW))
+		rows = append(rows, cur+pathSt.Render(p)+styleDim.Render(" → ")+prof)
 	}
 	return m.box(panelRules, "Reglas", hint, strings.Join(rows, "\n"))
 }
@@ -402,17 +463,24 @@ func (m *model) viewStatus() string {
 		m.refreshEstado() // cómputo perezoso la primera vez
 	}
 	e := m.est
-	repo := styleDim.Render("no es git")
-	if e.Repo != "" {
-		repo = styleVal.Render(e.Repo)
+	const labelW = 25
+	valW := m.innerWidth() - labelW
+	if valW < 16 {
+		valW = 16
 	}
 	kv := func(k, v string) string {
-		return lipgloss.NewStyle().Width(26).Foreground(cMute).Render(k) + v
+		return lipgloss.NewStyle().Width(labelW).Foreground(cMute).Render(k) + v
 	}
+	repo := styleDim.Render("no es git")
+	if e.Repo != "" {
+		repo = styleVal.Render(truncLeft(tildeHome(e.Repo), valW))
+	}
+	profLine := styleFocused.Render(truncRight(e.Profile, valW-len(e.ProfileType)-4)) +
+		styleDim.Render(" ("+e.ProfileType+")")
 	body := strings.Join([]string{
-		kv("Perfil activo (terminal)", styleFocused.Render(e.Active)),
-		kv("Perfil del cwd (regla)", styleVal.Render(e.Profile)+styleDim.Render("  ("+e.ProfileType+")")),
-		kv("Cwd", styleVal.Render(e.Cwd)),
+		kv("Perfil activo (terminal)", styleFocused.Render(truncRight(e.Active, valW))),
+		kv("Perfil del cwd (regla)", profLine),
+		kv("Cwd", styleVal.Render(truncLeft(tildeHome(e.Cwd), valW))),
 		kv("Repo", repo),
 	}, "\n")
 	return m.box(panelStatus, "Estado", "r:recomputar", body)

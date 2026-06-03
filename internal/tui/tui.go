@@ -319,14 +319,26 @@ var (
 	boxStyleFocused = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(cAccent).Padding(0, 1)
 )
 
-// badge pinta el tipo de perfil con su color.
-func badge(t string) string {
+// humanTypeES traduce el tipo interno del perfil a su etiqueta en español.
+func humanTypeES(t string) string {
 	switch t {
 	case "official":
-		return lipgloss.NewStyle().Foreground(cAccent).Render("oficial")
+		return "oficial"
 	case "deepseek":
-		return lipgloss.NewStyle().Foreground(cOlive).Render("proveedor")
+		return "proveedor"
 	default:
-		return lipgloss.NewStyle().Foreground(cMute).Render("default")
+		return "default"
+	}
+}
+
+// typeStyle devuelve el color del tipo de perfil (oficial/proveedor/default).
+func typeStyle(t string) lipgloss.Style {
+	switch t {
+	case "official":
+		return lipgloss.NewStyle().Foreground(cAccent)
+	case "deepseek":
+		return lipgloss.NewStyle().Foreground(cOlive)
+	default:
+		return lipgloss.NewStyle().Foreground(cMute)
 	}
 }
