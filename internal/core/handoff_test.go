@@ -180,3 +180,67 @@ func TestHandoffEndNoActive(t *testing.T) {
 		t.Fatal("esperaba error sin handoff activo")
 	}
 }
+
+func TestHandoffForwardCrossProviderWarns(t *testing.T) {
+	const warnSubstr = "handoff entre proveedores distintos"
+
+	// Seed: un perfil official y un perfil deepseek.
+	setup := func(t *testing.T) (home, slug, uuid string) {
+		t.Helper()
+		home = t.TempDir()
+		cfg := &Config{
+			Version: SchemaVersion,
+			Profiles: map[string]Profile{
+				"official-cc": {Type: "official"},
+				"ds-cc": {
+					Type:       "deepseek",
+					BaseURL:    "https://api.deepseek.com/v1",
+					ModelPro:   "deepseek-chat",
+					ModelFlash: "deepseek-chat",
+					Effort:     "normal",
+				},
+			},
+		}
+		if err := Save(home, cfg); err != nil {
+			t.Fatal(err)
+		}
+		cwd := "/repo"
+		slug = SlugForCwd(cwd)
+		uuid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+		// Escribe el JSONL en el cc-home del perfil origen (official-cc).
+		srcDir := ProjectDir(home+"/profiles/official-cc/cc-home", slug)
+		writeJSONL(t, srcDir, uuid, "Test", time.Now())
+		return home, slug, uuid
+	}
+
+	t.Run("official→deepseek advierte", func(t *testing.T) {
+		home, _, uuid := setup(t)
+		emit, err := HandoffForward(home, "official-cc", "ds-cc", "/repo", uuid, false, time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(emit, warnSubstr) || !strings.Contains(emit, ">&2") {
+			t.Fatalf("emit sin warning cross-provider: %s", emit)
+		}
+		if !strings.Contains(emit, "CCP_RESUME_ID=") {
+			t.Fatalf("emit sin CCP_RESUME_ID: %s", emit)
+		}
+	})
+
+	t.Run("official→official sin warning", func(t *testing.T) {
+		home := t.TempDir()
+		seedHandoffEnv(t, home) // personal-cc y emco-cc, ambos official
+		cwd := "/repo"
+		slug := SlugForCwd(cwd)
+		uuid := "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+		srcDir := ProjectDir(home+"/profiles/personal-cc/cc-home", slug)
+		writeJSONL(t, srcDir, uuid, "Test2", time.Now())
+		emit, err := HandoffForward(home, "personal-cc", "emco-cc", cwd, uuid, false, time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(emit, warnSubstr) {
+			t.Fatalf("no debía advertir en handoff same-provider: %s", emit)
+		}
+	})
+}

@@ -10,6 +10,17 @@ import (
 // el delta de env del perfil objetivo + una línea CCP_RESUME_ID=<uuid>. La
 // shell function hace `( eval "$emit"; claude --resume "$CCP_RESUME_ID" )`.
 
+// profileKind devuelve "deepseek" si el perfil es de tipo deepseek; en cualquier
+// otro caso (official, default, vacío) devuelve "official".
+func profileKind(name string, cfg *Config) string {
+	if name != "default" {
+		if p, ok := cfg.Profiles[name]; ok && p.Type == "deepseek" {
+			return "deepseek"
+		}
+	}
+	return "official"
+}
+
 // HandoffForward valida, copia la sesión origen→destino (mismo uuid), escribe el
 // marcador activo y devuelve el emit con el env del DESTINO. Regla 1-nivel:
 // falla si ya hay un handoff activo.
@@ -69,7 +80,13 @@ func HandoffForward(home, from, to, cwd, sessionUUID string, writeMarker bool, n
 	}
 	// CCP_RESUME_ID se emite SIEMPRE (incluso con writeMarker=false): la shell
 	// function lo necesita para `claude --resume "$CCP_RESUME_ID"`.
-	return EnvDelta(home, to, cfg) + "CCP_RESUME_ID=" + shellQuote(sessionUUID) + "\n", nil
+	emit := EnvDelta(home, to, cfg) + "CCP_RESUME_ID=" + shellQuote(sessionUUID) + "\n"
+	// Spec §handoff: si origen y destino son de proveedores distintos, advierte
+	// pero no bloquea — misma semántica que el warning de cwd-mismatch en HandoffEnd.
+	if profileKind(from, cfg) != profileKind(to, cfg) {
+		emit = fmt.Sprintf("echo \"⚠️  ccp: handoff entre proveedores distintos (%s → %s); el modelo y el formato de tools pueden diferir\" >&2\n", from, to) + emit
+	}
+	return emit, nil
 }
 
 // HandoffEnd toma el marcador activo, hace back-sync del transcript (que creció
