@@ -11,6 +11,14 @@ ccp() {
       shift
       eval "$(command ccp _hook "$PWD")"
       if [[ $# -gt 0 ]]; then command "$@"; else command claude; fi ;;
+    handoff)
+      shift
+      case "$1" in
+        end)          shift; out=$(command ccp _handoff-end "$PWD" "$@") || return ;;
+        status|list)  command ccp handoff "$@"; return ;;
+        *)            out=$(command ccp _handoff "$PWD" "$@") || return ;;
+      esac
+      ( eval "$out"; claude --resume "$CCP_RESUME_ID" ) ;;
     *) command ccp "$@" ;;
   esac
 }

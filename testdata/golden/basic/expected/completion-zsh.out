@@ -1,6 +1,6 @@
 if ! whence compdef >/dev/null 2>&1; then autoload -Uz compinit && compinit -C; fi
 _ccp() {
-  local -a top; top=(install uninstall upgrade key path profile instruct status config doctor menu completion resolve lang version help use default on off run)
+  local -a top; top=(install uninstall upgrade key path profile instruct status config doctor menu completion resolve lang version help use default on off run handoff)
   if (( CURRENT == 2 )); then compadd -- $top; return; fi
   case "${words[2]}" in
     profile) (( CURRENT == 3 )) && compadd -- add rm list show login config sync

@@ -105,3 +105,12 @@ func TestShellinitCompletionShellinit(t *testing.T) {
 			diffFirstMismatch(want, got), len(want), want, len(got), got)
 	}
 }
+
+func TestShellinitContainsHandoff(t *testing.T) {
+	if !strings.Contains(ShellInit, "handoff)") {
+		t.Error("ShellInit no contiene 'handoff)' — falta el case del shell function")
+	}
+	if !strings.Contains(ShellInit, "_handoff-end") {
+		t.Error("ShellInit no contiene '_handoff-end' — falta la llamada al binario para handoff end")
+	}
+}
