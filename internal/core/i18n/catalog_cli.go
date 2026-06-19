@@ -482,6 +482,36 @@ var catalogCLI = map[string]map[Lang]string{
 		Es: "Uso: ccp config [show|set|reset|editor]",
 	},
 
+	// --- handoff.go ---
+	"cli.handoff.shell_only": {
+		En: "`ccp handoff` only works via the ccp shell function (reinstall with `ccp install`).",
+		Es: "`ccp handoff` solo funciona vía la función shell de ccp (reinstala con `ccp install`).",
+	},
+	"cli.handoff.no_active": {
+		En: "No active handoff.",
+		Es: "Sin handoff activo.",
+	},
+	"cli.handoff.status_active": {
+		En: "Active handoff: %s → %s · session %s · since %s",
+		Es: "Handoff activo: %s → %s · sesión %s · desde %s",
+	},
+	"cli.handoff.list_header": {
+		En: "Handoff history:",
+		Es: "Historial de handoffs:",
+	},
+	"cli.handoff.list_row": {
+		En: "  %s → %s · %s → %s · ended %s",
+		Es: "  %s → %s · %s → %s · terminó %s",
+	},
+	"cli.handoff.list_empty": {
+		En: "No handoffs recorded.",
+		Es: "Sin handoffs registrados.",
+	},
+	"cli.handoff.unknown_sub": {
+		En: "handoff: unknown subcommand: %s",
+		Es: "handoff: subcomando desconocido: %s",
+	},
+
 	// --- help.go ---
 	"cli.help.tagline": {
 		En: "ccp v%s — profiles for Claude Code\n\n",

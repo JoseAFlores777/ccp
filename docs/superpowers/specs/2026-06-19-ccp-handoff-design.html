@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ccp handoff — continuar una sesión en otro perfil sin perder contexto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f4f1ea; --paper-2:#ece7dd;
+    --ink:#1a1915; --ink-soft:#3a3833; --ink-mute:#6f6a60;
+    --rule:#d8d2c4; --accent:#c96442; --accent-soft:#e8a48a;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--paper); color:var(--ink-soft);
+    font-family:'Inter',sans-serif; font-size:17px; line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:980px; margin:0 auto; padding:64px 32px 96px;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .serif{font-family:'Tinos',serif;}
+
+  .eyebrow{font-family:'JetBrains Mono',monospace; text-transform:uppercase;
+    letter-spacing:.22em; font-size:12px; color:var(--accent); margin:0 0 18px;}
+  h1{font-family:'Tinos',serif; font-weight:700; font-size:56px; line-height:1.06;
+    color:var(--ink); margin:0 0 22px; letter-spacing:-.01em;}
+  h1 em{font-style:italic; color:var(--accent);}
+  .lede{font-size:21px; line-height:1.5; color:var(--ink-soft); max-width:46em; margin:0 0 28px;}
+  .meta{display:flex; flex-wrap:wrap; gap:10px 26px; font-family:'JetBrains Mono',monospace;
+    font-size:12.5px; color:var(--ink-mute); border-top:1px solid var(--rule);
+    border-bottom:1px solid var(--rule); padding:16px 0; margin:0 0 8px;}
+  .meta b{color:var(--ink); font-weight:500;}
+  .pass{color:#3f7d4e; font-weight:600;}
+
+  nav.toc{margin:48px 0 8px; padding:28px 32px; background:var(--paper-2);
+    border:1px solid var(--rule); border-radius:4px;}
+  nav.toc h2{font-family:'JetBrains Mono',monospace; text-transform:uppercase;
+    letter-spacing:.18em; font-size:11px; color:var(--ink-mute); margin:0 0 16px;}
+  nav.toc ol{list-style:none; margin:0; padding:0; columns:2; column-gap:48px;}
+  nav.toc li{margin:0 0 9px; break-inside:avoid;}
+  nav.toc a{color:var(--ink-soft); text-decoration:none; font-size:15px;
+    border-bottom:1px solid transparent; transition:border-color .15s,color .15s;}
+  nav.toc a:hover{color:var(--ink); border-bottom-color:var(--accent);}
+  nav.toc a .n{font-family:'JetBrains Mono',monospace; color:var(--accent);
+    font-size:12.5px; margin-right:10px;}
+
+  section{padding:46px 0; border-bottom:1px solid var(--rule); scroll-margin-top:24px;}
+  section:last-of-type{border-bottom:none;}
+  h2.sec{font-family:'Tinos',serif; font-weight:700; font-size:31px; color:var(--ink);
+    margin:0 0 6px; letter-spacing:-.005em; display:flex; align-items:baseline; gap:16px;}
+  h2.sec .num{font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--accent);
+    font-weight:500; flex:none;}
+  .section-lede{color:var(--ink-mute); font-size:16px; margin:0 0 22px; max-width:44em;}
+  h3{font-family:'Inter',sans-serif; font-weight:600; font-size:18px; color:var(--ink);
+    margin:30px 0 10px;}
+  p{margin:0 0 16px; max-width:46em;}
+  ul,ol.proc{max-width:46em; padding-left:22px;}
+  li{margin:0 0 7px;}
+  code{font-family:'JetBrains Mono',monospace; font-size:.86em; background:var(--paper-2);
+    padding:1.5px 6px; border-radius:3px; color:var(--ink); border:1px solid var(--rule);}
+  strong{color:var(--ink); font-weight:600;}
+  em{color:var(--ink-soft);}
+
+  table{width:100%; border-collapse:collapse; margin:8px 0 22px; font-size:14.5px;}
+  th,td{text-align:left; padding:10px 14px; border-bottom:1px solid var(--rule);
+    vertical-align:top;}
+  th{font-family:'JetBrains Mono',monospace; font-size:11.5px; text-transform:uppercase;
+    letter-spacing:.08em; color:var(--ink-mute); font-weight:500; background:var(--paper-2);}
+  td code{background:transparent; border:none; padding:0;}
+
+  .code{position:relative; margin:8px 0 24px;}
+  pre{font-family:'JetBrains Mono',monospace; font-size:13.5px; line-height:1.65;
+    background:#23211c; color:#e9e3d4; padding:20px 22px; border-radius:6px;
+    overflow-x:auto; margin:0;}
+  pre .c{color:#8a8270; font-style:italic;}
+  pre .k{color:#e8a48a;}
+  pre .s{color:#b9c89a;}
+  pre .a{color:#d8b48a;}
+  .copy{position:absolute; top:10px; right:10px; font-family:'JetBrains Mono',monospace;
+    font-size:11px; background:#3a3833; color:#e9e3d4; border:1px solid #55524a;
+    border-radius:4px; padding:4px 9px; cursor:pointer; opacity:.7; transition:opacity .15s;}
+  .copy:hover{opacity:1;}
+
+  .callout{background:var(--paper-2); border-left:3px solid var(--accent);
+    padding:16px 20px; margin:8px 0 24px; border-radius:0 4px 4px 0; font-size:15.5px;}
+  .callout b{color:var(--ink);}
+
+  .tag{display:inline-block; font-family:'JetBrains Mono',monospace; font-size:11px;
+    padding:2px 8px; border-radius:3px; background:var(--paper-2); border:1px solid var(--rule);
+    color:var(--ink-mute); margin:0 4px 4px 0;}
+
+  figure.diagram{margin:18px 0 26px;}
+  figure.diagram svg{max-width:100%; height:auto; display:block;}
+  figcaption{font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--ink-mute);
+    text-align:center; margin-top:10px; letter-spacing:.04em;}
+
+  footer{margin-top:56px; padding-top:24px; border-top:1px solid var(--rule);
+    font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--ink-mute);}
+
+  @media (max-width:760px){
+    .wrap{padding:40px 20px 64px;}
+    h1{font-size:38px;}
+    .lede{font-size:18px;}
+    nav.toc ol{columns:1;}
+    h2.sec{font-size:25px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <p class="eyebrow">ccp · design spec · v0.1</p>
+  <h1>ccp <em>handoff</em> — continuar una sesión en otro perfil sin perder contexto</h1>
+  <p class="lede">Te quedas sin tokens a media conversación. <code>ccp handoff</code> copia el contexto al <code>cc-home</code> de otro perfil, reanuda ahí con tokens frescos, y al volver trae el trabajo de regreso como una sesión nueva — sin destruir nada.</p>
+  <div class="meta">
+    <span><b>Versión</b> v0.1</span>
+    <span><b>Fecha</b> 2026-06-19</span>
+    <span><b>Status</b> <span class="pass">brainstorming cerrado</span> · listo para plan</span>
+    <span><b>Scope</b> comando handoff + back-sync con marcador</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>Contenido</h2>
+  <ol>
+    <li><a href="#s01"><span class="n">01</span>Overview</a></li>
+    <li><a href="#s02"><span class="n">02</span>Goals / Non-goals</a></li>
+    <li><a href="#s03"><span class="n">03</span>Arquitectura y comandos</a></li>
+    <li><a href="#s04"><span class="n">04</span>Modelo de datos — el marcador</a></li>
+    <li><a href="#s05"><span class="n">05</span>Flujo forward</a></li>
+    <li><a href="#s06"><span class="n">06</span>Flujo return + reescritura</a></li>
+    <li><a href="#s07"><span class="n">07</span>Errores y casos borde</a></li>
+    <li><a href="#s08"><span class="n">08</span>Formato en disco de CC</a></li>
+    <li><a href="#s09"><span class="n">09</span>Estrategia de pruebas</a></li>
+    <li><a href="#s10"><span class="n">10</span>Resumen del ciclo</a></li>
+  </ol>
+</nav>
+
+<section id="s01">
+  <h2 class="sec"><span class="num">§ 01</span>Overview</h2>
+  <p class="section-lede">La restricción dura primero, luego el camino real.</p>
+  <p>Cuando trabajas en una sesión de Claude Code con un perfil <code>ccp</code> y ese perfil se queda sin tokens, hoy no hay forma limpia de seguir con otro perfil <strong>sin perder el contexto</strong>. La restricción dura: un proceso <code>claude</code> vivo <strong>congeló sus credenciales al arrancar</strong>; <code>ccp use</code> solo reescribe el env del shell y un proceso vivo nunca lo re-lee. No existe hot-swap de credenciales.</p>
+  <div class="callout"><b>El camino real:</b> persistir el contexto → cambiar de perfil → reanudar la misma conversación en un proceso nuevo, con tokens frescos del destino. El contexto vive en disco como transcript JSONL. <code>ccp handoff</code> lo automatiza y deja un marcador para el viaje de vuelta.</div>
+  <p>El modelo mental: <strong>pides prestados los tokens de otro perfil para una sesión, y devuelves el trabajo al volver.</strong> <code>ccp handoff end</code> trae el contexto actualizado de regreso al perfil origen como una sesión nueva (no destructiva) y reanuda ahí.</p>
+</section>
+
+<section id="s02">
+  <h2 class="sec"><span class="num">§ 02</span>Goals / Non-goals</h2>
+  <h3>Goals</h3>
+  <ul>
+    <li>Continuar una conversación bajo otro perfil sin perder contexto, con tokens del destino.</li>
+    <li>Flujo TUI: elegir perfil destino (excluyendo el activo) → elegir sesión (nuevo→viejo, con fecha/título/uuid) → confirmar marcador.</li>
+    <li>Equivalente CLI por flags (<code>ccp handoff &lt;to&gt; --session &lt;uuid&gt;</code>) para no-TTY/scripting.</li>
+    <li>Marcador de referencia en el perfil origen para recordar el handoff en vuelo.</li>
+    <li><code>ccp handoff end</code>: back-sync destino→origen como <strong>sesión nueva</strong> (uuid nuevo), no destructivo, y relanzar en origen.</li>
+    <li>Origen visible: la sesión de vuelta muestra <code>[de &lt;perfil&gt;]</code> en su título, en la TUI de ccp y en el menú nativo <code>claude --resume</code>.</li>
+    <li>No confundir a Claude Code: la sesión reescrita reanuda limpia (validado en disco, §08).</li>
+  </ul>
+  <h3>Non-goals</h3>
+  <ul>
+    <li><strong>No</strong> hot-swap de credenciales en un proceso vivo (imposible).</li>
+    <li><strong>No</strong> handoff encadenado multi-nivel: v1 permite <strong>1 nivel</strong> y bloquea un segundo handoff hasta hacer <code>end</code>. Cadena real = v2.</li>
+    <li><strong>No</strong> copiar blobs de <code>file-history/</code> (rewind de archivos): la conversación reanuda perfecta, solo ese feature degrada. v2.</li>
+    <li><strong>No</strong> handoff entre máquinas o cwd distintos: asume misma máquina, mismo repo.</li>
+    <li><strong>No</strong> auto-detección de "volvieron los tokens": <code>end</code> es manual.</li>
+    <li><strong>No</strong> funcionar en cloud/headless sin ccp: es para máquina local con ccp, shell function y TTY.</li>
+  </ul>
+</section>
+
+<section id="s03">
+  <h2 class="sec"><span class="num">§ 03</span>Arquitectura y superficie de comandos</h2>
+  <p class="section-lede">Encaja en el split central de ccp sin cambiarlo: lógica en el binario, mutación de env/launch en la shell function.</p>
+  <h3>Comandos de cara al usuario</h3>
+  <div class="code"><button class="copy">copy</button><pre><span class="c"># interactivo y por flags</span>
+ccp handoff                          <span class="c"># TUI: pick perfil → pick sesión → confirma</span>
+ccp handoff &lt;to&gt;                     <span class="c"># salta picker de perfil</span>
+ccp handoff &lt;to&gt; --session &lt;uuid&gt;    <span class="c"># salta ambos pickers (scriptable)</span>
+ccp handoff &lt;to&gt; --no-marker         <span class="c"># forward sin marcador (warning)</span>
+ccp handoff &lt;to&gt; --force             <span class="c"># fuerza sobre colisión de uuid</span>
+ccp handoff end                      <span class="c"># back-sync destino→origen, relanza en origen</span>
+ccp handoff status                   <span class="c"># handoff activo (o "sin handoff activo")</span>
+ccp handoff list                     <span class="c"># historial + activo</span></pre></div>
+  <h3>Comandos internos (emiten env, estilo <code>_env</code>/<code>_hook</code>)</h3>
+  <div class="code"><button class="copy">copy</button><pre>command ccp _handoff &lt;to&gt; &lt;pwd&gt;      <span class="c"># forward: copia + marcador + emite env(destino) + CCP_RESUME_ID</span>
+command ccp _handoff-end &lt;pwd&gt;       <span class="c"># return: back-sync + archiva + emite env(origen) + CCP_RESUME_ID</span></pre></div>
+  <h3>El split en la shell function</h3>
+  <div class="code"><button class="copy">copy</button><pre>handoff)
+  <span class="k">case</span> <span class="s">"$2"</span> <span class="k">in</span>
+    end)          out=$(command ccp _handoff-end <span class="s">"$PWD"</span>) || <span class="k">return</span> ;;
+    status|list)  command ccp handoff <span class="s">"$2"</span>; <span class="k">return</span> ;;   <span class="c"># solo lectura</span>
+    *)            out=$(command ccp _handoff <span class="s">"${2:-}"</span> <span class="s">"$PWD"</span>) || <span class="k">return</span> ;;
+  <span class="k">esac</span>
+  ( <span class="k">eval</span> <span class="s">"$out"</span>; claude --resume <span class="s">"$CCP_RESUME_ID"</span> )   <span class="c"># subshell → env efímero, como `run`</span>
+  ;;</pre></div>
+  <p>El <code>eval</code> corre en subshell para que el env del destino <strong>no persista</strong> tras salir de <code>claude</code> (decisión: efímero, como <code>run</code>). El binario hace toda la lógica; solo emite el env delta + <code>CCP_RESUME_ID</code>.</p>
+  <h3>Componentes nuevos</h3>
+  <p>
+    <span class="tag">internal/core/handoff.go</span>
+    <span class="tag">internal/tui (2 pickers)</span>
+    <span class="tag">internal/cli (dispatch)</span>
+    <span class="tag">core/shellinit.go (case handoff)</span>
+  </p>
+</section>
+
+<section id="s04">
+  <h2 class="sec"><span class="num">§ 04</span>Modelo de datos — el marcador</h2>
+  <p class="section-lede">Estado de runtime, no config. Archivo nuevo <code>~/.config/ccp/handoffs.yaml</code>, escritura atómica bajo <code>flock</code> (patrón de <code>store.go</code>).</p>
+  <div class="callout"><b>No</b> se mezcla con <code>ccp.yaml</code> (config declarativa versionada): mezclarlos ensuciaría el diff de config y arriesgaría el <code>version: 2</code> del store. Si <code>handoffs.yaml</code> se corrompe, no rompe perfiles ni reglas — degradación suave; los jsonl siguen en disco.</div>
+  <div class="code"><button class="copy">copy</button><pre><span class="a">version:</span> 1
+<span class="a">active:</span>                              <span class="c"># 0 o 1 entradas (regla "1 nivel v1")</span>
+  <span class="a">session:</span> bbc1ed61-ada1-408f-...    <span class="c"># uuid copiado (mismo en origen y destino)</span>
+  <span class="a">slug:</span> -Volumes-...-dsctl-v2        <span class="c"># proyecto (cwd → guiones)</span>
+  <span class="a">cwd:</span> /Volumes/.../dsctl-v2         <span class="c"># ruta absoluta, para validar</span>
+  <span class="a">from:</span> personal-cc                  <span class="c"># perfil padre</span>
+  <span class="a">to:</span> emco-cc                        <span class="c"># perfil destino (tokens prestados)</span>
+  <span class="a">title:</span> <span class="s">"Refactor handoff en ccp"</span>   <span class="c"># aiTitle al forward (display)</span>
+  <span class="a">since:</span> 2026-06-19T14:30:00Z
+<span class="a">archived:</span>                            <span class="c"># historial (para `handoff list`)</span>
+  - <span class="a">session:</span> 9c2e0d4f-...
+    <span class="a">from:</span> personal-cc
+    <span class="a">to:</span> emco-cc
+    <span class="a">returned_as:</span> a1b2f0d3-...        <span class="c"># uuid nuevo del back-sync</span>
+    <span class="a">since:</span> 2026-06-18T10:00:00Z
+    <span class="a">ended:</span> 2026-06-18T15:20:00Z</pre></div>
+  <ul>
+    <li><code>active</code> presente → hay handoff en vuelo. Un segundo handoff → error 1-nivel.</li>
+    <li><code>end</code> → toma <code>active</code>, back-sync, mueve a <code>archived</code> con <code>returned_as</code>+<code>ended</code>.</li>
+    <li><strong>Migración:</strong> ninguna. Archivo nuevo, nace en <code>version: 1</code>.</li>
+  </ul>
+</section>
+
+<section id="s05">
+  <h2 class="sec"><span class="num">§ 05</span>Flujo forward (<code>ccp handoff</code>)</h2>
+  <ol class="proc">
+    <li><strong>Pre-chequeos</strong>: ¿hay <code>active</code>? → error 1-nivel. Origen = perfil activo (<code>CLAUDE_CONFIG_DIR</code> o <code>Resolve(cwd)</code>); <code>default</code> permitido.</li>
+    <li><strong>Picker de perfil destino</strong> (TUI) o <code>&lt;to&gt;</code>: lista perfiles menos el activo. destino==origen o inexistente → error.</li>
+    <li><strong>Picker de sesión</strong> o <code>--session</code>: escanea <code>origen/projects/&lt;slug&gt;/*.jsonl</code>; lee <code>mtime</code>, <code>aiTitle</code>, uuid; ordena nuevo→viejo. Carpeta vacía → error.</li>
+    <li><strong>Confirmar marcador</strong> (<code>[Y/n]</code>; <code>--no-marker</code> salta): default sí.</li>
+    <li><strong>Copia forward</strong> (mismo uuid, copia cruda): <code>sessionId</code> ya == uuid, <code>cwd</code> mismo repo → sin reescritura. Colisión mismo-contenido → overwrite+warn; distinto → error sin <code>--force</code>.</li>
+    <li><strong>Warning cross-provider</strong> si origen/destino difieren en tipo o modelo.</li>
+    <li><strong>Escribe marcador + emite env</strong>: <code>EnvDelta</code>(destino) + <code>CCP_RESUME_ID=&lt;uuid&gt;</code>.</li>
+    <li><strong>Shell</strong>: <code>eval</code> (subshell) + <code>claude --resume</code>.</li>
+  </ol>
+  <div class="callout"><b>Orden transaccional:</b> copia → marcador → emit env. Copia falla → sin marcador huérfano. Marcador falla → no se emite env → no se lanza claude → estado consistente (jsonl copiado pero no marcado; recuperable).</div>
+</section>
+
+<section id="s06">
+  <h2 class="sec"><span class="num">§ 06</span>Flujo return (<code>ccp handoff end</code>) y reescritura</h2>
+  <p class="section-lede">Lo más delicado: el back-sync no es <code>cp</code> — procesa el jsonl línea por línea.</p>
+  <ol class="proc">
+    <li><strong>Pre-chequeos</strong>: ¿hay <code>active</code>? No → error. <code>cwd</code> ≠ <code>active.cwd</code> → warning. ¿Existe el jsonl en destino? No → error (marcador queda activo).</li>
+    <li><strong>Genera uuid nuevo <code>N</code></strong> con <code>crypto/rand</code> (UUID v4).</li>
+    <li><strong>Reescritura</strong> de <code>destino/.../&lt;uuid_viejo&gt;.jsonl</code>:
+      <ul>
+        <li><code>sessionId</code> → <code>N</code> (todas las líneas).</li>
+        <li><code>type:"ai-title"</code> → prepende <code>[de &lt;to&gt;] </code> (idempotente).</li>
+        <li><strong>NO toca:</strong> <code>cwd</code>, árbol <code>uuid</code>/<code>parentUuid</code>/<code>leafUuid</code>, <code>messageId</code>, timestamps, contenido.</li>
+        <li>escribe en <code>origen/.../N.jsonl</code>.</li>
+      </ul>
+    </li>
+    <li><strong>No-destructivo</strong>: original en origen intacto; el de destino tampoco se borra (solo se lee). Origen termina con dos sesiones: la vieja + <code>N</code> completa.</li>
+    <li><strong>Validación</strong>: re-parsea <code>N.jsonl</code>; assert cero <code>sessionId</code> viejo y JSONL válido. Falla → borra <code>N.jsonl</code>, no archiva, error.</li>
+    <li><strong>Archiva marcador + emite env</strong> del origen + <code>CCP_RESUME_ID=N</code>.</li>
+    <li><strong>Shell</strong>: <code>eval</code> (origen) + <code>claude --resume N</code>.</li>
+  </ol>
+</section>
+
+<section id="s07">
+  <h2 class="sec"><span class="num">§ 07</span>Manejo de errores y casos borde</h2>
+  <p class="section-lede">Principio: toda operación es transaccional o no pasa nada.</p>
+  <table>
+    <thead><tr><th>Caso</th><th>Comportamiento</th></tr></thead>
+    <tbody>
+      <tr><td>Handoff activo, intentas otro</td><td>Error 1-nivel: termina el activo con <code>ccp handoff end</code>.</td></tr>
+      <tr><td><code>end</code> sin handoff activo</td><td>Error: sin handoff activo.</td></tr>
+      <tr><td>destino == origen</td><td>Error no-op.</td></tr>
+      <tr><td>destino no existe como perfil</td><td>Error + lista perfiles válidos.</td></tr>
+      <tr><td><code>--session &lt;uuid&gt;</code> inexistente</td><td>Error + lista sesiones del cwd.</td></tr>
+      <tr><td>Carpeta <code>projects/</code> vacía</td><td>Error: sin sesiones para este proyecto.</td></tr>
+      <tr><td>Colisión uuid, mismo contenido</td><td>Overwrite + warning.</td></tr>
+      <tr><td>Colisión uuid, contenido distinto</td><td>Error, pide <code>--force</code>.</td></tr>
+      <tr><td>Cross-provider (Anthropic→DeepSeek)</td><td>Warning no-bloqueante.</td></tr>
+      <tr><td>jsonl de destino borrado antes de <code>end</code></td><td>Error; marcador queda activo.</td></tr>
+      <tr><td>Reescritura produce JSONL inválido</td><td>Borra <code>N.jsonl</code>, no archiva, error (estado pre-<code>end</code>).</td></tr>
+      <tr><td><code>cwd</code> en <code>end</code> ≠ marcador</td><td>Warning, permite.</td></tr>
+      <tr><td><code>handoffs.yaml</code> corrupto/ausente</td><td>Degradación suave; forward arranca limpio.</td></tr>
+      <tr><td>Usuario nunca corre <code>end</code></td><td>Marcador activo; <code>status</code> lo recuerda.</td></tr>
+      <tr><td><code>default</code> como origen o destino</td><td>Permitido (cc-home = <code>~/.claude</code>).</td></tr>
+      <tr><td>Concurrencia (dos handoff)</td><td><code>flock</code> serializa; el segundo → error 1-nivel.</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Exit codes</strong> (estable): forward/end OK → 0; pre-chequeo → 1; I/O → 2; <code>handoff status</code> → 0 si activo, 1 si no (paridad con <code>resolve</code>).</p>
+</section>
+
+<section id="s08">
+  <h2 class="sec"><span class="num">§ 08</span>Formato en disco de Claude Code (validado)</h2>
+  <p class="section-lede">Investigado en disco (CC v2.1.183). Sesión en <code>&lt;CLAUDE_CONFIG_DIR&gt;/projects/&lt;slug&gt;/&lt;uuid&gt;.jsonl</code>, una línea JSON por evento.</p>
+  <h3>Identidad de sesión (mantener consistente al copiar)</h3>
+  <ul>
+    <li>El <strong>uuid del nombre de archivo</strong> ES el id para <code>claude --resume &lt;uuid&gt;</code>.</li>
+    <li>El campo <code>sessionId</code> (~90% de líneas) debe igualar el uuid del archivo. Copiar como sesión nueva exige reescribir cada <code>sessionId</code> (no es <code>cp</code> crudo).</li>
+    <li><code>cwd</code> (ruta absoluta) → misma máquina/repo, sin cambios.</li>
+    <li>Título = <code>aiTitle</code> en líneas <code>type:"ai-title"</code> (esta versión no usa <code>type:"summary"</code>).</li>
+    <li>Árbol <code>uuid</code>/<code>parentUuid</code>/<code>leafUuid</code> (<code>last-prompt</code> guarda el leaf) — interno, intacto.</li>
+  </ul>
+  <h3>NO es identidad — no tocar, sin riesgo</h3>
+  <ul>
+    <li><code>.claude.json</code> — llaveado por cwd, solo guarda <code>lastSessionId</code>+métricas, <strong>no enumera</strong> sesiones; resume-by-uuid escanea la carpeta directo.</li>
+    <li><code>session-env/&lt;sid&gt;/</code> — dir scratch vacío, <strong>sin credenciales</strong> (cero leak).</li>
+    <li><code>sessions/&lt;pid&gt;.json</code> — registro de proceso vivo por PID, efímero.</li>
+  </ul>
+  <div class="callout"><b>Degradación residual:</b> <code>file-history/</code> (rewind/restore) llaveado aparte y no se copia → la conversación reanuda perfecta, solo el rewind de archivos puede no hallar blobs. Documentado; copia opcional en v2.</div>
+</section>
+
+<section id="s09">
+  <h2 class="sec"><span class="num">§ 09</span>Estrategia de pruebas</h2>
+  <p class="section-lede">Feature nuevo (fuera del contrato bash congelado), pero la shell function gana el <code>case handoff)</code> — texto byte-idéntico en <code>shellinit.go</code> ⟷ oráculo bash.</p>
+  <h3>Gates existentes (obligatorio)</h3>
+  <ul>
+    <li>Añadir <code>handoff</code> a la shell function → actualizar oráculo bash en <code>legacy/</code> + regenerar golden con <code>capture.sh</code> + <code>parity_test.go</code> verde.</li>
+    <li><code>_handoff</code>/<code>_handoff-end</code> emiten env → al fixture golden como comandos de scripting.</li>
+    <li><code>gofmt</code>/<code>vet</code>/<code>golangci-lint</code> limpios.</li>
+  </ul>
+  <h3>Unitarios (<code>internal/core/handoff_test.go</code>)</h3>
+  <ul>
+    <li><strong>Reescritura jsonl</strong> (corazón): sobre fixture real, assert <code>sessionId</code> viejo→<code>N</code> en todas las líneas (cero residuos); <code>aiTitle</code> prepende e idempotente; <code>cwd</code>/árbol/<code>messageId</code>/timestamps/contenido intactos; salida JSONL válida.</li>
+    <li><strong>Marcador CRUD</strong>: write→read→archive; <code>active</code> único; atómico bajo <code>flock</code>.</li>
+    <li><strong>Copia forward</strong>: mismo uuid; colisión mismo-contenido vs distinto.</li>
+    <li><strong>Listado</strong>: orden nuevo→viejo, extracción de <code>aiTitle</code>, carpeta vacía → error.</li>
+    <li><strong>Resolución de origen</strong>: desde <code>CLAUDE_CONFIG_DIR</code> y <code>Resolve(cwd)</code>.</li>
+  </ul>
+  <h3>Eval-effect (zsh + bash) y E2E</h3>
+  <p><code>eval "$(ccp _handoff ...)"</code> exporta <code>CLAUDE_CONFIG_DIR</code>(destino)+<code>CCP_RESUME_ID</code>; <code>_handoff-end</code> el del origen + <code>N</code>. E2E con temp <code>CCP_HOME</code> (dir existente, no dispara auto-migración): forward → assert copiado + marcador + env; end → assert <code>N.jsonl</code> reescrito, original intacto, marcador archivado. <strong>Nunca lanza <code>claude</code></strong> (el binario solo emite env).</p>
+</section>
+
+<section id="s10">
+  <h2 class="sec"><span class="num">§ 10</span>Resumen del ciclo</h2>
+  <figure class="diagram">
+    <svg viewBox="0 0 760 360" xmlns="http://www.w3.org/2000/svg" font-family="JetBrains Mono, monospace" font-size="12.5">
+      <defs>
+        <marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L8,3 L0,6 Z" fill="#c96442"/>
+        </marker>
+      </defs>
+      <!-- columns -->
+      <rect x="20" y="20" width="320" height="320" rx="6" fill="#ece7dd" stroke="#d8d2c4"/>
+      <rect x="420" y="20" width="320" height="320" rx="6" fill="#ece7dd" stroke="#d8d2c4"/>
+      <text x="180" y="44" text-anchor="middle" fill="#1a1915" font-weight="700">personal-cc (sin tokens)</text>
+      <text x="580" y="44" text-anchor="middle" fill="#1a1915" font-weight="700">emco-cc (tokens frescos)</text>
+
+      <!-- nodes left -->
+      <rect x="50" y="64" width="260" height="30" rx="4" fill="#f4f1ea" stroke="#d8d2c4"/>
+      <text x="62" y="83" fill="#3a3833">bbc1ed61.jsonl</text>
+
+      <!-- forward arrow -->
+      <text x="62" y="120" fill="#6f6a60">ccp handoff → pick emco-cc → bbc1ed61</text>
+      <text x="62" y="138" fill="#c96442">marcador active: personal-cc → emco-cc</text>
+      <line x1="62" y1="152" x2="700" y2="152" stroke="#c96442" stroke-width="1.5" marker-end="url(#ar)"/>
+      <text x="370" y="146" text-anchor="middle" fill="#6f6a60">copia bbc1ed61 (mismo uuid)</text>
+
+      <rect x="450" y="100" width="260" height="30" rx="4" fill="#f4f1ea" stroke="#d8d2c4"/>
+      <text x="462" y="119" fill="#3a3833">claude --resume bbc1ed61 · +N msgs</text>
+
+      <!-- return arrow -->
+      <line x1="700" y1="210" x2="62" y2="210" stroke="#c96442" stroke-width="1.5" marker-end="url(#ar)"/>
+      <text x="390" y="204" text-anchor="middle" fill="#6f6a60">ccp handoff end · reescribe sessionId→a1b2</text>
+
+      <rect x="50" y="236" width="290" height="30" rx="4" fill="#f4f1ea" stroke="#d8d2c4"/>
+      <text x="62" y="255" fill="#3a3833">a1b2.jsonl  "[de emco-cc] ..."</text>
+      <rect x="50" y="274" width="290" height="30" rx="4" fill="#f4f1ea" stroke="#d8d2c4"/>
+      <text x="62" y="293" fill="#6f6a60">bbc1ed61.jsonl  (original intacto)</text>
+
+      <text x="62" y="326" fill="#c96442">claude --resume a1b2  · contexto completo</text>
+    </svg>
+    <figcaption>ida: copia mismo uuid · vuelta: sesión nueva reescrita, no destructiva</figcaption>
+  </figure>
+</section>
+
+<footer>
+  ccp handoff — design spec · v0.1 — 2026-06-19
+</footer>
+
+</div>
+<script>
+  document.querySelectorAll('.copy').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var pre = btn.parentElement.querySelector('pre');
+      navigator.clipboard.writeText(pre.innerText).then(function(){
+        var old = btn.textContent; btn.textContent = 'copied'; btn.style.opacity='1';
+        setTimeout(function(){ btn.textContent = old; }, 1200);
+      });
+    });
+  });
+</script>
+</body>
+</html>

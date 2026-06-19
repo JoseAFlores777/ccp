@@ -65,6 +65,10 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 		return cmdEnv(rest, stdout, stderr)
 	case "_hook":
 		return cmdHook(rest, stdout, stderr)
+	case "_handoff":
+		return cmdHandoffEmit(rest, stdout, stderr)
+	case "_handoff-end":
+		return cmdHandoffEndEmit(rest, stdout, stderr)
 	case "completion":
 		return cmdCompletion(rest, stdout, stderr)
 	case "completion-shellinit":
@@ -75,6 +79,8 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 		return 0
 
 	// --- superficie scriptable + gestión ---
+	case "handoff":
+		return cmdHandoff(rest, stdout, stderr)
 	case "status":
 		return cmdStatus(rest, stdout, stderr)
 	case "path":

@@ -1,6 +1,6 @@
 _ccp() {
   local cur prev; cur="${COMP_WORDS[COMP_CWORD]}"; prev="${COMP_WORDS[COMP_CWORD-1]}"
-  local top="install uninstall upgrade key path profile instruct status config doctor menu completion resolve lang version help use default on off run"
+  local top="install uninstall upgrade key path profile instruct status config doctor menu completion resolve lang version help use default on off run handoff"
   if [[ $COMP_CWORD -eq 1 ]]; then COMPREPLY=( $(compgen -W "$top" -- "$cur") ); return; fi
   case "${COMP_WORDS[1]}" in
     profile) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "add rm list show login config sync" -- "$cur") )
