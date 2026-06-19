@@ -10,7 +10,7 @@
 En tu repo de trabajo, tu cuenta de empresa; en tu proyecto personal, la tuya; en tus experimentos, DeepSeek.
 El cambio ocurre solo, con hacer `cd`.
 
-![version](https://img.shields.io/badge/version-2.6.1-c96442)
+![version](https://img.shields.io/badge/version-2.8.0-c96442)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-c96442)
 ![shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-8a8378)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
@@ -164,6 +164,23 @@ ccp doctor            # logins, keys, función de shell
 
 ---
 
+## Handoff — continuar una sesión bajo otro perfil
+
+Un proceso `claude` vivo congela sus credenciales al arrancar, así que `ccp use` no puede hot-swapearlas. Cuando un perfil se queda sin tokens/cuota a media conversación, `ccp handoff` hace lo único limpio: **persiste el contexto → cambia de perfil → reanuda la misma conversación** en un proceso nuevo con los tokens del perfil destino.
+
+```bash
+ccp handoff                       # TUI: elige perfil destino → elige sesión → confirma
+ccp handoff <to>                  # salta el picker de perfil
+ccp handoff <to> --session <uuid> # salta ambos pickers (scriptable)
+ccp handoff end                   # trae el contexto actualizado de vuelta al origen y reanuda ahí
+ccp handoff status                # muestra el handoff en vuelo (o "sin handoff activo")
+ccp handoff list                  # historial (archivados) + activo
+```
+
+El modelo mental: **pides prestados los tokens de otro perfil para una sesión, y devuelves el trabajo al volver.** `handoff end` hace back-sync del contexto actualizado al perfil origen como **sesión nueva** (no destructivo); la sesión de vuelta muestra `[de <perfil>]` en su título. v1 permite un solo nivel (sin handoffs encadenados — termina uno con `end` primero). `status`/`list` son de solo lectura y funcionan en cualquier lado; lo demás corre a través de la función shell de ccp, así que `ccp install` debe estar activo.
+
+---
+
 ## Backup y restore
 
 Llévate todo a otra máquina, o respáldalo antes de un cambio grande:
@@ -308,6 +325,8 @@ Con comandos: `ccp config show` · `ccp config set <clave> <valor>` · `ccp conf
 | Quitar una regla | `ccp path rm <ruta>` |
 | Ver reglas / perfiles | `ccp path list` · `ccp profile list` |
 | Cambiar a mano | `ccp use <n>` · `ccp default` |
+| Continuar una sesión bajo otro perfil | `ccp handoff [<n>]` |
+| Devolver un handoff a su origen | `ccp handoff end` |
 | Estado / diagnóstico | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
 | Actualizar | `ccp upgrade` |
@@ -342,7 +361,8 @@ garantía de ningún tipo (mira [`LICENSE`](LICENSE)). Eres responsable de tus
 propias API keys, cuentas y configuración.
 
 **Sin afiliación.** `ccp` (perfiles para Claude Code) es un proyecto
-independiente y comunitario. **No está afiliado, avalado ni patrocinado por** Anthropic ni
-DeepSeek. "Claude" y "Claude Code" son marcas de Anthropic, PBC; "DeepSeek" es
-marca de su respectivo dueño. Estos nombres se usan solo para describir
-interoperabilidad. Mira [`NOTICE`](NOTICE).
+independiente y comunitario. **No está afiliado, avalado ni patrocinado por**
+Anthropic, DeepSeek, Moonshot AI ni Z.ai. "Claude" y "Claude Code" son marcas de
+Anthropic, PBC; "DeepSeek", "Kimi" (Moonshot) y "GLM" (Z.ai) son marcas de sus
+respectivos dueños. Estos nombres se usan solo para describir interoperabilidad.
+Mira [`NOTICE`](NOTICE).

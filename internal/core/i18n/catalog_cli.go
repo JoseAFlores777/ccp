@@ -537,6 +537,12 @@ var catalogCLI = map[string]map[Lang]string{
   ccp default | off           go back to your ~/.claude login
   ccp run [cmd]               run cmd/claude with the cwd's profile
 
+HANDOFF (shell function)
+  ccp handoff [<to>]          continue this session under another profile (TUI pickers)
+  ccp handoff <to> --session <uuid>   skip the pickers (scriptable)
+  ccp handoff end             bring the updated context back to the origin
+  ccp handoff status | list   in-flight handoff + history
+
 PROFILES
   ccp profile add <n> --official            create official account
   ccp profile add <n> --deepseek [opts]     create DeepSeek provider (--base-url --pro --flash --effort)
@@ -575,6 +581,12 @@ LIFE CYCLE
   ccp use <perfil>            activa un perfil en esta terminal
   ccp default | off           vuelve a tu login ~/.claude
   ccp run [cmd]               corre cmd/claude con el perfil del cwd
+
+HANDOFF (función shell)
+  ccp handoff [<destino>]     continúa esta sesión bajo otro perfil (pickers TUI)
+  ccp handoff <destino> --session <uuid>   salta los pickers (scriptable)
+  ccp handoff end             trae el contexto actualizado de vuelta al origen
+  ccp handoff status | list   handoff en vuelo + historial
 
 PERFILES
   ccp profile add <n> --official            crea cuenta oficial

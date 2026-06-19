@@ -10,7 +10,7 @@
 In your work repo, your company account; in your personal project, your own; in your experiments, DeepSeek.
 The switch happens on its own, just by `cd`-ing.
 
-![version](https://img.shields.io/badge/version-2.6.1-c96442)
+![version](https://img.shields.io/badge/version-2.8.0-c96442)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-c96442)
 ![shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-8a8378)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
@@ -164,6 +164,23 @@ ccp doctor            # logins, keys, función de shell
 
 ---
 
+## Handoff — continue a session under another profile
+
+A live `claude` process freezes its credentials at startup, so `ccp use` can't hot-swap them. When a profile runs out of tokens/quota mid-conversation, `ccp handoff` does the only clean thing: it **persists the context → switches profile → resumes the same conversation** in a fresh process with the target profile's tokens.
+
+```bash
+ccp handoff                       # TUI: pick target profile → pick session → confirm
+ccp handoff <to>                  # skip the profile picker
+ccp handoff <to> --session <uuid> # skip both pickers (scriptable)
+ccp handoff end                   # bring the updated context back to the origin and resume there
+ccp handoff status                # show the in-flight handoff (or "no active handoff")
+ccp handoff list                  # history (archived) + active
+```
+
+The mental model: **you borrow another profile's tokens for a session, and return the work when you come back.** `handoff end` back-syncs the updated context to the origin profile as a **new session** (non-destructive); the returned session shows `[from <profile>]` in its title. v1 allows a single level (no chained handoffs — finish one with `end` first). `status`/`list` are read-only and work anywhere; the rest runs through the ccp shell function, so `ccp install` must be active.
+
+---
+
 ## Backup and restore
 
 Take everything to another machine, or back it up before a big change:
@@ -308,6 +325,8 @@ With commands: `ccp config show` · `ccp config set <clave> <valor>` · `ccp con
 | Remove a rule | `ccp path rm <ruta>` |
 | See rules / profiles | `ccp path list` · `ccp profile list` |
 | Switch by hand | `ccp use <n>` · `ccp default` |
+| Continue a session under another profile | `ccp handoff [<n>]` |
+| Return a handoff to its origin | `ccp handoff end` |
 | Status / diagnostics | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
 | Update | `ccp upgrade` |
@@ -342,7 +361,8 @@ any kind (see [`LICENSE`](LICENSE)). You are responsible for your own API keys,
 accounts, and configuration.
 
 **Not affiliated.** `ccp` (profiles for Claude Code) is an independent, community
-project. It is **not affiliated with, endorsed by, or sponsored by** Anthropic
-or DeepSeek. "Claude" and "Claude Code" are trademarks of Anthropic, PBC;
-"DeepSeek" is a trademark of its respective owner. These names are used only to
-describe interoperability. See [`NOTICE`](NOTICE).
+project. It is **not affiliated with, endorsed by, or sponsored by** Anthropic,
+DeepSeek, Moonshot AI or Z.ai. "Claude" and "Claude Code" are trademarks of
+Anthropic, PBC; "DeepSeek", "Kimi" (Moonshot) and "GLM" (Z.ai) are trademarks of
+their respective owners. These names are used only to describe interoperability.
+See [`NOTICE`](NOTICE).

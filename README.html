@@ -388,7 +388,7 @@
 <div class="app">
   <aside class="sidebar" id="sidebar">
     <div class="brand">ccp<span class="cur">_</span></div>
-    <p class="brand-sub">User guide · v2.6.1</p>
+    <p class="brand-sub">User guide · v2.8.0</p>
 
     <div class="side-actions">
       <a class="tbtn" href="https://github.com/JoseAFlores777/ccp" target="_blank" rel="noopener" aria-label="GitHub repository"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg> GitHub</a>
@@ -405,7 +405,7 @@
       <h3>Cases</h3>
       <a data-view="c1"><span class="ix">01</span>Work account</a>
       <a data-view="c2"><span class="ix">02</span>Personal account</a>
-      <a data-view="c3"><span class="ix">03</span>DeepSeek folder</a>
+      <a data-view="c3"><span class="ix">03</span>Provider folder</a>
       <a data-view="c4"><span class="ix">04</span>Carve-out</a>
       <a data-view="c5"><span class="ix">05</span>Switch by hand</a>
       <a data-view="c6"><span class="ix">06</span>See what's going on</a>
@@ -413,6 +413,7 @@
     </div>
     <div class="nav-group">
       <h3>Advanced</h3>
+      <a data-view="handoff"><span class="ix">·</span>Handoff</a>
       <a data-view="update"><span class="ix">·</span>Update ccp</a>
       <a data-view="backup"><span class="ix">·</span>Backup &amp; restore</a>
       <a data-view="config"><span class="ix">·</span>Manual config (YAML)</a>
@@ -429,7 +430,7 @@
 
     <!-- ═══ INICIO ═══ -->
     <section class="view" id="view-inicio">
-      <p class="kicker"><span class="s">User guide</span><span class="t">v2.6.1 · Go CLI</span></p>
+      <p class="kicker"><span class="s">User guide</span><span class="t">v2.8.0 · Go CLI</span></p>
       <div class="hero-actions">
         <a class="tbtn" href="https://github.com/JoseAFlores777/ccp" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg> View on GitHub</a>
         <a class="tbtn" href="README.es.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z"/></svg> Español</a>
@@ -650,12 +651,15 @@ source ~/.bashrc    <span class="c"># bash</span></pre></div>
     <!-- ═══ CASO 3 ═══ -->
     <section class="view" id="view-c3">
       <div class="kicker"><span class="s">§ 03</span><span class="t">Provider</span></div>
-      <h2 class="sec">A folder with DeepSeek</h2>
-      <p class="sec-lede">For experiments or work where you'd rather use DeepSeek instead of your Anthropic account.</p>
+      <h2 class="sec">A folder with a compatible provider (DeepSeek / Kimi / GLM)</h2>
+      <p class="sec-lede">For experiments or work where you'd rather use a compatible provider instead of your Anthropic account. Built-in presets for <b>DeepSeek</b>, <b>Kimi</b> (Moonshot) and <b>GLM</b> (Z.ai).</p>
       <div class="steps">
         <div class="step"><div class="num">01</div><div class="body">
-          <p class="lead">Create the provider profile.</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile add deepseek --deepseek</pre></div>
+          <p class="lead">Create the provider profile — pick the preset you want.</p>
+          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp profile add deepseek --deepseek   <span class="c"># DeepSeek</span>
+ccp profile add kimi     --kimi       <span class="c"># Kimi (Moonshot): base_url + modelos</span>
+ccp profile add glm      --glm        <span class="c"># GLM (Z.ai): base_url + modelos</span></pre></div>
+          <details class="why"><summary>what does a preset fill in?</summary><div class="why-body"><p>Each preset fills the right <code>ANTHROPIC_BASE_URL</code>, default models and the provider-recommended tuning vars (Kimi: <code>ENABLE_TOOL_SEARCH</code>, <code>CLAUDE_CODE_AUTO_COMPACT_WINDOW</code>; GLM: <code>API_TIMEOUT_MS</code>, <code>CLAUDE_CODE_AUTO_COMPACT_WINDOW</code>). Override any field with <code>--base-url --pro --flash --effort</code>.</p></div></details>
         </div></div>
         <div class="step"><div class="num">02</div><div class="body">
           <p class="lead">Save your DeepSeek API key (it's prompted hidden).</p>
@@ -744,6 +748,29 @@ source ~/.bashrc    <span class="c"># bash</span></pre></div>
       </div>
     </section>
 
+    <!-- ═══ HANDOFF ═══ -->
+    <section class="view" id="view-handoff">
+      <div class="kicker"><span class="s">·</span><span class="t">Advanced · Continuity</span></div>
+      <h2 class="sec">Handoff — continue a session under another profile</h2>
+      <p class="sec-lede">A live <code>claude</code> process freezes its credentials at startup, so <code>ccp use</code> can't hot-swap them. When a profile runs out of tokens/quota mid-conversation, <code>ccp handoff</code> does the only clean thing: it <b>persists the context → switches profile → resumes the same conversation</b> in a fresh process with the target profile's tokens.</p>
+      <div class="do">
+        <p class="lead">Hand the current session off to another profile.</p>
+        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp handoff                       <span class="c"># TUI: pick target profile → pick session → confirm</span>
+ccp handoff &lt;to&gt;                  <span class="c"># skip the profile picker</span>
+ccp handoff &lt;to&gt; --session &lt;uuid&gt; <span class="c"># skip both pickers (scriptable)</span></pre></div>
+      </div>
+      <div class="do">
+        <p class="lead">When you're done, bring the work back to the origin profile and resume there.</p>
+        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp handoff end</pre></div>
+      </div>
+      <div class="do">
+        <p class="lead">See the in-flight handoff or the history (read-only, work anywhere).</p>
+        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp handoff status     <span class="c"># the in-flight handoff (or "no active handoff")</span>
+ccp handoff list       <span class="c"># history (archived) + active</span></pre></div>
+      </div>
+      <div class="tip"><span class="lbl">Mental model</span>You <b>borrow another profile's tokens for a session, and return the work when you come back.</b> <code>handoff end</code> back-syncs the updated context to the origin profile as a <b>new session</b> (non-destructive); the returned session shows <code>[from &lt;profile&gt;]</code> in its title. v1 allows a single level (no chained handoffs — finish one with <code>end</code> first). Everything except <code>status</code>/<code>list</code> runs through the ccp shell function, so <code>ccp install</code> must be active.</div>
+    </section>
+
     <!-- ═══ ACTUALIZAR ═══ -->
     <section class="view" id="view-update">
       <div class="kicker"><span class="s">·</span><span class="t">Advanced · Versions</span></div>
@@ -753,7 +780,7 @@ source ~/.bashrc    <span class="c"># bash</span></pre></div>
       <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:8px 0 4px;">Which version do I have?</h3>
       <div class="do">
         <p class="lead">Print the binary's version.</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp version     <span class="c"># → 2.6.1</span></pre></div>
+        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp version     <span class="c"># → 2.8.0</span></pre></div>
         <p class="hint"><code>ccp --version</code> or <code>ccp -v</code> work too.</p>
       </div>
 
@@ -991,18 +1018,22 @@ ccp lang es     <span class="c"># Spanish</span></pre></div>
           <tr><td>Create an official account</td><td><code>ccp profile add &lt;n&gt; --official</code></td></tr>
           <tr><td>Log in to it</td><td><code>ccp profile login &lt;n&gt;</code></td></tr>
           <tr><td>Create a DeepSeek provider</td><td><code>ccp profile add &lt;n&gt; --deepseek</code></td></tr>
+          <tr><td>Create a Kimi provider</td><td><code>ccp profile add &lt;n&gt; --kimi</code></td></tr>
+          <tr><td>Create a GLM provider</td><td><code>ccp profile add &lt;n&gt; --glm</code></td></tr>
           <tr><td>Save its API key</td><td><code>ccp key &lt;n&gt;</code></td></tr>
           <tr><td>Assign folder → profile</td><td><code>ccp path set &lt;ruta&gt; &lt;perfil&gt;</code></td></tr>
           <tr><td>Remove a rule</td><td><code>ccp path rm &lt;ruta&gt;</code></td></tr>
           <tr><td>See rules / profiles</td><td><code>ccp path list</code> · <code>ccp profile list</code></td></tr>
           <tr><td>Switch by hand</td><td><code>ccp use &lt;n&gt;</code> · <code>ccp default</code></td></tr>
+          <tr><td>Continue a session under another profile</td><td><code>ccp handoff [&lt;n&gt;]</code></td></tr>
+          <tr><td>Return a handoff to its origin</td><td><code>ccp handoff end</code></td></tr>
           <tr><td>Status / diagnostics</td><td><code>ccp status</code> · <code>ccp doctor</code></td></tr>
           <tr><td>Full help</td><td><code>ccp help</code></td></tr>
         </tbody>
       </table>
       <div class="tip"><span class="lbl">For scripting</span><code>ccp resolve [ruta]</code> prints the profile (exit <code>0</code> = non-default, <code>1</code> = default), and <code>ccp status --json</code> returns a JSON object with <code>active</code>, <code>profile</code>, <code>profile_type</code>, <code>cwd</code> and <code>repo</code>.</div>
       <p class="intro" style="margin-top:28px;">How does it work under the hood? → <a href="https://github.com/JoseAFlores777/ccp/blob/main/CLAUDE.md" target="_blank" rel="noopener">CLAUDE.md</a> · <a href="https://github.com/JoseAFlores777/ccp" target="_blank" rel="noopener">source on GitHub</a></p>
-      <div class="tip" style="margin-top:28px;"><span class="lbl">License &amp; trademarks</span>MIT — use at your own risk, no warranty; you are responsible for your own API keys and accounts. <code>ccp</code> (profiles for Claude Code) is an independent project, <strong>not affiliated with, endorsed by, or sponsored by</strong> Anthropic or DeepSeek. "Claude" and "Claude Code" are trademarks of Anthropic, PBC; "DeepSeek" is a trademark of its owner — used only to describe interoperability.</div>
+      <div class="tip" style="margin-top:28px;"><span class="lbl">License &amp; trademarks</span>MIT — use at your own risk, no warranty; you are responsible for your own API keys and accounts. <code>ccp</code> (profiles for Claude Code) is an independent project, <strong>not affiliated with, endorsed by, or sponsored by</strong> Anthropic, DeepSeek, Moonshot AI or Z.ai. "Claude" and "Claude Code" are trademarks of Anthropic, PBC; "DeepSeek", "Kimi" (Moonshot) and "GLM" (Z.ai) are trademarks of their respective owners — used only to describe interoperability.</div>
     </section>
 
     <!-- pager (rendered by JS) -->
@@ -1016,11 +1047,11 @@ ccp lang es     <span class="c"># Spanish</span></pre></div>
 
 <script>
   (function(){
-    var ORDER = ['inicio','modelo','instalacion','c1','c2','c3','c4','c5','c6','c7','update','backup','config','idioma','trouble','ref'];
+    var ORDER = ['inicio','modelo','instalacion','c1','c2','c3','c4','c5','c6','c7','handoff','update','backup','config','idioma','trouble','ref'];
     var TITLES = {inicio:'Home',modelo:'Mental model',instalacion:'Installation',
-      c1:'Work account',c2:'Personal account',c3:'DeepSeek folder',c4:'Carve-out',
+      c1:'Work account',c2:'Personal account',c3:'Provider folder',c4:'Carve-out',
       c5:'Switch by hand',c6:"See what's going on",c7:'Coming from dsctl',
-      update:'Update ccp',backup:'Backup & restore',config:'Manual config (YAML)',
+      handoff:'Handoff',update:'Update ccp',backup:'Backup & restore',config:'Manual config (YAML)',
       idioma:'Language',trouble:'Troubleshooting',ref:'Quick reference'};
 
     var navLinks = Array.prototype.slice.call(document.querySelectorAll('.nav-group a'));
