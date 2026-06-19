@@ -148,6 +148,51 @@ func TestProfileAddDeepseek_FieldsPersistExplicitly(t *testing.T) {
 	}
 }
 
+func TestProfileAddProvider_KimiAndGLMPersist(t *testing.T) {
+	cases := []struct {
+		add  func(home, name string, d Defaults) error
+		typ  string
+		want Defaults
+	}{
+		{ProfileAddKimi, "kimi", PresetDefaults("kimi")},
+		{ProfileAddGLM, "glm", PresetDefaults("glm")},
+	}
+	for _, c := range cases {
+		t.Run(c.typ, func(t *testing.T) {
+			home := t.TempDir()
+			src := makeFakeClaudeSrc(t)
+			t.Setenv("CCP_CLAUDE_SRC", src)
+
+			if err := c.add(home, c.typ, c.want); err != nil {
+				t.Fatalf("add %s: %v", c.typ, err)
+			}
+			cfg, err := Load(home)
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			p := cfg.Profiles[c.typ]
+			if p.Type != c.typ {
+				t.Errorf("Type = %q, quiero %q", p.Type, c.typ)
+			}
+			if p.BaseURL != c.want.BaseURL || p.ModelPro != c.want.ModelPro ||
+				p.ModelFlash != c.want.ModelFlash || p.Effort != c.want.Effort {
+				t.Errorf("perfil %s = %+v, quiero %+v", c.typ, p, c.want)
+			}
+			// set key debe aceptar cualquier proveedor.
+			if err := ProfileSetKey(home, c.typ, "sk-test"); err != nil {
+				t.Errorf("ProfileSetKey(%s): %v", c.typ, err)
+			}
+		})
+	}
+}
+
+func TestProfileAddProvider_RejectsUnknownType(t *testing.T) {
+	home := t.TempDir()
+	if err := ProfileAddProvider(home, "x", "openai", Defaults{}); err == nil {
+		t.Fatal("ProfileAddProvider con tipo desconocido debió fallar")
+	}
+}
+
 func TestProfileAddDeepseek_CCHomeSymlinks(t *testing.T) {
 	home := t.TempDir()
 	src := makeFakeClaudeSrc(t)

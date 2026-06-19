@@ -377,6 +377,10 @@ func humanType(lang i18n.Lang, t string) string {
 		return i18n.T(lang, "tui.ptype.official")
 	case "deepseek":
 		return i18n.T(lang, "tui.ptype.deepseek")
+	case "kimi":
+		return i18n.T(lang, "tui.ptype.kimi")
+	case "glm":
+		return i18n.T(lang, "tui.ptype.glm")
 	default:
 		return i18n.T(lang, "tui.ptype.default")
 	}
@@ -387,7 +391,7 @@ func typeStyle(t string) lipgloss.Style {
 	switch t {
 	case "official":
 		return lipgloss.NewStyle().Foreground(cAccent)
-	case "deepseek":
+	case "deepseek", "kimi", "glm":
 		return lipgloss.NewStyle().Foreground(cOlive)
 	default:
 		return lipgloss.NewStyle().Foreground(cMute)

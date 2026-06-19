@@ -56,6 +56,8 @@ func formAddProfile(home string, defs core.Defaults, lang i18n.Lang) action {
 				Options(
 					huh.NewOption(i18n.T(lang, "tui.form.profile_type_official"), "official"),
 					huh.NewOption(i18n.T(lang, "tui.form.profile_type_deepseek"), "deepseek"),
+					huh.NewOption(i18n.T(lang, "tui.form.profile_type_kimi"), "kimi"),
+					huh.NewOption(i18n.T(lang, "tui.form.profile_type_glm"), "glm"),
 				).
 				Value(&ptype),
 			huh.NewInput().
@@ -77,26 +79,45 @@ func formAddProfile(home string, defs core.Defaults, lang i18n.Lang) action {
 			huh.NewInput().Title(i18n.T(lang, "tui.form.model_flash")).Value(&modelFlash),
 			huh.NewInput().Title(i18n.T(lang, "tui.form.effort")).Value(&effort),
 			huh.NewInput().Title(i18n.T(lang, "tui.form.api_key_optional")).EchoMode(huh.EchoModePassword).Value(&apiKey),
-		).WithHideFunc(func() bool { return ptype != "deepseek" }),
+		).WithHideFunc(func() bool { return ptype == "official" }),
 	)
 
 	apply := func() (string, error) {
-		if ptype == "deepseek" {
-			d := core.Defaults{BaseURL: baseURL, ModelPro: modelPro, ModelFlash: modelFlash, Effort: effort}
-			if err := core.ProfileAddDeepseek(home, name, d); err != nil {
+		if ptype == "official" {
+			if err := core.ProfileAddOfficial(home, name); err != nil {
 				return "", err
 			}
-			if apiKey != "" {
-				if err := core.ProfileSetKey(home, name, apiKey); err != nil {
-					return "", fmt.Errorf("%s: %w", i18n.T(lang, "tui.form.set_key_failed"), err)
-				}
-			}
-			return i18n.T(lang, "tui.form.deepseek_created", name), nil
+			return i18n.T(lang, "tui.form.official_created", name), nil
 		}
-		if err := core.ProfileAddOfficial(home, name); err != nil {
+		// Proveedor compatible (deepseek/kimi/glm). Los campos del form se
+		// pre-siembran con los defaults deepseek; para kimi/glm partimos del
+		// preset y respetamos solo lo que el usuario editó (difiere del seed).
+		d := core.PresetDefaults(ptype)
+		if ptype == "deepseek" {
+			d = core.Defaults{BaseURL: baseURL, ModelPro: modelPro, ModelFlash: modelFlash, Effort: effort}
+		} else {
+			if baseURL != defs.BaseURL {
+				d.BaseURL = baseURL
+			}
+			if modelPro != defs.ModelPro {
+				d.ModelPro = modelPro
+			}
+			if modelFlash != defs.ModelFlash {
+				d.ModelFlash = modelFlash
+			}
+			if effort != defs.Effort {
+				d.Effort = effort
+			}
+		}
+		if err := core.ProfileAddProvider(home, name, ptype, d); err != nil {
 			return "", err
 		}
-		return i18n.T(lang, "tui.form.official_created", name), nil
+		if apiKey != "" {
+			if err := core.ProfileSetKey(home, name, apiKey); err != nil {
+				return "", fmt.Errorf("%s: %w", i18n.T(lang, "tui.form.set_key_failed"), err)
+			}
+		}
+		return i18n.T(lang, "tui.form.provider_created", ptype, name), nil
 	}
 	return action{form: form, apply: apply}
 }

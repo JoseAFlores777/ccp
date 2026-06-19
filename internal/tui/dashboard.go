@@ -115,10 +115,10 @@ func (m *model) keyProfiles(key string) (tea.Model, tea.Cmd) {
 		if name := m.selectedProfile(); name != "" {
 			return m.start(formDeleteProfile(m.home, name, m.lang))
 		}
-	case "s": // set key (deepseek)
+	case "s": // set key (provider: deepseek/kimi/glm)
 		if name := m.selectedProfile(); name != "" {
-			if m.profileType(name) != "deepseek" {
-				m.setStatus(i18n.T(m.lang, "tui.profiles.not_deepseek", name), errCmd{})
+			if !core.IsProviderType(m.profileType(name)) {
+				m.setStatus(i18n.T(m.lang, "tui.profiles.not_provider", name), errCmd{})
 				return m, nil
 			}
 			return m.start(formSetKey(m.home, name, m.lang))
@@ -512,7 +512,7 @@ func (m *model) profileRow(i int, name string) string {
 		} else {
 			health = styleCross.Render(i18n.T(m.lang, "tui.profiles.health_no_login"))
 		}
-	case "deepseek":
+	case "deepseek", "kimi", "glm":
 		if _, ok := core.GetKey(m.home, name); ok {
 			health = styleCheck.Render(i18n.T(m.lang, "tui.profiles.health_key"))
 		} else {

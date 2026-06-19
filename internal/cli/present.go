@@ -61,6 +61,10 @@ func humanType(l i18n.Lang, t string) string {
 		return i18n.T(l, "cli.ptype.official")
 	case "deepseek":
 		return i18n.T(l, "cli.ptype.deepseek")
+	case "kimi":
+		return i18n.T(l, "cli.ptype.kimi")
+	case "glm":
+		return i18n.T(l, "cli.ptype.glm")
 	default:
 		return i18n.T(l, "cli.ptype.default")
 	}
@@ -76,7 +80,7 @@ func badgeType(w io.Writer, rawType, label string) string {
 	switch rawType {
 	case "official":
 		return ansiAccent + label + ansiReset
-	case "deepseek":
+	case "deepseek", "kimi", "glm":
 		return ansiOlive + label + ansiReset
 	default:
 		return ansiMute + label + ansiReset

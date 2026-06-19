@@ -119,8 +119,8 @@ var catalogCLI = map[string]map[Lang]string{
 		Es: "Usa: add | rm | list | show | login | config | sync",
 	},
 	"cli.profile.usage_add": {
-		En: "Usage: ccp profile add <name> --official|--deepseek [opts]",
-		Es: "Uso: ccp profile add <nombre> --official|--deepseek [opts]",
+		En: "Usage: ccp profile add <name> --official|--deepseek|--kimi|--glm [opts]",
+		Es: "Uso: ccp profile add <nombre> --official|--deepseek|--kimi|--glm [opts]",
 	},
 	"cli.profile.reserved_default": {
 		En: "[error] 'default' is a reserved profile.",
@@ -146,9 +146,17 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "Add its API key:  ccp key %s",
 		Es: "Añade su API key:  ccp key %s",
 	},
+	"cli.profile.provider_created": {
+		En: "%s profile '%s' created (cc-home + config generated).",
+		Es: "Perfil %s '%s' creado (cc-home + config generada).",
+	},
+	"cli.profile.provider_key_hint": {
+		En: "Add its API key:  ccp key %s",
+		Es: "Añade su API key:  ccp key %s",
+	},
 	"cli.profile.specify_kind": {
-		En: "[error] Specify --official or --deepseek",
-		Es: "[error] Especifica --official o --deepseek",
+		En: "[error] Specify --official, --deepseek, --kimi or --glm",
+		Es: "[error] Especifica --official, --deepseek, --kimi o --glm",
 	},
 	"cli.profile.usage_login": {
 		En: "Usage: ccp profile login <name>",
@@ -178,6 +186,8 @@ var catalogCLI = map[string]map[Lang]string{
 	// --- present.go: profile type labels ---
 	"cli.ptype.official": {En: "official", Es: "oficial"},
 	"cli.ptype.deepseek": {En: "DeepSeek (provider)", Es: "proveedor"},
+	"cli.ptype.kimi":     {En: "Kimi (provider)", Es: "proveedor"},
+	"cli.ptype.glm":      {En: "GLM (provider)", Es: "proveedor"},
 	"cli.ptype.default":  {En: "default", Es: "default"},
 
 	// --- status.go ---
@@ -529,7 +539,9 @@ var catalogCLI = map[string]map[Lang]string{
 
 PROFILES
   ccp profile add <n> --official            create official account
-  ccp profile add <n> --deepseek [opts]     create provider (--base-url --pro --flash --effort)
+  ccp profile add <n> --deepseek [opts]     create DeepSeek provider (--base-url --pro --flash --effort)
+  ccp profile add <n> --kimi [opts]         create Kimi (Moonshot) provider
+  ccp profile add <n> --glm [opts]          create GLM (Z.ai) provider
   ccp profile login <n>                     /login (official profiles)
   ccp profile config <n>                    edit the profile's config
   ccp profile sync [<n>]                    re-merge the global into the cc-home(s)
@@ -566,7 +578,9 @@ LIFE CYCLE
 
 PERFILES
   ccp profile add <n> --official            crea cuenta oficial
-  ccp profile add <n> --deepseek [opts]     crea provider (--base-url --pro --flash --effort)
+  ccp profile add <n> --deepseek [opts]     crea provider DeepSeek (--base-url --pro --flash --effort)
+  ccp profile add <n> --kimi [opts]         crea provider Kimi (Moonshot)
+  ccp profile add <n> --glm [opts]          crea provider GLM (Z.ai)
   ccp profile login <n>                     /login (perfiles oficiales)
   ccp profile config <n>                    edita la config del perfil
   ccp profile sync [<n>]                    re-mergea el global en el/los cc-home

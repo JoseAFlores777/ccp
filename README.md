@@ -27,7 +27,7 @@ The switch happens on its own, just by `cd`-ing.
 `ccp` routes Claude Code to a **profile** per terminal and per folder — never global. A profile is one of three things:
 
 - an **official** Anthropic account (its own isolated `CLAUDE_CONFIG_DIR`),
-- a DeepSeek-style **compatible provider** (its `ANTHROPIC_BASE_URL` + API key), or
+- a **compatible provider** (its `ANTHROPIC_BASE_URL` + API key) — built-in presets for **DeepSeek**, **Kimi** (Moonshot) and **GLM** (Z.ai), or
 - the reserved **`default`**: your normal `~/.claude` login.
 
 So: repo A → *work* account, repo B → *personal* account, repo C → *deepseek*. Without touching anything by hand.
@@ -118,14 +118,22 @@ ccp profile login personal
 ccp path set ~/personal personal
 ```
 
-### Case 3 — A folder with DeepSeek
+### Case 3 — A folder with a compatible provider (DeepSeek / Kimi / GLM)
 
 ```bash
-ccp profile add deepseek --deepseek   # perfil de proveedor
+ccp profile add deepseek --deepseek   # perfil de proveedor (preset DeepSeek)
+ccp profile add kimi     --kimi       # Kimi (Moonshot): base_url + modelos preconfigurados
+ccp profile add glm      --glm        # GLM (Z.ai): base_url + modelos preconfigurados
 ccp key deepseek                      # guarda la API key (te la pide oculta)
 ccp path set ~/labs deepseek
 cd ~/labs && claude
 ```
+
+Each preset fills in the right `ANTHROPIC_BASE_URL`, default models and the
+provider-recommended tuning vars (Kimi: `ENABLE_TOOL_SEARCH`,
+`CLAUDE_CODE_AUTO_COMPACT_WINDOW`; GLM: `API_TIMEOUT_MS`,
+`CLAUDE_CODE_AUTO_COMPACT_WINDOW`). Override any field with
+`--base-url --pro --flash --effort`.
 
 ### Case 4 — Carve a subfolder out of its rule (carve-out)
 
@@ -293,6 +301,8 @@ With commands: `ccp config show` · `ccp config set <clave> <valor>` · `ccp con
 | Create an official account | `ccp profile add <n> --official` |
 | Log in to it | `ccp profile login <n>` |
 | Create a DeepSeek provider | `ccp profile add <n> --deepseek` |
+| Create a Kimi provider | `ccp profile add <n> --kimi` |
+| Create a GLM provider | `ccp profile add <n> --glm` |
 | Save its API key | `ccp key <n>` |
 | Assign folder → profile | `ccp path set <ruta> <perfil>` |
 | Remove a rule | `ccp path rm <ruta>` |

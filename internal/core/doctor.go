@@ -63,13 +63,16 @@ func Doctor(l i18n.Lang, home string) ([]DoctorCheck, error) {
 				checks = append(checks, DoctorCheck{
 					OK: false, Label: i18n.T(l, "doctor.official_nologin", name, name)})
 			}
-		case "deepseek":
+		default:
+			if !IsProviderType(p.Type) {
+				continue
+			}
 			if _, ok := GetKey(home, name); ok {
 				checks = append(checks, DoctorCheck{
-					OK: true, Label: i18n.T(l, "doctor.deepseek_keyok", name)})
+					OK: true, Label: i18n.T(l, "doctor.provider_keyok", name, p.Type)})
 			} else {
 				checks = append(checks, DoctorCheck{
-					OK: false, Label: i18n.T(l, "doctor.deepseek_nokey", name, name)})
+					OK: false, Label: i18n.T(l, "doctor.provider_nokey", name, p.Type, name)})
 			}
 		}
 	}

@@ -139,13 +139,11 @@ func profileAdd(home string, args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	d, err := core.GetDefaults(home)
-	if err != nil {
-		fmt.Fprintf(stderr, "[error] %v\n", err)
-		return 1
-	}
-
+	// Overrides explícitos por flag (sparse): se aplican DESPUÉS de elegir la
+	// semilla según el proveedor, para que --base-url/--pro/etc ganen sobre el
+	// preset o los defaults configurables.
 	kind := ""
+	overrides := map[string]string{}
 	rest := args[1:]
 	for i := 0; i < len(rest); i++ {
 		switch rest[i] {
@@ -153,25 +151,29 @@ func profileAdd(home string, args []string, stdout, stderr io.Writer) int {
 			kind = "official"
 		case "--deepseek":
 			kind = "deepseek"
+		case "--kimi":
+			kind = "kimi"
+		case "--glm":
+			kind = "glm"
 		case "--base-url":
 			if i+1 < len(rest) {
 				i++
-				d.BaseURL = rest[i]
+				overrides["base_url"] = rest[i]
 			}
 		case "--pro":
 			if i+1 < len(rest) {
 				i++
-				d.ModelPro = rest[i]
+				overrides["model_pro"] = rest[i]
 			}
 		case "--flash":
 			if i+1 < len(rest) {
 				i++
-				d.ModelFlash = rest[i]
+				overrides["model_flash"] = rest[i]
 			}
 		case "--effort":
 			if i+1 < len(rest) {
 				i++
-				d.Effort = rest[i]
+				overrides["effort"] = rest[i]
 			}
 		default:
 			fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.unknown_opt", rest[i]))
@@ -179,8 +181,7 @@ func profileAdd(home string, args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	switch kind {
-	case "official":
+	if kind == "official" {
 		if err := core.ProfileAddOfficial(home, name); err != nil {
 			fmt.Fprintf(stderr, "[error] %v\n", err)
 			return 1
@@ -188,18 +189,46 @@ func profileAdd(home string, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.profile.official_created", name)))
 		fmt.Fprintln(stdout, i18n.T(lang, "cli.profile.official_login_hint", name))
 		return 0
-	case "deepseek":
-		if err := core.ProfileAddDeepseek(home, name, d); err != nil {
-			fmt.Fprintf(stderr, "[error] %v\n", err)
-			return 1
-		}
-		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.profile.deepseek_created", name)))
-		fmt.Fprintln(stdout, i18n.T(lang, "cli.profile.deepseek_key_hint", name))
-		return 0
-	default:
+	}
+
+	if !core.IsProviderType(kind) {
 		fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.specify_kind"))
 		return 1
 	}
+
+	// Semilla: deepseek arranca de los defaults configurables (ccp config set);
+	// kimi/glm arrancan de su preset built-in. Editor no aplica al perfil.
+	var d core.Defaults
+	if kind == "deepseek" {
+		def, err := core.GetDefaults(home)
+		if err != nil {
+			fmt.Fprintf(stderr, "[error] %v\n", err)
+			return 1
+		}
+		d = def
+	} else {
+		d = core.PresetDefaults(kind)
+	}
+	if v, ok := overrides["base_url"]; ok {
+		d.BaseURL = v
+	}
+	if v, ok := overrides["model_pro"]; ok {
+		d.ModelPro = v
+	}
+	if v, ok := overrides["model_flash"]; ok {
+		d.ModelFlash = v
+	}
+	if v, ok := overrides["effort"]; ok {
+		d.Effort = v
+	}
+
+	if err := core.ProfileAddProvider(home, name, kind, d); err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", err)
+		return 1
+	}
+	fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.profile.provider_created", kind, name)))
+	fmt.Fprintln(stdout, i18n.T(lang, "cli.profile.provider_key_hint", name))
+	return 0
 }
 
 // profileLogin abre Claude Code con el config dir del perfil oficial para que

@@ -259,7 +259,7 @@ func readLegacyState(home string) (*Config, error) {
 				return nil, err
 			}
 			p := Profile{Type: kv["type"]}
-			if p.Type == "deepseek" {
+			if IsProviderType(p.Type) {
 				p.BaseURL = kv["base_url"]
 				p.ModelPro = kv["model_pro"]
 				p.ModelFlash = kv["model_flash"]

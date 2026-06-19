@@ -154,6 +154,8 @@ func TestEnvDeltaGolden(t *testing.T) {
 	}{
 		{"env-default.out", "default"},
 		{"env-deepseek.out", "deepseek"},
+		{"env-kimi.out", "kimi"},
+		{"env-glm.out", "glm"},
 		{"env-official.out", "work"},
 		{"env-missing.out", "nope"},
 	}

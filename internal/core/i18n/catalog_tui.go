@@ -76,13 +76,21 @@ var catalogTUI = map[string]map[Lang]string{
 		En: "provider",
 		Es: "proveedor",
 	},
+	"tui.ptype.kimi": {
+		En: "provider",
+		Es: "proveedor",
+	},
+	"tui.ptype.glm": {
+		En: "provider",
+		Es: "proveedor",
+	},
 	"tui.ptype.default": {
 		En: "default",
 		Es: "default",
 	},
-	"tui.profiles.not_deepseek": {
-		En: "'%s' is not deepseek (set key only applies to deepseek)",
-		Es: "'%s' no es deepseek (set key solo aplica a deepseek)",
+	"tui.profiles.not_provider": {
+		En: "'%s' is not a provider (set key only applies to deepseek/kimi/glm)",
+		Es: "'%s' no es un proveedor (set key solo aplica a deepseek/kimi/glm)",
 	},
 	"tui.profiles.not_official": {
 		En: "'%s' is not official (login only applies to official)",
@@ -174,6 +182,14 @@ var catalogTUI = map[string]map[Lang]string{
 		En: "deepseek (compatible provider)",
 		Es: "deepseek (provider compatible)",
 	},
+	"tui.form.profile_type_kimi": {
+		En: "kimi (Moonshot provider)",
+		Es: "kimi (provider Moonshot)",
+	},
+	"tui.form.profile_type_glm": {
+		En: "glm (Z.ai provider)",
+		Es: "glm (provider Z.ai)",
+	},
 	"tui.form.profile_name": {
 		En: "Profile name",
 		Es: "Nombre del perfil",
@@ -209,6 +225,10 @@ var catalogTUI = map[string]map[Lang]string{
 	"tui.form.deepseek_created": {
 		En: "deepseek profile '%s' created.",
 		Es: "Perfil deepseek '%s' creado.",
+	},
+	"tui.form.provider_created": {
+		En: "%s profile '%s' created.",
+		Es: "Perfil %s '%s' creado.",
 	},
 	"tui.form.set_key_failed": {
 		En: "profile created, but set key failed",

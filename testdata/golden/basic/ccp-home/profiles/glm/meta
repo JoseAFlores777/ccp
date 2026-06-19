@@ -1,0 +1,5 @@
+type=glm
+base_url=https://api.z.ai/api/anthropic
+model_pro=glm-5.2[1m]
+model_flash=glm-4.7
+effort=high

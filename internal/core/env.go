@@ -14,7 +14,10 @@ import (
 // CCPManagedVars es la lista (separada por espacios) de variables que ccp
 // gestiona. Verbatim de lib/env.sh. El unset de todas ellas precede a los
 // export del perfil objetivo: estado limpio garantizado.
-const CCPManagedVars = "CLAUDE_CONFIG_DIR ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_EFFORT_LEVEL CCP_PROFILE"
+// Las vars de tuning ENABLE_TOOL_SEARCH/API_TIMEOUT_MS/CLAUDE_CODE_AUTO_COMPACT_WINDOW
+// son la unión de los Extra de todos los proveedores (presets.go); se listan
+// aquí para que el unset las limpie al volver a default/official.
+const CCPManagedVars = "CLAUDE_CONFIG_DIR ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_EFFORT_LEVEL ENABLE_TOOL_SEARCH API_TIMEOUT_MS CLAUDE_CODE_AUTO_COMPACT_WINDOW CCP_PROFILE"
 
 // EnvDelta replica ccp_env_delta: imprime primero el unset de CCPManagedVars,
 // luego los export del perfil. cfg aporta los metadatos del perfil; home y la
@@ -40,11 +43,15 @@ func EnvDelta(home, profile string, cfg *Config) string {
 		return b.String()
 	}
 
-	switch p.Type {
-	case "official":
+	switch {
+	case p.Type == "official":
 		fmt.Fprintf(&b, "export CLAUDE_CONFIG_DIR=%s\n", shellQuote(home+"/profiles/"+profile+"/cc-home"))
 		fmt.Fprintf(&b, "export CCP_PROFILE=%s\n", shellQuote(profile))
-	case "deepseek":
+	case IsProviderType(p.Type):
+		// Proveedor compatible (deepseek/kimi/glm): bloque común + las vars
+		// Extra del preset. DeepSeek no trae Extra, así que su salida es
+		// idéntica a la del contrato congelado.
+		preset, _ := GetProviderPreset(p.Type)
 		fmt.Fprintf(&b, "export CLAUDE_CONFIG_DIR=%s\n", shellQuote(home+"/profiles/"+profile+"/cc-home"))
 		fmt.Fprintf(&b, "export ANTHROPIC_BASE_URL=%s\n", shellQuote(p.BaseURL))
 		if key, has := GetKey(home, profile); has {
@@ -59,6 +66,9 @@ func EnvDelta(home, profile string, cfg *Config) string {
 		fmt.Fprintf(&b, "export ANTHROPIC_DEFAULT_HAIKU_MODEL=%s\n", shellQuote(p.ModelFlash))
 		fmt.Fprintf(&b, "export CLAUDE_CODE_SUBAGENT_MODEL=%s\n", shellQuote(p.ModelFlash))
 		fmt.Fprintf(&b, "export CLAUDE_CODE_EFFORT_LEVEL=%s\n", shellQuote(p.Effort))
+		for _, ev := range preset.Extra {
+			fmt.Fprintf(&b, "export %s=%s\n", ev.Name, shellQuote(ev.Value))
+		}
 		fmt.Fprintf(&b, "export CCP_PROFILE=%s\n", shellQuote(profile))
 	default:
 		fmt.Fprintf(&b, "echo \"⚠️  ccp: tipo de perfil desconocido (%s)\" >&2\n", shellQuote(p.Type))

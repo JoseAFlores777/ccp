@@ -38,12 +38,15 @@ func ProfileAddOfficial(home, name string) error {
 	return seedCCHome(home, name)
 }
 
-// ProfileAddDeepseek añade un perfil de tipo "deepseek" a ccp.yaml con los 4
-// campos explícitos desde d (no herencia en runtime). Siembra el cc-home.
-// Devuelve error si ya existe o si el nombre es "default".
-func ProfileAddDeepseek(home, name string, d Defaults) error {
+// ProfileAddProvider añade un perfil de proveedor compatible (deepseek/kimi/glm)
+// a ccp.yaml con los 4 campos explícitos desde d (no herencia en runtime).
+// Siembra el cc-home. Rechaza nombres inválidos, tipos no-proveedor y duplicados.
+func ProfileAddProvider(home, name, providerType string, d Defaults) error {
 	if name == "" || name == "default" {
 		return fmt.Errorf("nombre de perfil inválido: %q", name)
+	}
+	if !IsProviderType(providerType) {
+		return fmt.Errorf("tipo de proveedor desconocido: %q", providerType)
 	}
 	c, err := Load(home)
 	if err != nil {
@@ -53,7 +56,7 @@ func ProfileAddDeepseek(home, name string, d Defaults) error {
 		return fmt.Errorf("el perfil %q ya existe", name)
 	}
 	c.Profiles[name] = Profile{
-		Type:       "deepseek",
+		Type:       providerType,
 		BaseURL:    d.BaseURL,
 		ModelPro:   d.ModelPro,
 		ModelFlash: d.ModelFlash,
@@ -63,6 +66,20 @@ func ProfileAddDeepseek(home, name string, d Defaults) error {
 		return err
 	}
 	return seedCCHome(home, name)
+}
+
+// ProfileAddDeepseek/Kimi/GLM son envoltorios delgados sobre ProfileAddProvider
+// para cada proveedor built-in.
+func ProfileAddDeepseek(home, name string, d Defaults) error {
+	return ProfileAddProvider(home, name, "deepseek", d)
+}
+
+func ProfileAddKimi(home, name string, d Defaults) error {
+	return ProfileAddProvider(home, name, "kimi", d)
+}
+
+func ProfileAddGLM(home, name string, d Defaults) error {
+	return ProfileAddProvider(home, name, "glm", d)
 }
 
 // ProfileRm elimina un perfil de ccp.yaml y borra su directorio
@@ -126,8 +143,8 @@ func ProfileShow(home, name string) (string, error) {
 	sb.WriteString("---\n")
 	fmt.Fprintf(&sb, " Tipo:        %s\n", p.Type)
 
-	switch p.Type {
-	case "deepseek":
+	switch {
+	case IsProviderType(p.Type):
 		fmt.Fprintf(&sb, " Base URL:    %s\n", p.BaseURL)
 		fmt.Fprintf(&sb, " Modelo pro:  %s\n", p.ModelPro)
 		fmt.Fprintf(&sb, " Modelo flash:%s\n", p.ModelFlash)
@@ -138,7 +155,7 @@ func ProfileShow(home, name string) (string, error) {
 		} else {
 			fmt.Fprintf(&sb, " API key:     falta (ccp key %s)\n", name)
 		}
-	case "official":
+	case p.Type == "official":
 		cch := ccHomePath(home, name)
 		fmt.Fprintf(&sb, " Config dir:  %s\n", cch)
 		claudeJSON := filepath.Join(cch, ".claude.json")
@@ -167,8 +184,8 @@ func ProfileSetKey(home, name, key string) error {
 	if !exists {
 		return fmt.Errorf("no existe el perfil %q", name)
 	}
-	if p.Type != "deepseek" {
-		return fmt.Errorf("%q no es un perfil deepseek", name)
+	if !IsProviderType(p.Type) {
+		return fmt.Errorf("%q no es un perfil de proveedor (deepseek/kimi/glm)", name)
 	}
 	if key == "" {
 		return fmt.Errorf("no ingresaste ninguna key")

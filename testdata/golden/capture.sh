@@ -37,6 +37,8 @@ cp -R "$FIXTURE/." "$WORK/"
 # sustituir el token __ROOT__ de rules.tsv por la ruta temporal real
 sed "s|__ROOT__|$WORK|g" "$FIXTURE/rules.tsv" > "$WORK/rules.tsv"
 chmod 600 "$WORK/profiles/deepseek/api_key" 2>/dev/null || true
+chmod 600 "$WORK/profiles/kimi/api_key" 2>/dev/null || true
+chmod 600 "$WORK/profiles/glm/api_key" 2>/dev/null || true
 # dirs-regla reales (status hace cd; resolve/hook/path-test son textuales)
 mkdir -p "$WORK/repos/work" "$WORK/repos/labs/secret"
 
@@ -75,6 +77,8 @@ emit() { # archivo-relativo-a-expected  contenido
 # delta de entorno por tipo de perfil (contrato eval-able)
 run env-default   "$WORK" _env default
 run env-deepseek  "$WORK" _env deepseek
+run env-kimi      "$WORK" _env kimi
+run env-glm       "$WORK" _env glm
 run env-official  "$WORK" _env work
 run env-missing   "$WORK" _env nope
 

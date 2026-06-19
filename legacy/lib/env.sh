@@ -12,7 +12,7 @@
 #  Requiere que lib/profiles.sh esté sourced (usa ccp_profile_*).
 # ============================================================
 
-CCP_MANAGED_VARS="CLAUDE_CONFIG_DIR ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_EFFORT_LEVEL CCP_PROFILE"
+CCP_MANAGED_VARS="CLAUDE_CONFIG_DIR ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_EFFORT_LEVEL ENABLE_TOOL_SEARCH API_TIMEOUT_MS CLAUDE_CODE_AUTO_COMPACT_WINDOW CCP_PROFILE"
 
 ccp_env_delta() { # ccp_home profile
   local home="$1" profile="$2"
@@ -37,7 +37,7 @@ ccp_env_delta() { # ccp_home profile
       printf 'export CLAUDE_CONFIG_DIR=%q\n' "$home/profiles/$profile/cc-home"
       printf 'export CCP_PROFILE=%q\n' "$profile"
       ;;
-    deepseek)
+    deepseek|kimi|glm)
       local base_url model_pro model_flash effort key
       base_url="$(ccp_profile_get "$home" "$profile" base_url)"
       model_pro="$(ccp_profile_get "$home" "$profile" model_pro)"
@@ -56,6 +56,17 @@ ccp_env_delta() { # ccp_home profile
       printf 'export ANTHROPIC_DEFAULT_HAIKU_MODEL=%q\n' "$model_flash"
       printf 'export CLAUDE_CODE_SUBAGENT_MODEL=%q\n' "$model_flash"
       printf 'export CLAUDE_CODE_EFFORT_LEVEL=%q\n' "$effort"
+      # vars de tuning fijas por proveedor (espeja presets.go Extra, mismo orden)
+      case "$type" in
+        kimi)
+          printf 'export ENABLE_TOOL_SEARCH=%q\n' "false"
+          printf 'export CLAUDE_CODE_AUTO_COMPACT_WINDOW=%q\n' "262144"
+          ;;
+        glm)
+          printf 'export API_TIMEOUT_MS=%q\n' "3000000"
+          printf 'export CLAUDE_CODE_AUTO_COMPACT_WINDOW=%q\n' "1000000"
+          ;;
+      esac
       printf 'export CCP_PROFILE=%q\n' "$profile"
       ;;
     *)

@@ -54,13 +54,13 @@ func init() {
 			En: "Profile '%s' (official): NO login (ccp profile login %s).",
 			Es: "Perfil '%s' (oficial): SIN login (ccp profile login %s).",
 		},
-		"doctor.deepseek_keyok": {
-			En: "Profile '%s' (deepseek): key OK.",
-			Es: "Perfil '%s' (deepseek): key OK.",
+		"doctor.provider_keyok": {
+			En: "Profile '%s' (%s): key OK.",
+			Es: "Perfil '%s' (%s): key OK.",
 		},
-		"doctor.deepseek_nokey": {
-			En: "Profile '%s' (deepseek): NO key (ccp key %s).",
-			Es: "Perfil '%s' (deepseek): SIN key (ccp key %s).",
+		"doctor.provider_nokey": {
+			En: "Profile '%s' (%s): NO key (ccp key %s).",
+			Es: "Perfil '%s' (%s): SIN key (ccp key %s).",
 		},
 	})
 }

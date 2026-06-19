@@ -1,0 +1,5 @@
+type=kimi
+base_url=https://api.moonshot.ai/anthropic
+model_pro=kimi-k2.7-code
+model_flash=kimi-k2.7-code
+effort=high
