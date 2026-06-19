@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ccp handoff — Implementation Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f4f1ea; --paper-2:#ece7dd;
+    --ink:#1a1915; --ink-soft:#3a3833; --ink-mute:#6f6a60;
+    --rule:#d8d2c4; --accent:#c96442; --accent-soft:#e8a48a;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0; background:var(--paper); color:var(--ink-soft);
+    font-family:'Inter',sans-serif; font-size:17px; line-height:1.62; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:980px; margin:0 auto; padding:64px 32px 96px;}
+  .eyebrow{font-family:'JetBrains Mono',monospace; text-transform:uppercase; letter-spacing:.22em;
+    font-size:12px; color:var(--accent); margin:0 0 18px;}
+  h1{font-family:'Tinos',serif; font-weight:700; font-size:54px; line-height:1.06; color:var(--ink);
+    margin:0 0 22px; letter-spacing:-.01em;}
+  h1 em{font-style:italic; color:var(--accent);}
+  .lede{font-size:20px; line-height:1.5; color:var(--ink-soft); max-width:46em; margin:0 0 28px;}
+  .meta{display:flex; flex-wrap:wrap; gap:10px 26px; font-family:'JetBrains Mono',monospace; font-size:12.5px;
+    color:var(--ink-mute); border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); padding:16px 0; margin:0 0 8px;}
+  .meta b{color:var(--ink); font-weight:500;}
+  .pass{color:#3f7d4e; font-weight:600;}
+  nav.toc{margin:48px 0 8px; padding:28px 32px; background:var(--paper-2); border:1px solid var(--rule); border-radius:4px;}
+  nav.toc h2{font-family:'JetBrains Mono',monospace; text-transform:uppercase; letter-spacing:.18em; font-size:11px; color:var(--ink-mute); margin:0 0 16px;}
+  nav.toc ol{list-style:none; margin:0; padding:0; columns:2; column-gap:48px;}
+  nav.toc li{margin:0 0 9px; break-inside:avoid;}
+  nav.toc a{color:var(--ink-soft); text-decoration:none; font-size:15px; border-bottom:1px solid transparent; transition:border-color .15s,color .15s;}
+  nav.toc a:hover{color:var(--ink); border-bottom-color:var(--accent);}
+  nav.toc a .n{font-family:'JetBrains Mono',monospace; color:var(--accent); font-size:12.5px; margin-right:10px;}
+  section{padding:42px 0; border-bottom:1px solid var(--rule); scroll-margin-top:24px;}
+  section:last-of-type{border-bottom:none;}
+  h2.sec{font-family:'Tinos',serif; font-weight:700; font-size:29px; color:var(--ink); margin:0 0 6px; letter-spacing:-.005em;
+    display:flex; align-items:baseline; gap:16px;}
+  h2.sec .num{font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--accent); font-weight:500; flex:none;}
+  .section-lede{color:var(--ink-mute); font-size:16px; margin:0 0 18px; max-width:46em;}
+  h3{font-family:'Inter',sans-serif; font-weight:600; font-size:17px; color:var(--ink); margin:24px 0 8px;}
+  p{margin:0 0 14px; max-width:46em;}
+  ul,ol{max-width:46em; padding-left:22px;} li{margin:0 0 6px;}
+  code{font-family:'JetBrains Mono',monospace; font-size:.86em; background:var(--paper-2); padding:1.5px 6px; border-radius:3px; color:var(--ink); border:1px solid var(--rule);}
+  strong{color:var(--ink); font-weight:600;}
+  table{width:100%; border-collapse:collapse; margin:8px 0 22px; font-size:14px;}
+  th,td{text-align:left; padding:9px 13px; border-bottom:1px solid var(--rule); vertical-align:top;}
+  th{font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-mute); font-weight:500; background:var(--paper-2);}
+  td code{background:transparent; border:none; padding:0;}
+  pre{font-family:'JetBrains Mono',monospace; font-size:13px; line-height:1.6; background:#23211c; color:#e9e3d4;
+    padding:18px 20px; border-radius:6px; overflow-x:auto; margin:8px 0 22px;}
+  pre .c{color:#8a8270; font-style:italic;} pre .k{color:#e8a48a;} pre .s{color:#b9c89a;} pre .f{color:#d8b48a;}
+  .callout{background:var(--paper-2); border-left:3px solid var(--accent); padding:14px 18px; margin:8px 0 22px; border-radius:0 4px 4px 0; font-size:15px;}
+  .callout b{color:var(--ink);}
+  .files{font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--ink-mute); margin:0 0 10px;}
+  .files b{color:var(--accent); font-weight:500;}
+  .tcard{border:1px solid var(--rule); border-radius:6px; padding:18px 22px; margin:0 0 18px; background:#faf8f3;}
+  .tcard h3{margin-top:0; font-size:18px; color:var(--ink); font-family:'Tinos',serif; font-weight:700;}
+  .steps{font-size:14.5px; color:var(--ink-soft); margin:6px 0 10px;}
+  .steps .s{font-family:'JetBrains Mono',monospace; color:var(--accent); font-size:12px; margin-right:6px;}
+  figure.diagram{margin:18px 0 26px;} figure.diagram svg{max-width:100%; height:auto; display:block;}
+  figcaption{font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--ink-mute); text-align:center; margin-top:10px;}
+  footer{margin-top:56px; padding-top:24px; border-top:1px solid var(--rule); font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--ink-mute);}
+  @media (max-width:760px){.wrap{padding:40px 20px 64px;} h1{font-size:36px;} nav.toc ol{columns:1;} h2.sec{font-size:24px;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <p class="eyebrow">ccp · implementation plan · v0.1</p>
+  <h1>ccp <em>handoff</em> — Implementation Plan</h1>
+  <p class="lede">14 tasks TDD para construir el round-trip de handoff: copiar el contexto a otro perfil, reanudar con tokens frescos, y traerlo de vuelta como sesión nueva. El binario emite env; la shell lo evalúa y lanza claude.</p>
+  <div class="meta">
+    <span><b>Versión</b> v0.1</span>
+    <span><b>Fecha</b> 2026-06-19</span>
+    <span><b>Status</b> <span class="pass">listo para ejecutar</span></span>
+    <span><b>Spec</b> 2026-06-19-ccp-handoff-design</span>
+    <span><b>Sub-skill</b> subagent-driven-development</span>
+  </div>
+</header>
+
+<div class="callout">
+  <b>Para workers agénticos:</b> usar <code>superpowers:subagent-driven-development</code> (recomendado) o <code>superpowers:executing-plans</code>. El <code>.md</code> es la fuente con el código de tests completo; este HTML es el mapa de navegación con el código de producción.
+  <br><br>
+  <b>Commits:</b> requieren autorización explícita del usuario en el turno. Los pasos "Commit" = stagear + PEDIR autorización. NUNCA <code>git commit</code> autónomo. NUNCA trailer <code>Co-Authored-By</code>.
+</div>
+
+<nav class="toc">
+  <h2>Tasks</h2>
+  <ol>
+    <li><a href="#arch"><span class="n">§</span>Arquitectura y estructura</a></li>
+    <li><a href="#t1"><span class="n">01</span>Slug + paths + uuid</a></li>
+    <li><a href="#t2"><span class="n">02</span>CCHome por perfil</a></li>
+    <li><a href="#t3"><span class="n">03</span>ListSessions</a></li>
+    <li><a href="#t4"><span class="n">04</span>CopyTranscript</a></li>
+    <li><a href="#t5"><span class="n">05</span>RewriteSession</a></li>
+    <li><a href="#t6"><span class="n">06</span>Store handoffs.yaml</a></li>
+    <li><a href="#t7"><span class="n">07</span>HandoffForward</a></li>
+    <li><a href="#t8"><span class="n">08</span>HandoffEnd</a></li>
+    <li><a href="#t9"><span class="n">09</span>i18n strings</a></li>
+    <li><a href="#t10"><span class="n">10</span>CLI dispatch</a></li>
+    <li><a href="#t11"><span class="n">11</span>Shell function + golden</a></li>
+    <li><a href="#t12"><span class="n">12</span>TUI pickers</a></li>
+    <li><a href="#t13"><span class="n">13</span>Eval-effect test</a></li>
+    <li><a href="#t14"><span class="n">14</span>Verificación final</a></li>
+    <li><a href="#review"><span class="n">§</span>Self-review</a></li>
+  </ol>
+</nav>
+
+<section id="arch">
+  <h2 class="sec"><span class="num">§</span>Arquitectura y estructura de archivos</h2>
+  <p class="section-lede">Encaja en el split central de ccp: lógica en el binario, mutación de env/launch en la shell function. Mismo patrón que <code>_env</code>/<code>_hook</code>/<code>run</code>.</p>
+  <table>
+    <thead><tr><th>Archivo</th><th>Responsabilidad</th></tr></thead>
+    <tbody>
+      <tr><td><code>core/transcript.go</code> (crear)</td><td>Ops puras JSONL: slug, listar, copiar, reescribir sessionId/aiTitle, uuid v4.</td></tr>
+      <tr><td><code>core/handoff_store.go</code> (crear)</td><td>Modelo + persistencia de <code>handoffs.yaml</code> (marcador), atómico bajo flock.</td></tr>
+      <tr><td><code>core/handoff.go</code> (crear)</td><td><code>HandoffForward</code>/<code>HandoffEnd</code> → string emit (env + <code>CCP_RESUME_ID</code>).</td></tr>
+      <tr><td><code>cli/handoff.go</code> (crear)</td><td>Dispatch <code>handoff</code> (status/list/shell-only) + <code>_handoff</code>/<code>_handoff-end</code>.</td></tr>
+      <tr><td><code>cli/cli.go</code> (mod)</td><td>3 casos nuevos en el switch de <code>Dispatch</code>.</td></tr>
+      <tr><td><code>core/shellinit.go</code> (mod)</td><td><code>case handoff)</code> + <code>handoff</code> en completion (bash+zsh).</td></tr>
+      <tr><td><code>legacy/bin/ccp</code> (mod)</td><td>Espejo bash (oráculo del contrato).</td></tr>
+      <tr><td><code>core/i18n/catalog_cli.go</code> (mod)</td><td>Strings nuevas.</td></tr>
+      <tr><td><code>tui/handoff.go</code> (crear)</td><td>Pickers TUI (perfil, sesión), capa fina sobre core.</td></tr>
+      <tr><td><code>testdata/golden/...</code> (regen)</td><td>Golden de shell-init/completion vía <code>capture.sh</code>.</td></tr>
+    </tbody>
+  </table>
+  <div class="callout"><b>Golden:</b> solo cambian <code>completion-shellinit</code>/<code>completion bash</code>/<code>completion zsh</code> (contrato congelado). Los emit <code>_handoff</code>/<code>_handoff-end</code> NO van al fixture golden; se cubren con tests Go (unit + eval-effect + e2e).</div>
+</section>
+
+<section id="t1">
+  <h2 class="sec"><span class="num">01</span>Slug + paths + uuid</h2>
+  <p class="files"><b>Create:</b> core/transcript.go · core/transcript_test.go</p>
+  <p class="steps"><span class="s">TDD</span>test SlugForCwd/ProjectDir/NewUUID → fail → implementar → pass → commit.</p>
+  <pre><span class="k">func</span> <span class="f">SlugForCwd</span>(cwd <span class="k">string</span>) <span class="k">string</span> {
+  <span class="k">return</span> strings.ReplaceAll(cwd, <span class="s">"/"</span>, <span class="s">"-"</span>)
+}
+<span class="k">func</span> <span class="f">ProjectDir</span>(ccHome, slug <span class="k">string</span>) <span class="k">string</span> {
+  <span class="k">return</span> filepath.Join(ccHome, <span class="s">"projects"</span>, slug)
+}
+<span class="k">func</span> <span class="f">NewUUID</span>() (<span class="k">string</span>, <span class="k">error</span>) { <span class="c">// uuid v4 vía crypto/rand</span>
+  <span class="k">var</span> b [<span class="s">16</span>]<span class="k">byte</span>
+  <span class="k">if</span> _, err := rand.Read(b[:]); err != <span class="k">nil</span> { <span class="k">return</span> <span class="s">""</span>, err }
+  b[<span class="s">6</span>] = (b[<span class="s">6</span>] &amp; <span class="s">0x0f</span>) | <span class="s">0x40</span>; b[<span class="s">8</span>] = (b[<span class="s">8</span>] &amp; <span class="s">0x3f</span>) | <span class="s">0x80</span>
+  <span class="k">return</span> fmt.Sprintf(<span class="s">"%x-%x-%x-%x-%x"</span>, b[<span class="s">0</span>:<span class="s">4</span>], b[<span class="s">4</span>:<span class="s">6</span>], b[<span class="s">6</span>:<span class="s">8</span>], b[<span class="s">8</span>:<span class="s">10</span>], b[<span class="s">10</span>:<span class="s">16</span>]), <span class="k">nil</span>
+}</pre>
+</section>
+
+<section id="t2">
+  <h2 class="sec"><span class="num">02</span>CCHome por perfil</h2>
+  <p class="files"><b>Mod:</b> core/transcript.go</p>
+  <p>Resuelve el <code>CLAUDE_CONFIG_DIR</code>: <code>default</code> → <code>~/.claude</code>; resto → <code>&lt;home&gt;/profiles/&lt;perfil&gt;/cc-home</code>. Espeja <code>EnvDelta</code>.</p>
+  <pre><span class="k">func</span> <span class="f">CCHome</span>(home, profile <span class="k">string</span>) (<span class="k">string</span>, <span class="k">error</span>) {
+  <span class="k">if</span> profile == <span class="s">"default"</span> {
+    uh, err := os.UserHomeDir(); <span class="k">if</span> err != <span class="k">nil</span> { <span class="k">return</span> <span class="s">""</span>, err }
+    <span class="k">return</span> filepath.Join(uh, <span class="s">".claude"</span>), <span class="k">nil</span>
+  }
+  <span class="k">return</span> filepath.Join(home, <span class="s">"profiles"</span>, profile, <span class="s">"cc-home"</span>), <span class="k">nil</span>
+}</pre>
+</section>
+
+<section id="t3">
+  <h2 class="sec"><span class="num">03</span>ListSessions (descubrimiento + título + orden)</h2>
+  <p class="files"><b>Mod:</b> core/transcript.go</p>
+  <p>Escanea <code>projects/&lt;slug&gt;/*.jsonl</code>, extrae <code>aiTitle</code>, ordena nuevo→viejo por mtime. Carpeta inexistente → lista vacía sin error.</p>
+  <pre><span class="k">type</span> <span class="f">SessionInfo</span> <span class="k">struct</span> { UUID, Path, Title <span class="k">string</span>; ModTime time.Time }
+
+<span class="k">func</span> <span class="f">ListSessions</span>(ccHome, slug <span class="k">string</span>) ([]SessionInfo, <span class="k">error</span>) {
+  entries, err := os.ReadDir(ProjectDir(ccHome, slug))
+  <span class="k">if</span> err != <span class="k">nil</span> { <span class="k">if</span> os.IsNotExist(err) { <span class="k">return</span> <span class="k">nil</span>, <span class="k">nil</span> }; <span class="k">return</span> <span class="k">nil</span>, err }
+  <span class="c">// ...recolecta *.jsonl, Title = readAITitle(path), sort por ModTime desc</span>
+}
+<span class="c">// readAITitle: escanea líneas, devuelve el último aiTitle de type:"ai-title"</span></pre>
+</section>
+
+<section id="t4">
+  <h2 class="sec"><span class="num">04</span>CopyTranscript (forward, mismo uuid)</h2>
+  <p class="files"><b>Mod:</b> core/transcript.go</p>
+  <p>Copia cruda conservando el nombre (uuid). sessionId ya == uuid, cwd mismo repo → sin reescritura. Colisión: idéntico → overwrite; distinto → error salvo <code>force</code>.</p>
+  <pre><span class="k">func</span> <span class="f">CopyTranscript</span>(srcPath, dstDir <span class="k">string</span>, force <span class="k">bool</span>) (<span class="k">string</span>, <span class="k">error</span>) {
+  data, _ := os.ReadFile(srcPath); os.MkdirAll(dstDir, <span class="s">0o755</span>)
+  dstPath := filepath.Join(dstDir, filepath.Base(srcPath))
+  <span class="k">if</span> existing, err := os.ReadFile(dstPath); err == <span class="k">nil</span> {
+    <span class="k">if</span> !bytes.Equal(existing, data) &amp;&amp; !force { <span class="k">return</span> <span class="s">""</span>, fmt.Errorf(<span class="s">"colisión..."</span>) }
+  }
+  <span class="k">return</span> dstPath, os.WriteFile(dstPath, data, <span class="s">0o644</span>)
+}</pre>
+</section>
+
+<section id="t5">
+  <h2 class="sec"><span class="num">05</span>RewriteSession (sesión nueva, idempotente, validada)</h2>
+  <p class="files"><b>Mod:</b> core/transcript.go</p>
+  <div class="callout"><b>El corazón.</b> Reescribe <code>sessionId</code> viejo→nuevo en cada línea, prepende <code>[de &lt;from&gt;]</code> al <code>aiTitle</code> (idempotente), NO toca cwd/árbol/messageId/timestamps/contenido. Valida: cero sessionId viejo, JSONL válido. <code>SetEscapeHTML(false)</code> para no mutar <code>&lt;,&gt;,&amp;</code>.</div>
+  <pre><span class="k">func</span> <span class="f">RewriteSession</span>(srcPath, dstPath, oldID, newID, fromLabel <span class="k">string</span>) <span class="k">error</span> {
+  enc := json.NewEncoder(&amp;buf); enc.SetEscapeHTML(<span class="k">false</span>)
+  <span class="c">// por cada línea JSONL:</span>
+  <span class="k">if</span> sid, ok := m[<span class="s">"sessionId"</span>].(<span class="k">string</span>); ok &amp;&amp; sid == oldID { m[<span class="s">"sessionId"</span>] = newID }
+  <span class="k">if</span> m[<span class="s">"type"</span>] == <span class="s">"ai-title"</span> {
+    <span class="k">if</span> t, ok := m[<span class="s">"aiTitle"</span>].(<span class="k">string</span>); ok &amp;&amp; !strings.HasPrefix(t, <span class="s">"[de "</span>) {
+      m[<span class="s">"aiTitle"</span>] = <span class="s">"[de "</span> + fromLabel + <span class="s">"] "</span> + t
+    }
+  }
+  <span class="c">// validar salida: ningún sessionId == oldID, todo parsea; luego WriteFile</span>
+}</pre>
+</section>
+
+<section id="t6">
+  <h2 class="sec"><span class="num">06</span>Store del marcador (handoffs.yaml)</h2>
+  <p class="files"><b>Create:</b> core/handoff_store.go · _test.go</p>
+  <p>Estado runtime aparte de <code>ccp.yaml</code>. Atómico tmp+rename bajo <code>acquireLock</code>. Ausente/corrupto → vacío v1 (degradación suave).</p>
+  <pre><span class="k">type</span> <span class="f">Marker</span> <span class="k">struct</span> { Session, Slug, Cwd, From, To, Title, Since <span class="k">string</span> }
+<span class="k">type</span> <span class="f">ArchivedMarker</span> <span class="k">struct</span> { Session, From, To, ReturnedAs, Since, Ended <span class="k">string</span> }
+<span class="k">type</span> <span class="f">Handoffs</span> <span class="k">struct</span> { Version <span class="k">int</span>; Active *Marker; Archived []ArchivedMarker }
+
+<span class="k">func</span> <span class="f">LoadHandoffs</span>(home <span class="k">string</span>) (*Handoffs, <span class="k">error</span>) <span class="c">// ausente/corrupto → {Version:1}</span>
+<span class="k">func</span> <span class="f">SaveHandoffs</span>(home <span class="k">string</span>, h *Handoffs) <span class="k">error</span>  <span class="c">// flock + tmp+rename</span></pre>
+</section>
+
+<section id="t7">
+  <h2 class="sec"><span class="num">07</span>HandoffForward → emit</h2>
+  <p class="files"><b>Create:</b> core/handoff.go · _test.go</p>
+  <p>Valida (1-nivel, destino≠origen, perfil existe, jsonl existe) → copia → marcador → emit del DESTINO.</p>
+  <pre><span class="k">func</span> <span class="f">HandoffForward</span>(home, from, to, cwd, sessionUUID <span class="k">string</span>, writeMarker <span class="k">bool</span>, now time.Time) (<span class="k">string</span>, <span class="k">error</span>) {
+  <span class="k">if</span> from == to { <span class="k">return</span> <span class="s">""</span>, fmt.Errorf(<span class="s">"destino==origen"</span>) }
+  <span class="c">// cfg.Profiles[to] existe? · h.Active != nil → error 1-nivel</span>
+  <span class="c">// srcPath = ProjectDir(CCHome(from), slug)/uuid.jsonl · CopyTranscript → CCHome(to)</span>
+  <span class="c">// h.Active = Marker{...}; SaveHandoffs</span>
+  <span class="k">return</span> EnvDelta(home, to, cfg) + <span class="s">"CCP_RESUME_ID="</span> + sessionUUID + <span class="s">"\n"</span>, <span class="k">nil</span>
+}</pre>
+  <div class="callout"><b>Orden transaccional:</b> copia → marcador → emit. Copia falla → sin marcador huérfano. Marcador falla → sin emit → no se lanza claude.</div>
+</section>
+
+<section id="t8">
+  <h2 class="sec"><span class="num">08</span>HandoffEnd → back-sync + emit</h2>
+  <p class="files"><b>Mod:</b> core/handoff.go · _test.go</p>
+  <p>Toma <code>active</code>, genera uuid nuevo, reescribe destino→origen, archiva marcador, emite env del ORIGEN + uuid nuevo. No destructivo.</p>
+  <pre><span class="k">func</span> <span class="f">HandoffEnd</span>(home, cwd <span class="k">string</span>, now time.Time) (<span class="k">string</span>, <span class="k">error</span>) {
+  <span class="k">if</span> h.Active == <span class="k">nil</span> { <span class="k">return</span> <span class="s">""</span>, fmt.Errorf(<span class="s">"sin handoff activo"</span>) }
+  <span class="c">// srcPath en CCHome(m.To); newID = NewUUID()</span>
+  <span class="c">// RewriteSession(src → CCHome(m.From)/newID.jsonl, m.Session, newID, m.To)</span>
+  <span class="c">// Archived += {...ReturnedAs:newID, Ended:now}; Active = nil; Save</span>
+  <span class="k">return</span> EnvDelta(home, m.From, cfg) + <span class="s">"CCP_RESUME_ID="</span> + newID + <span class="s">"\n"</span>, <span class="k">nil</span>
+}</pre>
+</section>
+
+<section id="t9">
+  <h2 class="sec"><span class="num">09</span>i18n strings (status/list/errores)</h2>
+  <p class="files"><b>Mod:</b> core/i18n/catalog_cli.go</p>
+  <p>Claves <code>cli.handoff.*</code>: <code>shell_only</code>, <code>no_active</code>, <code>status_active</code>, <code>list_header</code>, <code>list_row</code>, <code>list_empty</code>, <code>unknown_sub</code>. Replicar el formato exacto del map (pares en/es). <code>catalog_test.go</code> exige paridad en/es.</p>
+</section>
+
+<section id="t10">
+  <h2 class="sec"><span class="num">10</span>CLI dispatch</h2>
+  <p class="files"><b>Create:</b> cli/handoff.go · _test.go · <b>Mod:</b> cli/cli.go</p>
+  <p><code>cmdHandoff</code>: status/list legibles; forward/end = shell-only. <code>cmdHandoffEmit</code> (<code>_handoff &lt;pwd&gt; [to] [--session] [--no-marker] [--force]</code>) parsea flags, resuelve origen (<code>CCP_PROFILE</code> o <code>Resolve(cwd)</code>), llama pickers si falta info+TTY, emite a stdout. La TUI renderiza en stderr/tty para no contaminar stdout.</p>
+  <pre><span class="c">// en Dispatch(), junto a la frontera binario↔shell:</span>
+<span class="k">case</span> <span class="s">"handoff"</span>:      <span class="k">return</span> cmdHandoff(rest, stdout, stderr)
+<span class="k">case</span> <span class="s">"_handoff"</span>:     <span class="k">return</span> cmdHandoffEmit(rest, stdout, stderr)
+<span class="k">case</span> <span class="s">"_handoff-end"</span>: <span class="k">return</span> cmdHandoffEndEmit(rest, stdout, stderr)</pre>
+  <div class="callout"><b>Pickers como stubs aquí</b> (devuelven "falta el flag") para que el backbone por flags quede testeado antes de la TUI; Task 12 los reemplaza.</div>
+</section>
+
+<section id="t11">
+  <h2 class="sec"><span class="num">11</span>Shell function + completion + golden</h2>
+  <p class="files"><b>Mod:</b> core/shellinit.go · legacy/bin/ccp · <b>Regen:</b> testdata/golden</p>
+  <p>Añadir el <code>case handoff)</code> en el oráculo bash Y en la constante <code>ShellInit</code> (byte-idéntico) + <code>handoff</code> en las listas <code>top</code> de completion. Regenerar golden, mantener paridad verde.</p>
+  <pre>handoff)
+  <span class="k">shift</span>
+  <span class="k">case</span> <span class="s">"$1"</span> <span class="k">in</span>
+    end)          <span class="k">shift</span>; out=$(command ccp _handoff-end <span class="s">"$PWD"</span> <span class="s">"$@"</span>) || <span class="k">return</span> ;;
+    status|list)  command ccp handoff <span class="s">"$@"</span>; <span class="k">return</span> ;;
+    *)            out=$(command ccp _handoff <span class="s">"$PWD"</span> <span class="s">"$@"</span>) || <span class="k">return</span> ;;
+  <span class="k">esac</span>
+  ( <span class="k">eval</span> <span class="s">"$out"</span>; claude --resume <span class="s">"$CCP_RESUME_ID"</span> ) ;;</pre>
+  <pre><span class="c"># regenerar y verificar</span>
+bash testdata/golden/capture.sh
+go test ./internal/golden/ -v
+bash legacy/tests/run.sh &amp;&amp; bash testdata/golden/capture.sh --check</pre>
+</section>
+
+<section id="t12">
+  <h2 class="sec"><span class="num">12</span>TUI pickers (perfil + sesión)</h2>
+  <p class="files"><b>Create:</b> tui/handoff.go · _test.go · <b>Mod:</b> cli/handoff.go</p>
+  <p>Capa fina sobre core. <code>HandoffProfileOptions</code> (excluye el activo) es pura y testeada; los pickers huh siguen el patrón de <code>forms.go</code>, renderizan en tty, error si no hay TTY. Reemplazan los stubs de Task 10.</p>
+  <pre><span class="k">func</span> <span class="f">HandoffProfileOptions</span>(cfg *core.Config, active <span class="k">string</span>) []<span class="k">string</span> {
+  <span class="c">// todos los perfiles menos 'active' + 'default' si aplica, ordenados</span>
+}
+<span class="k">func</span> <span class="f">RunHandoffSessionPicker</span>(home, from, cwd <span class="k">string</span>, w io.Writer) (<span class="k">string</span>, <span class="k">error</span>) {
+  <span class="c">// ListSessions → labels "fecha · título · uuid[:8]" → select → uuid</span>
+}</pre>
+</section>
+
+<section id="t13">
+  <h2 class="sec"><span class="num">13</span>Test eval-effect (zsh + bash)</h2>
+  <p class="files"><b>Create:</b> core/handoff_eval_test.go</p>
+  <p>Verifica que <code>eval "$emit"</code> en bash y zsh exporta <code>CLAUDE_CONFIG_DIR</code> del destino y define <code>CCP_RESUME_ID</code>. Skip si falta el shell. Replica el arnés de <code>env_test.go</code>.</p>
+</section>
+
+<section id="t14">
+  <h2 class="sec"><span class="num">14</span>Verificación final</h2>
+  <pre>go test ./...
+gofmt -l internal cmd        <span class="c"># vacío</span>
+go vet ./... &amp;&amp; golangci-lint run
+bash legacy/tests/run.sh &amp;&amp; bash testdata/golden/capture.sh --check
+<span class="c"># smoke:</span> ccp handoff status / list / &lt;perfil&gt;</pre>
+</section>
+
+<section id="review">
+  <h2 class="sec"><span class="num">§</span>Self-review</h2>
+  <h3>Spec coverage</h3>
+  <ul>
+    <li>§03 comandos → Task 10 + 11 ✓</li>
+    <li>§04 marcador → Task 6 ✓</li>
+    <li>§05 forward (orden transaccional) → Task 7 ✓</li>
+    <li>§06 return + reescritura → Task 5 + 8 ✓</li>
+    <li>§07 errores → Tasks 7/8/10 ✓ (aviso del hook autocheck = "v1 opcional", fuera de scope, documentado)</li>
+    <li>§08 formato CC → Task 5 (solo sessionId+aiTitle) ✓</li>
+    <li>§09 pruebas → Tasks 11/1-8/13 ✓</li>
+    <li>§10 ciclo → Tasks 7+8 ✓</li>
+  </ul>
+  <h3>Placeholder scan</h3>
+  <p>Sin TODO con código faltante. Los pickers tienen stubs explícitos (Task 10) completados en Task 12 — orden intencional: backbone por flags testeado antes de la TUI.</p>
+  <h3>Type consistency</h3>
+  <p><code>HandoffForward</code>/<code>HandoffEnd</code> → <code>(string, error)</code> consistente core↔cli. <code>Marker</code>/<code>Handoffs</code>/<code>SessionInfo</code> y las firmas de transcript idénticas donde se referencian.</p>
+  <div class="callout"><b>A verificar en ejecución:</b> la sintaxis EXACTA del catálogo i18n (<code>catalog_cli.go</code>) y del helper de select de <code>forms.go</code> se inspeccionan en sitio antes de escribir (Tasks 9 Step 1, 12 Step 1).</div>
+</section>
+
+<footer>
+  ccp handoff — implementation plan · v0.1 — 2026-06-19 · fuente: 2026-06-19-ccp-handoff.md
+</footer>
+
+</div>
+</body>
+</html>
