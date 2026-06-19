@@ -50,7 +50,7 @@ func CCHome(home, profile string) (string, error) {
 		}
 		return filepath.Join(uh, ".claude"), nil
 	}
-	return filepath.Join(home, "profiles", profile, "cc-home"), nil
+	return ccHomePath(home, profile), nil
 }
 
 // SessionInfo describe un transcript en disco para el picker.
@@ -132,9 +132,11 @@ func CopyTranscript(srcPath, dstDir string, force bool) (string, error) {
 		return "", fmt.Errorf("no se pudo crear %s: %w", dstDir, err)
 	}
 	dstPath := filepath.Join(dstDir, filepath.Base(srcPath))
-	if existing, err := os.ReadFile(dstPath); err == nil {
-		if !bytes.Equal(existing, data) && !force {
-			return "", fmt.Errorf("colisión: %s ya existe con contenido distinto (usa --force)", dstPath)
+	if !force {
+		if existing, err := os.ReadFile(dstPath); err == nil {
+			if !bytes.Equal(existing, data) {
+				return "", fmt.Errorf("colisión: %s ya existe con contenido distinto (usa --force)", dstPath)
+			}
 		}
 	}
 	if err := os.WriteFile(dstPath, data, 0o644); err != nil {
@@ -163,7 +165,7 @@ func RewriteSession(srcPath, dstPath, oldID, newID, fromLabel string) error {
 	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
 	for sc.Scan() {
 		raw := sc.Bytes()
-		if len(strings.TrimSpace(string(raw))) == 0 {
+		if len(bytes.TrimSpace(raw)) == 0 {
 			continue
 		}
 		var m map[string]any
@@ -186,15 +188,19 @@ func RewriteSession(srcPath, dstPath, oldID, newID, fromLabel string) error {
 		return fmt.Errorf("error leyendo %s: %w", srcPath, err)
 	}
 
-	// Validación: cero oldID en sessionId, JSONL válido.
+	// Validación: cero oldID en sessionId, JSONL válido. Una salida vacía (todas
+	// las líneas de entrada en blanco) es válida: se omite el loop de validación
+	// para no parsear "" como JSON.
 	out := buf.Bytes()
-	for _, ln := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		var m map[string]any
-		if err := json.Unmarshal([]byte(ln), &m); err != nil {
-			return fmt.Errorf("salida JSONL inválida: %w", err)
-		}
-		if sid, ok := m["sessionId"].(string); ok && sid == oldID {
-			return fmt.Errorf("reescritura incompleta: quedó sessionId viejo")
+	if len(bytes.TrimSpace(out)) != 0 {
+		for _, ln := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			var m map[string]any
+			if err := json.Unmarshal([]byte(ln), &m); err != nil {
+				return fmt.Errorf("salida JSONL inválida: %w", err)
+			}
+			if sid, ok := m["sessionId"].(string); ok && sid == oldID {
+				return fmt.Errorf("reescritura incompleta: quedó sessionId viejo")
+			}
 		}
 	}
 

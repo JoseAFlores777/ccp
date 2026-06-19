@@ -192,7 +192,6 @@ func TestRewriteSessionTitleIdempotent(t *testing.T) {
 	old := "77777777-7777-4777-8777-777777777777"
 	// título ya prefijado.
 	dir := src
-	_ = os.MkdirAll(dir, 0o755)
 	line := `{"type":"ai-title","aiTitle":"[de x] Ya","sessionId":"` + old + `"}` + "\n"
 	_ = os.WriteFile(filepath.Join(dir, old+".jsonl"), []byte(line), 0o644)
 	srcPath := filepath.Join(dir, old+".jsonl")
