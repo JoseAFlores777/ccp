@@ -68,6 +68,18 @@ func TestHandoffForwardSameProfile(t *testing.T) {
 	}
 }
 
+func TestHandoffForwardUnknownFromProfile(t *testing.T) {
+	home := t.TempDir()
+	seedHandoffEnv(t, home)
+	_, err := HandoffForward(home, "no-existe", "emco-cc", "/repo", "u", true, time.Now())
+	if err == nil {
+		t.Fatal("esperaba error con perfil origen desconocido")
+	}
+	if !strings.Contains(err.Error(), "perfil origen desconocido") {
+		t.Fatalf("error inesperado: %v", err)
+	}
+}
+
 func TestHandoffEndBackSyncsAsNewSession(t *testing.T) {
 	home := t.TempDir()
 	seedHandoffEnv(t, home)
@@ -100,6 +112,9 @@ func TestHandoffEndBackSyncsAsNewSession(t *testing.T) {
 	if newID == "" || newID == uuid {
 		t.Fatalf("returned_as inválido: %q", newID)
 	}
+	if h.Archived[0].Slug != slug {
+		t.Fatalf("slug no poblado en el marcador archivado: %q", h.Archived[0].Slug)
+	}
 	if !strings.Contains(emit, "CCP_RESUME_ID="+newID) {
 		t.Fatalf("emit no resume el uuid nuevo: %s", emit)
 	}
@@ -112,6 +127,50 @@ func TestHandoffEndBackSyncsAsNewSession(t *testing.T) {
 	if !strings.Contains(string(data), "[de emco-cc] Refactor") {
 		t.Fatal("título no marca el origen")
 	}
+}
+
+func TestHandoffEndCwdMismatchWarns(t *testing.T) {
+	const warn = "el cwd actual difiere del marcador"
+
+	setup := func(t *testing.T) (home, slug, uuid string) {
+		home = t.TempDir()
+		seedHandoffEnv(t, home)
+		cwd := "/repo"
+		slug = SlugForCwd(cwd)
+		uuid = "77777777-7777-4777-8777-777777777777"
+		dstDir := ProjectDir(home+"/profiles/emco-cc/cc-home", slug)
+		writeJSONL(t, dstDir, uuid, "Tarea", time.Now())
+		_ = SaveHandoffs(home, &Handoffs{Version: 1, Active: &Marker{
+			Session: uuid, Slug: slug, Cwd: cwd, From: "personal-cc", To: "emco-cc",
+			Title: "Tarea", Since: "2026-06-19T00:00:00Z",
+		}})
+		return home, slug, uuid
+	}
+
+	t.Run("mismatch advierte y reanuda", func(t *testing.T) {
+		home, _, _ := setup(t)
+		emit, err := HandoffEnd(home, "/otro/repo", time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(emit, warn) || !strings.Contains(emit, ">&2") {
+			t.Fatalf("emit sin línea de warning: %s", emit)
+		}
+		if !strings.Contains(emit, "CCP_RESUME_ID=") {
+			t.Fatalf("aun con cwd distinto debe reanudar: %s", emit)
+		}
+	})
+
+	t.Run("cwd igual sin warning", func(t *testing.T) {
+		home, _, _ := setup(t)
+		emit, err := HandoffEnd(home, "/repo", time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(emit, warn) {
+			t.Fatalf("no debía advertir con cwd igual: %s", emit)
+		}
+	})
 }
 
 func TestHandoffEndNoActive(t *testing.T) {

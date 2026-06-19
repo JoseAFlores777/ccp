@@ -30,6 +30,7 @@ type ArchivedMarker struct {
 	Session    string `yaml:"session"`
 	From       string `yaml:"from"`
 	To         string `yaml:"to"`
+	Slug       string `yaml:"slug"`
 	ReturnedAs string `yaml:"returned_as"`
 	Since      string `yaml:"since"`
 	Ended      string `yaml:"ended"`

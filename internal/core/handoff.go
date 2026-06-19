@@ -26,6 +26,11 @@ func HandoffForward(home, from, to, cwd, sessionUUID string, writeMarker bool, n
 			return "", fmt.Errorf("perfil destino desconocido: %s", to)
 		}
 	}
+	if from != "default" {
+		if _, ok := cfg.Profiles[from]; !ok {
+			return "", fmt.Errorf("perfil origen desconocido: %s", from)
+		}
+	}
 	h, err := LoadHandoffs(home)
 	if err != nil {
 		return "", err
@@ -62,7 +67,9 @@ func HandoffForward(home, from, to, cwd, sessionUUID string, writeMarker bool, n
 			return "", err
 		}
 	}
-	return EnvDelta(home, to, cfg) + "CCP_RESUME_ID=" + sessionUUID + "\n", nil
+	// CCP_RESUME_ID se emite SIEMPRE (incluso con writeMarker=false): la shell
+	// function lo necesita para `claude --resume "$CCP_RESUME_ID"`.
+	return EnvDelta(home, to, cfg) + "CCP_RESUME_ID=" + shellQuote(sessionUUID) + "\n", nil
 }
 
 // HandoffEnd toma el marcador activo, hace back-sync del transcript (que creció
@@ -106,12 +113,19 @@ func HandoffEnd(home, cwd string, now time.Time) (string, error) {
 	}
 
 	h.Archived = append(h.Archived, ArchivedMarker{
-		Session: m.Session, From: m.From, To: m.To,
+		Session: m.Session, From: m.From, To: m.To, Slug: m.Slug,
 		ReturnedAs: newID, Since: m.Since, Ended: now.UTC().Format(time.RFC3339),
 	})
 	h.Active = nil
 	if err := SaveHandoffs(home, h); err != nil {
 		return "", err
 	}
-	return EnvDelta(home, m.From, cfg) + "CCP_RESUME_ID=" + newID + "\n", nil
+	emit := EnvDelta(home, m.From, cfg) + "CCP_RESUME_ID=" + shellQuote(newID) + "\n"
+	// Spec §07: si el cwd actual difiere del del marcador, advierte pero permite.
+	// El warning va DENTRO del emit (como hace EnvDelta con sus echos a stderr);
+	// core nunca escribe a os.Stderr directo.
+	if cwd != "" && cwd != m.Cwd {
+		emit = "echo \"⚠️  ccp: el cwd actual difiere del marcador del handoff\" >&2\n" + emit
+	}
+	return emit, nil
 }
