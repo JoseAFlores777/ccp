@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -155,16 +154,6 @@ func cmdHandoffEndEmit(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprint(stdout, emit)
 	return 0
-}
-
-// readLineFallback lee una línea de stdin (fallback no-TTY si los pickers no
-// aplican). No usado en el happy-path TUI; presente para tests deterministas.
-func readLineFallback(r io.Reader) string {
-	sc := bufio.NewScanner(r)
-	if sc.Scan() {
-		return strings.TrimSpace(sc.Text())
-	}
-	return ""
 }
 
 // pickHandoffProfile lanza el selector TUI de perfiles (Task 12). Sin TTY
