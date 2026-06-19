@@ -10,6 +10,7 @@ import (
 
 	"github.com/JoseAFlores777/ccp/internal/core"
 	"github.com/JoseAFlores777/ccp/internal/core/i18n"
+	"github.com/JoseAFlores777/ccp/internal/tui"
 )
 
 // cmdHandoff maneja la cara LEÍBLE de `ccp handoff`: status, list, y el resto
@@ -92,6 +93,9 @@ func cmdHandoffEmit(args []string, stdout, stderr io.Writer) int {
 	for i := 0; i < len(rest); i++ {
 		a := rest[i]
 		switch {
+		case a == "--session" && i+1 >= len(rest):
+			fmt.Fprintln(stderr, "[error] --session requiere un valor")
+			return 1
 		case a == "--session" && i+1 < len(rest):
 			session = rest[i+1]
 			i++
@@ -163,12 +167,18 @@ func readLineFallback(r io.Reader) string {
 	return ""
 }
 
-// pickHandoffProfile / pickHandoffSession: cuando no hay TTY o no se
-// implementan aún, devuelven error pidiendo los flags. Task 12 los reemplaza
-// por la TUI.
+// pickHandoffProfile lanza el selector TUI de perfiles (Task 12). Sin TTY
+// devuelve error indicando qué flag usar.
 func pickHandoffProfile(home, from string, w io.Writer) (string, error) {
-	return "", fmt.Errorf("falta el perfil destino (usa `ccp handoff <perfil>`)")
+	cfg, err := core.Load(home)
+	if err != nil {
+		return "", err
+	}
+	return tui.RunHandoffProfilePicker(cfg, from, w)
 }
+
+// pickHandoffSession lanza el selector TUI de sesiones (Task 12). Sin TTY
+// devuelve error indicando qué flag usar.
 func pickHandoffSession(home, from, cwd string, w io.Writer) (string, error) {
-	return "", fmt.Errorf("falta la sesión (usa `--session <uuid>`)")
+	return tui.RunHandoffSessionPicker(home, from, cwd, w)
 }
