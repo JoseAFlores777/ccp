@@ -43,6 +43,56 @@ func TestInstallAddsBlockIdempotent(t *testing.T) {
 	}
 }
 
+// TestInstallRefreshesStaleBlock verifica que `ccp install` reescribe en sitio
+// un bloque shell-init desfasado (p.ej. de una versión vieja sin `handoff`),
+// en vez de quedarse en no-op eterno. Regresión: la función de shell vieja no
+// interceptaba `ccp handoff`, así que el binario imprimía el aviso shell-only
+// para siempre por más que el usuario reinstalara + sourceara.
+func TestInstallRefreshesStaleBlock(t *testing.T) {
+	home := t.TempDir()
+	rc := filepath.Join(t.TempDir(), ".zshrc")
+	t.Setenv("CCP_HOME", home)
+	t.Setenv("CCP_RC", rc)
+	t.Setenv("CCP_LANG", "es")
+
+	// Bloque viejo: marcadores correctos pero sin el case `handoff)`.
+	stale := "export FOO=1\n\n" + rcComment + "\n" +
+		rcMarkerOpen + "\n" +
+		"ccp() {\n  case \"$1\" in\n    *) command ccp \"$@\" ;;\n  esac\n}\n" +
+		rcMarkerEnd + "\n"
+	if err := os.WriteFile(rc, []byte(stale), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errb bytes.Buffer
+	if code := cmdInstall(nil, &out, &errb); code != 0 {
+		t.Fatalf("install code=%d stderr=%s", code, errb.String())
+	}
+	data, _ := os.ReadFile(rc)
+	s := string(data)
+	if !strings.Contains(s, "handoff)") {
+		t.Fatalf("install no refrescó el bloque (sin case handoff):\n%s", s)
+	}
+	if n := strings.Count(s, rcMarkerOpen); n != 1 {
+		t.Fatalf("esperaba 1 bloque tras refresh, hay %d", n)
+	}
+	if !strings.Contains(s, "export FOO=1") {
+		t.Fatalf("refresh borró contenido ajeno del rc:\n%s", s)
+	}
+	if !strings.Contains(out.String(), "actualizado") {
+		t.Errorf("esperaba aviso de refresh, got: %s", out.String())
+	}
+
+	// Segundo install: ahora el bloque coincide con el template → idempotente.
+	out.Reset()
+	if code := cmdInstall(nil, &out, &errb); code != 0 {
+		t.Fatalf("install idempotente code=%d", code)
+	}
+	if !strings.Contains(out.String(), "ya está") {
+		t.Errorf("esperaba aviso de idempotencia tras refresh, got: %s", out.String())
+	}
+}
+
 // TestUninstallRemovesBlock verifica que `ccp uninstall` quita el bloque y
 // preserva el resto del rc.
 func TestUninstallRemovesBlock(t *testing.T) {

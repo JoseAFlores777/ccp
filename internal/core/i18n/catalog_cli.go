@@ -307,6 +307,10 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "Init added to %s",
 		Es: "Init añadido a %s",
 	},
+	"cli.install.refreshed": {
+		En: "ccp init refreshed in %s (shell function was out of date)",
+		Es: "Init de ccp actualizado en %s (la función de shell estaba desfasada)",
+	},
 	"cli.uninstall.not_found": {
 		En: "ccp init not found in %s",
 		Es: "No encontré el init en %s",
@@ -494,8 +498,8 @@ var catalogCLI = map[string]map[Lang]string{
 
 	// --- handoff.go ---
 	"cli.handoff.shell_only": {
-		En: "`ccp handoff` only works via the ccp shell function (reinstall with `ccp install`).",
-		Es: "`ccp handoff` solo funciona vía la función shell de ccp (reinstala con `ccp install`).",
+		En: "`ccp handoff` only works via the ccp shell function.\nRefresh it:  ccp install && source ~/.zshrc   (see `ccp help` → TROUBLESHOOTING)",
+		Es: "`ccp handoff` solo funciona vía la función shell de ccp.\nRefréscala:  ccp install && source ~/.zshrc   (ve `ccp help` → SOLUCIÓN DE PROBLEMAS)",
 	},
 	"cli.handoff.no_active": {
 		En: "No active handoff.",
@@ -576,6 +580,16 @@ LIFE CYCLE
   ccp upgrade [--pull]        reinstall from the registered source + sync
   ccp doctor                  diagnostics
   ccp config [show|set|reset|editor]
+
+TROUBLESHOOTING
+  "ccp handoff only works via the ccp shell function"
+    your rc has an out-of-date shell function. Refresh it:
+      ccp install          (rewrites the block in place if it drifted)
+      source ~/.zshrc      (or ~/.bashrc, or open a new terminal)
+  'use'/'handoff'/'run' do nothing, or the profile won't switch on cd
+    the shell function isn't loaded in this terminal. Same fix:
+      ccp install && source ~/.zshrc
+  still stuck? run 'ccp doctor' and check 'ccp status'
 `,
 		Es: `TERMINAL (función shell)
   ccp use <perfil>            activa un perfil en esta terminal
@@ -621,6 +635,16 @@ CICLO DE VIDA
   ccp upgrade [--pull]        reinstala desde la fuente registrada + sync
   ccp doctor                  diagnóstico
   ccp config [show|set|reset|editor]
+
+SOLUCIÓN DE PROBLEMAS
+  "ccp handoff only works via the ccp shell function"
+    tu rc tiene una función shell desfasada. Refréscala:
+      ccp install          (reescribe el bloque en sitio si quedó viejo)
+      source ~/.zshrc      (o ~/.bashrc, o abre una terminal nueva)
+  'use'/'handoff'/'run' no hacen nada, o el perfil no cambia al hacer cd
+    la función shell no está cargada en esta terminal. Mismo arreglo:
+      ccp install && source ~/.zshrc
+  ¿sigue fallando? corre 'ccp doctor' y revisa 'ccp status'
 `,
 	},
 }

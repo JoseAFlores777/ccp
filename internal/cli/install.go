@@ -49,6 +49,69 @@ func fileContains(path, needle string) bool {
 	return strings.Contains(string(data), needle)
 }
 
+// installedBlock devuelve el bloque shell-init instalado en rc (entre los
+// marcadores >>> y <<< inclusive, con newline final), normalizado para
+// compararse byte-a-byte contra core.ShellInit. Devuelve "" si no hay bloque.
+func installedBlock(rc string) string {
+	in, err := os.Open(rc)
+	if err != nil {
+		return ""
+	}
+	defer in.Close()
+	var lines []string
+	inBlock := false
+	sc := bufio.NewScanner(in)
+	for sc.Scan() {
+		line := sc.Text()
+		if line == rcMarkerOpen {
+			inBlock = true
+		}
+		if inBlock {
+			lines = append(lines, line)
+		}
+		if line == rcMarkerEnd {
+			break
+		}
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// stripCcpBlock devuelve el contenido de rc con el bloque ccp (desde la línea
+// de comentario o el marcador de apertura hasta el de cierre) removido.
+func stripCcpBlock(rc string) (string, error) {
+	in, err := os.Open(rc)
+	if err != nil {
+		return "", err
+	}
+	defer in.Close()
+	var out []string
+	skip := false
+	sc := bufio.NewScanner(in)
+	for sc.Scan() {
+		line := sc.Text()
+		if line == rcComment || line == rcMarkerOpen {
+			skip = true
+		}
+		if !skip {
+			out = append(out, line)
+		}
+		if line == rcMarkerEnd {
+			skip = false
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return "", err
+	}
+	content := strings.Join(out, "\n")
+	if len(out) > 0 {
+		content += "\n"
+	}
+	return content, nil
+}
+
 // cmdInstall añade el bloque shell-init al rc (idempotente). Espeja cmd_install.
 func cmdInstall(args []string, stdout, stderr io.Writer) int {
 	lang := currentLang()
@@ -68,7 +131,33 @@ func cmdInstall(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, i18n.T(lang, "cli.install.old_dsctl_hint"))
 	}
 	if fileContains(rc, "ccp shell init") {
-		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.install.already", rc)))
+		// El bloque ya existe. Si su contenido coincide con el template actual,
+		// no hay nada que hacer. Si quedó desfasado (p.ej. se añadió `handoff`
+		// al template en una nueva versión), lo reescribimos en sitio — si no,
+		// `ccp install` sería un no-op eterno y el usuario heredaría una función
+		// de shell muerta para siempre.
+		if installedBlock(rc) == core.ShellInit {
+			fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.install.already", rc)))
+			fmt.Fprintln(stdout, hrLine)
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.install.reload", rc))
+			fmt.Fprintln(stdout, hrLine)
+			return 0
+		}
+		cleaned, err := stripCcpBlock(rc)
+		if err != nil {
+			fmt.Fprintf(stderr, "[error] %v\n", err)
+			return 1
+		}
+		content := strings.TrimRight(cleaned, "\n")
+		if content != "" {
+			content += "\n"
+		}
+		content += "\n" + rcComment + "\n" + core.ShellInit
+		if err := os.WriteFile(rc, []byte(content), 0o644); err != nil {
+			fmt.Fprintf(stderr, "[error] %v\n", err)
+			return 1
+		}
+		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.install.refreshed", rc)))
 		fmt.Fprintln(stdout, hrLine)
 		fmt.Fprintln(stdout, i18n.T(lang, "cli.install.reload", rc))
 		fmt.Fprintln(stdout, hrLine)
@@ -110,34 +199,10 @@ func cmdUninstall(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, warnLine(stderr, i18n.T(lang, "cli.uninstall.not_found", rc)))
 		return 0
 	}
-	in, err := os.Open(rc)
+	content, err := stripCcpBlock(rc)
 	if err != nil {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
-	}
-	var out []string
-	skip := false
-	sc := bufio.NewScanner(in)
-	for sc.Scan() {
-		line := sc.Text()
-		if line == rcComment || line == rcMarkerOpen {
-			skip = true
-		}
-		if !skip {
-			out = append(out, line)
-		}
-		if line == rcMarkerEnd {
-			skip = false
-		}
-	}
-	_ = in.Close()
-	if err := sc.Err(); err != nil {
-		fmt.Fprintf(stderr, "[error] %v\n", err)
-		return 1
-	}
-	content := strings.Join(out, "\n")
-	if len(out) > 0 {
-		content += "\n"
 	}
 	if err := os.WriteFile(rc, []byte(content), 0o644); err != nil {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
