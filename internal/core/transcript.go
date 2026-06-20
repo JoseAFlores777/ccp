@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -18,9 +19,17 @@ import (
 // sesión es el uuid del nombre de archivo, que DEBE igualar el campo sessionId
 // dentro de cada línea. Validado contra CC v2.1.183 (ver spec §08).
 
-// SlugForCwd convierte un cwd absoluto al slug de proyecto de CC: cada '/' -> '-'.
+// slugNonAlnum casa cualquier carácter que NO sea [a-zA-Z0-9]. Claude Code
+// codifica el cwd en el nombre del directorio de proyecto reemplazando todos
+// esos caracteres (no solo '/') por '-': '_' y '.' también se aplanan. P.ej.
+// /mnt/Big_SSD_2TB/Code -> -mnt-Big-SSD-2TB-Code.
+var slugNonAlnum = regexp.MustCompile(`[^a-zA-Z0-9]`)
+
+// SlugForCwd convierte un cwd absoluto al slug de proyecto de CC: cada carácter
+// no alfanumérico ('/', '_', '.', espacio, ...) -> '-'. Debe igualar la
+// codificación de CC, de lo contrario el directorio de transcripts no se halla.
 func SlugForCwd(cwd string) string {
-	return strings.ReplaceAll(cwd, "/", "-")
+	return slugNonAlnum.ReplaceAllString(cwd, "-")
 }
 
 // ProjectDir devuelve <ccHome>/projects/<slug>.

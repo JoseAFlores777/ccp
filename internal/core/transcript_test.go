@@ -10,10 +10,37 @@ import (
 )
 
 func TestSlugForCwd(t *testing.T) {
-	got := SlugForCwd("/Volumes/X/Personal/Projects/dsctl-v2")
-	want := "-Volumes-X-Personal-Projects-dsctl-v2"
-	if got != want {
-		t.Fatalf("SlugForCwd = %q, want %q", got, want)
+	cases := []struct {
+		name string
+		cwd  string
+		want string
+	}{
+		{
+			name: "solo barras",
+			cwd:  "/Volumes/X/Personal/Projects/dsctl-v2",
+			want: "-Volumes-X-Personal-Projects-dsctl-v2",
+		},
+		{
+			// Regresión: CC aplana '_' (y '.') a '-', no solo '/'. Un cwd con
+			// guiones bajos producía un slug que no casaba con el directorio de
+			// transcripts en disco -> "no hay sesiones". Mayúsculas y dígitos se
+			// conservan; un '/' seguido de '.' produce dos dashes (sin colapsar).
+			name: "guiones bajos, puntos y mayúsculas",
+			cwd:  "/mnt/Big_SSD_2TB_Vol/Code/My_Project/.claude-worktrees/wt",
+			want: "-mnt-Big-SSD-2TB-Vol-Code-My-Project--claude-worktrees-wt",
+		},
+		{
+			name: "punto en nombre",
+			cwd:  "/home/u/my.project",
+			want: "-home-u-my-project",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := SlugForCwd(tc.cwd); got != tc.want {
+				t.Fatalf("SlugForCwd(%q) = %q, want %q", tc.cwd, got, tc.want)
+			}
+		})
 	}
 }
 
