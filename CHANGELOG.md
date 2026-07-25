@@ -1,5 +1,68 @@
 # Changelog
 
+## [2.9.0] — handoff multi-activo
+
+### Added
+
+- **Varios handoffs en vuelo a la vez.** `handoffs.yaml` sube a `version: 2` con
+  `active` como **lista** de marcadores (migración transparente desde el mapping
+  de v1). `end`, `resume` y `discard` resuelven **por el directorio actual**: si
+  hay uno solo aquí, ese; si hay varios, picker TUI (o `--session <uuid>` sin
+  TTY); si no hay ninguno aquí, el error dice en qué repos sí los hay.
+- **`ccp handoff resume [<uuid>]`**: vuelve a entrar a un handoff vivo sin
+  cerrarlo — no copia transcripts ni toca el marcador. Es lo que hace útil tener
+  varios abiertos.
+- **`ccp handoff discard [<uuid>]`**: suelta un marcador zombi (el jsonl del
+  destino desapareció) sin back-sync, el caso donde `end` falla siempre.
+- **`ccp handoff` sin argumentos y con TTY**: panel gestor con los activos (los
+  de este repo primero) — `enter` reanudar · `e` terminar (con confirmación) ·
+  `n` nuevo · `y` toggle skip-permissions · `q` salir. Sin activos entra directo
+  al wizard de handoff nuevo.
+- **`--dangerously-skip-permissions` (alias `--yolo`)** en las tres operaciones
+  que lanzan `claude`. No se recuerda entre invocaciones: ni en el marcador ni en
+  `ccp.yaml`.
+- **`ccp handoff status --all`** agrupado por repo; `list` marca los activos de
+  este proyecto.
+- **`ccp upgrade --from-source`** (y `CCP_FROM_SOURCE=1` en `install.sh`):
+  reinstala compilando el repo registrado en vez de bajar el último release —
+  para probar un cambio antes de tagearlo.
+
+### Changed
+
+- La función shell gana las ramas `resume` y `discard` y el `if` de
+  `CCP_RESUME_YOLO`; las completions bash/zsh completan los subcomandos de
+  handoff. Todo byte-idéntico con el oráculo bash y con el golden regenerado.
+- Aviso no bloqueante a partir de 5 handoffs sin cerrar, y recordatorio de una
+  línea al entrar (`cd`) a un repo con handoff activo.
+- Exit codes de las operaciones de handoff: **0** ok, **1** pre-chequeo, **2**
+  fallo de I/O al persistir `handoffs.yaml` (el 2 no se emitía nunca).
+
+### Fixed
+
+- `--session` se valida como uuid antes de tocar disco: un valor con `../`
+  copiaba cualquier `.jsonl` legible al perfil destino y dejaba un marcador
+  basura.
+- Un `handoffs.yaml` escrito por un ccp más nuevo se detecta **antes** de copiar
+  nada, y `status`/`list`/panel/hook lo dicen en vez de reportar «no hay handoff
+  activo».
+- `--force` llega hasta `CopyTranscript` (antes se parseaba y se ignoraba, así
+  que el remedio que sugería el error de colisión no funcionaba).
+- El picker de sesiones **marca** las que ya están en vuelo en vez de ocultarlas.
+- `--no-marker` y `--force` valen también cuando el forward sale del panel.
+- Un argumento posicional sobrante ya no se descarta en silencio.
+
+Spec y plan: `docs/superpowers/{specs,plans}/2026-07-25-handoff-multi*`.
+
+## [2.8.3] — parches de handoff e instalación
+
+### Fixed
+
+- `SlugForCwd` aplana **todo** carácter no alfanumérico, igual que Claude Code:
+  con un cwd con `.` o `_` el slug no coincidía y ccp no encontraba las sesiones.
+- `ccp install` sobre un rc que ya tiene el bloque pero **desfasado** lo reescribe
+  en sitio en vez de ser un no-op: antes, una versión que cambiara la función de
+  shell dejaba al usuario con la vieja para siempre.
+
 ## [2.8.0] — proveedores Kimi/GLM
 
 ### Added

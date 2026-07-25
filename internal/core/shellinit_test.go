@@ -114,3 +114,21 @@ func TestShellinitContainsHandoff(t *testing.T) {
 		t.Error("ShellInit no contiene '_handoff-end' — falta la llamada al binario para handoff end")
 	}
 }
+
+func TestShellInitTieneResumeYYolo(t *testing.T) {
+	var b strings.Builder
+	if _, err := WriteShellInit(&b); err != nil {
+		t.Fatal(err)
+	}
+	s := b.String()
+	for _, want := range []string{
+		"resume)",
+		"_handoff-resume",
+		"CCP_RESUME_YOLO",
+		"--dangerously-skip-permissions",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("shell init sin %q:\n%s", want, s)
+		}
+	}
+}

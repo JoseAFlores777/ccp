@@ -148,3 +148,46 @@ func TestUpgradeBadArg(t *testing.T) {
 		t.Fatalf("esperaba exit 1 con flag desconocida, got %d", code)
 	}
 }
+
+// TestUpgradeFromSourcePropagaLaVariable: `ccp upgrade` instala por defecto el
+// último RELEASE, así que un repo con trabajo nuevo se reinstalaba con el
+// binario viejo y el cambio parecía no llegar. --from-source le pasa
+// CCP_FROM_SOURCE=1 a install.sh, que entonces compila el repo registrado. El
+// install.sh de este test es un doble que solo reporta lo que recibió.
+func TestUpgradeFromSourcePropagaLaVariable(t *testing.T) {
+	home := t.TempDir()
+	src := t.TempDir()
+	marker := filepath.Join(src, "recibido.txt")
+	script := "#!/usr/bin/env bash\nprintf '%s' \"${CCP_FROM_SOURCE:-unset}\" > " + marker + "\n"
+	if err := os.WriteFile(filepath.Join(src, "install.sh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "install-source"), []byte(src+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CCP_HOME", home)
+	t.Setenv("CCP_LANG", "es")
+	t.Setenv("CCP_BIN_DIR", t.TempDir()) // el `profile sync` va a un bin inexistente
+	t.Setenv("CCP_RC", filepath.Join(t.TempDir(), "rc"))
+
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"sin la flag", []string{"--no-sync"}, "unset"},
+		{"con la flag", []string{"--from-source", "--no-sync"}, "1"},
+	} {
+		var out, errb bytes.Buffer
+		if code := cmdUpgrade(tc.args, &out, &errb); code != 0 {
+			t.Fatalf("%s: exit %d (%s)", tc.name, code, errb.String())
+		}
+		got, err := os.ReadFile(marker)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != tc.want {
+			t.Errorf("%s: install.sh recibió CCP_FROM_SOURCE=%q, want %q", tc.name, got, tc.want)
+		}
+	}
+}

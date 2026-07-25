@@ -13,6 +13,7 @@
 #  Overrides (env):
 #    CCP_REPO        slug GitHub (default JoseAFlores777/ccp)
 #    CCP_RELEASE     tag a instalar (default: latest)
+#    CCP_FROM_SOURCE 1 = salta el release y compila ESTE repo (necesita Go)
 #    CCP_BIN_DIR     destino del binario (default ~/.local/bin)
 #    CCP_LIB_DIR     libs bash a limpiar (default ~/.local/lib/ccp)
 #    CCP_HOME        config de ccp (default ~/.config/ccp)
@@ -29,6 +30,7 @@ die(){ printf '❌ %s\n' "$*" >&2; exit 1; }
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="${CCP_REPO:-JoseAFlores777/ccp}"
 RELEASE="${CCP_RELEASE:-latest}"
+FROM_SOURCE="${CCP_FROM_SOURCE:-0}"
 BIN_DIR="${CCP_BIN_DIR:-$HOME/.local/bin}"
 LIB_DIR="${CCP_LIB_DIR:-$HOME/.local/lib/ccp}"
 CCP_HOME="${CCP_HOME:-$HOME/.config/ccp}"
@@ -132,7 +134,14 @@ install_from_source() {
 mkdir -p "$BIN_DIR" "$CCP_HOME"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
-if ! install_from_release; then
+# CCP_FROM_SOURCE=1 invierte la prioridad: instala LO QUE HAY EN ESTE REPO en
+# vez del último release. Es lo que hace falta para probar un cambio antes de
+# tagearlo — sin esto, `ccp upgrade` sobre un repo con trabajo nuevo reinstala
+# igualmente el binario viejo del release y parece que el cambio no llegó.
+if [[ "$FROM_SOURCE" == "1" ]]; then
+  info "CCP_FROM_SOURCE=1 -> compilando este repo, sin tocar el release."
+  install_from_source || die "No pude compilar desde $SRC_DIR: hace falta Go (https://go.dev/dl)."
+elif ! install_from_release; then
   warn "No se pudo instalar desde release; intentando go build…"
   install_from_source || die "No pude instalar ccp: ni release prebuilt ni toolchain Go disponible.
 Instala Go (https://go.dev/dl) o verifica tu conexión y el release de $REPO."

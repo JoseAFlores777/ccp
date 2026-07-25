@@ -36,7 +36,9 @@ func ccpHome() (string, error) {
 	}
 	hd, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("no se pudo determinar HOME: %w", err)
+		// i18n.Resolve("") y no currentLang(): currentLang llama a ccpHome, así
+		// que traducir con él aquí sería recursión infinita.
+		return "", fmt.Errorf("%s: %w", i18n.T(i18n.Resolve(""), "cli.err.no_home"), err)
 	}
 	return hd + "/.config/ccp", nil
 }
@@ -69,6 +71,8 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 		return cmdHandoffEmit(rest, stdout, stderr)
 	case "_handoff-end":
 		return cmdHandoffEndEmit(rest, stdout, stderr)
+	case "_handoff-resume":
+		return cmdHandoffResumeEmit(rest, stdout, stderr)
 	case "completion":
 		return cmdCompletion(rest, stdout, stderr)
 	case "completion-shellinit":

@@ -10,6 +10,7 @@ _ccp() {
              (( CURRENT == 3 )) || { [[ "${words[3]}" =~ ^(set|rm|test)$ ]] && _path_files -/ }
              (( CURRENT == 4 )) && [[ "${words[3]}" == set ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     use)     compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
+    handoff) (( CURRENT == 3 )) && compadd -- resume end discard status list default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     key)     compadd -- ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     completion) compadd -- bash zsh ;;
   esac

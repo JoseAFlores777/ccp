@@ -48,6 +48,27 @@ func NewUUID() (string, error) {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
 }
 
+// sessionUUIDRe casa la forma 8-4-4-4-12 hex de un uuid. Se valida la FORMA, no
+// la versión/variante RFC 4122: lo que importa es que el valor sea un nombre de
+// archivo inocuo, y ser más estricto rechazaría uuids legítimos de sesiones
+// viejas de CC.
+var sessionUUIDRe = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// validateSessionID rechaza cualquier id de sesión que no sea un uuid.
+//
+// El id se concatena para formar un path (<cc-home>/projects/<slug>/<id>.jsonl),
+// así que un valor con `/` o `..` sale del cc-home: sin esta validación,
+// `--session ../../../../x` copiaría cualquier .jsonl legible del disco al perfil
+// destino y dejaría un marcador activo apuntando fuera del home — un marcador que
+// además secuestra la resolución por cwd de ese repo. Validar la FORMA es la
+// defensa correcta (no filepath.Clean: un `..` limpio sigue escapando).
+func validateSessionID(s string) error {
+	if sessionUUIDRe.MatchString(s) {
+		return nil
+	}
+	return fmt.Errorf("id de sesión inválido: %q; se espera el uuid del transcript (8-4-4-4-12 hexadecimal)", s)
+}
+
 // CCHome devuelve el CLAUDE_CONFIG_DIR de un perfil. Para 'default' es
 // ~/.claude; para el resto, <home>/profiles/<perfil>/cc-home. Espeja la lógica
 // de EnvDelta (env.go).

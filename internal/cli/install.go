@@ -216,17 +216,19 @@ func cmdUninstall(args []string, stdout, stderr io.Writer) int {
 // luego re-sincroniza perfiles con el binario recién instalado y avisa si el
 // bloque rc quedó desfasado. Espeja cmd_upgrade.
 //
-//	ccp upgrade [--pull] [--no-sync]
+//	ccp upgrade [--pull] [--no-sync] [--from-source]
 func cmdUpgrade(args []string, stdout, stderr io.Writer) int {
 	lang := currentLang()
 	home := resolveHome()
-	doPull, doSync := false, true
+	doPull, doSync, fromSource := false, true, false
 	for _, a := range args {
 		switch a {
 		case "--pull":
 			doPull = true
 		case "--no-sync":
 			doSync = false
+		case "--from-source":
+			fromSource = true
 		default:
 			fmt.Fprintln(stderr, i18n.T(lang, "cli.upgrade.usage"))
 			return 1
@@ -263,6 +265,14 @@ func cmdUpgrade(args []string, stdout, stderr io.Writer) int {
 	fmt.Fprintln(stdout, i18n.T(lang, "cli.upgrade.reinstalling", src))
 	inst := exec.Command("bash", installSh)
 	inst.Stdout, inst.Stderr = stdout, stderr
+	if fromSource {
+		// install.sh instala el último release por defecto. Con --from-source
+		// compila el repo registrado, que es lo que quiere quien acaba de tocar
+		// el código: sin esto el upgrade reinstala el binario viejo del release
+		// y el cambio parece no haber llegado.
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.upgrade.from_source", src))
+		inst.Env = append(os.Environ(), "CCP_FROM_SOURCE=1")
+	}
 	if err := inst.Run(); err != nil {
 		fmt.Fprintln(stderr, i18n.T(lang, "cli.upgrade.install_fail"))
 		return 1

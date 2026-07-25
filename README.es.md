@@ -10,7 +10,7 @@
 En tu repo de trabajo, tu cuenta de empresa; en tu proyecto personal, la tuya; en tus experimentos, DeepSeek.
 El cambio ocurre solo, con hacer `cd`.
 
-![version](https://img.shields.io/badge/version-2.8.0-c96442)
+![version](https://img.shields.io/badge/version-2.9.0-c96442)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-c96442)
 ![shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-8a8378)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
@@ -88,9 +88,22 @@ export PATH="$HOME/.local/bin:$PATH"
 `install.sh` registra de qué repo instalaste, así que actualizar es un comando:
 
 ```bash
-ccp upgrade            # re-instala + re-sincroniza perfiles (profile sync)
-ccp upgrade --pull     # hace 'git pull' antes de re-instalar
-ccp upgrade --no-sync  # solo el binario, sin tocar perfiles
+ccp upgrade              # re-instala + re-sincroniza perfiles (profile sync)
+ccp upgrade --pull       # hace 'git pull' antes de re-instalar
+ccp upgrade --no-sync    # solo el binario, sin tocar perfiles
+ccp upgrade --from-source  # compila el repo registrado en vez del release
+```
+
+`upgrade` instala el **último release** publicado en GitHub; `--from-source`
+compila lo que haya en tu copia del repo (necesita Go), que es lo que quieres
+para probar un cambio antes de tagearlo.
+
+Cuando una versión cambia la **función de shell** (el bloque de tu rc), el
+upgrade te avisa y hay que refrescarla — el binario nuevo por sí solo no puede
+tocar tu shell:
+
+```bash
+ccp install && source ~/.zshrc   # reescribe el bloque desfasado en sitio
 ```
 
 Si vienes de la versión Bash (`dsctl`) o de un `ccp` viejo, la **migración es automática y perezosa**: la primera vez que corras cualquier comando que toque la config, convierte tu estado a `ccp.yaml` (schema v2), respaldando antes en `~/.config/ccp/.backup-pre-go-<fecha>`.
@@ -168,16 +181,30 @@ ccp doctor            # logins, keys, función de shell
 
 Un proceso `claude` vivo congela sus credenciales al arrancar, así que `ccp use` no puede hot-swapearlas. Cuando un perfil se queda sin tokens/cuota a media conversación, `ccp handoff` hace lo único limpio: **persiste el contexto → cambia de perfil → reanuda la misma conversación** en un proceso nuevo con los tokens del perfil destino.
 
+Puedes tener **varios handoffs en vuelo a la vez** — uno por sesión, en tantos repos como quieras.
+
 ```bash
-ccp handoff                       # TUI: elige perfil destino → elige sesión → confirma
-ccp handoff <to>                  # salta el picker de perfil
+ccp handoff                       # panel gestor: ves los activos y eliges qué hacer
+ccp handoff <to>                  # nuevo handoff hacia <to> (picker de sesión)
 ccp handoff <to> --session <uuid> # salta ambos pickers (scriptable)
-ccp handoff end                   # trae el contexto actualizado de vuelta al origen y reanuda ahí
-ccp handoff status                # muestra el handoff en vuelo (o "sin handoff activo")
-ccp handoff list                  # historial (archivados) + activo
+ccp handoff resume  [<uuid>]      # vuelve a entrar a un handoff vivo, sin cerrarlo
+ccp handoff end     [<uuid>]      # trae el contexto actualizado de vuelta al origen y reanuda ahí
+ccp handoff discard [<uuid>]      # suelta un marcador sin traer nada de vuelta
+ccp handoff status  [--all]       # qué hay en vuelo aquí (o en todos lados)
+ccp handoff list                  # activos + historial (archivados)
 ```
 
-El modelo mental: **pides prestados los tokens de otro perfil para una sesión, y devuelves el trabajo al volver.** `handoff end` hace back-sync del contexto actualizado al perfil origen como **sesión nueva** (no destructivo); la sesión de vuelta muestra `[de <perfil>]` en su título. v1 permite un solo nivel (sin handoffs encadenados — termina uno con `end` primero). `status`/`list` son de solo lectura y funcionan en cualquier lado; lo demás corre a través de la función shell de ccp, así que `ccp install` debe estar activo.
+El modelo mental: **pides prestados los tokens de otro perfil para una sesión, y devuelves el trabajo al volver.** `handoff end` hace back-sync del contexto actualizado al perfil origen como **sesión nueva** (no destructivo); la sesión de vuelta muestra `[de <perfil>]` en su título. `handoff resume` es lo contrario: vuelve a entrar a un handoff que sigue vivo sin copiar nada ni cerrarlo — es lo que hace útil tener varios en vuelo.
+
+**Cómo eligen `end`/`resume`/`discard` cuál handoff:** por el directorio actual. Si hay exactamente uno activo en este repo, actúa sobre ese sin preguntar. Si hay varios, pregunta (picker de marcador con TTY; sin TTY falla pidiendo `--session <uuid>`). Si no hay ninguno aquí, falla y te dice en qué repos sí los hay. Pasar el `<uuid>` explícito se salta la resolución.
+
+**Cuando el transcript ya no está — `handoff discard`:** si el jsonl de la sesión desapareció del perfil destino (limpiaste `~/.claude`, borraste el perfil…), `end` y `resume` no tienen con qué trabajar y fallan siempre, y el marcador se quedaría activo para siempre — secuestrando la resolución por directorio de ese repo, contando para el aviso de cinco handoffs y bloqueando un handoff nuevo desde el perfil destino. `ccp handoff discard` archiva ese marcador **sin back-sync**: no copia ni reescribe transcripts, no borra nada del perfil destino (lo que quede ahí sigue alcanzable con `claude --resume <uuid>` desde ese perfil) y no cambia el perfil de tu shell. No es la forma normal de cerrar un handoff — para eso está `end`, que sí trae el trabajo de vuelta.
+
+**Saltarse los prompts de permiso:** las tres operaciones que lanzan `claude` (`handoff`, `handoff resume`, `handoff end`) aceptan `--dangerously-skip-permissions`, con alias `--yolo`: la sesión reanudada arranca sin los prompts de permiso de Claude Code. **No se recuerda entre invocaciones** — no vive en el marcador ni en `ccp.yaml`, así que se pide cada vez (o se activa con `y` en el panel).
+
+`ccp handoff` sin argumentos y con TTY abre el **panel gestor**: los activos, los de este repo primero, con `enter` reanudar · `e` terminar (pide confirmación) · `n` nuevo · `y` toggle skip-permissions · `q` salir. Sin nada en vuelo el panel ni se abre: entras directo al wizard de handoff nuevo, perfil → sesión.
+
+Lo que sigue sin soportarse: handoffs encadenados (`A → B → C` **sobre la misma sesión** — termina esa con `end` primero; prestar hacia adelante *otra* sesión del mismo repo sí se puede) y prestar una misma sesión a dos perfiles a la vez. A partir de cinco handoffs sin cerrar, uno nuevo te avisa (no bloquea). Al entrar (`cd`) a un repo con handoff activo aparece un recordatorio de una línea. `status`, `list` y `discard` funcionan en cualquier lado y no lanzan nada — `handoff status` sale con `0` si este repo tiene handoff activo y `1` si no; los comandos que reanudan la sesión (`handoff`, `resume`, `end`) corren a través de la función shell de ccp, así que `ccp install` debe estar activo.
 
 ---
 
@@ -326,7 +353,10 @@ Con comandos: `ccp config show` · `ccp config set <clave> <valor>` · `ccp conf
 | Ver reglas / perfiles | `ccp path list` · `ccp profile list` |
 | Cambiar a mano | `ccp use <n>` · `ccp default` |
 | Continuar una sesión bajo otro perfil | `ccp handoff [<n>]` |
-| Devolver un handoff a su origen | `ccp handoff end` |
+| Volver a entrar a un handoff vivo | `ccp handoff resume [<uuid>]` |
+| Devolver un handoff a su origen | `ccp handoff end [<uuid>]` |
+| Soltar un marcador de handoff huérfano | `ccp handoff discard [<uuid>]` |
+| Ver qué hay en vuelo | `ccp handoff status [--all]` |
 | Estado / diagnóstico | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
 | Actualizar | `ccp upgrade` |

@@ -26,7 +26,7 @@ func claudeSrc() (string, error) {
 	}
 	hd, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("no se pudo determinar HOME: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T(i18n.Resolve(""), "cli.err.no_home"), err)
 	}
 	return hd + "/.claude", nil
 }

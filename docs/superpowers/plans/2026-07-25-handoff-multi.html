@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ccp handoff multi-activo — plan de implementación</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0F172A; --bg-elev:#131E36; --bg-soft:#1B2942;
+  --fg:#F8FAFC; --fg-muted:#94A3B8; --fg-dim:#64748B;
+  --border:#27364F; --border-strong:#3A4C6B;
+  --accent:#22C55E; --accent-soft:rgba(34,197,94,.14);
+  --warn:#F59E0B; --warn-soft:rgba(245,158,11,.14);
+  --danger:#F87171; --danger-soft:rgba(248,113,113,.14);
+  --info:#60A5FA; --info-soft:rgba(96,165,250,.14);
+  --shadow:0 10px 30px rgba(0,0,0,.35);
+  --radius:14px; --radius-sm:9px;
+  --maxw:1120px;
+}
+:root[data-theme="light"]{
+  --bg:#F6F8FB; --bg-elev:#FFFFFF; --bg-soft:#EEF2F8;
+  --fg:#0F172A; --fg-muted:#475569; --fg-dim:#64748B;
+  --border:#D8E0EC; --border-strong:#B9C6D8;
+  --accent:#15803D; --accent-soft:rgba(21,128,61,.10);
+  --warn:#B45309; --warn-soft:rgba(180,83,9,.10);
+  --danger:#B91C1C; --danger-soft:rgba(185,28,28,.10);
+  --info:#1D4ED8; --info-soft:rgba(29,78,216,.10);
+  --shadow:0 10px 28px rgba(15,23,42,.08);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
+  font-size:17px; line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+  transition:background .25s ease,color .25s ease;
+}
+h1,h2,h3,h4{font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.25;letter-spacing:-.01em;margin:0}
+code,pre,kbd{font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+a{color:var(--accent);text-underline-offset:3px}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+
+/* header */
+header.top{
+  position:sticky;top:0;z-index:50;
+  backdrop-filter:blur(10px);
+  background:color-mix(in srgb,var(--bg) 82%,transparent);
+  border-bottom:1px solid var(--border);
+}
+.top-inner{display:flex;align-items:center;gap:16px;height:60px}
+.brand{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;letter-spacing:-.02em}
+.brand span{color:var(--accent)}
+nav.links{margin-left:auto;display:flex;gap:4px;flex-wrap:wrap}
+nav.links a{
+  color:var(--fg-muted);text-decoration:none;font-size:13.5px;
+  padding:7px 11px;border-radius:8px;transition:color .2s,background .2s;
+}
+nav.links a:hover{color:var(--fg);background:var(--bg-soft)}
+nav.links a:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.theme-btn{
+  cursor:pointer;background:var(--bg-elev);border:1px solid var(--border);
+  color:var(--fg);width:38px;height:38px;border-radius:10px;
+  display:grid;place-items:center;transition:background .2s,border-color .2s;
+}
+.theme-btn:hover{background:var(--bg-soft);border-color:var(--border-strong)}
+.theme-btn svg{width:18px;height:18px}
+:root[data-theme="dark"] .icon-sun{display:block}
+:root[data-theme="dark"] .icon-moon{display:none}
+:root[data-theme="light"] .icon-sun{display:none}
+:root[data-theme="light"] .icon-moon{display:block}
+
+/* hero */
+.hero{padding:76px 0 56px;border-bottom:1px solid var(--border);background:
+  radial-gradient(1000px 380px at 15% -10%,var(--accent-soft),transparent 60%),
+  radial-gradient(800px 340px at 90% 0%,var(--info-soft),transparent 55%);}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);
+  background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);
+  padding:6px 12px;border-radius:999px;
+}
+.hero h1{font-size:clamp(30px,5vw,52px);margin:22px 0 16px;font-weight:700}
+.hero p.lede{font-size:clamp(17px,2.1vw,20px);color:var(--fg-muted);max-width:70ch;margin:0}
+.hero-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px}
+.chip{
+  font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--fg-muted);
+  background:var(--bg-elev);border:1px solid var(--border);border-radius:999px;padding:6px 13px;
+}
+
+/* sections */
+section{padding:64px 0;border-bottom:1px solid var(--border)}
+section > .wrap > h2{font-size:clamp(22px,3vw,30px);margin-bottom:10px}
+.section-why{color:var(--fg-muted);max-width:75ch;margin:0 0 32px}
+h3{font-size:19px;margin:34px 0 12px}
+p{max-width:78ch}
+
+/* cards */
+.grid{display:grid;gap:18px}
+.grid-2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.grid-3{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.card{
+  background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);
+  padding:22px;box-shadow:var(--shadow);transition:border-color .2s,background .2s;
+}
+.card:hover{border-color:var(--border-strong)}
+.card h4{font-size:15px;margin-bottom:8px}
+.card p{font-size:15px;color:var(--fg-muted);margin:0}
+.kpi{font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:700;color:var(--accent);display:block;margin-bottom:4px}
+
+/* decision blocks */
+.decision{
+  background:var(--bg-elev);border:1px solid var(--border);border-left:3px solid var(--accent);
+  border-radius:var(--radius);padding:24px;margin-bottom:20px;box-shadow:var(--shadow);
+}
+.decision h4{font-size:17px;margin-bottom:14px}
+.dec-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:8px}
+.dec-box{background:var(--bg-soft);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px}
+.dec-box .tag{
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.07em;text-transform:uppercase;
+  display:inline-block;padding:3px 9px;border-radius:6px;margin-bottom:9px;
+}
+.tag.pick{color:var(--accent);background:var(--accent-soft)}
+.tag.drop{color:var(--danger);background:var(--danger-soft)}
+.tag.why{color:var(--info);background:var(--info-soft)}
+.dec-box p{font-size:14.5px;color:var(--fg-muted);margin:0;max-width:none}
+
+/* phases */
+.phase{
+  display:grid;grid-template-columns:56px 1fr;gap:18px;
+  border:1px solid var(--border);background:var(--bg-elev);border-radius:var(--radius);
+  padding:20px;margin-bottom:14px;box-shadow:var(--shadow);
+}
+.phase-num{
+  font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:var(--accent);
+  background:var(--accent-soft);border-radius:10px;display:grid;place-items:center;height:44px;
+}
+.phase h4{font-size:16px;margin-bottom:6px}
+.phase p{font-size:14.5px;color:var(--fg-muted);margin:0 0 10px}
+.files{display:flex;gap:7px;flex-wrap:wrap}
+.file{
+  font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--fg-dim);
+  background:var(--bg-soft);border:1px solid var(--border);border-radius:6px;padding:3px 8px;
+}
+
+/* table */
+.table-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-elev)}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:14.5px}
+th,td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--fg-muted);background:var(--bg-soft)}
+tr:last-child td{border-bottom:none}
+td code{font-size:13px;background:var(--bg-soft);padding:2px 6px;border-radius:5px}
+
+/* risk */
+.risk{border-left:3px solid var(--warn)}
+.risk .kpi{color:var(--warn)}
+
+/* terminal snippets */
+.term{
+  background:#0B1120;border:1px solid var(--border);border-radius:var(--radius);
+  overflow:hidden;margin:16px 0;box-shadow:var(--shadow);
+}
+:root[data-theme="light"] .term{background:#0F172A}
+.term-bar{
+  display:flex;align-items:center;gap:8px;padding:9px 14px;
+  background:rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.08);
+}
+.dot{width:11px;height:11px;border-radius:50%}
+.dot.r{background:#FF5F57}.dot.y{background:#FEBC2E}.dot.g{background:#28C840}
+.term-title{font-family:'JetBrains Mono',monospace;font-size:12px;color:#94A3B8;margin-left:6px}
+.copy{
+  margin-left:auto;cursor:pointer;background:transparent;border:1px solid rgba(255,255,255,.15);
+  color:#CBD5E1;font-family:'JetBrains Mono',monospace;font-size:11.5px;
+  padding:4px 10px;border-radius:6px;transition:background .2s,color .2s,border-color .2s;
+}
+.copy:hover{background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.3)}
+.copy.ok{color:#22C55E;border-color:#22C55E}
+.term pre{margin:0;padding:16px 18px;overflow-x:auto;font-size:13.5px;line-height:1.65;color:#E2E8F0}
+.term pre .c{color:#64748B}
+.term pre .k{color:#7DD3FC}
+.term pre .s{color:#86EFAC}
+
+/* mermaid */
+.diagram{
+  background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);
+  padding:22px;overflow-x:auto;box-shadow:var(--shadow);
+}
+.diagram .mermaid{display:flex;justify-content:center;min-width:min-content}
+.caption{font-size:13.5px;color:var(--fg-dim);margin-top:12px;text-align:center}
+
+/* footer */
+footer{padding:44px 0 60px;color:var(--fg-dim);font-size:14px}
+footer .status{
+  display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12.5px;
+  color:var(--accent);background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);
+  padding:6px 12px;border-radius:999px;margin-bottom:14px;
+}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  html{scroll-behavior:auto}
+}
+@media (max-width:640px){
+  body{font-size:16px}
+  section{padding:48px 0}
+  .phase{grid-template-columns:1fr}
+  .phase-num{width:44px}
+  nav.links{display:none}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap top-inner">
+    <div class="brand">ccp<span>::</span>handoff-multi</div>
+    <nav class="links">
+      <a href="#resumen">Resumen</a>
+      <a href="#arquitectura">Arquitectura</a>
+      <a href="#decisiones">Decisiones</a>
+      <a href="#fases">Fases</a>
+      <a href="#flujos">Flujos</a>
+      <a href="#riesgos">Riesgos</a>
+      <a href="#snippets">Comandos</a>
+    </nav>
+    <button class="theme-btn" id="themeToggle" aria-label="Cambiar tema claro/oscuro">
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Plan de implementación · 2026-07-25</span>
+    <h1>Varios handoffs en vuelo,<br>sin equivocarse</h1>
+    <p class="lede">
+      Hoy <code>ccp</code> permite un solo handoff de sesión a la vez. Este plan sube
+      <code>handoffs.yaml</code> a una lista de activos, resuelve por directorio cuál handoff
+      toca cada operación, añade <code>handoff resume</code> para saltar entre ellos y expone
+      <code>--dangerously-skip-permissions</code> en el lanzamiento.
+    </p>
+    <div class="hero-meta">
+      <span class="chip">14 tareas TDD</span>
+      <span class="chip">Go · bubbletea · goccy/yaml</span>
+      <span class="chip">handoffs.yaml v1 → v2</span>
+      <span class="chip">gate de paridad bash</span>
+    </div>
+  </div>
+</div>
+
+<section id="resumen">
+  <div class="wrap">
+    <h2>Resumen ejecutivo</h2>
+    <p class="section-why">
+      El feature nació con una regla dura: un handoff activo a la vez. Con varios proyectos vivos
+      esa regla obliga a cerrar un préstamo de tokens para abrir otro — y cerrar el equivocado
+      mueve contexto que no querías mover. El plan levanta el límite <em>y</em> añade las defensas
+      que hacen que N activos no se conviertan en N formas de confundirse.
+    </p>
+    <div class="grid grid-3">
+      <div class="card">
+        <span class="kpi">N</span>
+        <h4>Handoffs simultáneos</h4>
+        <p><code>active</code> pasa de marcador único a lista. Cada entrada es una sesión distinta, en su repo, con su par origen→destino.</p>
+      </div>
+      <div class="card">
+        <span class="kpi">cwd</span>
+        <h4>Resolución por directorio</h4>
+        <p><code>end</code> y <code>resume</code> filtran por el proyecto actual. Uno solo → actúa sin preguntar. Varios → picker. Ninguno aquí → error que dice dónde sí los hay.</p>
+      </div>
+      <div class="card">
+        <span class="kpi">0</span>
+        <h4>Mutaciones al desambiguar</h4>
+        <p>Un <code>end</code> ambiguo devuelve error sin tocar <code>handoffs.yaml</code>. Nada se archiva hasta que hay un objetivo único.</p>
+      </div>
+    </div>
+
+    <h3>Qué cambia de cara al usuario</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Antes (v1)</th><th>Ahora (v2)</th></tr></thead>
+        <tbody>
+          <tr><td>Segundo <code>ccp handoff</code> → error «ya hay un handoff activo»</td><td>Permitido, siempre que sea otra sesión</td></tr>
+          <tr><td><code>ccp handoff end</code> actúa sobre el único marcador</td><td>Actúa sobre el de este repo; pregunta si empatan</td></tr>
+          <tr><td>Volver a un handoff exige cerrarlo</td><td><code>ccp handoff resume</code> re-entra sin cerrar</td></tr>
+          <tr><td><code>ccp handoff</code> sin args → wizard lineal</td><td>Panel gestor con los activos a la vista</td></tr>
+          <tr><td>Sin forma de saltar prompts de permiso</td><td><code>--dangerously-skip-permissions</code> / <code>--yolo</code></td></tr>
+          <tr><td>Olvidar un handoff abierto es silencioso</td><td>El hook avisa al entrar al repo</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="arquitectura">
+  <div class="wrap">
+    <h2>Diagrama de arquitectura</h2>
+    <p class="section-why">
+      El split que define a <code>ccp</code> no cambia: el binario <strong>emite</strong> texto
+      eval-able y la función shell instalada en el rc es la única que <strong>ejecuta</strong>
+      (porque es la única que corre <em>dentro</em> de tu shell). Lo nuevo es que las tres
+      operaciones — forward, resume, end — emiten exactamente el mismo par
+      <code>CCP_RESUME_ID</code> / <code>CCP_RESUME_YOLO</code>, así que la función shell no
+      necesita saber cuál de las tres ocurrió.
+    </p>
+    <div class="diagram">
+      <pre class="mermaid" data-src="flowchart TB
+  subgraph SH[&quot;Función shell (rc) — lo único que ejecuta&quot;]
+    CMD[&quot;ccp handoff …&quot;]
+    EV[&quot;eval del emit en subshell&quot;]
+    LAUNCH[&quot;claude --resume $CCP_RESUME_ID<br/>(+ --dangerously-skip-permissions si YOLO)&quot;]
+  end
+  subgraph BIN[&quot;Binario Go — toda la lógica, cero ejecución&quot;]
+    CLI[&quot;internal/cli<br/>parseHandoffFlags · dispatch&quot;]
+    TUI[&quot;internal/tui<br/>panel gestor · pickers&quot;]
+    RES[&quot;core/handoff_resolve.go<br/>ResolveActive (puro)&quot;]
+    OPS[&quot;core/handoff.go<br/>Forward · Resume · End&quot;]
+    ST[&quot;core/handoff_store.go<br/>handoffs.yaml v2 (flock)&quot;]
+  end
+  DISK[(&quot;transcripts .jsonl<br/>por perfil y proyecto&quot;)]
+  CMD --&gt; CLI
+  CLI --&gt; TUI
+  TUI --&gt; CLI
+  CLI --&gt; OPS
+  OPS --&gt; RES
+  RES --&gt; ST
+  OPS --&gt; ST
+  OPS --&gt; DISK
+  OPS -.emit env + RESUME_ID.-&gt; EV
+  EV --&gt; LAUNCH"></pre>
+    </div>
+    <p class="caption">El emit viaja de vuelta al shell como texto; nada en Go lanza <code>claude</code>.</p>
+
+    <h3>El modelo de datos</h3>
+    <div class="diagram">
+      <pre class="mermaid" data-src="erDiagram
+  HANDOFFS ||--o{ MARKER : &quot;active[]&quot;
+  HANDOFFS ||--o{ ARCHIVED : &quot;archived[]&quot;
+  HANDOFFS {
+    int version &quot;2 (v1 se eleva al leer)&quot;
+  }
+  MARKER {
+    string session &quot;uuid, igual en origen y destino&quot;
+    string slug &quot;cwd codificado — clave de resolución&quot;
+    string cwd &quot;ruta absoluta&quot;
+    string from &quot;perfil que presta&quot;
+    string to &quot;perfil que aporta tokens&quot;
+    string title &quot;aiTitle para display&quot;
+    string since &quot;RFC3339 UTC&quot;
+  }
+  ARCHIVED {
+    string session &quot;uuid original&quot;
+    string returned_as &quot;uuid nuevo del back-sync&quot;
+    string ended &quot;RFC3339 UTC&quot;
+  }"></pre>
+    </div>
+    <p class="caption"><code>slug</code> es lo que hace posible resolver por <code>$PWD</code> sin preguntar.</p>
+  </div>
+</section>
+
+<section id="decisiones">
+  <div class="wrap">
+    <h2>Decisiones y trade-offs</h2>
+    <p class="section-why">
+      La sección que importa. Cada decisión aquí se tomó contra una alternativa concreta que
+      también funcionaba; lo que las separa es qué falla cuando el usuario está cansado y hay
+      tres handoffs abiertos.
+    </p>
+
+    <div class="decision">
+      <h4>1 · <code>active</code>: lista, no mapa indexado por proyecto</h4>
+      <div class="dec-grid">
+        <div class="dec-box"><span class="tag pick">Elegido</span><p>Secuencia YAML de marcadores. Permite dos handoffs del mismo repo (dos sesiones distintas del mismo proyecto es un caso real) y conserva el orden de alta.</p></div>
+        <div class="dec-box"><span class="tag drop">Descartado</span><p>Mapa <code>slug → marcador</code>. Haría la resolución trivial, pero impone «un handoff por repo» como invariante de esquema — un límite que el usuario descartó explícitamente.</p></div>
+        <div class="dec-box"><span class="tag why">Por qué</span><p>El esquema no debe codificar una política de uso. La resolución vive en una función pura y testeable; el archivo solo guarda hechos.</p></div>
+      </div>
+    </div>
+
+    <div class="decision">
+      <h4>2 · Resolver por <code>cwd</code>, preguntar solo al empatar</h4>
+      <div class="dec-grid">
+        <div class="dec-box"><span class="tag pick">Elegido</span><p>Filtra por el proyecto actual: 1 candidato → actúa; 0 → error nombrando dónde sí hay; 2+ → picker (o <code>--session</code> sin TTY).</p></div>
+        <div class="dec-box"><span class="tag drop">Descartado</span><p>Picker siempre que haya 2+ activos en cualquier repo. Cero magia, pero un tap extra en el 90% de los casos donde el cwd ya es la respuesta.</p></div>
+        <div class="dec-box"><span class="tag why">Por qué</span><p>El caso de un solo handoff en este repo se comporta <em>exactamente</em> igual que en v1. La fricción aparece solo donde hay ambigüedad real.</p></div>
+      </div>
+    </div>
+
+    <div class="decision">
+      <h4>3 · <code>ResolveActive</code> devuelve candidatos en vez de preguntar</h4>
+      <div class="dec-grid">
+        <div class="dec-box"><span class="tag pick">Elegido</span><p>Función pura en <code>core</code>: <code>(idx, candidatos, ErrAmbiguousHandoff)</code>. La TUI/CLI decide cómo desambiguar.</p></div>
+        <div class="dec-box"><span class="tag drop">Descartado</span><p>Que <code>core</code> abra el picker cuando detecta empate. Menos código de pegamento, pero mete presentación en el motor.</p></div>
+        <div class="dec-box"><span class="tag why">Por qué</span><p>Regla del repo: <code>core</code> no hace I/O de presentación. Además así la lógica de empate se testea con tablas, sin bubbletea de por medio.</p></div>
+      </div>
+    </div>
+
+    <div class="decision">
+      <h4>4 · <code>handoff resume</code> como comando nuevo</h4>
+      <div class="dec-grid">
+        <div class="dec-box"><span class="tag pick">Elegido</span><p>Re-entra a un handoff vivo: no copia transcripts, no escribe ni archiva marcador. Solo emite env del destino + el uuid prestado.</p></div>
+        <div class="dec-box"><span class="tag drop">Descartado</span><p>Que el usuario haga <code>claude --resume &lt;uuid&gt;</code> a mano tras un <code>ccp use</code>. Funciona, pero exige recordar uuid y perfil, que es justo lo que el feature debía evitar.</p></div>
+        <div class="dec-box"><span class="tag why">Por qué</span><p>Sin <code>resume</code>, tener N activos no sirve: la única forma de volver a uno sería cerrarlo. Es la pieza que convierte «N marcadores» en «N sesiones usables».</p></div>
+      </div>
+    </div>
+
+    <div class="decision">
+      <h4>5 · <code>--dangerously-skip-permissions</code>: rama en la shell, no interpolación de args</h4>
+      <div class="dec-grid">
+        <div class="dec-box"><span class="tag pick">Elegido</span><p>El binario emite <code>CCP_RESUME_YOLO=1</code> o <code>unset CCP_RESUME_YOLO</code>; la función shell ramifica con <code>if</code> y añade el flag literal.</p></div>
+        <div class="dec-box"><span class="tag drop">Descartado</span><p>Passthrough genérico (<code>CCP_RESUME_ARGS</code> interpolado en la llamada). Más flexible, pero zsh no hace word-splitting de <code>$var</code> sin comillas y bash sí: el mismo emit se comportaría distinto en cada shell.</p></div>
+        <div class="dec-box"><span class="tag why">Por qué</span><p>El bloque shell es contrato congelado comparado byte a byte contra un oráculo bash. Un <code>if</code> se comporta igual en ambos shells; una lista de args no.</p></div>
+      </div>
+    </div>
+
+    <div class="decision">
+      <h4>6 · El modo skip-permissions no se persiste</h4>
+      <div class="dec-grid">
+        <div class="dec-box"><span class="tag pick">Elegido</span><p>Flag por invocación (o toggle en el panel). El emit hace <code>unset</code> explícito cuando no se pidió.</p></div>
+        <div class="dec-box"><span class="tag drop">Descartado</span><p>Guardarlo en el marcador o como default del perfil en <code>ccp.yaml</code>. Cero tecleo recurrente, pero el modo deja de ser visible en el comando que escribes.</p></div>
+        <div class="dec-box"><span class="tag why">Por qué</span><p>Un <code>end</code> hecho semanas después no debe heredar el salto de permisos de un forward que ya nadie recuerda. El <code>unset</code> además evita que un lanzamiento previo en el mismo shell contamine el siguiente.</p></div>
+      </div>
+    </div>
+
+    <div class="decision">
+      <h4>7 · Tope de activos: aviso, no bloqueo</h4>
+      <div class="dec-grid">
+        <div class="dec-box"><span class="tag pick">Elegido</span><p>A partir de 5 activos el forward añade un <code>echo … &gt;&amp;2</code> con el más viejo. No frena nada.</p></div>
+        <div class="dec-box"><span class="tag drop">Descartado</span><p>Límite duro configurable. Protege el archivo de convertirse en cementerio, pero te bloquea en el peor momento: cuando ya te quedaste sin tokens.</p></div>
+        <div class="dec-box"><span class="tag why">Por qué</span><p>Los marcadores olvidados son un problema de higiene, no de corrección. El aviso más el recordatorio del hook cubren el caso sin quitarle el control al usuario.</p></div>
+      </div>
+    </div>
+
+    <div class="decision">
+      <h4>8 · Migración v1 → v2 al leer, sin paso explícito</h4>
+      <div class="dec-grid">
+        <div class="dec-box"><span class="tag pick">Elegido</span><p><code>LoadHandoffs</code> intenta v2; si <code>active</code> es un mapping, reintenta con el struct viejo y lo eleva a lista de uno. Se persiste v2 en el siguiente <code>Save</code>.</p></div>
+        <div class="dec-box"><span class="tag drop">Descartado</span><p>Sumarlo al migrador encadenado (dsctl → ccp → ccp.yaml) con backup. Consistente con la config, pero desproporcionado.</p></div>
+        <div class="dec-box"><span class="tag why">Por qué</span><p><code>handoffs.yaml</code> es estado de runtime, no config: si se pierde, los <code>.jsonl</code> siguen en disco. Por eso también una versión futura degrada a vacío en vez de abortar como hace <code>store.go</code>.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="fases">
+  <div class="wrap">
+    <h2>Plan de ejecución por fases</h2>
+    <p class="section-why">
+      Orden por dependencias: primero el motor puro (store → resolución → operaciones), luego el
+      contrato congelado de la shell, y solo después las caras visibles (CLI, TUI, hook). Cada
+      tarea es TDD — test que falla, implementación mínima, test verde.
+    </p>
+
+    <h3>Fase A · Motor (tareas 1-6)</h3>
+    <div class="phase"><div class="phase-num">01</div><div>
+      <h4>handoffs.yaml v2 — lista + migración</h4>
+      <p><code>Active []Marker</code>, constante <code>HandoffsVersion</code>, y el fallback que eleva el mapping de v1. Degradación suave ante archivo ausente, corrupto o de versión futura.</p>
+      <div class="files"><span class="file">core/handoff_store.go</span><span class="file">core/handoff_store_test.go</span></div>
+    </div></div>
+    <div class="phase"><div class="phase-num">02</div><div>
+      <h4><code>ResolveActive</code> — el núcleo del «sin equivocarse»</h4>
+      <p>Archivo propio porque es puro y concentra los casos borde: uuid explícito, único por cwd, ninguno aquí, ninguno en absoluto, empate. Ocho tests, uno por fila de la tabla de la spec.</p>
+      <div class="files"><span class="file">core/handoff_resolve.go</span><span class="file">core/handoff_resolve_test.go</span></div>
+    </div></div>
+    <div class="phase"><div class="phase-num">03</div><div>
+      <h4>Forward multi-activo + invariantes + emit yolo</h4>
+      <p>Cae la regla 1-nivel; entran «esta sesión ya está en vuelo», «cadena no soportada» y el aviso de acumulación. Aparece <code>resumeSuffix</code>, que las tres operaciones comparten.</p>
+      <div class="files"><span class="file">core/handoff.go</span><span class="file">core/handoff_test.go</span></div>
+    </div></div>
+    <div class="phase"><div class="phase-num">04</div><div>
+      <h4><code>HandoffEnd</code> sobre la lista</h4>
+      <p>Resuelve el marcador, hace el back-sync como sesión nueva y archiva <em>solo</em> el elegido. Un empate devuelve error sin tocar el estado.</p>
+      <div class="files"><span class="file">core/handoff.go</span></div>
+    </div></div>
+    <div class="phase"><div class="phase-num">05</div><div>
+      <h4><code>HandoffResume</code></h4>
+      <p>Verifica que el transcript sigue en el destino y emite. Cero escrituras: un resume fallido no puede dejar el marcador en mal estado.</p>
+      <div class="files"><span class="file">core/handoff.go</span></div>
+    </div></div>
+    <div class="phase"><div class="phase-num">06</div><div>
+      <h4>Eval-effect de <code>CCP_RESUME_YOLO</code></h4>
+      <p>El emit se evalúa en bash y zsh reales, con la variable pre-seteada, para probar que el <code>unset</code> limpia herencia. Un test de substrings no detectaría un quoting roto.</p>
+      <div class="files"><span class="file">core/handoff_eval_test.go</span></div>
+    </div></div>
+
+    <h3>Fase B · Contrato congelado (tarea 7)</h3>
+    <div class="phase risk"><div class="phase-num">07</div><div>
+      <h4>Función shell: <code>resume</code> + rama yolo</h4>
+      <p>El paso de mayor riesgo. El mismo texto vive en <code>shellinit.go</code> y en el oráculo bash; el golden los compara. Cambiar los dos, verificar con <code>diff</code>, regenerar el golden, mantener <code>parity_test.go</code> verde.</p>
+      <div class="files"><span class="file">core/shellinit.go</span><span class="file">legacy/bin/ccp</span><span class="file">testdata/golden/</span></div>
+    </div></div>
+
+    <h3>Fase C · Superficie (tareas 8-12)</h3>
+    <div class="phase"><div class="phase-num">08</div><div>
+      <h4>Strings i18n ES/EN</h4>
+      <p>Nueve claves nuevas. Ojo con los backticks dentro de los <code>echo "…"</code> del hook: hay que escaparlos o se convierten en command substitution.</p>
+      <div class="files"><span class="file">core/i18n/catalog_cli.go</span></div>
+    </div></div>
+    <div class="phase"><div class="phase-num">09</div><div>
+      <h4>CLI: flags, <code>_handoff-resume</code>, <code>status --all</code></h4>
+      <p><code>parseHandoffFlags</code> unifica el parsing de las tres operaciones. La desambiguación ocurre <em>antes</em> de llamar al core, para que un picker cancelado no deje nada a medias.</p>
+      <div class="files"><span class="file">cli/handoff.go</span><span class="file">cli/cli.go</span></div>
+    </div></div>
+    <div class="phase"><div class="phase-num">10</div><div>
+      <h4>TUI: picker de marcador + sesiones en vuelo</h4>
+      <p>El picker de sesiones oculta las ya prestadas (el core las rechazaría igual) y explica la salida cuando todas lo están.</p>
+      <div class="files"><span class="file">tui/handoff.go</span></div>
+    </div></div>
+    <div class="phase"><div class="phase-num">11</div><div>
+      <h4>TUI: panel gestor</h4>
+      <p>Modelo bubbletea con los activos de este repo arriba y marcados. Devuelve una decisión; el CLI la traduce a la llamada al core. El panel no ejecuta nada.</p>
+      <div class="files"><span class="file">tui/handoff_panel.go</span></div>
+    </div></div>
+    <div class="phase"><div class="phase-num">12</div><div>
+      <h4>Aviso en el hook</h4>
+      <p>Al hacer <code>cd</code> a un repo con handoff vivo, una línea a stderr dentro del emit. Cacheado por <code>$PWD</code>, así que no spamea el prompt.</p>
+      <div class="files"><span class="file">cli/env.go</span></div>
+    </div></div>
+
+    <h3>Fase D · Cierre (tareas 13-14)</h3>
+    <div class="phase"><div class="phase-num">13</div><div>
+      <h4>E2E del binario</h4>
+      <p>Dos forwards en repos distintos, resume del primero, end del segundo, y verificación de que el primero sigue vivo y el back-sync dejó la sesión nueva en el origen.</p>
+      <div class="files"><span class="file">cli/handoff_e2e_test.go</span></div>
+    </div></div>
+    <div class="phase"><div class="phase-num">14</div><div>
+      <h4>Documentación</h4>
+      <p>Superficie nueva en <code>commands/ccp/handoff.md</code> y ambos README, incluida la regla de resolución explicada en una frase.</p>
+      <div class="files"><span class="file">commands/ccp/handoff.md</span><span class="file">README.md</span><span class="file">README.es.md</span></div>
+    </div></div>
+  </div>
+</section>
+
+<section id="flujos">
+  <div class="wrap">
+    <h2>Flujos clave</h2>
+    <p class="section-why">
+      Tres recorridos explican el feature entero: cómo nace un handoff, cómo se decide sobre cuál
+      actúa <code>end</code>, y cómo vuelve el contexto al perfil de origen.
+    </p>
+
+    <h3>Ciclo completo con dos handoffs vivos</h3>
+    <div class="diagram">
+      <pre class="mermaid" data-src="sequenceDiagram
+  autonumber
+  participant U as Usuario
+  participant SH as Función shell
+  participant B as Binario ccp
+  participant Y as handoffs.yaml
+  U-&gt;&gt;SH: ccp handoff emco-cc (en repo A)
+  SH-&gt;&gt;B: _handoff $PWD emco-cc
+  B-&gt;&gt;B: copia transcript A → cc-home destino
+  B-&gt;&gt;Y: append marcador #1
+  B--&gt;&gt;SH: env(emco-cc) + CCP_RESUME_ID
+  SH-&gt;&gt;U: claude --resume (tokens de emco-cc)
+  U-&gt;&gt;SH: ccp handoff kimi (en repo B)
+  SH-&gt;&gt;B: _handoff $PWD kimi
+  B-&gt;&gt;Y: append marcador #2 (permitido: otra sesión)
+  B--&gt;&gt;SH: env(kimi) + CCP_RESUME_ID
+  U-&gt;&gt;SH: ccp handoff resume (de vuelta en repo A)
+  SH-&gt;&gt;B: _handoff-resume $PWD
+  B-&gt;&gt;Y: lee (no escribe)
+  B--&gt;&gt;SH: env(emco-cc) + uuid #1
+  U-&gt;&gt;SH: ccp handoff end (en repo A)
+  SH-&gt;&gt;B: _handoff-end $PWD
+  B-&gt;&gt;B: reescribe sessionId → uuid nuevo
+  B-&gt;&gt;Y: archiva #1, deja #2 activo
+  B--&gt;&gt;SH: env(origen) + uuid nuevo"></pre>
+    </div>
+
+    <h3>Cómo <code>end</code> elige su objetivo</h3>
+    <div class="diagram">
+      <pre class="mermaid" data-src="flowchart TD
+  A[&quot;ccp handoff end&quot;] --&gt; B{&quot;¿uuid explícito?&quot;}
+  B --&gt;|sí| C{&quot;¿está en active[]?&quot;}
+  C --&gt;|sí| OK[&quot;actúa sobre ese marcador&quot;]
+  C --&gt;|no| E1[&quot;error: lista los activos&quot;]
+  B --&gt;|no| D{&quot;activos con slug(PWD)&quot;}
+  D --&gt;|exactamente 1| OK
+  D --&gt;|0, hay en otros repos| E2[&quot;error: dice en qué repos sí hay&quot;]
+  D --&gt;|0 en total| E3[&quot;error: no hay handoff activo&quot;]
+  D --&gt;|2 o más| F{&quot;¿hay TTY?&quot;}
+  F --&gt;|sí| G[&quot;picker de marcador&quot;] --&gt; OK
+  F --&gt;|no| E4[&quot;error: usa --session &lt;uuid&gt;&quot;]
+  OK --&gt; H[&quot;back-sync + archiva SOLO ese&quot;]"></pre>
+    </div>
+    <p class="caption">Ningún camino de error toca <code>handoffs.yaml</code>.</p>
+  </div>
+</section>
+
+<section id="riesgos">
+  <div class="wrap">
+    <h2>Riesgos y rollback</h2>
+    <p class="section-why">
+      Dos riesgos reales, ambos con marcha atrás barata. El resto del plan toca código nuevo o
+      cubierto por tests.
+    </p>
+    <div class="grid grid-2">
+      <div class="card risk">
+        <h4>1 · Divergencia con el oráculo bash</h4>
+        <p style="margin-bottom:10px">El texto de la función shell vive duplicado en <code>shellinit.go</code> y <code>legacy/bin/ccp</code>. Si se cambia uno solo, el golden falla — o peor, pasa con un texto que no es el que se instala.</p>
+        <p><strong style="color:var(--fg)">Mitigación:</strong> <code>diff</code> explícito entre las dos salidas de <code>completion-shellinit</code> antes de regenerar el golden.<br>
+        <strong style="color:var(--fg)">Rollback:</strong> revertir la tarea 7 completa; el resto del plan no depende de ella para compilar (solo <code>resume</code> queda sin cara shell).</p>
+      </div>
+      <div class="card risk">
+        <h4>2 · Pérdida del marcador al degradar versión</h4>
+        <p style="margin-bottom:10px">Un <code>handoffs.yaml</code> escrito por un binario futuro se lee como vacío, y el siguiente <code>Save</code> lo sobrescribe.</p>
+        <p><strong style="color:var(--fg)">Por qué se acepta:</strong> es estado de runtime — los <code>.jsonl</code> siguen en disco y el handoff se puede rehacer a mano.<br>
+        <strong style="color:var(--fg)">Rollback:</strong> ninguno necesario; ningún perfil ni regla se ve afectado.</p>
+      </div>
+      <div class="card">
+        <h4>3 · Usuario con un handoff v1 abierto</h4>
+        <p>Al actualizar, su marcador único se eleva a lista de uno y <code>ccp handoff end</code> sigue funcionando igual desde el mismo repo. Cubierto por <code>TestHandoffsMigratesV1Mapping</code>.</p>
+      </div>
+      <div class="card">
+        <h4>4 · Backticks en el aviso del hook</h4>
+        <p>El texto lleva <code>`ccp handoff end`</code> dentro de un <code>echo "…"</code>: sin escapar sería command substitution. Hay un test que evalúa el emit del hook en bash real.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="snippets">
+  <div class="wrap">
+    <h2>Comandos</h2>
+    <p class="section-why">Lo que hay que correr durante y al final de la implementación.</p>
+
+    <h3>Superficie nueva</h3>
+    <div class="term">
+      <div class="term-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="term-title">zsh</span><button class="copy">copiar</button></div>
+      <pre><span class="c"># panel: ves los activos y eliges qué hacer</span>
+ccp handoff
+
+<span class="c"># nuevo handoff (con o sin saltar prompts de permiso)</span>
+ccp handoff emco-cc
+ccp handoff emco-cc --session &lt;uuid&gt; --dangerously-skip-permissions
+
+<span class="c"># re-entrar a uno vivo, sin cerrarlo</span>
+ccp handoff resume
+ccp handoff resume &lt;uuid&gt; --yolo
+
+<span class="c"># cerrar: por cwd, o explícito si empatan</span>
+ccp handoff end
+ccp handoff end &lt;uuid&gt;
+
+<span class="c"># inspección</span>
+ccp handoff status          <span class="c"># los de este proyecto (exit 1 si ninguno)</span>
+ccp handoff status --all    <span class="c"># todos, agrupados por repo</span>
+ccp handoff list            <span class="c"># activos + historial</span></pre>
+    </div>
+
+    <h3>Verificar el contrato de la shell (tarea 7)</h3>
+    <div class="term">
+      <div class="term-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="term-title">bash</span><button class="copy">copiar</button></div>
+      <pre>go build -o /tmp/ccp-check ./cmd/ccp
+/tmp/ccp-check completion-shellinit &gt; /tmp/go-init.txt
+bash legacy/bin/ccp completion-shellinit &gt; /tmp/bash-init.txt
+diff /tmp/go-init.txt /tmp/bash-init.txt &amp;&amp; echo <span class="s">"IDENTICOS"</span>
+
+bash testdata/golden/capture.sh
+go test ./internal/golden/ -v</pre>
+    </div>
+
+    <h3>Gates completos</h3>
+    <div class="term">
+      <div class="term-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="term-title">bash</span><button class="copy">copiar</button></div>
+      <pre>gofmt -l internal cmd          <span class="c"># debe imprimir NADA</span>
+go vet ./...
+golangci-lint run
+go test ./...
+bash legacy/tests/run.sh
+bash testdata/golden/capture.sh --check</pre>
+    </div>
+
+    <h3>El bloque shell resultante</h3>
+    <div class="term">
+      <div class="term-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="term-title">core/shellinit.go + legacy/bin/ccp</span><button class="copy">copiar</button></div>
+      <pre>handoff)
+  shift
+  <span class="k">case</span> <span class="s">"$1"</span> in
+    end)          shift; out=$(command ccp _handoff-end <span class="s">"$PWD"</span> <span class="s">"$@"</span>) || <span class="k">return</span> ;;
+    resume)       shift; out=$(command ccp _handoff-resume <span class="s">"$PWD"</span> <span class="s">"$@"</span>) || <span class="k">return</span> ;;
+    status|list)  command ccp handoff <span class="s">"$@"</span>; <span class="k">return</span> ;;
+    *)            out=$(command ccp _handoff <span class="s">"$PWD"</span> <span class="s">"$@"</span>) || <span class="k">return</span> ;;
+  esac
+  ( <span class="k">eval</span> <span class="s">"$out"</span>
+    <span class="k">if</span> [[ -n <span class="s">"${CCP_RESUME_YOLO:-}"</span> ]]; <span class="k">then</span>
+      claude --resume <span class="s">"$CCP_RESUME_ID"</span> --dangerously-skip-permissions
+    <span class="k">else</span>
+      claude --resume <span class="s">"$CCP_RESUME_ID"</span>
+    <span class="k">fi</span> ) ;;</pre>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="status"><span class="pulse"></span>Plan listo para ejecutar · 14 tareas · sin implementar</div>
+    <p style="margin:0">
+      Companion de <code>docs/superpowers/plans/2026-07-25-handoff-multi.md</code> ·
+      spec: <code>docs/superpowers/specs/2026-07-25-handoff-multi-design.md</code> ·
+      base v1: <code>docs/superpowers/specs/2026-06-19-ccp-handoff-design.md</code>
+    </p>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+(function(){
+  var root = document.documentElement;
+  var stored = null;
+  try { stored = localStorage.getItem('ccp-handoff-theme'); } catch(e){}
+  if (!stored) {
+    stored = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+  root.setAttribute('data-theme', stored);
+
+  // Guarda el source original de cada diagrama para poder re-renderizar al cambiar tema.
+  var blocks = Array.prototype.slice.call(document.querySelectorAll('.mermaid'));
+  blocks.forEach(function(el){ el.textContent = el.getAttribute('data-src') || el.textContent; });
+
+  function mermaidTheme(){
+    return root.getAttribute('data-theme') === 'light' ? 'default' : 'dark';
+  }
+  function render(){
+    if (!window.mermaid) return;
+    blocks.forEach(function(el){
+      el.removeAttribute('data-processed');
+      el.innerHTML = '';
+      el.textContent = el.getAttribute('data-src');
+    });
+    window.mermaid.initialize({
+      startOnLoad: false,
+      theme: mermaidTheme(),
+      securityLevel: 'loose',
+      fontFamily: "'IBM Plex Sans', system-ui, sans-serif"
+    });
+    window.mermaid.run({ nodes: blocks });
+  }
+  render();
+
+  document.getElementById('themeToggle').addEventListener('click', function(){
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('ccp-handoff-theme', next); } catch(e){}
+    render();
+  });
+
+  document.querySelectorAll('.copy').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var pre = btn.closest('.term').querySelector('pre');
+      var text = pre.innerText;
+      var done = function(){
+        btn.textContent = 'copiado';
+        btn.classList.add('ok');
+        setTimeout(function(){ btn.textContent = 'copiar'; btn.classList.remove('ok'); }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(function(){ fallback(text, done); });
+      } else { fallback(text, done); }
+    });
+  });
+  function fallback(text, done){
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch(e){}
+    document.body.removeChild(ta);
+  }
+})();
+</script>
+</body>
+</html>

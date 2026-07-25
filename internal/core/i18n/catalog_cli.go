@@ -32,6 +32,19 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "Unknown command: '%s'",
 		Es: "Comando desconocido: '%s'",
 	},
+	// Lo emiten ccpHome/claudeSrc, que corren ANTES de poder leer ccp.yaml: se
+	// traducen con i18n.Resolve("") (solo CCP_LANG), nunca con currentLang() —
+	// currentLang llama a ccpHome y la traducción se volvería recursiva.
+	"cli.err.no_home": {
+		En: "could not determine HOME",
+		Es: "no se pudo determinar HOME",
+	},
+	// cmdEnv/cmdHook cuando ccp.yaml no se puede leer: el emit cae al delta
+	// seguro de `default` y esto sale por stderr, no por el eval.
+	"cli.env.config_fallback": {
+		En: "[warn] ccp: could not load the config (%v); using default",
+		Es: "[warn] ccp: no se pudo cargar la config (%v); usando default",
+	},
 	"cli.backup.unknown_opt": {
 		En: "backup export: unknown option '%s'",
 		Es: "backup export: opción desconocida '%s'",
@@ -320,8 +333,12 @@ var catalogCLI = map[string]map[Lang]string{
 		Es: "Init de ccp removido de %s",
 	},
 	"cli.upgrade.usage": {
-		En: "Usage: ccp upgrade [--pull] [--no-sync]",
-		Es: "Uso: ccp upgrade [--pull] [--no-sync]",
+		En: "Usage: ccp upgrade [--pull] [--no-sync] [--from-source]",
+		Es: "Uso: ccp upgrade [--pull] [--no-sync] [--from-source]",
+	},
+	"cli.upgrade.from_source": {
+		En: "Building from the registered source (%s) instead of the latest release.",
+		Es: "Compilando desde la fuente registrada (%s) en vez del último release.",
 	},
 	"cli.upgrade.no_source": {
 		En: "[error] No registered source. Run 'bash install.sh' from the repo once.",
@@ -372,8 +389,10 @@ var catalogCLI = map[string]map[Lang]string{
 		Es: "El shell-init de ccp cambió en esta versión (tu rc tiene el viejo).",
 	},
 	"cli.upgrade.stale_rc_hint": {
-		En: "  Update it:  ccp uninstall && ccp install && source %s",
-		Es: "  Actualízalo:  ccp uninstall && ccp install && source %s",
+		// `ccp install` reescribe el bloque desfasado en sitio desde v2.8.1, así
+		// que ya no hace falta el uninstall previo.
+		En: "  Update it:  ccp install && source %s",
+		Es: "  Actualízalo:  ccp install && source %s",
 	},
 
 	// --- instruct.go ---
@@ -505,10 +524,6 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "No active handoff.",
 		Es: "Sin handoff activo.",
 	},
-	"cli.handoff.status_active": {
-		En: "Active handoff: %s → %s · session %s · since %s",
-		Es: "Handoff activo: %s → %s · sesión %s · desde %s",
-	},
 	"cli.handoff.list_header": {
 		En: "Handoff history:",
 		Es: "Historial de handoffs:",
@@ -521,11 +536,176 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "No handoffs recorded.",
 		Es: "Sin handoffs registrados.",
 	},
-	"cli.handoff.unknown_sub": {
-		En: "handoff: unknown subcommand: %s",
-		Es: "handoff: subcomando desconocido: %s",
+	"cli.handoff.status_none_here": {
+		En: "No active handoff for this project.",
+		Es: "Sin handoff activo para este proyecto.",
+	},
+	// La fila NO lleva sangría: el prefijo (dos espacios, o la marca de «este
+	// repo» en `list`) lo pone printMarker, que es quien sabe si la fila es de
+	// este proyecto.
+	"cli.handoff.status_row": {
+		En: "%s → %s · session %s · %s · since %s",
+		Es: "%s → %s · sesión %s · %s · desde %s",
+	},
+	// Fila de `status --all`: va bajo la cabecera del repo, así que no repite
+	// el cwd (lo lleva el grupo).
+	"cli.handoff.group_row": {
+		En: "    %s → %s · session %s · since %s",
+		Es: "    %s → %s · sesión %s · desde %s",
+	},
+	// Sufijo de la cabecera de repo en `status --all`, y leyenda de la marca en
+	// `list` (%s = el glifo, para que marca y leyenda no puedan divergir).
+	"cli.handoff.here_suffix": {
+		En: "← this project",
+		Es: "← este proyecto",
+	},
+	"cli.handoff.here_legend": {
+		En: "%s = this project",
+		Es: "%s = este proyecto",
+	},
+	"cli.handoff.active_header": {
+		En: "Active handoffs (%d):",
+		Es: "Handoffs activos (%d):",
+	},
+	"cli.handoff.elsewhere_header": {
+		En: "Active in other projects:",
+		Es: "Activos en otros proyectos:",
+	},
+	// Errores de parseo de la cola de flags y de los internos `_handoff*`.
+	"cli.handoff.flag_needs_value": {
+		En: "%s requires a value",
+		Es: "%s requiere un valor",
+	},
+	"cli.handoff.unknown_flag": {
+		En: "unknown flag: %s",
+		Es: "flag desconocido: %s",
+	},
+	"cli.handoff.extra_arg": {
+		En: "unexpected argument: %s (handoff takes at most one: the target profile, or the session uuid for end/resume/discard)",
+		Es: "argumento sobrante: %s (handoff acepta uno como mucho: el perfil destino, o el uuid de sesión en end/resume/discard)",
+	},
+	"cli.handoff.need_pwd": {
+		En: "%s requires <pwd>",
+		Es: "%s requiere <pwd>",
+	},
+	"cli.handoff.need_session": {
+		En: "Several active handoffs for this project and no TTY: pass --session <uuid>.",
+		Es: "Varios handoffs activos para este proyecto y no hay TTY: usa --session <uuid>.",
+	},
+	"cli.handoff.discarded": {
+		En: "Handoff discarded: %s → %s · session %s · %s",
+		Es: "Handoff descartado: %s → %s · sesión %s · %s",
+	},
+	"cli.handoff.discard_note": {
+		En: "No transcript was touched: it is still in %s (claude --resume %s).",
+		Es: "No se tocó ningún transcript: sigue en %s (claude --resume %s).",
+	},
+	"cli.handoff.pick_marker": {
+		En: "Which handoff?",
+		Es: "¿Cuál handoff?",
+	},
+	"cli.handoff.in_flight": {
+		En: "in flight → %s",
+		Es: "en vuelo → %s",
 	},
 
+	// --- TUI de handoff (internal/tui/handoff.go y handoff_panel.go) ---
+	// Estas cadenas se renderizan en /dev/tty o se devuelven como error que el
+	// CLI imprime en stderr; NINGUNA entra en un emit eval-able, así que los
+	// backticks van sin escapar (a diferencia de hook_notice).
+	"cli.handoff.untitled": {
+		En: "(untitled)",
+		Es: "(sin título)",
+	},
+	"cli.handoff.pick_profile": {
+		En: "Target profile (whose tokens you borrow):",
+		Es: "Perfil destino (tokens prestados de):",
+	},
+	"cli.handoff.pick_session": {
+		En: "Session to continue:",
+		Es: "Sesión a continuar:",
+	},
+	"cli.handoff.no_tty": {
+		En: "no interactive terminal (use a flag to pass the value)",
+		Es: "no hay terminal interactiva (usa --flag para especificar el valor)",
+	},
+	"cli.handoff.no_targets": {
+		En: "no other profiles to hand off to",
+		Es: "no hay otros perfiles a los que hacer handoff",
+	},
+	"cli.handoff.no_sessions": {
+		En: "no sessions for this project in profile %q",
+		Es: "no hay sesiones para este proyecto en el perfil %q",
+	},
+	"cli.handoff.no_candidates": {
+		En: "no handoffs to choose from",
+		Es: "no hay handoffs entre los que elegir",
+	},
+	"cli.handoff.no_action": {
+		En: "no action chosen",
+		Es: "no se eligió ninguna acción",
+	},
+	"cli.handoff.cancel_profile": {
+		En: "profile picker canceled",
+		Es: "picker de perfil cancelado",
+	},
+	"cli.handoff.cancel_session": {
+		En: "session picker canceled",
+		Es: "picker de sesión cancelado",
+	},
+	"cli.handoff.cancel_marker": {
+		En: "handoff picker canceled",
+		Es: "picker de handoff cancelado",
+	},
+	"cli.handoff.cancel_panel": {
+		En: "handoff panel canceled",
+		Es: "panel de handoff cancelado",
+	},
+	"cli.handoff.session_in_flight": {
+		En: "that session is already in flight → %s: pick another one, continue it with `ccp handoff resume`, or free it with `ccp handoff end`",
+		Es: "esa sesión ya está en vuelo → %s: elige otra, contínuala con `ccp handoff resume` o libérala con `ccp handoff end`",
+	},
+	"cli.handoff.panel_header": {
+		En: "ACTIVE (%d)",
+		Es: "ACTIVOS (%d)",
+	},
+	"cli.handoff.panel_skip": {
+		En: "skip-permissions: %s",
+		Es: "skip-permissions: %s",
+	},
+	"cli.handoff.panel_none": {
+		En: "  (none)",
+		Es: "  (ninguno)",
+	},
+	"cli.handoff.panel_keys": {
+		En: "enter resume · e end · n new · y skip-permissions · q quit",
+		Es: "enter reanudar · e terminar · n nuevo · y skip-permissions · q salir",
+	},
+	"cli.handoff.panel_confirm_end": {
+		En: "End this handoff? it syncs the transcript back and archives the marker:",
+		Es: "¿Terminar este handoff? hace back-sync del transcript y archiva el marcador:",
+	},
+	"cli.handoff.panel_confirm_keys": {
+		En: "y confirm · n / esc cancel",
+		Es: "s confirmar · n / esc cancelar",
+	},
+	// Los backticks van ESCAPADOS (\`): este texto acaba dentro de un
+	// echo "…" >&2 emitido al shell, y sin la barra sería sustitución de
+	// comandos (`ccp handoff end` se ejecutaría).
+	"cli.handoff.hook_notice": {
+		En: "ccp: active handoff here — %s → %s (since %s); \\`ccp handoff end\\` to return",
+		Es: "ccp: handoff activo aquí — %s → %s (desde %s); \\`ccp handoff end\\` para volver",
+	},
+	"cli.handoff.hook_notice_many": {
+		En: "ccp: %d active handoffs here; see \\`ccp handoff\\`",
+		Es: "ccp: %d handoffs activos aquí; revisa \\`ccp handoff\\`",
+	},
+	// Versión futura de handoffs.yaml: el hook no puede decir si este repo tiene
+	// handoffs, así que lo dice en vez de callar (callar se leería como «no hay»).
+	"cli.handoff.hook_future_version": {
+		En: "ccp: handoffs.yaml is newer than this ccp; in-flight handoffs are not visible — update ccp",
+		Es: "ccp: handoffs.yaml es más nuevo que este ccp; los handoffs en vuelo no se ven — actualiza ccp",
+	},
 	// --- help.go ---
 	"cli.help.tagline": {
 		En: "ccp v%s — profiles for Claude Code\n\n",
@@ -541,11 +721,15 @@ var catalogCLI = map[string]map[Lang]string{
   ccp default | off           go back to your ~/.claude login
   ccp run [cmd]               run cmd/claude with the cwd's profile
 
-HANDOFF (shell function)
+HANDOFF (shell function)          several handoffs may be in flight at once
+  ccp handoff                 manager panel: pick among the live ones
   ccp handoff [<to>]          continue this session under another profile (TUI pickers)
   ccp handoff <to> --session <uuid>   skip the pickers (scriptable)
-  ccp handoff end             bring the updated context back to the origin
-  ccp handoff status | list   in-flight handoff + history
+  ccp handoff resume [<uuid>] re-enter a live handoff without closing it
+  ccp handoff end [<uuid>]    bring the updated context back to the origin
+  ccp handoff discard [<uuid>]  drop a stale marker (no back-sync)
+  ccp handoff status [--all] | list   in flight here (or everywhere) + history
+  --yolo (--dangerously-skip-permissions)  resume without permission prompts
 
 PROFILES
   ccp profile add <n> --official            create official account
@@ -577,7 +761,7 @@ SCRIPTING
 
 LIFE CYCLE
   ccp install | uninstall     add/remove the shell-init block from the rc
-  ccp upgrade [--pull]        reinstall from the registered source + sync
+  ccp upgrade [--pull] [--from-source]  reinstall (release, or build this repo) + sync
   ccp doctor                  diagnostics
   ccp config [show|set|reset|editor]
 
@@ -596,11 +780,15 @@ TROUBLESHOOTING
   ccp default | off           vuelve a tu login ~/.claude
   ccp run [cmd]               corre cmd/claude con el perfil del cwd
 
-HANDOFF (función shell)
+HANDOFF (función shell)           puede haber varios handoffs en vuelo a la vez
+  ccp handoff                 panel gestor: elige entre los que hay vivos
   ccp handoff [<destino>]     continúa esta sesión bajo otro perfil (pickers TUI)
   ccp handoff <destino> --session <uuid>   salta los pickers (scriptable)
-  ccp handoff end             trae el contexto actualizado de vuelta al origen
-  ccp handoff status | list   handoff en vuelo + historial
+  ccp handoff resume [<uuid>] vuelve a entrar a un handoff vivo, sin cerrarlo
+  ccp handoff end [<uuid>]    trae el contexto actualizado de vuelta al origen
+  ccp handoff discard [<uuid>]  suelta un marcador zombi (sin back-sync)
+  ccp handoff status [--all] | list   en vuelo aquí (o en todos) + historial
+  --yolo (--dangerously-skip-permissions)  reanuda sin prompts de permiso
 
 PERFILES
   ccp profile add <n> --official            crea cuenta oficial
@@ -632,7 +820,7 @@ SCRIPTING
 
 CICLO DE VIDA
   ccp install | uninstall     añade/quita el bloque shell-init del rc
-  ccp upgrade [--pull]        reinstala desde la fuente registrada + sync
+  ccp upgrade [--pull] [--from-source]  reinstala (release, o compila este repo) + sync
   ccp doctor                  diagnóstico
   ccp config [show|set|reset|editor]
 

@@ -22,10 +22,16 @@ ccp() {
       shift
       case "$1" in
         end)          shift; out=$(command ccp _handoff-end "$PWD" "$@") || return ;;
-        status|list)  command ccp handoff "$@"; return ;;
+        resume)       shift; out=$(command ccp _handoff-resume "$PWD" "$@") || return ;;
+        status|list|discard)  command ccp handoff "$@"; return ;;
         *)            out=$(command ccp _handoff "$PWD" "$@") || return ;;
       esac
-      ( eval "$out"; claude --resume "$CCP_RESUME_ID" ) ;;
+      ( eval "$out" || exit
+        if [[ -n "${CCP_RESUME_YOLO:-}" ]]; then
+          claude --resume "$CCP_RESUME_ID" --dangerously-skip-permissions
+        else
+          claude --resume "$CCP_RESUME_ID"
+        fi ) ;;
     *) command ccp "$@" ;;
   esac
 }
@@ -67,6 +73,7 @@ const CompletionBash = `_ccp() {
              [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" =~ ^(set|rm|test)$ ]] && COMPREPLY=( $(compgen -d -- "$cur") )
              [[ $COMP_CWORD -eq 4 && "${COMP_WORDS[2]}" == "set" ]] && COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
     use)     COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
+    handoff) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "resume end discard status list default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
     key)     COMPREPLY=( $(compgen -W "$(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
     completion) COMPREPLY=( $(compgen -W "bash zsh" -- "$cur") ) ;;
   esac
@@ -87,6 +94,7 @@ _ccp() {
              (( CURRENT == 3 )) || { [[ "${words[3]}" =~ ^(set|rm|test)$ ]] && _path_files -/ }
              (( CURRENT == 4 )) && [[ "${words[3]}" == set ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     use)     compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
+    handoff) (( CURRENT == 3 )) && compadd -- resume end discard status list default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     key)     compadd -- ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     completion) compadd -- bash zsh ;;
   esac
