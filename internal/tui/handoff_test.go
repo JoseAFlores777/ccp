@@ -123,3 +123,27 @@ func TestInFlightSessions(t *testing.T) {
 		t.Fatalf("inFlightSessions = %v", got)
 	}
 }
+
+// TestApplyRenameDesdeLaTUI: la tecla `r` del panel de perfiles va a parar
+// aquí. El core hace el trabajo; lo que se prueba es que la TUI reporta el
+// cambio y propaga el error sin tragárselo.
+func TestApplyRenameDesdeLaTUI(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+	if err := core.Save(home, &core.Config{
+		Version:  core.SchemaVersion,
+		Profiles: map[string]core.Profile{"viejo": {Type: "official"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	msg, err := applyRename(home, "viejo", "nuevo", i18n.Es)
+	if err != nil {
+		t.Fatalf("rename: %v", err)
+	}
+	if !strings.Contains(msg, "nuevo") {
+		t.Errorf("el mensaje no nombra el destino: %q", msg)
+	}
+	if _, err := applyRename(home, "nuevo", "default", i18n.Es); err == nil {
+		t.Error("renombrar a 'default' debe fallar")
+	}
+}

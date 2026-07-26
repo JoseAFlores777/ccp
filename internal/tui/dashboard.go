@@ -115,6 +115,10 @@ func (m *model) keyProfiles(key string) (tea.Model, tea.Cmd) {
 		if name := m.selectedProfile(); name != "" {
 			return m.start(formDeleteProfile(m.home, name, m.lang))
 		}
+	case "r": // renombrar
+		if name := m.selectedProfile(); name != "" {
+			return m.start(formRenameProfile(m.home, name, m.lang))
+		}
 	case "s": // set key (provider: deepseek/kimi/glm)
 		if name := m.selectedProfile(); name != "" {
 			if !core.IsProviderType(m.profileType(name)) {

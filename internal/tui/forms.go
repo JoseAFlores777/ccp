@@ -147,6 +147,40 @@ func formDeleteProfile(home, name string, lang i18n.Lang) action {
 	return action{form: form, apply: apply}
 }
 
+// formRenameProfile pide el nombre nuevo y renombra. El core mueve con él las
+// reglas, los marcadores de handoff y el directorio (login + key), así que
+// desde la TUI es una sola pregunta.
+func formRenameProfile(home, name string, lang i18n.Lang) action {
+	nuevo := name
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title(i18n.T(lang, "tui.form.rename_profile_title", name)).
+				Description(i18n.T(lang, "tui.form.rename_profile_desc")).
+				Value(&nuevo).
+				Validate(func(s string) error {
+					if s == "" || s == name {
+						return fmt.Errorf("%s", i18n.T(lang, "tui.form.rename_needs_new_name"))
+					}
+					return nil
+				}),
+		),
+	)
+	return action{form: form, apply: func() (string, error) {
+		return applyRename(home, name, nuevo, lang)
+	}}
+}
+
+// applyRename es el cuerpo del apply de formRenameProfile, fuera del closure
+// para poder probarlo sin TTY: el valor del input solo se puede fijar corriendo
+// el form, así que un test sobre el closure no ejercitaría nada.
+func applyRename(home, old, nuevo string, lang i18n.Lang) (string, error) {
+	if err := core.ProfileRename(home, old, nuevo); err != nil {
+		return "", err
+	}
+	return i18n.T(lang, "tui.form.profile_renamed", old, nuevo), nil
+}
+
 // formSetKey pide la API key de un perfil deepseek.
 func formSetKey(home, name string, lang i18n.Lang) action {
 	var key string

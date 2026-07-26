@@ -66,8 +66,8 @@ const CompletionBash = `_ccp() {
   local top="install uninstall upgrade key path profile instruct status config doctor menu completion resolve lang version help use default on off run handoff"
   if [[ $COMP_CWORD -eq 1 ]]; then COMPREPLY=( $(compgen -W "$top" -- "$cur") ); return; fi
   case "${COMP_WORDS[1]}" in
-    profile) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "add rm list show login config sync" -- "$cur") )
-             [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" =~ ^(rm|show|login|config|sync)$ ]] && COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") )
+    profile) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "add rm rename list show login config sync" -- "$cur") )
+             [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" =~ ^(rm|rename|show|login|config|sync)$ ]] && COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") )
              [[ $COMP_CWORD -eq 4 && "${COMP_WORDS[2]}" == "config" ]] && COMPREPLY=( $(compgen -W "instructions settings" -- "$cur") ) ;;
     path)    [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "set rm list test clear edit" -- "$cur") )
              [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" =~ ^(set|rm|test)$ ]] && COMPREPLY=( $(compgen -d -- "$cur") )
@@ -87,8 +87,8 @@ _ccp() {
   local -a top; top=(install uninstall upgrade key path profile instruct status config doctor menu completion resolve lang version help use default on off run handoff)
   if (( CURRENT == 2 )); then compadd -- $top; return; fi
   case "${words[2]}" in
-    profile) (( CURRENT == 3 )) && compadd -- add rm list show login config sync
-             (( CURRENT == 4 )) && [[ "${words[3]}" =~ ^(rm|show|login|config|sync)$ ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"}
+    profile) (( CURRENT == 3 )) && compadd -- add rm rename list show login config sync
+             (( CURRENT == 4 )) && [[ "${words[3]}" =~ ^(rm|rename|show|login|config|sync)$ ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"}
              (( CURRENT == 5 )) && [[ "${words[3]}" == config ]] && compadd -- instructions settings ;;
     path)    (( CURRENT == 3 )) && compadd -- set rm list test clear edit
              (( CURRENT == 3 )) || { [[ "${words[3]}" =~ ^(set|rm|test)$ ]] && _path_files -/ }

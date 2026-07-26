@@ -107,6 +107,18 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "Profile removed: %s",
 		Es: "Perfil eliminado: %s",
 	},
+	"cli.profile.usage_rename": {
+		En: "Usage: ccp profile rename <old> <new>",
+		Es: "Uso: ccp profile rename <viejo> <nuevo>",
+	},
+	"cli.profile.renamed": {
+		En: "Profile renamed: %s → %s (rules, handoff markers and config moved with it)",
+		Es: "Perfil renombrado: %s → %s (reglas, marcadores de handoff y config se movieron con él)",
+	},
+	"cli.profile.rename_active_hint": {
+		En: "  This terminal still has %s active: run 'ccp use %s' (other open terminals too).",
+		Es: "  Esta terminal aún tiene %s activo: corre 'ccp use %s' (y en las demás terminales abiertas).",
+	},
 	"cli.profile.usage_show": {
 		En: "Usage: ccp profile show <name>",
 		Es: "Uso: ccp profile show <nombre>",
@@ -128,8 +140,8 @@ var catalogCLI = map[string]map[Lang]string{
 		Es: "profile: subcomando desconocido '%s'",
 	},
 	"cli.profile.sub_help": {
-		En: "Use: add | rm | list | show | login | config | sync",
-		Es: "Usa: add | rm | list | show | login | config | sync",
+		En: "Use: add | rm | rename | list | show | login | config | sync",
+		Es: "Usa: add | rm | rename | list | show | login | config | sync",
 	},
 	"cli.profile.usage_add": {
 		En: "Usage: ccp profile add <name> --official|--deepseek|--kimi|--glm [opts]",
@@ -739,6 +751,7 @@ PROFILES
   ccp profile login <n>                     /login (official profiles)
   ccp profile config <n>                    edit the profile's config
   ccp profile sync [<n>]                    re-merge the global into the cc-home(s)
+  ccp profile rename <old> <new>            rename (moves rules, markers and config)
   ccp profile list | show <n> | rm <n>
   ccp key <profile> [API_KEY]               store the key of a deepseek profile
 
@@ -798,6 +811,7 @@ PERFILES
   ccp profile login <n>                     /login (perfiles oficiales)
   ccp profile config <n>                    edita la config del perfil
   ccp profile sync [<n>]                    re-mergea el global en el/los cc-home
+  ccp profile rename <viejo> <nuevo>        renombra (mueve reglas, marcadores y config)
   ccp profile list | show <n> | rm <n>
   ccp key <perfil> [API_KEY]                guarda la key de un perfil deepseek
 

@@ -10,7 +10,7 @@
 En tu repo de trabajo, tu cuenta de empresa; en tu proyecto personal, la tuya; en tus experimentos, DeepSeek.
 El cambio ocurre solo, con hacer `cd`.
 
-![version](https://img.shields.io/badge/version-2.9.0-c96442)
+![version](https://img.shields.io/badge/version-2.10.0-c96442)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-c96442)
 ![shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-8a8378)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
@@ -231,6 +231,7 @@ ccp profile config <perfil>                 # menú: instrucciones / settings / 
 ccp profile config <perfil> instructions    # abre overlay/CLAUDE.md
 ccp profile config <perfil> settings         # abre overlay/settings.overlay.json
 ccp profile sync [<perfil>]                  # re-mergea cambios del global ~/.claude
+ccp profile rename <viejo> <nuevo>           # renombra: reglas, marcadores, login y key incluidos
 ccp config editor "code -w"                  # editor a usar (fallback: $EDITOR)
 ```
 
@@ -335,6 +336,7 @@ Con comandos: `ccp config show` · `ccp config set <clave> <valor>` · `ccp conf
 | ¿Cómo cambio el idioma de la salida? | `ccp lang en\|es`, `CCP_LANG=es`, o pulsa `L` en el TUI. |
 | ¿ccp cambia algo dentro de Claude Code? | No. Solo apunta Claude Code a un perfil por carpeta (su propio config dir / proveedor). Tus cuentas y ajustes quedan intactos. |
 | ¿Dónde se guardan mis API keys? | En `~/.config/ccp/profiles/<n>/api_key`, `chmod 600`. Nunca en `ccp.yaml`, en el rc del shell, ni en git. |
+| ¿Cómo renombro un perfil? | `ccp profile rename <viejo> <nuevo>` (o `r` en el TUI). Se mueven con él sus reglas, sus marcadores de handoff, su login y su API key; si esa terminal lo tenía activo, corre `ccp use <nuevo>`. |
 | ¿Cómo actualizo ccp? | `ccp upgrade` (re-ejecuta el instalador + `profile sync`). |
 | ¿Cómo desinstalo? | `ccp uninstall` (quita el bloque del shell); opcionalmente `rm -rf ~/.config/ccp`. |
 

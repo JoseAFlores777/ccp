@@ -61,8 +61,24 @@ var catalogTUI = map[string]map[Lang]string{
 		Es: "Perfiles",
 	},
 	"tui.profiles.hint": {
-		En: "a:add d:delete s:key e:config l:login enter:detail",
-		Es: "a:añadir d:borrar s:key e:config l:login enter:detalle",
+		En: "a:add d:delete r:rename s:key e:config l:login enter:detail",
+		Es: "a:añadir d:borrar r:renombrar s:key e:config l:login enter:detalle",
+	},
+	"tui.form.rename_profile_title": {
+		En: "New name for '%s'",
+		Es: "Nombre nuevo para '%s'",
+	},
+	"tui.form.rename_profile_desc": {
+		En: "Its rules, handoff markers, login and API key move with it.",
+		Es: "Sus reglas, marcadores de handoff, login y API key se mueven con él.",
+	},
+	"tui.form.rename_needs_new_name": {
+		En: "type a name different from the current one",
+		Es: "escribe un nombre distinto al actual",
+	},
+	"tui.form.profile_renamed": {
+		En: "Profile renamed: %s → %s",
+		Es: "Perfil renombrado: %s → %s",
 	},
 	"tui.profiles.empty": {
 		En: "(no profiles — press 'a' to add)",

@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.10.0] — renombrar perfiles
+
+### Added
+
+- **`ccp profile rename <viejo> <nuevo>`** (alias `mv`, y tecla `r` en el panel
+  de perfiles del TUI). El nombre de un perfil vive en cuatro sitios —la clave
+  de `profiles` y el destino de cada regla en `ccp.yaml`, el directorio con la
+  api_key y el login, y el `from`/`to` de cada marcador de handoff—, así que el
+  rename los mueve todos bajo el mismo criterio y regenera el overlay (el
+  `CLAUDE.md` del cc-home lleva la ruta absoluta del perfil dentro).
+  Renombrar a mano solo uno de los cuatro fallaba en silencio: una regla
+  huérfana no da error, resuelve a `default`.
+  El directorio se mueve **antes** de tocar `ccp.yaml` y vuelve a su sitio si la
+  escritura falla; los nombres se validan como componente de ruta (nada de `/`
+  ni `..`). Las completions bash/zsh completan `rename` y sus perfiles.
+
 ## [2.9.0] — handoff multi-activo
 
 ### Added

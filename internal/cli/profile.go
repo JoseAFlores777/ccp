@@ -49,6 +49,24 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.profile.removed", rest[0])))
 		return 0
+	case "rename", "mv":
+		if len(rest) < 2 {
+			fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.usage_rename"))
+			return 1
+		}
+		old, nuevo := rest[0], rest[1]
+		if err := core.ProfileRename(home, old, nuevo); err != nil {
+			fmt.Fprintf(stderr, "[error] %v\n", err)
+			return 1
+		}
+		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.profile.renamed", old, nuevo)))
+		// El binario corre en un proceso hijo: no puede reexportar CCP_PROFILE
+		// en la terminal del usuario. Si esta terminal tenía el perfil viejo
+		// activo, su env quedó apuntando a un nombre que ya no existe.
+		if os.Getenv("CCP_PROFILE") == old {
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.profile.rename_active_hint", old, nuevo))
+		}
+		return 0
 	case "list", "ls", "":
 		names, err := core.ProfileList(home)
 		if err != nil {
