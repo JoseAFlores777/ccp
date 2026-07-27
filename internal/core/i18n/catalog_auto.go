@@ -216,4 +216,11 @@ var catalogAuto = map[string]map[Lang]string{
 		En: "%s · %s",
 		Es: "%s · %s",
 	},
+	// La variante ancha une con doble espacio en vez de con `·`: cuando cada
+	// ventana ya trae su medidor delimitado, el punto medio sobra y solo suma
+	// ruido a una línea que de por sí lleva mucho glifo.
+	"cli.auto.statusline_usage_wide": {
+		En: "%s  %s",
+		Es: "%s  %s",
+	},
 }

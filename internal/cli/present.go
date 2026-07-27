@@ -23,6 +23,53 @@ const (
 	ansiReset  = "\x1b[0m"
 )
 
+// Semáforo de consumo. Deliberadamente ANSI-16 y no truecolor, al revés que la
+// paleta de marca de arriba: son los MISMOS códigos que ya usan okLine (32) y
+// warnLine (33), así que el verde de la barra y el ✔ de `ccp doctor` salen del
+// mismo tinte en la misma terminal. El rojo (31) es el que faltaba en el archivo.
+const (
+	ansiGreen = "\x1b[32m"
+	ansiAmber = "\x1b[33m"
+	ansiRed   = "\x1b[31m"
+)
+
+// severity es el nivel del semáforo, ya decidido por quien mide.
+//
+// severityTint recibe el NIVEL y no el porcentaje a propósito: dónde caen los
+// umbrales es política del comando que mide (la barra de estado los alinea con
+// core.DefaultAutoThreshold para no contradecir al motor de rotación), y la capa
+// de pintura no tiene por qué opinar sobre eso ni importar core.
+type severity int
+
+const (
+	sevOK severity = iota
+	sevWarn
+	sevCrit
+)
+
+// severityTint tiñe un fragmento con el semáforo. Sin color, el fragmento tal
+// cual — la rama plain queda byte-idéntica para tests, golden y pipes.
+//
+// Recibe el GATE ya resuelto (color bool) y no el io.Writer, al revés que
+// accent/mute, porque su único consumidor tiene un gate distinto al del resto del
+// paquete: la barra de `ccp _statusline` escribe SIEMPRE a un pipe (así es como
+// Claude Code recoge la línea) y aun así se renderiza en color. Pasándole el
+// writer, useColor decía que no en el 100 % de las ejecuciones reales y el
+// semáforo entero era código muerto. Ver statusBarColor.
+func severityTint(color bool, s string, sev severity) string {
+	if !color {
+		return s
+	}
+	switch sev {
+	case sevCrit:
+		return ansiRed + s + ansiReset
+	case sevWarn:
+		return ansiAmber + s + ansiReset
+	default:
+		return ansiGreen + s + ansiReset
+	}
+}
+
 // accent / mute / brand tiñen un fragmento solo si hay color; si no, lo devuelven
 // tal cual (la rama plain queda byte-idéntica para tests, golden y pipes).
 func accent(w io.Writer, s string) string {
@@ -87,10 +134,22 @@ func badgeType(w io.Writer, rawType, label string) string {
 	}
 }
 
+// colorAllowed es el gate que controla el USUARIO: NO_COLOR y nada más.
+//
+// Está separado de useColor porque hay una superficie cuyo destino no es una tty
+// y aun así se pinta en color: la barra de `ccp _statusline`. Su stdout es un
+// pipe por construcción —Claude Code lo captura para componer su barra de
+// estado— y es CC quien renderiza las secuencias. Exigirle ahí dispositivo de
+// caracteres no protegía a nadie: solo dejaba el semáforo sin pintar en el único
+// sitio donde se usa.
+func colorAllowed() bool {
+	return os.Getenv("NO_COLOR") == ""
+}
+
 // useColor decide si emitir secuencias ANSI: solo con TTY y sin NO_COLOR,
 // espejando los helpers ok/warn/err del bash.
 func useColor(w io.Writer) bool {
-	if os.Getenv("NO_COLOR") != "" {
+	if !colorAllowed() {
 		return false
 	}
 	f, ok := w.(*os.File)

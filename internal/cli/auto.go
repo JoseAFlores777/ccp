@@ -9,8 +9,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
 	"github.com/JoseAFlores777/ccp/internal/core/i18n"
@@ -694,18 +696,24 @@ func runStatusLine(stdin io.Reader, args []string, stdout, stderr io.Writer) (co
 	if profile == "" {
 		profile = "default"
 	}
+	// Un solo reloj para el muestreo y para la cuenta atrás: si se leyera dos
+	// veces, la muestra que se persiste y la que se pinta podrían caer a lados
+	// distintos de un reset.
+	now := time.Now()
 	rl, sampled := core.ParseStatusLineInput(data)
 	if sampled {
-		_ = core.WriteRateLimits(home, profile, rl, time.Now())
+		_ = core.WriteRateLimits(home, profile, rl, now)
 	}
 
 	wrapped := autoWrappedCommand(args)
 	if len(wrapped) == 0 {
-		// Sin comando envuelto la barra la pintamos nosotros: mínima, porque
-		// sustituir la del usuario por algo vistoso sería presuntuoso.
+		// Sin comando envuelto la barra la pintamos nosotros. El perfil solo es
+		// el suelo: sin muestra no hay nada honesto que añadirle.
 		line := profile
-		if usage := autoUsageLabel(rl); sampled && usage != "" {
-			line = i18n.T(currentLang(), "cli.auto.statusline_usage", profile, usage)
+		if sampled {
+			if bar := statusBarRender(profile, rl, now, statusBarColumns(), statusBarColor()); bar != "" {
+				line = bar
+			}
 		}
 		fmt.Fprintln(stdout, line)
 		return 0
@@ -758,9 +766,153 @@ func autoWrappedCommand(args []string) []string {
 	return nil
 }
 
-// autoUsageLabel arma el trozo de uso de la barra propia: las ventanas CON dato,
-// etiquetadas, en orden de la que antes se libera a la que más tarda ("5h 88% ·
-// 7d 10%"). Devuelve "" cuando ninguna trae dato.
+// --- la barra propia ---
+//
+// El layout y el color viven AQUÍ y solo aquí. Las piezas puras (el medidor y la
+// cuenta atrás) las pone core.RenderGauge / core.HumanUntilAt, que no saben nada
+// de ANSI ni de anchos: así el panel Estado del TUI puede reusarlas sin tener que
+// deshacer decisiones tomadas para una terminal.
+
+const (
+	// Umbrales del semáforo, en porcentaje de consumo de la ventana.
+	//
+	// El crítico es core.DefaultAutoThreshold A PROPÓSITO, no por casualidad: 90
+	// es el punto en el que el motor da la ventana por agotada y muda la
+	// conversación a otro perfil. Si la barra pintara el rojo en otro sitio, el
+	// usuario vería «tranquilo» justo cuando `ccp session` está a punto de
+	// rotarle el perfil — dos superficies contando historias distintas del mismo
+	// número.
+	//
+	// El de aviso no tiene equivalente en el motor: es el punto en el que aún se
+	// puede decidir algo (cerrar el turno, cambiar de perfil a mano) antes de que
+	// lo decida la rotación.
+	statusBarWarnPct = 70
+	statusBarCritPct = core.DefaultAutoThreshold
+
+	// Celdas de medidor de cada escalón, y el ancho que se supone cuando no hay
+	// forma de saberlo. NO hay umbrales de columnas por escalón: el nivel se
+	// elige midiendo la línea ya montada (ver statusBarRender).
+	statusBarDefaultCols = 80
+	statusBarWideCells   = 10
+	statusBarMidCells    = 4
+)
+
+// statusBarLevel es cuánto detalle cabe en la línea.
+type statusBarLevel int
+
+const (
+	statusBarCompact statusBarLevel = iota // sin medidor
+	statusBarMid                           // medidor de 4 celdas, pegado al %
+	statusBarWide                          // medidor de 10 celdas, holgado
+)
+
+// statusBarColumns devuelve el ancho que se le supone a la barra, con 80 por
+// defecto.
+//
+// Honestidad sobre de dónde sale el dato: COLUMNS es una variable de SHELL, no
+// de entorno. Ni bash ni zsh la exportan por defecto, y los procesos `claude`
+// reales no la llevan — o sea que en la ruta de producción esto devuelve 80 casi
+// siempre. Quien quiera exactitud tiene que `export COLUMNS` a mano.
+//
+// Y aun así 80 no vuelve inalcanzable la escalera de detalle, porque el nivel no
+// se elige por umbrales de columnas sino midiendo la línea completa contra este
+// presupuesto (statusBarRender): un nombre de perfil largo degrada la barra a 80
+// columnas igual que una terminal estrecha degradaría una barra corta.
+//
+// La tty NO se consulta a propósito: el statusLine corre dentro de Claude Code
+// con stdout capturado por un pipe —no hay tty al otro lado a la que preguntar—
+// y se ejecuta varias veces por minuto, así que abrir /dev/tty por refresco sería
+// coste recurrente para un dato que ni siquiera es el ancho que CC reserva a la
+// barra.
+func statusBarColumns() int {
+	n, err := strconv.Atoi(strings.TrimSpace(os.Getenv("COLUMNS")))
+	if err != nil || n <= 0 {
+		return statusBarDefaultCols
+	}
+	return n
+}
+
+// statusBarColor decide si la barra propia lleva ANSI.
+//
+// Deliberadamente NO usa useColor, el gate general del paquete: useColor exige
+// que el destino sea un dispositivo de caracteres, y el destino de esta línea es
+// SIEMPRE un pipe (Claude Code captura el stdout del statusLine para componer su
+// barra). Con el gate general, verde/ámbar/rojo no se pintaban ni una sola vez en
+// la única superficie que los usa: el semáforo entero era código muerto.
+//
+// Quien renderiza aquí no es la terminal, es CC, y CC sí interpreta las
+// secuencias. Así que el único gate que queda con sentido es el que el usuario
+// controla, NO_COLOR — y sin color el medidor de bloques sigue siendo legible,
+// que es la razón de haber elegido medidor y no un punto de color.
+func statusBarColor() bool {
+	return colorAllowed()
+}
+
+// statusBarRender arma la línea entera (perfil + uso) eligiendo el nivel de
+// detalle que CABE en cols.
+//
+// La elección se hace MIDIENDO la línea ya montada, no comparando cols contra
+// umbrales fijos, y esa es la corrección importante: el nombre del perfil lo
+// elige el usuario y puede tener cualquier longitud, y la cuenta atrás aparece o
+// no según haya resets_at. Con umbrales fijos los tres niveles desbordaban su
+// propio umbral en cuanto el perfil pasaba de cuatro letras — degradaba «por
+// ancho» a un ancho que no era el de la línea, que es la peor de las dos
+// alternativas: ni cabía ni conservaba el detalle.
+//
+// Se mide en runas sobre la variante SIN color: las secuencias ANSI ocupan bytes
+// pero no columnas, y contarlas haría que la barra se degradara sola al
+// encenderse el color. Runa ≈ columna vale aquí porque todo lo que entra son
+// dígitos, ASCII y los glifos del medidor, todos de ancho 1.
+//
+// Devuelve "" cuando ninguna ventana trae dato: el llamador se queda con el
+// perfil a secas.
+func statusBarRender(profile string, rl core.RateLimits, now time.Time, cols int, color bool) string {
+	if !rl.FiveHour.HasData() && !rl.SevenDay.HasData() {
+		return ""
+	}
+	// currentLang() lee ccp.yaml: se resuelve UNA vez aunque probemos tres
+	// niveles, porque esto corre varias veces por minuto.
+	lang := currentLang()
+	build := func(level statusBarLevel, tinted bool) string {
+		return i18n.T(lang, statusBarJoinKey(level), profile, statusBarUsage(rl, now, level, tinted))
+	}
+	for _, level := range []statusBarLevel{statusBarWide, statusBarMid, statusBarCompact} {
+		if utf8.RuneCountInString(build(level, false)) <= cols {
+			return build(level, color)
+		}
+	}
+	// Ni el compacto cabe (perfil larguísimo, terminal minúscula). Se entrega el
+	// compacto igualmente en vez de recortar: lo primero que habría que cortar es
+	// el nombre del perfil, y ese es justo el dato que la barra existe para dar
+	// —en qué cuenta estás—. Que decida el emulador qué hacer con lo que sobra.
+	return build(statusBarCompact, color)
+}
+
+// statusBarJoinKey elige el separador entre perfil y uso. En ancho completo es
+// doble espacio: con dos medidores en la línea, un `·` más añade ruido a algo que
+// ya está visualmente separado por los delimitadores del medidor.
+func statusBarJoinKey(level statusBarLevel) string {
+	if level == statusBarWide {
+		return "cli.auto.statusline_usage_wide"
+	}
+	return "cli.auto.statusline_usage"
+}
+
+// statusBarSeverity traduce consumo a nivel de semáforo.
+func statusBarSeverity(pct float64) severity {
+	switch {
+	case pct >= statusBarCritPct:
+		return sevCrit
+	case pct >= statusBarWarnPct:
+		return sevWarn
+	default:
+		return sevOK
+	}
+}
+
+// statusBarUsage arma el trozo de uso de la barra propia: las ventanas CON dato,
+// etiquetadas, en orden de la que antes se libera a la que más tarda. Devuelve ""
+// cuando ninguna trae dato.
 //
 // Enseña las DOS a propósito. Antes se enseñaba solo el máximo —la ventana más
 // gastada, que es la que va a cortar primero— y como número suelto era
@@ -772,9 +924,9 @@ func autoWrappedCommand(args []string) []string {
 // Las etiquetas son fijas, no traducidas: `5h`/`7d` es como las nombra ya
 // `ccp auto status` (cli.auto.status_sample), idénticas en ambos idiomas, y son
 // las claves que usa el propio Claude Code (five_hour / seven_day).
-func autoUsageLabel(rl core.RateLimits) string {
+func statusBarUsage(rl core.RateLimits, now time.Time, level statusBarLevel, color bool) string {
 	parts := make([]string, 0, 2)
-	for _, w := range []struct {
+	for _, win := range []struct {
 		win   core.Windowed
 		label string
 	}{
@@ -784,12 +936,57 @@ func autoUsageLabel(rl core.RateLimits) string {
 		// Una ventana sin dato se omite en vez de pintarse como 0%: el bug
 		// conocido de CC (five_hour a 0 con seven_day poblado) haría que un
 		// "5h 0%" dijera justo lo contrario de lo que sabemos.
-		if !w.win.HasData() {
+		if !win.win.HasData() {
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("%s %.0f%%", w.label, w.win.UsedPercentage))
+		parts = append(parts, statusBarWindow(win.label, win.win, now, level, color))
 	}
-	return strings.Join(parts, " · ")
+	sep := " · "
+	if level == statusBarWide {
+		sep = "  "
+	}
+	return strings.Join(parts, sep)
+}
+
+// statusBarWindow pinta UNA ventana: etiqueta, medidor (si cabe), porcentaje y
+// cuenta atrás hasta el reset.
+//
+// El medidor y el porcentaje van del mismo color porque son el mismo dato dicho
+// dos veces —uno para leer de un vistazo, otro para leer exacto—; teñir solo uno
+// invitaría a pensar que miden cosas distintas. La cuenta atrás se queda sin
+// teñir: la urgencia la lleva el consumo, no el reloj (un 95% que reabre en 5
+// minutos sigue siendo un 95% ahora mismo).
+//
+// El porcentaje sale de core.ClampPct, el MISMO saneado que usa el medidor, y no
+// del valor crudo. Es lo que impide que el medidor y el número se contradigan:
+// con el crudo, un `used_percentage: 9e99` de una muestra corrupta pintaba el
+// medidor lleno y a su lado 300 dígitos de porcentaje —una barra de estado de
+// cientos de columnas—, y un -40 pintaba el medidor vacío junto a un "-40%" en
+// verde. El sensor no puede fallar, pero tampoco puede escupir eso.
+func statusBarWindow(label string, win core.Windowed, now time.Time, level statusBarLevel, color bool) string {
+	pct := core.ClampPct(win.UsedPercentage)
+	sev := statusBarSeverity(pct)
+	var b strings.Builder
+	b.WriteString(label)
+	b.WriteString(" ")
+	switch level {
+	case statusBarWide:
+		b.WriteString(severityTint(color, core.RenderGauge(pct, statusBarWideCells), sev))
+		b.WriteString(" ")
+	case statusBarMid:
+		// Sin espacio entre medidor y porcentaje: a 4 celdas los delimitadores
+		// ya separan, y cada carácter cuenta en un ancho que ya iba justo.
+		b.WriteString(severityTint(color, core.RenderGauge(pct, statusBarMidCells), sev))
+	}
+	b.WriteString(severityTint(color, fmt.Sprintf("%.0f%%", pct), sev))
+
+	// HumanUntilAt ya se calla ante un resets_at ausente o vencido; aquí solo hay
+	// que no inventarse el separador cuando no hay nada que separar.
+	if until := core.HumanUntilAt(win.ResetsAt, now); until != "" {
+		b.WriteString(" ·")
+		b.WriteString(until)
+	}
+	return b.String()
 }
 
 // --- ccp _limit-hook ---

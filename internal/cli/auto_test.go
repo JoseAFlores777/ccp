@@ -3,12 +3,14 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
 )
@@ -494,11 +496,12 @@ const statusLineStdin = `{"session_id":"s1","rate_limits":{"five_hour":{"used_pe
 func TestStatusLineSinEnvueltoImprimeLineaPropia(t *testing.T) {
 	home := autoTestHome(t)
 	t.Setenv("CCP_PROFILE", "work")
+	t.Setenv("COLUMNS", "100")
 	var out, errb bytes.Buffer
 	if code := runStatusLine(strings.NewReader(statusLineStdin), nil, &out, &errb); code != 0 {
 		t.Fatalf("exit = %d", code)
 	}
-	const want = "work · 5h 88% · 7d 10%"
+	const want = "work  5h ▏█████████░▏ 88%  7d ▏█░░░░░░░░░▏ 10%"
 	if got := strings.TrimSpace(out.String()); got != want {
 		t.Errorf("línea = %q, want %q", got, want)
 	}
@@ -517,6 +520,7 @@ func TestStatusLineSinEnvueltoImprimeLineaPropia(t *testing.T) {
 func TestStatusLineConUnaSolaVentanaOmiteLaOtra(t *testing.T) {
 	autoTestHome(t)
 	t.Setenv("CCP_PROFILE", "work")
+	t.Setenv("COLUMNS", "100")
 	casos := []struct {
 		nombre string
 		stdin  string
@@ -525,12 +529,12 @@ func TestStatusLineConUnaSolaVentanaOmiteLaOtra(t *testing.T) {
 		{
 			"solo 7d",
 			`{"session_id":"s1","rate_limits":{"seven_day":{"used_percentage":31}}}`,
-			"work · 7d 31%",
+			"work  7d ▏███░░░░░░░▏ 31%",
 		},
 		{
 			"solo 5h",
 			`{"session_id":"s1","rate_limits":{"five_hour":{"used_percentage":14}}}`,
-			"work · 5h 14%",
+			"work  5h ▏█░░░░░░░░░▏ 14%",
 		},
 	}
 	for _, c := range casos {
@@ -555,6 +559,344 @@ func TestStatusLineSinDatosImprimeSoloElPerfil(t *testing.T) {
 	}
 	if got := strings.TrimSpace(out.String()); got != "work" {
 		t.Errorf("línea = %q, want %q", got, "work")
+	}
+}
+
+// TestStatusLineDegradaPorAncho pinea los TRES niveles.
+//
+// Degradar y no truncar es la decisión: una línea cortada a mitad de medidor no
+// dice menos, dice algo falso (un medidor sin su delimitador derecho se lee como
+// más vacío de lo que está). El ancho sale de COLUMNS y nunca de la tty — dentro
+// de CC el stdout es un pipe, así que no hay tty a la que preguntar.
+//
+// Los cortes de aquí no son redondos (46/45, 34/33) A PROPÓSITO: son el ancho que
+// MIDE cada nivel con este perfil y esta muestra. El nivel ya no se elige contra
+// umbrales fijos de columnas —eso desbordaba en cuanto el nombre del perfil
+// pasaba de cuatro letras— sino montando la línea y midiéndola.
+func TestStatusLineDegradaPorAncho(t *testing.T) {
+	autoTestHome(t)
+	t.Setenv("CCP_PROFILE", "work")
+	const (
+		completo = "work  5h ▏█████████░▏ 88%  7d ▏█░░░░░░░░░▏ 10%" // 46 runas
+		medio    = "work · 5h ▏████▏88% · 7d ▏█░░░▏10%"             // 34 runas
+		compacto = "work · 5h 88% · 7d 10%"                         // 22 runas
+	)
+	casos := []struct {
+		nombre  string
+		columns string
+		quiere  string
+	}{
+		// A 10 celdas el 88% redondea a 9 llenas y el 10% a 1.
+		{"completo", "100", completo},
+		{"completo justo", "46", completo},
+		// A 4 celdas el 88% redondea a 4 (3.5 hacia arriba) y el 10% a 0.4, que
+		// el suelo de una celda sube a 1: la resolución baja con el ancho, pero
+		// «hay consumo» no desaparece. El número exacto sigue ahí al lado.
+		{"medio", "45", medio},
+		{"medio justo", "34", medio},
+		{"compacto", "33", compacto},
+		// Ni el compacto cabe: se entrega igual. Recortar empezaría por el
+		// nombre del perfil, que es el dato que la barra existe para dar.
+		{"mas estrecho que el compacto", "10", compacto},
+		// COLUMNS ausente o basura cae al default de 80 ⇒ aquí cabe el completo.
+		// Es deliberado: quedarse sin barra por no saber el ancho sería peor.
+		{"sin COLUMNS", "", completo},
+		{"COLUMNS basura", "ancho", completo},
+		{"COLUMNS cero", "0", completo},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			t.Setenv("COLUMNS", c.columns)
+			var out, errb bytes.Buffer
+			if code := runStatusLine(strings.NewReader(statusLineStdin), nil, &out, &errb); code != 0 {
+				t.Fatalf("exit = %d", code)
+			}
+			if got := strings.TrimSpace(out.String()); got != c.quiere {
+				t.Errorf("línea = %q, want %q", got, c.quiere)
+			}
+		})
+	}
+}
+
+// TestStatusLineDegradaPorNombreDePerfil es la mitad del ancho que se había
+// olvidado: el nombre del perfil lo elige el usuario y entra en la línea igual
+// que los medidores.
+//
+// Con umbrales fijos de columnas, COLUMNS=80 (que es lo que hay en la ruta real,
+// porque COLUMNS no se exporta) daba SIEMPRE nivel completo, y un perfil de 40
+// caracteres producía una línea de 82 columnas que la terminal partía. Ahora el
+// nombre largo degrada la barra igual que lo haría una terminal estrecha, y por
+// eso los escalones medio y compacto son alcanzables sin tocar COLUMNS.
+func TestStatusLineDegradaPorNombreDePerfil(t *testing.T) {
+	autoTestHome(t)
+	// 40 caracteres: con medidor completo la línea mediría 82 > 80.
+	const largo = "perfil-larguisimo-de-produccion-en-emco1"
+	t.Setenv("CCP_PROFILE", largo)
+	t.Setenv("COLUMNS", "") // default 80, el caso real
+
+	var out, errb bytes.Buffer
+	if code := runStatusLine(strings.NewReader(statusLineStdin), nil, &out, &errb); code != 0 {
+		t.Fatalf("exit = %d", code)
+	}
+	want := largo + " · 5h ▏████▏88% · 7d ▏█░░░▏10%"
+	if got := strings.TrimSpace(out.String()); got != want {
+		t.Errorf("línea = %q, want %q", got, want)
+	}
+}
+
+// TestStatusBarCabeEnElAncho es la invariante, no un caso concreto: si el nivel
+// compacto cabe en el presupuesto, la línea entregada NO puede pasarse de él.
+//
+// Es la regresión del bug que tenía la escalera anterior: elegía nivel por
+// umbrales fijos y los tres niveles desbordaban su propio umbral en cuanto el
+// perfil o la cuenta atrás crecían. Un test de cadena exacta no lo habría pillado
+// —los que había fijaban perfil "work" y sin resets_at, justo el caso que no
+// desborda—, así que lo que se comprueba es la propiedad, sobre una matriz que
+// incluye lo que el usuario controla: nombre de perfil y presencia de reloj.
+func TestStatusBarCabeEnElAncho(t *testing.T) {
+	autoTestHome(t)
+	now := time.Date(2026, 7, 27, 10, 0, 0, 0, time.UTC)
+	muestras := map[string]core.RateLimits{
+		"sin reloj": {
+			FiveHour: core.Windowed{UsedPercentage: 88},
+			SevenDay: core.Windowed{UsedPercentage: 10},
+		},
+		"con reloj": {
+			FiveHour: core.Windowed{UsedPercentage: 88, ResetsAt: now.Add(2*time.Hour + 13*time.Minute)},
+			SevenDay: core.Windowed{UsedPercentage: 10, ResetsAt: now.Add(50 * time.Hour)},
+		},
+		"solo 7d": {
+			SevenDay: core.Windowed{UsedPercentage: 10, ResetsAt: now.Add(50 * time.Hour)},
+		},
+	}
+	perfiles := []string{"a", "work", "trabajo-emco-produccion", strings.Repeat("x", 60)}
+	for _, cols := range []int{20, 30, 40, 50, 60, 80, 120} {
+		for nombreMuestra, rl := range muestras {
+			for _, perfil := range perfiles {
+				línea := statusBarRender(perfil, rl, now, cols, false)
+				ancho := utf8.RuneCountInString(línea)
+				mínimo := utf8.RuneCountInString(statusBarRender(perfil, rl, now, 0, false))
+				// Si ni el compacto cabía, entregar el compacto es lo correcto:
+				// la invariante solo aplica cuando hay algo que quepa.
+				if mínimo > cols {
+					continue
+				}
+				if ancho > cols {
+					t.Errorf("perfil=%q muestra=%q COLUMNS=%d: ancho=%d se pasa (%q)",
+						perfil, nombreMuestra, cols, ancho, línea)
+				}
+			}
+		}
+	}
+}
+
+// TestStatusLineSiempreSaleCero es el contrato duro del sensor: pase lo que pase
+// con el stdin, exit 0. No es celo defensivo abstracto — el productor es Claude
+// Code, el consumidor es la UI de Claude Code, y un exit distinto de 0 deja al
+// usuario sin barra y con un error que se repite en cada refresco.
+func TestStatusLineSiempreSaleCero(t *testing.T) {
+	autoTestHome(t)
+	t.Setenv("CCP_PROFILE", "work")
+	casos := []struct {
+		nombre string
+		stdin  string
+	}{
+		{"vacío", ""},
+		{"json truncado", `{"rate_limits":{"five_hour":{"used_percentage":`},
+		{"binario", "\x00\x01\x02\xff\xfe sin sentido \x00"},
+		{"porcentajes imposibles", `{"rate_limits":{"five_hour":{"used_percentage":-40},"seven_day":{"used_percentage":9e99}}}`},
+		{"resets_at ilegible", `{"rate_limits":{"five_hour":{"used_percentage":50,"resets_at":"mañana"}}}`},
+		// El tope de lectura (4 MiB) corta a mitad de JSON: el parseo falla y la
+		// barra se queda en el perfil, pero el comando sale igual.
+		{"muy grande", `{"rate_limits":` + strings.Repeat("x", 5<<20)},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			var out, errb bytes.Buffer
+			if code := runStatusLine(strings.NewReader(c.stdin), nil, &out, &errb); code != 0 {
+				t.Fatalf("exit = %d, want 0", code)
+			}
+			// Y sale UNA línea: la barra de CC es de una sola línea, y un salto
+			// de más la partiría.
+			if n := strings.Count(out.String(), "\n"); n != 1 {
+				t.Errorf("saltos de línea = %d, want 1 (salida %q)", n, out.String())
+			}
+			// Y ESA línea es corta. «Salir 0» no basta: con el porcentaje sin
+			// acotar, el caso de los porcentajes imposibles salía 0 y con una
+			// sola línea... de 300 caracteres. El daño era el mismo.
+			if n := utf8.RuneCountInString(strings.TrimSpace(out.String())); n > 200 {
+				t.Errorf("ancho = %d runas, una barra de estado no puede medir eso (salida %q)", n, out.String())
+			}
+		})
+	}
+}
+
+// TestStatusLineOmiteResetVencido: un resets_at en el pasado no produce cuenta
+// atrás.
+//
+// Es la misma filosofía que Windowed.HasData. Hay un bug conocido de CC en el que
+// una ventana llega vacía o con el reset caducado; pintar "·0m" ahí afirmaría «ya
+// reabrió», cuando lo único que sabemos es que no sabemos. Y una ventana con dato
+// pero SIN resets_at sale con su porcentaje y sin reloj: el consumo lo medimos,
+// el momento de reapertura no.
+func TestStatusLineOmiteResetVencido(t *testing.T) {
+	autoTestHome(t)
+	t.Setenv("CCP_PROFILE", "work")
+	t.Setenv("COLUMNS", "100")
+
+	now := time.Now()
+	// El medio minuto de colchón evita que los microsegundos que tarda
+	// runStatusLine en llamar a time.Now() bajen el resultado a "2h13m".
+	futuro := now.Add(2*time.Hour + 14*time.Minute + 30*time.Second).UTC().Format(time.RFC3339)
+	pasado := now.Add(-time.Hour).UTC().Format(time.RFC3339)
+	stdin := fmt.Sprintf(
+		`{"rate_limits":{"five_hour":{"used_percentage":2,"resets_at":%q},"seven_day":{"used_percentage":59,"resets_at":%q}}}`,
+		futuro, pasado)
+
+	var out, errb bytes.Buffer
+	if code := runStatusLine(strings.NewReader(stdin), nil, &out, &errb); code != 0 {
+		t.Fatalf("exit = %d", code)
+	}
+	// 5h lleva reloj (futuro), 7d no (vencido). El medidor del 2% enseña UNA
+	// celda: 0.2 de 10 redondea a 0, pero el suelo de RenderGauge la sube a 1
+	// porque «no has gastado nada» y «has empezado a gastar» tienen que
+	// distinguirse de un vistazo — que es para lo que existe el medidor. La
+	// proporción exacta la sigue dando el número de al lado.
+	const want = "work  5h ▏█░░░░░░░░░▏ 2% ·2h14m  7d ▏██████░░░░▏ 59%"
+	if got := strings.TrimSpace(out.String()); got != want {
+		t.Errorf("línea = %q, want %q", got, want)
+	}
+}
+
+// TestStatusLineRespetaNoColor: con NO_COLOR la barra no lleva ni un ESC, y el
+// medidor sigue diciendo lo mismo.
+//
+// Esa segunda mitad es la que justifica haber elegido medidor de bloques y no un
+// punto de color: la información va en la forma, el color solo la subraya.
+func TestStatusLineRespetaNoColor(t *testing.T) {
+	autoTestHome(t) // ya fija NO_COLOR=1
+	t.Setenv("CCP_PROFILE", "work")
+	t.Setenv("COLUMNS", "100")
+
+	// 95% ⇒ severidad crítica: el caso que más ganas tendría de teñirse.
+	stdin := `{"rate_limits":{"five_hour":{"used_percentage":95},"seven_day":{"used_percentage":30}}}`
+	var out, errb bytes.Buffer
+	if code := runStatusLine(strings.NewReader(stdin), nil, &out, &errb); code != 0 {
+		t.Fatalf("exit = %d", code)
+	}
+	const want = "work  5h ▏██████████▏ 95%  7d ▏███░░░░░░░▏ 30%"
+	if got := strings.TrimSpace(out.String()); got != want {
+		t.Errorf("línea = %q, want %q", got, want)
+	}
+}
+
+// TestStatusLineTineAunqueStdoutSeaPipe es la regresión de un semáforo que
+// existía y no se veía nunca.
+//
+// El gate general del paquete (useColor) exige que el destino sea un dispositivo
+// de caracteres. Pero Claude Code invoca el statusLine capturando su stdout por
+// un PIPE —así es como recoge la línea para pintarla—, así que useColor decía que
+// no en el 100 % de las ejecuciones reales: verde, ámbar y rojo eran código
+// muerto en producción. Quien renderiza aquí no es la terminal, es CC.
+//
+// Por eso el assert se hace a través de runStatusLine sobre un bytes.Buffer (que
+// no es *os.File, o sea el peor caso para useColor) y NO llamando a severityTint
+// a mano: un test que llame al tinte directo pasa en verde con el bug puesto.
+func TestStatusLineTineAunqueStdoutSeaPipe(t *testing.T) {
+	autoTestHome(t)
+	t.Setenv("CCP_PROFILE", "work")
+	t.Setenv("COLUMNS", "100")
+	t.Setenv("NO_COLOR", "") // el usuario NO lo prohibió
+
+	stdin := `{"rate_limits":{"five_hour":{"used_percentage":95},"seven_day":{"used_percentage":30}}}`
+	var out, errb bytes.Buffer
+	if code := runStatusLine(strings.NewReader(stdin), nil, &out, &errb); code != 0 {
+		t.Fatalf("exit = %d", code)
+	}
+	// Medidor y porcentaje van del MISMO color: son el mismo dato dicho dos
+	// veces, y teñir solo uno invitaría a pensar que miden cosas distintas.
+	want := "work  5h " +
+		ansiRed + "▏██████████▏" + ansiReset + " " + ansiRed + "95%" + ansiReset +
+		"  7d " +
+		ansiGreen + "▏███░░░░░░░▏" + ansiReset + " " + ansiGreen + "30%" + ansiReset
+	if got := strings.TrimSpace(out.String()); got != want {
+		t.Errorf("línea = %q, want %q", got, want)
+	}
+}
+
+// TestSeverityTintPorNivel fija los tres tintes por nombre.
+func TestSeverityTintPorNivel(t *testing.T) {
+	for _, c := range []struct {
+		sev    severity
+		quiere string
+	}{
+		{sevOK, ansiGreen},
+		{sevWarn, ansiAmber},
+		{sevCrit, ansiRed},
+	} {
+		if got := severityTint(true, "88%", c.sev); got != c.quiere+"88%"+ansiReset {
+			t.Errorf("severityTint(true, %v) = %q", c.sev, got)
+		}
+		if got := severityTint(false, "88%", c.sev); got != "88%" {
+			t.Errorf("severityTint(false, %v) = %q, quiere el fragmento tal cual", c.sev, got)
+		}
+	}
+}
+
+// TestStatusLineAcotaPorcentajesImposibles: el NÚMERO se acota igual que el
+// medidor.
+//
+// El sensor no puede fallar, pero «no fallar» no es solo salir 0. Con el
+// porcentaje crudo, un `used_percentage: 9e99` de una muestra corrupta pintaba el
+// medidor lleno (correcto) y a su lado 300 dígitos: una barra de estado de
+// cientos de columnas, que es exactamente el daño que el contrato de salir 0
+// existe para evitar. Y un -40 pintaba el medidor vacío junto a un "-40%" en
+// verde, o sea el medidor y el número contradiciéndose.
+//
+// El test mira el CONTENIDO a propósito: el de «siempre sale cero» ya cubría este
+// stdin y pasaba en verde porque solo aseveraba el código de salida.
+func TestStatusLineAcotaPorcentajesImposibles(t *testing.T) {
+	autoTestHome(t)
+	t.Setenv("CCP_PROFILE", "work")
+	t.Setenv("COLUMNS", "100")
+
+	stdin := `{"rate_limits":{"five_hour":{"used_percentage":-40},"seven_day":{"used_percentage":9e99}}}`
+	var out, errb bytes.Buffer
+	if code := runStatusLine(strings.NewReader(stdin), nil, &out, &errb); code != 0 {
+		t.Fatalf("exit = %d", code)
+	}
+	const want = "work  5h ▏░░░░░░░░░░▏ 0%  7d ▏██████████▏ 100%"
+	if got := strings.TrimSpace(out.String()); got != want {
+		t.Errorf("línea = %q, want %q", got, want)
+	}
+}
+
+// TestStatusBarSeverityUmbrales fija los cortes del semáforo por nombre.
+//
+// El crítico se compara contra core.DefaultAutoThreshold, no contra un 90
+// literal: si alguien mueve el umbral del motor, este test tiene que caer para
+// que la barra se mueva con él. Que la barra diga «verde» mientras `ccp session`
+// rota de perfil sería la peor de las incoherencias posibles.
+func TestStatusBarSeverityUmbrales(t *testing.T) {
+	casos := []struct {
+		pct  float64
+		want severity
+	}{
+		{0, sevOK},
+		{69.9, sevOK},
+		{70, sevWarn},
+		{89.9, sevWarn},
+		{float64(core.DefaultAutoThreshold), sevCrit},
+		{100, sevCrit},
+	}
+	for _, c := range casos {
+		if got := statusBarSeverity(c.pct); got != c.want {
+			t.Errorf("statusBarSeverity(%v) = %v, want %v", c.pct, got, c.want)
+		}
+	}
+	if statusBarCritPct != core.DefaultAutoThreshold {
+		t.Errorf("el rojo de la barra (%d) debe seguir al umbral del motor (%d)",
+			statusBarCritPct, core.DefaultAutoThreshold)
 	}
 }
 
