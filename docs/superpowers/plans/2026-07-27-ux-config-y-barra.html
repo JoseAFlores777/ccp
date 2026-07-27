@@ -1,0 +1,1291 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ccp — La config y el estado, dentro de la herramienta</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   TOKENS — día / noche
+   ============================================================ */
+:root{
+  --bg:#ffffff; --bg-soft:#f6f7f9; --bg-sunk:#eef0f4;
+  --surface:#ffffff; --surface-2:#f8fafc;
+  --border:#dfe3e9; --border-strong:#c3cad4;
+  --text:#0f172a; --text-mute:#475569; --text-faint:#64748b;
+  --accent:#0f766e; --accent-soft:#ccfbf1; --accent-text:#0b4f4a;
+  --run:#15803d; --run-soft:#dcfce7;
+  --warn:#b45309; --warn-soft:#fef3c7;
+  --danger:#b91c1c; --danger-soft:#fee2e2;
+  --term-bg:#0f172a; --term-text:#e2e8f0; --term-border:#1e293b;
+  --shadow:0 1px 2px rgba(15,23,42,.06), 0 8px 24px -12px rgba(15,23,42,.18);
+  --shadow-lg:0 2px 4px rgba(15,23,42,.06), 0 24px 48px -24px rgba(15,23,42,.28);
+  --radius:14px; --radius-sm:9px;
+  --maxw:1120px;
+}
+:root[data-theme="dark"]{
+  --bg:#0b1120; --bg-soft:#0f172a; --bg-sunk:#070d18;
+  --surface:#111c2f; --surface-2:#16233a;
+  --border:#22304a; --border-strong:#33456a;
+  --text:#f8fafc; --text-mute:#a9b6cc; --text-faint:#8494ad;
+  --accent:#2dd4bf; --accent-soft:#0d3f3a; --accent-text:#5eead4;
+  --run:#22c55e; --run-soft:#0d3b21;
+  --warn:#fbbf24; --warn-soft:#402d09;
+  --danger:#f87171; --danger-soft:#3f1414;
+  --term-bg:#070d18; --term-text:#e2e8f0; --term-border:#22304a;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  --shadow-lg:0 2px 4px rgba(0,0,0,.4), 0 24px 48px -24px rgba(0,0,0,.8);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b1120; --bg-soft:#0f172a; --bg-sunk:#070d18;
+    --surface:#111c2f; --surface-2:#16233a;
+    --border:#22304a; --border-strong:#33456a;
+    --text:#f8fafc; --text-mute:#a9b6cc; --text-faint:#8494ad;
+    --accent:#2dd4bf; --accent-soft:#0d3f3a; --accent-text:#5eead4;
+    --run:#22c55e; --run-soft:#0d3b21;
+    --warn:#fbbf24; --warn-soft:#402d09;
+    --danger:#f87171; --danger-soft:#3f1414;
+    --term-bg:#070d18; --term-text:#e2e8f0; --term-border:#22304a;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+    --shadow-lg:0 2px 4px rgba(0,0,0,.4), 0 24px 48px -24px rgba(0,0,0,.8);
+  }
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
+  font-size:16px; line-height:1.65; -webkit-font-smoothing:antialiased;
+  transition:background-color .25s ease, color .25s ease;
+}
+code,kbd,pre,.mono{font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+a{color:var(--accent); text-underline-offset:3px}
+a:hover{color:var(--text)}
+:focus-visible{outline:2px solid var(--accent); outline-offset:3px; border-radius:4px}
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 24px}
+h1,h2,h3,h4{line-height:1.25; letter-spacing:-.02em; margin:0}
+p{margin:0 0 1em}
+p:last-child{margin-bottom:0}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+header.topbar{
+  position:sticky; top:0; z-index:50;
+  background:color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter:saturate(180%) blur(12px);
+  border-bottom:1px solid var(--border);
+}
+.topbar-in{display:flex; align-items:center; gap:16px; height:62px}
+.brand{display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:-.01em}
+.brand .dot{width:9px;height:9px;border-radius:50%;background:var(--run);box-shadow:0 0 0 4px var(--run-soft)}
+.brand .mono{font-size:17px}
+.brand .sep{color:var(--text-faint); font-weight:400}
+.brand .sub{color:var(--text-mute); font-weight:500; font-size:14px}
+nav.toc{margin-left:auto; display:flex; gap:4px; flex-wrap:wrap}
+nav.toc a{
+  font-size:13px; color:var(--text-mute); text-decoration:none;
+  padding:6px 10px; border-radius:8px; transition:background-color .2s ease,color .2s ease;
+}
+nav.toc a:hover{background:var(--bg-soft); color:var(--text)}
+.theme-btn{
+  display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
+  width:38px;height:38px; border-radius:10px; flex:none;
+  border:1px solid var(--border); background:var(--surface); color:var(--text-mute);
+  transition:background-color .2s ease,color .2s ease,border-color .2s ease;
+}
+.theme-btn:hover{background:var(--bg-soft); color:var(--text); border-color:var(--border-strong)}
+.theme-btn svg{width:18px;height:18px}
+:root[data-theme="dark"] .icon-sun{display:block}
+:root[data-theme="dark"] .icon-moon{display:none}
+.icon-sun{display:none}
+.icon-moon{display:block}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .icon-sun{display:block}
+  :root:not([data-theme="light"]) .icon-moon{display:none}
+}
+@media (max-width:900px){nav.toc{display:none}}
+
+/* ============================================================
+   HERO
+   ============================================================ */
+.hero{padding:72px 0 56px; border-bottom:1px solid var(--border); background:
+  radial-gradient(1000px 400px at 12% -8%, var(--accent-soft), transparent 62%),
+  linear-gradient(180deg, var(--bg-soft), var(--bg));}
+.chips{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px}
+.chip{
+  font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:500;
+  padding:5px 11px; border-radius:999px;
+  border:1px solid var(--border); background:var(--surface); color:var(--text-mute);
+}
+.chip.ok{border-color:var(--run); color:var(--run); background:var(--run-soft)}
+.hero h1{font-size:clamp(30px,5.2vw,50px); font-weight:700; max-width:19ch; margin-bottom:18px}
+.hero .lede{font-size:clamp(17px,2vw,20px); color:var(--text-mute); max-width:68ch; font-weight:300}
+.hero .lede strong{color:var(--text); font-weight:600}
+
+/* comparación antes/después */
+.compare{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:40px}
+@media (max-width:820px){.compare{grid-template-columns:1fr}}
+.cmp{border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; background:var(--surface); box-shadow:var(--shadow)}
+.cmp-h{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 14px; font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+  border-bottom:1px solid var(--border); color:var(--text-faint); background:var(--surface-2);
+}
+.cmp-b{background:var(--term-bg); padding:18px 16px; overflow-x:auto}
+.cmp-b .line{font-family:'JetBrains Mono',monospace; font-size:13.5px; white-space:pre; color:var(--term-text)}
+.cmp-note{padding:12px 14px; font-size:13.5px; color:var(--text-mute); border-top:1px solid var(--border)}
+.g-ok{color:#4ade80}.g-warn{color:#fbbf24}.g-dim{color:#64748b}.g-lbl{color:#94a3b8}.g-prof{color:#e2e8f0;font-weight:600}
+
+/* ============================================================
+   SECCIONES
+   ============================================================ */
+section{padding:64px 0; border-bottom:1px solid var(--border)}
+.sec-head{margin-bottom:34px; max-width:74ch}
+.eyebrow{
+  font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:10px;
+}
+.sec-head h2{font-size:clamp(24px,3.4vw,34px); font-weight:700; margin-bottom:12px}
+.sec-head p{color:var(--text-mute); font-size:17px; font-weight:300}
+
+.grid-3{display:grid; grid-template-columns:repeat(3,1fr); gap:18px}
+.grid-2{display:grid; grid-template-columns:repeat(2,1fr); gap:18px}
+@media (max-width:900px){.grid-3{grid-template-columns:1fr}.grid-2{grid-template-columns:1fr}}
+
+.card{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:24px; box-shadow:var(--shadow);
+  transition:border-color .2s ease, box-shadow .2s ease;
+}
+.card:hover{border-color:var(--border-strong); box-shadow:var(--shadow-lg)}
+.card .ico{
+  width:38px;height:38px;border-radius:10px; display:grid;place-items:center; margin-bottom:14px;
+  background:var(--accent-soft); color:var(--accent-text);
+}
+.card .ico svg{width:19px;height:19px}
+.card h3{font-size:17px; font-weight:600; margin-bottom:8px}
+.card p{color:var(--text-mute); font-size:14.5px}
+
+/* ============================================================
+   DECISIONES
+   ============================================================ */
+.decision{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  margin-bottom:20px; overflow:hidden; box-shadow:var(--shadow);
+}
+.d-head{display:flex; align-items:flex-start; gap:14px; padding:22px 24px; border-bottom:1px solid var(--border); background:var(--surface-2)}
+.d-id{
+  font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px; flex:none;
+  padding:5px 10px; border-radius:8px; background:var(--accent-soft); color:var(--accent-text);
+}
+.d-head h3{font-size:18px; font-weight:600; margin-bottom:4px}
+.d-head p{font-size:14px; color:var(--text-mute)}
+.d-body{padding:24px}
+.tradeoff{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px}
+@media (max-width:820px){.tradeoff{grid-template-columns:1fr}}
+.to-box{border:1px solid var(--border); border-radius:var(--radius-sm); padding:16px; background:var(--bg-soft)}
+.to-box.pick{border-color:var(--run); background:var(--run-soft)}
+.to-lbl{
+  display:flex;align-items:center;gap:6px;
+  font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700;
+  letter-spacing:.1em; text-transform:uppercase; margin-bottom:10px; color:var(--text-faint);
+}
+.to-box.pick .to-lbl{color:var(--run)}
+.to-lbl svg{width:14px;height:14px}
+.to-box ul{margin:0; padding-left:18px; font-size:14px; color:var(--text-mute)}
+.to-box li{margin-bottom:6px}
+.to-box li:last-child{margin-bottom:0}
+.to-box li strong{color:var(--text)}
+.why{
+  border-left:3px solid var(--accent); padding:4px 0 4px 16px;
+  font-size:15px; color:var(--text-mute);
+}
+.why strong{color:var(--text)}
+
+/* ============================================================
+   TERMINAL
+   ============================================================ */
+.term{
+  background:var(--term-bg); border:1px solid var(--term-border); border-radius:var(--radius);
+  overflow:hidden; margin:18px 0; box-shadow:var(--shadow);
+}
+.term-h{
+  display:flex; align-items:center; gap:8px; padding:9px 14px;
+  border-bottom:1px solid var(--term-border); background:rgba(255,255,255,.03);
+}
+.tl{display:flex;gap:6px}
+.tl i{width:11px;height:11px;border-radius:50%;display:block}
+.tl i:nth-child(1){background:#ff5f57}.tl i:nth-child(2){background:#febc2e}.tl i:nth-child(3){background:#28c840}
+.term-t{font-family:'JetBrains Mono',monospace; font-size:12px; color:#8494ad; margin-left:4px}
+.copy{
+  margin-left:auto; cursor:pointer; display:inline-flex; align-items:center; gap:5px;
+  font-family:'JetBrains Mono',monospace; font-size:11.5px; font-weight:500;
+  padding:5px 10px; border-radius:7px;
+  border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.05); color:#a9b6cc;
+  transition:background-color .2s ease,color .2s ease,border-color .2s ease;
+}
+.copy:hover{background:rgba(255,255,255,.12); color:#f8fafc; border-color:rgba(255,255,255,.28)}
+.copy.done{color:#4ade80; border-color:#4ade80}
+.copy svg{width:13px;height:13px}
+.term pre{
+  margin:0; padding:18px 16px; overflow-x:auto;
+  font-family:'JetBrains Mono',monospace; font-size:13.5px; line-height:1.75; color:var(--term-text);
+}
+.term pre .c{color:#64748b}
+.term pre .p{color:#4ade80}
+.term pre .k{color:#2dd4bf}
+.term pre .s{color:#fbbf24}
+.term pre .o{color:#94a3b8}
+
+/* ============================================================
+   FASES
+   ============================================================ */
+.phases{display:flex; flex-direction:column; gap:0; position:relative}
+.phase{display:grid; grid-template-columns:92px 1fr; gap:20px; position:relative; padding-bottom:26px}
+.phase::before{content:''; position:absolute; left:45px; top:36px; bottom:0; width:2px; background:var(--border)}
+.phase:last-child::before{display:none}
+.p-tag{
+  display:flex;align-items:flex-start;justify-content:center; position:relative; z-index:1;
+}
+.p-tag span{
+  font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px;
+  width:52px;height:36px; display:grid;place-items:center; border-radius:10px;
+  border:1px solid var(--border); background:var(--surface); color:var(--text-mute);
+}
+.phase.vis .p-tag span{border-color:var(--accent); background:var(--accent-soft); color:var(--accent-text)}
+.p-body{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px 20px; box-shadow:var(--shadow)}
+.p-body h4{font-size:16px; font-weight:600; margin-bottom:6px}
+.p-body p{font-size:14.5px; color:var(--text-mute); margin-bottom:10px}
+.files{display:flex;flex-wrap:wrap;gap:6px}
+.files code{
+  font-size:12px; padding:3px 8px; border-radius:6px;
+  background:var(--bg-sunk); border:1px solid var(--border); color:var(--text-mute);
+}
+.badge{
+  font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:700;
+  letter-spacing:.08em; text-transform:uppercase; padding:3px 8px; border-radius:999px; margin-left:8px;
+}
+.badge.v{background:var(--run-soft); color:var(--run)}
+.badge.i{background:var(--bg-sunk); color:var(--text-faint)}
+
+/* ============================================================
+   RIESGOS
+   ============================================================ */
+.risk{
+  background:var(--surface); border:1px solid var(--border); border-left-width:4px;
+  border-radius:var(--radius); padding:20px 22px; margin-bottom:14px; box-shadow:var(--shadow);
+}
+.risk.hi{border-left-color:var(--danger)}
+.risk.md{border-left-color:var(--warn)}
+.risk.lo{border-left-color:var(--accent)}
+.r-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px}
+.r-head h3{font-size:16px; font-weight:600}
+.sev{font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:3px 9px; border-radius:999px}
+.sev.hi{background:var(--danger-soft); color:var(--danger)}
+.sev.md{background:var(--warn-soft); color:var(--warn)}
+.sev.lo{background:var(--accent-soft); color:var(--accent-text)}
+.risk p{font-size:14.5px; color:var(--text-mute)}
+.rollback{
+  margin-top:12px; padding:10px 14px; border-radius:var(--radius-sm);
+  background:var(--bg-soft); border:1px solid var(--border);
+  font-size:13.5px; color:var(--text-mute);
+}
+.rollback b{color:var(--text); font-family:'JetBrains Mono',monospace; font-size:12px}
+
+/* ============================================================
+   DIAGRAMAS + TABLA + CHART
+   ============================================================ */
+.diagram{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:26px 18px; overflow-x:auto; box-shadow:var(--shadow); text-align:center;
+}
+.diagram .mermaid{display:inline-block; min-width:0}
+.cap{margin-top:14px; font-size:13.5px; color:var(--text-faint); text-align:center}
+.chart-box{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:22px; box-shadow:var(--shadow)}
+.chart-box h4{font-size:15px;font-weight:600;margin-bottom:4px}
+.chart-box p{font-size:13.5px;color:var(--text-mute);margin-bottom:16px}
+.tbl-wrap{overflow-x:auto; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow)}
+table{border-collapse:collapse; width:100%; min-width:520px; font-size:14px}
+th,td{padding:12px 16px; text-align:left; border-bottom:1px solid var(--border)}
+th{font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-faint); background:var(--surface-2); font-weight:600}
+tr:last-child td{border-bottom:none}
+td code{font-size:12.5px; padding:2px 6px; border-radius:5px; background:var(--bg-sunk); color:var(--text-mute)}
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+footer{padding:48px 0; background:var(--bg-soft)}
+.foot{display:flex; gap:20px; flex-wrap:wrap; align-items:center; justify-content:space-between}
+.foot p{font-size:13.5px; color:var(--text-faint)}
+.foot .status{display:flex;align-items:center;gap:8px; font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--text-mute)}
+.foot .status .dot{width:8px;height:8px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 4px var(--warn-soft)}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <div class="brand">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="mono">ccp</span>
+      <span class="sep">/</span>
+      <span class="sub">plan · UX de config y barra</span>
+    </div>
+    <nav class="toc" aria-label="Secciones">
+      <a href="#resumen">Resumen</a>
+      <a href="#arquitectura">Arquitectura</a>
+      <a href="#decisiones">Decisiones</a>
+      <a href="#fases">Fases</a>
+      <a href="#flujos">Flujos</a>
+      <a href="#riesgos">Riesgos</a>
+      <a href="#verificar">Verificar</a>
+    </nav>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="Cambiar tema claro/oscuro" title="Cambiar tema">
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- ============================ HERO ============================ -->
+<div class="hero">
+  <div class="wrap">
+    <div class="chips">
+      <span class="chip">2026-07-27</span>
+      <span class="chip">propuesto</span>
+      <span class="chip">7 decisiones · 7 fases · 6 riesgos</span>
+      <span class="chip ok">esquema ccp.yaml sin cambios (v2)</span>
+    </div>
+    <h1>La config y el estado, dentro de la herramienta</h1>
+    <p class="lede">
+      El auto-handoff funciona. Lo que no funciona es <strong>vivir con él</strong>: para cambiar el orden
+      en que ccp presta perfiles hay que editar a mano dos claves que no están juntas en un YAML, y la barra
+      de estado da un porcentaje <strong>sin horizonte</strong> — no dice cuándo vuelve la cuota.
+      Seis pedidos, un solo problema de fondo.
+    </p>
+
+    <div class="compare">
+      <div class="cmp">
+        <div class="cmp-h">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+          Hoy
+        </div>
+        <div class="cmp-b"><div class="line"><span class="g-prof">personal-cc</span> <span class="g-dim">·</span> <span class="g-lbl">5h</span> 2% <span class="g-dim">·</span> <span class="g-lbl">7d</span> 59%</div></div>
+        <div class="cmp-note">Un porcentaje suelto. «59%» no responde la única pregunta que uno se hace al mirar la barra: <em>¿me va a cortar hoy, y cuándo recupero cuota?</em></div>
+      </div>
+      <div class="cmp">
+        <div class="cmp-h">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+          Propuesto
+        </div>
+        <div class="cmp-b"><div class="line"><span class="g-prof">personal-cc</span>  <span class="g-lbl">5h</span> <span class="g-ok">▏██░░░░░░░░▏</span> <span class="g-ok">2%</span> <span class="g-dim">·2h14m</span>  <span class="g-lbl">7d</span> <span class="g-warn">▏██████░░░░▏</span> <span class="g-warn">59%</span> <span class="g-dim">·3d</span></div></div>
+        <div class="cmp-note">Medidor + cuenta atrás hasta el reset, con <strong>degradación por ancho</strong> en tres niveles para que nunca se trunque justo por el dato del reset.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ RESUMEN ============================ -->
+<section id="resumen">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Resumen ejecutivo</div>
+      <h2>Tres bloques, un mismo síntoma</h2>
+      <p>
+        Los seis pedidos son seis caras de lo mismo: <strong>la configuración y el estado del auto-handoff
+        viven fuera de ccp</strong>. En un YAML que hay que abrir a mano, y en un número sin contexto.
+        El plan los devuelve adentro.
+      </p>
+    </div>
+    <div class="grid-3">
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></div>
+        <h3>Ver</h3>
+        <p>Barra con medidor de bloques y cuenta atrás hasta el reset de cada ventana. Deja de ser un número; pasa a ser una previsión.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></div>
+        <h3>Editar</h3>
+        <p><code>ccp config edit</code> en editor gráfico, <code>ccp auto chain</code> para la cadena, y una vista Config en la TUI. Sin abrir el YAML a mano.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+        <h3>Arrancar</h3>
+        <p><code>ccp session</code> detecta lo que falta en el repo, lo pregunta una vez y lo aplica. Nunca en headless: ahí no hay nadie que responda.</p>
+      </div>
+    </div>
+
+    <div class="tbl-wrap" style="margin-top:26px">
+      <table>
+        <thead><tr><th>Pedido</th><th>Bloque</th><th>Superficie nueva</th></tr></thead>
+        <tbody>
+          <tr><td>Barra más legible + cuándo se reinicia el límite</td><td>Ver</td><td><code>_statusline</code> · <code>core/gauge.go</code></td></tr>
+          <tr><td>Abrir la config en VS Code, fallback bloc de notas</td><td>Editar</td><td><code>ccp config edit</code></td></tr>
+          <tr><td>Comando para agregar cadena</td><td>Editar</td><td><code>ccp auto chain</code></td></tr>
+          <tr><td>Editar cualquier cosa desde el panel principal</td><td>Editar</td><td>vista Config en la TUI</td></tr>
+          <tr><td><code>session</code> configurado out of the box</td><td>Arrancar</td><td>bootstrap en <code>cmdSession</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ ARQUITECTURA ============================ -->
+<section id="arquitectura">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Arquitectura</div>
+      <h2>Dónde aterriza cada pieza</h2>
+      <p>
+        La frontera binario ↔ shell no se toca: el binario <em>emite</em> entorno, el shell lo <em>evalúa</em>.
+        Todo lo nuevo (en verde) cuelga de <code>internal/core</code> y de los dos front-ends, respetando la
+        regla del proyecto: <strong>el core devuelve datos, los front-ends formatean</strong>.
+      </p>
+    </div>
+    <div class="diagram">
+      <pre class="mermaid" data-graph="flowchart TB
+  subgraph SH[&quot;shell — rc del usuario&quot;]
+    FN[&quot;función ccp&quot;]
+    HK[&quot;_ccp_autocheck&quot;]
+  end
+
+  subgraph BIN[&quot;binario ccp&quot;]
+    CLI[&quot;internal/cli&quot;]
+    TUI[&quot;internal/tui&quot;]
+    SUP[&quot;internal/supervisor&quot;]
+    subgraph CORE[&quot;internal/core&quot;]
+      RULES[&quot;rules.go&quot;]
+      AUTO[&quot;auto.go&quot;]
+      CFG[&quot;cfg_cmd.go&quot;]
+      GAUGE[&quot;gauge.go — NUEVO&quot;]
+    end
+  end
+
+  subgraph CC[&quot;Claude Code&quot;]
+    SL[&quot;statusLine&quot;]
+    SF[&quot;hook StopFailure&quot;]
+  end
+
+  YAML[(&quot;ccp.yaml&quot;)]
+  STATE[(&quot;state/auto/ — caché&quot;)]
+
+  FN -->|eval| CLI
+  HK -->|eval| CLI
+  SL --> SLC[&quot;ccp _statusline&quot;]
+  SF --> LH[&quot;ccp _limit-hook&quot;]
+  SLC --> GAUGE
+  SLC --> STATE
+  LH --> STATE
+
+  CLI --> CORE
+  TUI --> CORE
+  SUP --> CORE
+  CORE --> YAML
+
+  NEW1[&quot;config edit — NUEVO&quot;] --> CFG
+  NEW2[&quot;auto chain — NUEVO&quot;] --> AUTO
+  NEW3[&quot;session bootstrap — NUEVO&quot;] --> AUTO
+  NEW3 --> STATE
+  NEW4[&quot;vista Config — NUEVO&quot;] --> TUI
+  CLI --> NEW1
+  CLI --> NEW2
+  CLI --> NEW3
+  TUI --> GAUGE
+
+  classDef nuevo fill:#22c55e22,stroke:#22c55e,stroke-width:2px,color:#15803d;
+  classDef store fill:#94a3b822,stroke:#94a3b8,stroke-dasharray:4 3;
+  class GAUGE,NEW1,NEW2,NEW3,NEW4 nuevo;
+  class YAML,STATE store;"></pre>
+    </div>
+    <p class="cap">En verde, lo que añade este plan. <code>gauge.go</code> es puro (sin color ni layout) porque lo consumen <strong>dos</strong> front-ends y <code>internal/tui</code> no puede importar <code>internal/cli</code>.</p>
+  </div>
+</section>
+
+<!-- ============================ DECISIONES ============================ -->
+<section id="decisiones">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Decisiones y trade-offs</div>
+      <h2>Qué se eligió, qué se descartó y por qué</h2>
+      <p>La sección que importa. Cada decisión tiene un coste real; lo que sigue es el coste aceptado y cómo se mitiga.</p>
+    </div>
+
+    <!-- D1 -->
+    <article class="decision">
+      <div class="d-head">
+        <span class="d-id">D1</span>
+        <div>
+          <h3>La barra: medidor de bloques, con degradación por ancho</h3>
+          <p>El formato que más se ve, y el que más ancho consume.</p>
+        </div>
+      </div>
+      <div class="d-body">
+        <div class="tradeoff">
+          <div class="to-box pick">
+            <div class="to-lbl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Elegido</div>
+            <ul>
+              <li><strong>Medidor de 10 bloques</strong> por ventana, color por severidad y cuenta atrás.</li>
+              <li>Se lee <strong>sin leyenda</strong>: la longitud rellena dice lo que un punto de color obliga a recordar.</li>
+              <li>Sigue siendo legible con <code>NO_COLOR</code> — esa es justamente la razón de elegirlo.</li>
+            </ul>
+          </div>
+          <div class="to-box">
+            <div class="to-lbl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>Descartado</div>
+            <ul>
+              <li><strong>Puntos de color</strong> — compacto, pero un <code>●</code> ámbar exige recordar qué umbral es ámbar.</li>
+              <li><strong>Sparkline minimalista</strong> — demasiado discreto para algo que existe para avisar.</li>
+            </ul>
+          </div>
+        </div>
+        <p class="why">
+          <strong>El trade-off es el ancho.</strong> El formato completo pide ~62 columnas. Truncado es
+          <em>peor</em> que corto, porque corta por el final — justo donde va el reset. Por eso la degradación
+          en tres niveles no es un extra: es parte de la decisión.
+        </p>
+        <div class="chart-box" style="margin-top:20px">
+          <h4>Ancho requerido por nivel de render</h4>
+          <p>El ancho sale de <code>COLUMNS</code> (default 80). <strong>No se consulta la tty</strong>: el statusLine corre dentro de CC con stdout redirigido, y este comando se ejecuta varias veces por minuto.</p>
+          <div style="height:230px"><canvas id="widthChart" role="img" aria-label="Gráfico de barras: nivel completo 62 columnas, nivel medio 50 columnas, nivel compacto 34 columnas"></canvas></div>
+        </div>
+        <div class="term">
+          <div class="term-h"><span class="tl"><i></i><i></i><i></i></span><span class="term-t">los tres niveles</span><button class="copy" type="button">copiar</button></div>
+<pre><span class="c"># ≥60 columnas — completo</span>
+personal-cc  5h ▏██░░░░░░░░▏ 2% ·2h14m  7d ▏██████░░░░▏ 59% ·3d
+
+<span class="c"># 40–59 — medidor de 4 celdas</span>
+personal-cc · 5h ▏██░░▏2% ·2h14m · 7d ▏██▆░▏59% ·3d
+
+<span class="c"># &lt;40 — sin medidor, el reset sobrevive</span>
+personal-cc · 5h 2% ·2h · 7d 59% ·3d</pre>
+        </div>
+        <p class="why" style="margin-top:16px">
+          Cortes de color <strong>verde &lt;70% · ámbar 70–89% · rojo ≥90%</strong>: los mismos que el umbral
+          por defecto de la política (90), para que la barra y el motor no cuenten historias distintas.
+        </p>
+      </div>
+    </article>
+
+    <!-- D2 -->
+    <article class="decision">
+      <div class="d-head">
+        <span class="d-id">D2</span>
+        <div>
+          <h3>El reset: cuenta atrás, y silencio cuando el dato miente</h3>
+          <p><code>·47m</code> · <code>·2h14m</code> · <code>·3d</code> — una sola unidad significativa.</p>
+        </div>
+      </div>
+      <div class="d-body">
+        <p class="why" style="border-left-color:var(--warn)">
+          <strong>Los días redondean hacia arriba</strong> — corregido tras la implementación. La primera versión
+          truncaba, y truncar era justo el error que esta cuenta atrás existe para evitar: a <code>2d23h59m</code>
+          del reset pintaba <code>·2d</code>, el usuario volvía un día antes de tiempo y se encontraba el perfil
+          todavía agotado. El error máximo es de un día en cualquiera de los dos sentidos, así que lo único que se
+          elige aquí es la <strong>dirección</strong>.
+        </p>
+        <p class="why" style="margin-top:14px">
+          La regla que importa no es el formato, es la omisión: <strong>un <code>resets_at</code> en el pasado
+          o a cero no se pinta</strong>. Es la misma filosofía que <code>Windowed.HasData</code> ya defiende en
+          <code>ratelimit.go</code>: hay un bug conocido de CC donde <code>five_hour</code> llega a 0 con
+          <code>seven_day</code> poblado, y pintar <code>·0m</code> diría «ya reabrió» cuando lo que sabemos es
+          <em>«no sabemos»</em>.
+        </p>
+        <div class="tradeoff" style="margin-top:18px">
+          <div class="to-box pick">
+            <div class="to-lbl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Se pinta</div>
+            <ul>
+              <li>Ventana con dato y <code>resets_at</code> futuro → porcentaje + cuenta atrás.</li>
+              <li>Ventana con dato y sin <code>resets_at</code> → solo porcentaje.</li>
+            </ul>
+          </div>
+          <div class="to-box">
+            <div class="to-lbl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>Se omite</div>
+            <ul>
+              <li>Ventana sin dato → no aparece (ni como <code>0%</code>).</li>
+              <li><code>resets_at</code> vencido → dato caducado, no «disponible».</li>
+            </ul>
+          </div>
+        </div>
+        <p class="why" style="margin-top:16px">Sin caché que invalidar: la barra se repinta sola varias veces por minuto y recalcula desde <code>resets_at</code>.</p>
+      </div>
+    </article>
+
+    <!-- D3 -->
+    <article class="decision">
+      <div class="d-head">
+        <span class="d-id">D3</span>
+        <div>
+          <h3>Dónde vive el medidor: primitivas puras en el core</h3>
+          <p>Una tensión con la regla «el core no hace presentación».</p>
+        </div>
+      </div>
+      <div class="d-body">
+        <p class="why">
+          <code>internal/core</code> no formatea… salvo cuando el string <em>es</em> el contrato
+          (<code>env.go</code>, <code>shellinit.go</code>). El medidor no es contrato, pero lo necesitan
+          <strong>dos</strong> front-ends — la barra en <code>cli</code> y el panel Estado en <code>tui</code> —
+          y <code>tui</code> no importa <code>cli</code>.
+        </p>
+        <div class="tradeoff" style="margin-top:18px">
+          <div class="to-box pick">
+            <div class="to-lbl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Elegido</div>
+            <ul>
+              <li><code>core/gauge.go</code> con <code>RenderGauge(pct, cells)</code> y <code>HumanUntil(d)</code>.</li>
+              <li><strong>Puras</strong>: devuelven texto, sin color ni layout ni ancho.</li>
+              <li>Color, ancho y orden los deciden los front-ends.</li>
+            </ul>
+          </div>
+          <div class="to-box">
+            <div class="to-lbl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>Descartado</div>
+            <ul>
+              <li>Duplicar el medidor en <code>cli</code> y en <code>tui</code> — dos verdades que divergen.</li>
+              <li>Meter lipgloss en el core — arrastraría presentación a la capa que debe estar libre de ella.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- D4 -->
+    <article class="decision">
+      <div class="d-head">
+        <span class="d-id">D4</span>
+        <div>
+          <h3><code>ccp config edit</code>: el editor gráfico, y lo que pasa al cerrarlo</h3>
+          <p>VS Code primero, bloc de notas de respaldo, y validación al volver.</p>
+        </div>
+      </div>
+      <div class="d-body">
+        <div class="tbl-wrap" style="margin-bottom:18px">
+          <table>
+            <thead><tr><th>#</th><th>Fuente</th><th>Comando</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>flag explícito</td><td><code>--editor &lt;cmd&gt;</code></td></tr>
+              <tr><td>2</td><td>preferencia en ccp.yaml</td><td><code>defaults.gui_editor</code></td></tr>
+              <tr><td>3</td><td>entorno</td><td><code>$VISUAL</code></td></tr>
+              <tr><td>4</td><td>VS Code y familia en PATH</td><td><code>code -w</code> → <code>cursor -w</code> → <code>code-insiders -w</code></td></tr>
+              <tr><td>5</td><td>fallback del SO</td><td><code>open -W -t</code> · <code>notepad</code> · <code>xdg-open</code></td></tr>
+              <tr><td>6</td><td>último recurso</td><td><code>core.ResolveEditor</code> → <code>$EDITOR</code> → <code>nano</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="why">
+          <strong>El <code>-w</code> es la decisión, no un detalle.</strong> <code>code archivo</code> retorna al
+          instante; sin esperar a que el editor cierre no podemos hacer lo único que da valor real al comando:
+          <strong>releer el YAML y validarlo</strong>. Un <code>ccp.yaml</code> roto por una edición gráfica no
+          se manifiesta al guardar — se manifiesta en el siguiente <code>ccp session</code>, en mitad de un salto.
+        </p>
+        <div class="term">
+          <div class="term-h"><span class="tl"><i></i><i></i><i></i></span><span class="term-t">validación al cerrar</span><button class="copy" type="button">copiar</button></div>
+<pre><span class="p">$</span> ccp config edit
+
+<span class="o">→</span> abriendo ccp.yaml en <span class="k">code -w</span> …
+<span class="o">→</span> editor cerrado, revalidando
+
+<span class="s">✗</span> auto_handoff.policies.default.min_dwell: duración inválida <span class="s">"20mm"</span>
+  ¿reabrir para corregir? [S/n]</pre>
+        </div>
+        <p class="why" style="margin-top:16px">
+          Con <code>xdg-open</code> (no bloqueante) esa validación es imposible. Se <strong>avisa explícitamente
+          de que no se va a validar</strong>, en vez de fingir que sí.
+        </p>
+      </div>
+    </article>
+
+    <!-- D5 -->
+    <article class="decision">
+      <div class="d-head">
+        <span class="d-id">D5</span>
+        <div>
+          <h3><code>ccp auto chain</code>: el orden y el permiso, en un solo gesto</h3>
+          <p>La decisión con más filo del plan: escribir en un gate de cumplimiento.</p>
+        </div>
+      </div>
+      <div class="d-body">
+        <div class="term">
+          <div class="term-h"><span class="tl"><i></i><i></i><i></i></span><span class="term-t">superficie nueva</span><button class="copy" type="button">copiar</button></div>
+<pre>ccp auto chain <span class="o">[show]</span>                    <span class="c"># cadena efectiva para el cwd</span>
+ccp auto chain <span class="k">add</span> &lt;perfil&gt;... <span class="o">[--at N]</span>  <span class="c"># añade (al final, o en la posición N)</span>
+ccp auto chain <span class="k">rm</span>  &lt;perfil&gt;...
+ccp auto chain <span class="k">mv</span>  &lt;perfil&gt; &lt;pos&gt;        <span class="c"># el orden ES la prioridad</span>
+ccp auto chain <span class="k">set</span> &lt;a,b,c&gt;               <span class="c"># reemplaza la lista entera</span></pre>
+        </div>
+        <p class="why">
+          <strong><code>add</code> toca también <code>allow_from</code>.</strong> Quien escribe «añádelo a la
+          cadena» quiere que el perfil <em>se use</em>, y <code>fallback</code> sin <code>allow_from</code> no lo
+          usa. Dejar las dos claves separadas en la CLI es reproducir exactamente la trampa que el YAML ya tiende:
+          el gate declarado sin entrada para el primario es <strong>deny total, y en silencio</strong>.
+        </p>
+        <div class="tradeoff" style="margin-top:18px">
+          <div class="to-box pick">
+            <div class="to-lbl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Elegido — con tres límites</div>
+            <ul>
+              <li>Se toca <strong>solo la entrada del primario actual</strong>, nunca otras.</li>
+              <li>Se imprime <strong>qué cambió en cada clave</strong>, por separado.</li>
+              <li><code>--no-allow</code> desactiva el comportamiento.</li>
+            </ul>
+          </div>
+          <div class="to-box">
+            <div class="to-lbl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>Descartado</div>
+            <ul>
+              <li><strong>Solo <code>fallback</code></strong> — honesto, pero deja al usuario con una cadena que no rota y sin pista.</li>
+              <li><strong>Rewrite en bloque de <code>allow_from</code></strong> — ensancharía permisos para repos donde el usuario ni está.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="term">
+          <div class="term-h"><span class="tl"><i></i><i></i><i></i></span><span class="term-t">reporte explícito</span><button class="copy" type="button">copiar</button></div>
+<pre><span class="p">$</span> ccp auto chain add personal-deepseek
+
+<span class="p">✔</span> fallback   app-cc → emco-cc → personal-deepseek
+<span class="p">✔</span> allow_from personal-cc: +personal-deepseek
+
+cadena efectiva desde este repo:
+  app-cc → emco-cc → personal-deepseek</pre>
+        </div>
+      </div>
+    </article>
+
+    <!-- D6 -->
+    <article class="decision">
+      <div class="d-head">
+        <span class="d-id">D6</span>
+        <div>
+          <h3><code>ccp session</code> autoconfigurable: preguntar una vez, luego automático</h3>
+          <p>Un comando de lanzamiento que muta configuración. Necesita guardas.</p>
+        </div>
+      </div>
+      <div class="d-body">
+        <div class="term">
+          <div class="term-h"><span class="tl"><i></i><i></i><i></i></span><span class="term-t">primer arranque en un repo</span><button class="copy" type="button">copiar</button></div>
+<pre><span class="p">$</span> ccp session
+
+Este repo no está configurado del todo:
+  <span class="o">·</span> regla    joseiz-poc → personal-cc   <span class="s">(crear)</span>
+  <span class="o">·</span> sensores personal-cc, app-cc          <span class="s">(instalar)</span>
+  <span class="o">·</span> política default                      <span class="p">(ok)</span>
+
+¿Configurar ahora? [S/n]</pre>
+        </div>
+        <p class="why">
+          <strong>«Una vez» necesita memoria, y esa memoria no va en <code>ccp.yaml</code></strong> — es estado,
+          no configuración. Va en <code>state/auto/bootstrap/&lt;hash-del-repo&gt;.json</code>, bajo la carpeta que
+          este proyecto ya define como <em>caché</em>: borrarla cuesta calidad, nunca corrección. Si el usuario la
+          borra, se le vuelve a preguntar — y eso es lo correcto para una caché.
+        </p>
+        <p class="why" style="margin-top:14px; border-left-color:var(--danger)">
+          <strong>El guard duro: sin tty, o con <code>-p</code>/<code>--headless</code>, no se pregunta ni se muta
+          nada.</strong> <code>ccp session -p</code> corre desde cron: un prompt ahí cuelga el job, y una mutación
+          silenciosa ahí cambia la config del usuario sin que nadie lo vea.
+        </p>
+        <div class="tbl-wrap" style="margin-top:18px">
+          <table>
+            <thead><tr><th>#</th><th>Se comprueba</th><th>Si falta</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td><code>auto_handoff</code> existe y <code>enabled</code></td><td><code>AutoInit</code></td></tr>
+              <tr><td>2</td><td>una regla cubre el cwd</td><td>crear sobre la <strong>raíz del repo git</strong>, no el cwd</td></tr>
+              <tr><td>3</td><td>la cadena no queda vacía tras el gate</td><td>ofrecer ensanchar <code>allow_from</code></td></tr>
+              <tr><td>4</td><td>sensores en el primario y en cada miembro</td><td><code>auto install</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </article>
+
+    <!-- D7 -->
+    <article class="decision">
+      <div class="d-head">
+        <span class="d-id">D7</span>
+        <div>
+          <h3>La TUI: una vista Config, no un cuarto panel</h3>
+          <p>Y la razón por la que la TUI va última en el orden de fases.</p>
+        </div>
+      </div>
+      <div class="d-body">
+        <div class="tradeoff">
+          <div class="to-box pick">
+            <div class="to-lbl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Elegido</div>
+            <ul>
+              <li>Una <strong>vista que toma el cuerpo</strong> del dashboard con la tecla <code>c</code>, igual que el panel Perfiles ya hace con <code>showDetail</code>.</li>
+              <li>Secciones: Defaults · Auto-handoff · Cadena (<code>J</code>/<code>K</code> reordena) · allow_from · Sensores.</li>
+              <li><code>e</code> abre el editor gráfico de D4 desde dentro.</li>
+            </ul>
+          </div>
+          <div class="to-box">
+            <div class="to-lbl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>Descartado</div>
+            <ul>
+              <li><strong>Un cuarto panel</strong> en la fila. A 80 columnas los tres actuales ya van justos; el cuarto los deja ilegibles.</li>
+            </ul>
+          </div>
+        </div>
+        <p class="why" style="margin-top:16px">
+          <strong>Esto fija el orden de las fases.</strong> <code>CLAUDE.md</code> es explícito: <em>«The TUI only
+          calls internal/core — every action has a CLI equivalent»</em>. La vista Config no puede existir antes que
+          los comandos que refleja, así que la TUI va <strong>última</strong>.
+        </p>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- ============================ FASES ============================ -->
+<section id="fases">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Plan de ejecución</div>
+      <h2>Siete fases, y por qué en ese orden</h2>
+      <p>
+        <strong>P0</strong> existe para que P1 y P5 compartan el medidor sin duplicarlo.
+        <strong>P1</strong> va primero dentro de lo visible porque es lo que se mira todos los días.
+        <strong>P5</strong> va después de P2–P4 por la regla de la TUI. <strong>P6</strong> cierra porque
+        toca el contrato congelado.
+      </p>
+    </div>
+    <div class="phases">
+      <div class="phase">
+        <div class="p-tag"><span>P0</span></div>
+        <div class="p-body">
+          <h4>Primitivas puras<span class="badge i">interno</span></h4>
+          <p><code>RenderGauge</code> y <code>HumanUntil</code>, con tests de tabla. Sin cambio visible: es el cimiento compartido.</p>
+          <div class="files"><code>internal/core/gauge.go</code></div>
+        </div>
+      </div>
+      <div class="phase vis">
+        <div class="p-tag"><span>P1</span></div>
+        <div class="p-body">
+          <h4>La barra<span class="badge v">visible</span></h4>
+          <p>Medidor, color, reset y degradación por ancho en tres niveles. Lo que el usuario ve cada día.</p>
+          <div class="files"><code>internal/cli/auto.go</code><code>i18n/catalog_auto.go</code></div>
+        </div>
+      </div>
+      <div class="phase vis">
+        <div class="p-tag"><span>P2</span></div>
+        <div class="p-body">
+          <h4><code>config edit</code><span class="badge v">visible</span></h4>
+          <p>Resolución del editor gráfico, clave <code>gui_editor</code> y revalidación al cerrar.</p>
+          <div class="files"><code>internal/core/cfg_cmd.go</code><code>internal/cli/config.go</code></div>
+        </div>
+      </div>
+      <div class="phase vis">
+        <div class="p-tag"><span>P3</span></div>
+        <div class="p-body">
+          <h4><code>auto chain</code><span class="badge v">visible</span></h4>
+          <p><code>add/rm/mv/set/show</code> con actualización acotada de <code>allow_from</code>.</p>
+          <div class="files"><code>internal/core/auto.go</code><code>internal/cli/auto.go</code></div>
+        </div>
+      </div>
+      <div class="phase vis">
+        <div class="p-tag"><span>P4</span></div>
+        <div class="p-body">
+          <h4>Bootstrap de <code>session</code><span class="badge v">visible</span></h4>
+          <p>Detectar → preguntar → aplicar → cachear, con el guard de tty/headless.</p>
+          <div class="files"><code>internal/cli/session.go</code><code>internal/core/autostate.go</code></div>
+        </div>
+      </div>
+      <div class="phase vis">
+        <div class="p-tag"><span>P5</span></div>
+        <div class="p-body">
+          <h4>Vista Config en la TUI<span class="badge v">visible</span></h4>
+          <p>Cinco secciones sobre formularios <code>huh</code>. Solo llama al core; cada acción ya tiene su CLI (P2–P4).</p>
+          <div class="files"><code>internal/tui/</code></div>
+        </div>
+      </div>
+      <div class="phase vis">
+        <div class="p-tag"><span>P6</span></div>
+        <div class="p-body">
+          <h4>Completions, oráculo, golden y docs<span class="badge v">visible</span></h4>
+          <p>Trabajo <strong>obligatorio</strong>, no opcional: añadir subcomandos rompe la parity. Ver R1.</p>
+          <div class="files"><code>internal/core/shellinit.go</code><code>legacy/bin/ccp</code><code>testdata/golden/</code><code>README</code></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ FLUJOS ============================ -->
+<section id="flujos">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Flujos clave</div>
+      <h2>Las dos secuencias con filo</h2>
+      <p>Un comando de lanzamiento que muta config, y un comando que abre un proceso externo y confía en lo que devuelve.</p>
+    </div>
+
+    <div class="diagram" style="margin-bottom:16px">
+      <pre class="mermaid" data-graph="flowchart TD
+  A[&quot;ccp session&quot;] --> B{&quot;¿tty y sin -p?&quot;}
+  B -->|no| C[&quot;avisar por stderr&lt;br/&gt;NO mutar nada&quot;]
+  C --> Z[&quot;supervisor.Run&quot;]
+  B -->|sí| D{&quot;¿caché de bootstrap&lt;br/&gt;para este repo?&quot;}
+  D -->|sí| Z
+  D -->|no| E[&quot;detectar huecos&quot;]
+  E --> F{&quot;¿falta algo?&quot;}
+  F -->|no| G[&quot;escribir caché&quot;]
+  G --> Z
+  F -->|sí| H[&quot;mostrar resumen&lt;br/&gt;¿Configurar ahora?&quot;]
+  H -->|n| I[&quot;escribir caché&lt;br/&gt;no volver a preguntar&quot;]
+  I --> Z
+  H -->|S| J[&quot;AutoInit · regla en raíz git&lt;br/&gt;allow_from · auto install&quot;]
+  J --> G
+
+  classDef guard fill:#f8717122,stroke:#f87171,stroke-width:2px;
+  classDef act fill:#22c55e22,stroke:#22c55e,stroke-width:2px;
+  class B,C guard;
+  class J,G,I act;"></pre>
+    </div>
+    <p class="cap">Bootstrap de <code>ccp session</code>. El rombo rojo es el guard de R4: en headless el flujo se corta antes de tocar disco.</p>
+
+    <div class="diagram" style="margin-top:38px">
+      <pre class="mermaid" data-graph="sequenceDiagram
+  autonumber
+  participant U as Usuario
+  participant C as ccp config edit
+  participant E as Editor
+  participant Y as ccp.yaml
+  U->>C: ccp config edit
+  C->>C: resolver editor (6 niveles)
+  alt bloqueante (code -w / open -W -t)
+    C->>E: abrir y ESPERAR
+    E->>Y: el usuario guarda
+    E-->>C: el proceso termina
+    C->>Y: core.Load + validar políticas
+    alt yaml válido
+      C-->>U: ✔ config actualizada
+    else yaml roto
+      C-->>U: ✗ clave y valor ofensivos + ¿reabrir?
+    end
+  else no bloqueante (xdg-open)
+    C->>E: abrir y soltar
+    C-->>U: ⚠ no se puede validar al cerrar
+  end"></pre>
+    </div>
+    <p class="cap">Resolución del editor. La rama <code>else</code> es la decisión de D4: se declara la limitación en vez de fingir una validación que no ocurrió.</p>
+  </div>
+</section>
+
+<!-- ============================ RIESGOS ============================ -->
+<section id="riesgos">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Riesgos y rollback</div>
+      <h2>Qué puede salir mal, y cómo se deshace</h2>
+      <p>R1 no es un riesgo evitable: es trabajo obligatorio que hay que planificar, no descubrir.</p>
+    </div>
+
+    <div class="risk hi">
+      <div class="r-head"><span class="sev hi">alto</span><h3>R1 · Las completions están en el golden gate</h3></div>
+      <p>
+        <code>internal/core/shellinit.go:77</code> enumera los subcomandos de <code>auto</code>
+        (<code>init install uninstall status test</code>), <code>legacy/bin/ccp:645</code> y <code>:669</code> los
+        espejan, y <code>completion bash|zsh</code> <strong>es parte del contrato congelado</strong> que verifica
+        <code>internal/golden/parity_test.go</code>. Añadir <code>chain</code> y <code>edit</code> rompe la parity
+        <strong>sí o sí</strong>.
+      </p>
+      <div class="term">
+        <div class="term-h"><span class="tl"><i></i><i></i><i></i></span><span class="term-t">el orden importa</span><button class="copy" type="button">copiar</button></div>
+<pre><span class="c"># 1. editar internal/core/shellinit.go</span>
+<span class="c"># 2. editar legacy/bin/ccp con el MISMO texto</span>
+bash legacy/tests/run.sh                      <span class="c"># el oráculo sigue verde</span>
+bash testdata/golden/capture.sh               <span class="c"># regenerar desde el oráculo</span>
+go test ./...                                 <span class="c"># parity verde ⇒ Go == bash</span></pre>
+      </div>
+      <div class="rollback"><b>rollback</b> — <code>git checkout testdata/golden legacy internal/core/shellinit.go</code></div>
+    </div>
+
+    <div class="risk hi">
+      <div class="r-head"><span class="sev hi">alto</span><h3>R2 · El statusLine no puede fallar nunca</h3></div>
+      <p>
+        Contrato duro: <code>_statusline</code> <strong>siempre</strong> sale 0. Un medidor que hace pánico deja al
+        usuario sin barra y con un error recurrente dentro de la UI de CC. El <code>recover()</code> ya existe; el
+        código nuevo se suma bajo él y <code>RenderGauge</code> se escribe defensivo — porcentaje fuera de
+        <code>[0,100]</code>, <code>cells&lt;=0</code>, duraciones negativas — con tests para cada caso.
+      </p>
+      <div class="rollback"><b>rollback</b> — la barra vieja es una función de tres líneas (<code>autoUsageLabel</code>); volver es un revert de un commit</div>
+    </div>
+
+    <div class="risk md">
+      <div class="r-head"><span class="sev md">medio</span><h3>R3 · Escribir en <code>allow_from</code> es tocar un gate de cumplimiento</h3></div>
+      <p>
+        Mitigado en D5: solo la entrada del primario, reporte explícito y <code>--no-allow</code>. El test que hay
+        que escribir <strong>por nombre</strong>: <em>añadir a la cadena no altera la entrada de ningún otro primario</em>.
+      </p>
+      <div class="rollback"><b>rollback</b> — <code>ccp auto chain rm</code> deshace ambas claves</div>
+    </div>
+
+    <div class="risk md">
+      <div class="r-head"><span class="sev md">medio</span><h3>R4 · <code>ccp session</code> mutando config sola</h3></div>
+      <p>
+        Mitigado en D6 con el guard de tty/headless. Test por nombre: <em>con <code>--headless</code> y sin tty, el
+        bootstrap no escribe nada</em> — ni <code>ccp.yaml</code>, ni sensores, ni la caché.
+      </p>
+      <div class="rollback"><b>rollback</b> — <code>--no-setup</code>, y <code>rm -rf ~/.config/ccp/state/auto/bootstrap</code></div>
+    </div>
+
+    <div class="risk lo">
+      <div class="r-head"><span class="sev lo">bajo</span><h3>R5 · Claves nuevas en <code>ccp.yaml</code></h3></div>
+      <p>
+        <code>defaults.gui_editor</code> es aditiva y el esquema <strong>se queda en <code>version: 2</code></strong>,
+        por la misma razón que <code>auto_handoff</code> en su día: un binario viejo la conserva vía
+        <code>Config.Extra</code> en vez de negarse a leer el archivo.
+      </p>
+      <div class="rollback"><b>rollback</b> — la clave es opcional; ignorarla restaura el comportamiento anterior</div>
+    </div>
+
+    <div class="risk lo">
+      <div class="r-head"><span class="sev lo">bajo</span><h3>R6 · Unicode y terminales pobres</h3></div>
+      <p>
+        <code>█░▏</code> falla en fuentes muy limitadas. El nivel <code>&lt;40</code> de D1 ya no lleva medidor, así
+        que la salida existe; si aparece un reporte, <code>CCP_STATUSLINE_PLAIN=1</code> fuerza ese nivel.
+        <strong>No se implementa hasta que haga falta</strong> — es contingencia, no feature.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ VERIFICACIÓN ============================ -->
+<section id="verificar">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Verificación</div>
+      <h2>Las puertas, y los tests nombrados por su regla</h2>
+      <p>Un test que se llama por la regla que fija sobrevive al refactor que lo rompería en silencio.</p>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <div class="term">
+          <div class="term-h"><span class="tl"><i></i><i></i><i></i></span><span class="term-t">puertas de CI</span><button class="copy" type="button">copiar</button></div>
+<pre>gofmt -l internal cmd            <span class="c"># vacío</span>
+go vet ./...
+go test ./...                    <span class="c"># incluye parity</span>
+bash legacy/tests/run.sh
+bash testdata/golden/capture.sh --check
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run --timeout 5m</pre>
+        </div>
+      </div>
+      <div>
+        <div class="term">
+          <div class="term-h"><span class="tl"><i></i><i></i><i></i></span><span class="term-t">manual · CCP_HOME temporal</span><button class="copy" type="button">copiar</button></div>
+<pre><span class="k">export</span> CCP_HOME=$(mktemp -d)
+ccp auto init
+ccp auto chain add emco-cc
+ccp auto status
+
+COLUMNS=40 ccp _statusline &lt;/dev/null   <span class="c"># nivel medio</span>
+COLUMNS=30 ccp _statusline &lt;/dev/null   <span class="c"># sin medidor</span>
+NO_COLOR=1 COLUMNS=100 ccp _statusline &lt;/dev/null</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="tbl-wrap" style="margin-top:22px">
+      <table>
+        <thead><tr><th>Test</th><th>Regla que fija</th></tr></thead>
+        <tbody>
+          <tr><td><code>TestRenderGaugeExtremos</code></td><td>0, 100, fuera de rango, <code>cells&lt;=0</code></td></tr>
+          <tr><td><code>TestHumanUntilOmiteVencido</code></td><td>un <code>resets_at</code> pasado no produce texto</td></tr>
+          <tr><td><code>TestStatusLineDegradaPorAncho</code></td><td>los tres niveles de D1</td></tr>
+          <tr><td><code>TestStatusLineSiempreSaleCero</code></td><td>R2, con stdin hostil</td></tr>
+          <tr><td><code>TestChainAddNoTocaOtrosPrimarios</code></td><td>R3</td></tr>
+          <tr><td><code>TestSessionHeadlessNoEscribeNada</code></td><td>R4</td></tr>
+          <tr><td><code>TestConfigEditValidaTrasCerrar</code></td><td>yaml roto ⇒ error nombrando la clave</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="sec-head" style="margin-top:44px; margin-bottom:18px">
+      <h2 style="font-size:20px">Qué no se toca</h2>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Contrato congelado</h3>
+        <p><code>_env</code>, <code>_hook</code>, <code>resolve</code>, <code>path test</code>, <code>status --json</code> mantienen su comportamiento. Solo cambia el <strong>texto de las completions</strong> (R1).</p>
+      </div>
+      <div class="card">
+        <h3>Superficie máquina</h3>
+        <p><code>auto status --json</code> puede <strong>ganar</strong> campos (<code>resets_in</code>), nunca perderlos; <code>fallback</code>/<code>denied</code>/<code>sensors</code> siguen siendo arrays, nunca <code>null</code>. <code>HandoffsVersion</code> intacto, y la invariante del supervisor —nunca dos hijos vivos— también.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <div>
+      <div class="status"><span class="dot" aria-hidden="true"></span> estado: propuesto — pendiente de aprobación</div>
+      <p style="margin-top:8px">ccp · plan 2026-07-27 · companion de <code>2026-07-27-ux-config-y-barra.md</code></p>
+    </div>
+    <p>7 decisiones · 7 fases · 6 riesgos · 7 tests nombrados</p>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script>
+(function(){
+  'use strict';
+  var root=document.documentElement;
+  var KEY='ccp-plan-theme';
+
+  function stored(){ try{ return localStorage.getItem(KEY); }catch(e){ return null; } }
+  function save(v){ try{ localStorage.setItem(KEY,v); }catch(e){} }
+  function systemDark(){ return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; }
+  function current(){ return root.getAttribute('data-theme') || (systemDark()?'dark':'light'); }
+
+  // tema inicial: preferencia guardada, si no la del sistema
+  var init=stored();
+  if(init==='dark'||init==='light'){ root.setAttribute('data-theme',init); }
+
+  // ---------------- Mermaid ----------------
+  var nodes=[].slice.call(document.querySelectorAll('.mermaid'));
+  nodes.forEach(function(n){ if(!n.dataset.graph){ n.dataset.graph=n.textContent; } });
+
+  function renderMermaid(){
+    if(typeof mermaid==='undefined') return;
+    var dark = current()==='dark';
+    mermaid.initialize({
+      startOnLoad:false,
+      securityLevel:'loose',
+      theme: dark?'dark':'base',
+      fontFamily:"'JetBrains Mono', ui-monospace, monospace",
+      themeVariables: dark ? {
+        primaryColor:'#16233a', primaryTextColor:'#f8fafc', primaryBorderColor:'#33456a',
+        lineColor:'#8494ad', secondaryColor:'#111c2f', tertiaryColor:'#0b1120',
+        background:'#111c2f', mainBkg:'#16233a', nodeBorder:'#33456a',
+        clusterBkg:'#0f172a', clusterBorder:'#22304a', titleColor:'#f8fafc',
+        edgeLabelBackground:'#111c2f', actorBkg:'#16233a', actorBorder:'#33456a',
+        actorTextColor:'#f8fafc', signalColor:'#a9b6cc', signalTextColor:'#e2e8f0',
+        labelBoxBkgColor:'#16233a', labelBoxBorderColor:'#33456a', labelTextColor:'#f8fafc',
+        loopTextColor:'#e2e8f0', noteBkgColor:'#402d09', noteTextColor:'#fbbf24', noteBorderColor:'#fbbf24'
+      } : {
+        primaryColor:'#f6f7f9', primaryTextColor:'#0f172a', primaryBorderColor:'#c3cad4',
+        lineColor:'#64748b', secondaryColor:'#eef0f4', tertiaryColor:'#ffffff',
+        background:'#ffffff', mainBkg:'#f8fafc', nodeBorder:'#c3cad4',
+        clusterBkg:'#f6f7f9', clusterBorder:'#dfe3e9', titleColor:'#0f172a',
+        edgeLabelBackground:'#ffffff', actorBkg:'#f8fafc', actorBorder:'#c3cad4',
+        actorTextColor:'#0f172a', signalColor:'#475569', signalTextColor:'#0f172a',
+        labelBoxBkgColor:'#f8fafc', labelBoxBorderColor:'#c3cad4', labelTextColor:'#0f172a',
+        loopTextColor:'#0f172a', noteBkgColor:'#fef3c7', noteTextColor:'#b45309', noteBorderColor:'#b45309'
+      }
+    });
+    nodes.forEach(function(n,i){
+      n.removeAttribute('data-processed');
+      n.innerHTML='';
+      n.textContent=n.dataset.graph;
+      n.id='mmd-'+i;
+    });
+    try{ mermaid.run({nodes:nodes}); }catch(e){}
+  }
+
+  // ---------------- Chart.js ----------------
+  var chart=null;
+  function chartColors(){
+    var dark=current()==='dark';
+    return {
+      grid: dark?'#22304a':'#dfe3e9',
+      tick: dark?'#a9b6cc':'#475569',
+      bars: dark?['#2dd4bf','#38bdf8','#a78bfa']:['#0f766e','#0369a1','#6d28d9']
+    };
+  }
+  function renderChart(){
+    if(typeof Chart==='undefined') return;
+    var el=document.getElementById('widthChart');
+    if(!el) return;
+    var c=chartColors();
+    if(chart){ chart.destroy(); }
+    chart=new Chart(el,{
+      type:'bar',
+      data:{
+        labels:['Completo (≥60)','Medio (40–59)','Compacto (<40)'],
+        datasets:[{
+          label:'columnas',
+          data:[62,50,34],
+          backgroundColor:c.bars,
+          borderRadius:6,
+          barThickness:34
+        }]
+      },
+      options:{
+        indexAxis:'y',
+        responsive:true,
+        maintainAspectRatio:false,
+        animation: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? false : {duration:400},
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{label:function(ctx){ return ctx.parsed.x+' columnas'; }}}
+        },
+        scales:{
+          x:{
+            beginAtZero:true, suggestedMax:70,
+            grid:{color:c.grid}, border:{display:false},
+            ticks:{color:c.tick, font:{family:"'JetBrains Mono', monospace", size:11}, callback:function(v){return v+'c';}}
+          },
+          y:{
+            grid:{display:false}, border:{display:false},
+            ticks:{color:c.tick, font:{family:"'JetBrains Mono', monospace", size:11.5}}
+          }
+        }
+      }
+    });
+  }
+
+  // ---------------- Toggle ----------------
+  var btn=document.getElementById('themeBtn');
+  btn.addEventListener('click', function(){
+    var next = current()==='dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    save(next);
+    renderMermaid();
+    renderChart();
+  });
+
+  // si no hay preferencia guardada, seguir al sistema
+  if(window.matchMedia){
+    var mq=window.matchMedia('(prefers-color-scheme: dark)');
+    var onChange=function(){ if(!stored()){ renderMermaid(); renderChart(); } };
+    if(mq.addEventListener){ mq.addEventListener('change', onChange); }
+    else if(mq.addListener){ mq.addListener(onChange); }
+  }
+
+  // ---------------- Copy ----------------
+  document.querySelectorAll('.copy').forEach(function(b){
+    b.addEventListener('click', function(){
+      var pre=b.closest('.term').querySelector('pre');
+      if(!pre) return;
+      var txt=pre.innerText;
+      var done=function(){
+        var old=b.textContent;
+        b.textContent='copiado'; b.classList.add('done');
+        setTimeout(function(){ b.textContent=old; b.classList.remove('done'); },1600);
+      };
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(txt).then(done, function(){ fallback(txt,done); });
+      } else { fallback(txt,done); }
+    });
+  });
+  function fallback(txt,cb){
+    var ta=document.createElement('textarea');
+    ta.value=txt; ta.setAttribute('readonly','');
+    ta.style.position='absolute'; ta.style.left='-9999px';
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); cb(); }catch(e){}
+    document.body.removeChild(ta);
+  }
+
+  // ---------------- Init ----------------
+  function boot(){ renderMermaid(); renderChart(); }
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', boot); }
+  else { boot(); }
+})();
+</script>
+</body>
+</html>
