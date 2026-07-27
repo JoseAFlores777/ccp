@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.11.1] — CI verde en el commit tageado
+
+Sin cambios de producto: los binarios son idénticos a los de 2.11.0. Lo único
+que cambia es un test.
+
+### Fixed
+
+- `TestRunContextoCanceladoMataAlHijo` pasaba en macOS y fallaba **siempre** en
+  CI, clavado en los 10s de `termGrace`. La causa era el falso claude del test,
+  no el supervisor: `#!/bin/sh` + `sleep 30` deja al shell como hijo directo, y
+  ahí manda qué sea `/bin/sh`. El bash de macOS hace `exec` implícito del último
+  comando (el hijo ES `sleep` y muere con el SIGTERM), pero dash —el `/bin/sh`
+  de Ubuntu— aplaza la señal mientras espera a un hijo en foreground, así que el
+  shell sobrevivía la gracia entera y solo moría con el SIGKILL. Con `exec` el
+  hijo es un único proceso, que es como corre el `claude` real (directo, sin
+  shell en medio).
+
 ## [2.11.0] — auto-handoff
 
 ### Added
