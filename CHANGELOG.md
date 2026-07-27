@@ -1,5 +1,47 @@
 # Changelog
 
+## [2.12.0] — la barra dice cuándo vuelve la cuota
+
+### Added
+
+- La statusLine mínima pasa de `emco-cc · 5h 14% · 7d 31%` a un **medidor con
+  cuenta atrás**: `emco-cc  5h ▏█░░░░░░░░░▏ 2% ·2h13m  7d ▏██████░░░░▏ 59% ·3d`.
+  El porcentaje solo decía cuánto llevas gastado; no respondía la pregunta que
+  uno se hace al mirar la barra, que es **cuándo vuelve la cuota**.
+  El medidor va verde por debajo del 70%, ámbar de 70 a 89 y rojo del 90 en
+  adelante — el rojo empieza exactamente en el default de `threshold`, para que
+  la barra y el motor no cuenten historias distintas. `NO_COLOR` quita el tinte y
+  el medidor se sigue leyendo: por eso es medidor y no un punto de color.
+- `core.RenderGauge` y `core.HumanUntil`/`HumanUntilAt`, primitivas puras (sin
+  color, sin ancho, sin layout) para que la barra y el futuro panel Estado de la
+  TUI compartan el medidor sin duplicarlo — `internal/tui` no puede importar
+  `internal/cli`.
+
+### Changed
+
+- La línea **se dimensiona sola**: se monta a tres niveles de detalle, se mide
+  cada uno en runas sobre la variante sin color y se pinta el más ancho que
+  quepa. Un nombre de perfil largo cuesta celdas de medidor, no corrección. Si
+  no cabe ninguno se entrega la forma compacta sin recortar, porque lo primero
+  que se comería el recorte es el nombre del perfil.
+- La barra **se tiñe aunque stdout sea un pipe**. `useColor` exige un char
+  device, y Claude Code captura el statusLine por un pipe: el semáforo era código
+  muerto justo donde el usuario lo mira. La barra usa ahora un gate mínimo que
+  solo consulta `NO_COLOR` — quien renderiza esta línea no es la terminal, es CC.
+
+### Fixed
+
+- Un `resets_at` **ya vencido no produce cuenta atrás**. Un dato caducado no
+  puede afirmar que tu cuota volvió; es la misma regla por la que una ventana sin
+  dato se omite en vez de pintarse como `0%`.
+- Los días de la cuenta atrás redondean **hacia arriba**: a 2d23h del reset
+  pintaba `·2d` y volvías un día antes de que el perfil se liberara. El error
+  máximo es de un día en ambos sentidos, así que lo único que se elige es la
+  dirección — y nunca puede ser la que promete que la cuota está más cerca.
+- Un `used_percentage` imposible ya no revienta el ancho de la línea: el clamp
+  vivía dentro del medidor, así que el número y el medidor partían de valores
+  distintos. Ahora ambos salen del mismo valor saneado (`core.ClampPct`).
+
 ## [2.11.2] — la barra propia enseña las dos ventanas
 
 ### Changed

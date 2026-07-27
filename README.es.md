@@ -10,7 +10,7 @@
 En tu repo de trabajo, tu cuenta de empresa; en tu proyecto personal, la tuya; en tus experimentos, DeepSeek.
 El cambio ocurre solo, con hacer `cd`.
 
-![version](https://img.shields.io/badge/version-2.11.2-c96442)
+![version](https://img.shields.io/badge/version-2.12.0-c96442)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-c96442)
 ![shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-8a8378)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
@@ -393,7 +393,13 @@ Los dos sensores in-process solo se pueden encender desde `cc-home/settings.json
 - `hooks.StopFailure` → `ccp _limit-hook`
 - `statusLine` → `ccp _statusline -- <tu statusLine original>` (la tuya se **envuelve**, no se reemplaza — sigue pintando tu barra; ccp solo muestrea el stdin que le llega)
 
-Si **no** tenías statusLine propia, ccp pinta una mínima en su lugar: el perfil más las dos ventanas de uso, cada una etiquetada — `emco-cc · 5h 14% · 7d 31%`. Se enseñan las dos porque las dos se vigilan por separado (dispara el salto la primera que cruce el `threshold`), y un porcentaje suelto no diría si te quedan horas o días. Una ventana sin dato se omite en vez de pintarse como `0%`.
+Si **no** tenías statusLine propia, ccp pinta una mínima en su lugar: el perfil más las dos ventanas de uso, cada una con su medidor y su cuenta atrás hasta el reset — `emco-cc  5h ▏█░░░░░░░░░▏ 2% ·2h13m  7d ▏██████░░░░▏ 59% ·3d`. Se enseñan las dos porque las dos se vigilan por separado (dispara el salto la primera que cruce el `threshold`), y un porcentaje suelto no diría si te quedan horas o días.
+
+El medidor va verde por debajo del 70%, ámbar entre 70 y 89, y rojo del 90 en adelante — el rojo empieza exactamente en el default de `threshold`, así que la barra y el motor nunca cuentan historias distintas. Con `NO_COLOR` se va el tinte y el medidor se sigue leyendo.
+
+Tres cosas que la barra se calla a propósito. Una ventana **sin dato** se omite en vez de pintarse como `0%`. Un `resets_at` que ya pasó **no produce cuenta atrás**: un dato caducado no puede afirmar que tu cuota volvió. Y los días redondean **hacia arriba** — `·3d` cuando faltan 2d23h, nunca `·2d`, porque lo único que una cuenta atrás no puede hacer es prometer que la cuota vuelve antes de lo que va a volver.
+
+La línea se dimensiona sola: ccp la monta a tres niveles de detalle, los mide y pinta el más ancho que quepa. Un nombre de perfil largo cuesta celdas de medidor, no corrección — y si no cabe ninguno, recibes la forma compacta sin recortar, porque lo primero que se comería el recorte es el nombre del perfil.
 
 Cualquier hook `StopFailure` que ya tuvieras se conserva junto al nuestro. Es totalmente reversible: `ccp auto uninstall <perfil>` lo quita de la lista y regenera de vuelta a global ⊕ overlay. Tu overlay no se modifica en ningún caso — la fuente de verdad de "quién tiene los sensores" es `auto_handoff.hooks` en `ccp.yaml`, no el archivo generado.
 
