@@ -1,19 +1,378 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ccp — profiles for Claude Code</title>
-  <link rel="canonical" href="../README.html">
-  <script>
-    // Default to English; route Spanish-language browsers to the ES page.
-    var lang = (navigator.language || navigator.userLanguage || "").toLowerCase();
-    location.replace(lang.indexOf("es") === 0 ? "../README.es.html" : "../README.html");
-  </script>
-  <meta http-equiv="refresh" content="0; url=../README.html">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>ccp — profiles for Claude Code · operator runbook</title>
+<meta name="description" content="ccp routes Claude Code to a named profile per terminal and per directory. Operator runbook: install, route, hand off, rotate on a usage limit.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ─────────────────────────────────────────────────────────────
+     ccp — índice / runbook del operador
+     Mismos tokens que README.html (OKLCH cálida: papel/tinta/terracota)
+     ───────────────────────────────────────────────────────────── */
+  :root{
+    --paper:    oklch(0.963 0.008 74);
+    --paper-2:  oklch(0.930 0.012 72);
+    --ink:      oklch(0.238 0.016 62);
+    --ink-soft: oklch(0.360 0.014 60);
+    --ink-mute: oklch(0.535 0.012 58);
+    --rule:     oklch(0.852 0.015 72);
+    --rule-soft:oklch(0.902 0.012 73);
+    --accent:   oklch(0.602 0.150 41);
+    --accent-deep: oklch(0.508 0.142 39);
+    --accent-soft: oklch(0.930 0.046 52);
+    --term:     oklch(0.222 0.018 64);
+    --term-bar: oklch(0.288 0.016 62);
+    --term-text:oklch(0.905 0.012 78);
+    --term-mute:oklch(0.605 0.016 68);
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:    oklch(0.196 0.014 62);
+      --paper-2:  oklch(0.246 0.014 62);
+      --ink:      oklch(0.935 0.010 78);
+      --ink-soft: oklch(0.830 0.010 74);
+      --ink-mute: oklch(0.660 0.012 70);
+      --rule:     oklch(0.352 0.014 64);
+      --rule-soft:oklch(0.300 0.012 64);
+      --accent:   oklch(0.740 0.135 48);
+      --accent-deep: oklch(0.790 0.130 50);
+      --accent-soft: oklch(0.330 0.055 45);
+      --term:     oklch(0.168 0.014 62);
+      --term-bar: oklch(0.232 0.014 62);
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} *{animation:none !important; transition:none !important} }
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:'Hanken Grotesk',system-ui,sans-serif;
+    font-size:17px; line-height:1.62;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    background-image:radial-gradient(oklch(0.5 0.02 60 / .018) 1px, transparent 1.4px);
+    background-size:4px 4px;
+  }
+  .wrap{max-width:920px; margin:0 auto; padding:0 clamp(18px,4vw,32px) 80px;}
+  a{color:var(--accent-deep); text-decoration:none;
+    border-bottom:1px solid color-mix(in oklch, var(--accent-deep) 30%, transparent);}
+  a:hover{border-bottom-color:var(--accent-deep);}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:3px; border-radius:3px;}
+  code, .mono{font-family:'Spline Sans Mono',ui-monospace,monospace;}
+  code{font-size:.9em; background:var(--paper-2); padding:1px 5px; border-radius:5px;}
+
+  /* ── topbar ── */
+  header.top{display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    max-width:920px; margin:0 auto; padding:20px clamp(18px,4vw,32px) 0;}
+  .brand{font-family:'Zilla Slab',serif; font-weight:700; font-size:26px; letter-spacing:-.01em;}
+  .brand .cur{color:var(--accent); animation:blink 1.15s steps(2,start) infinite;}
+  @keyframes blink{to{visibility:hidden}}
+  .ver{font-family:'Spline Sans Mono',monospace; font-size:12.5px; color:var(--ink-mute);
+    border:1px solid var(--rule); border-radius:999px; padding:2px 10px;}
+  .spacer{flex:1}
+  .btn{display:inline-flex; align-items:center; gap:7px; border:1px solid var(--rule);
+    border-radius:9px; padding:7px 13px; font-size:14px; font-weight:600; color:var(--ink-soft);
+    background:transparent; cursor:pointer;
+    font-family:inherit; transition:border-color .2s var(--ease), color .2s var(--ease);}
+  .btn:hover{border-color:var(--accent); color:var(--accent-deep);}
+  .btn svg{width:15px; height:15px;}
+  .lang{display:inline-flex; border:1px solid var(--rule); border-radius:9px; overflow:hidden;}
+  .lang button{border:0; background:transparent; font-family:'Spline Sans Mono',monospace;
+    font-size:13px; font-weight:600; padding:7px 12px; color:var(--ink-mute); cursor:pointer;}
+  .lang button[aria-pressed="true"]{background:var(--accent-soft); color:var(--accent-deep);}
+
+  /* ── hero ── */
+  h1{font-family:'Zilla Slab',serif; font-weight:700; font-size:clamp(38px,7vw,60px);
+    line-height:1.04; letter-spacing:-.02em; margin:20px 0 14px;}
+  .lede{font-size:clamp(18px,2.4vw,21px); color:var(--ink-soft); max-width:64ch; margin:0 0 8px;}
+  .lede em{font-style:normal; color:var(--accent-deep); font-weight:600;}
+  .kicker{font-family:'Spline Sans Mono',monospace; font-size:12px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--ink-mute); margin:30px 0 0;}
+  .cta{display:flex; gap:12px; flex-wrap:wrap; margin:26px 0 0;}
+  .cta .primary{background:var(--accent); color:oklch(0.98 0.01 74); border-color:var(--accent);
+    padding:11px 20px; font-size:15px;}
+  .cta .primary:hover{background:var(--accent-deep); border-color:var(--accent-deep); color:oklch(0.98 0.01 74);}
+
+  /* ── secciones ── */
+  section{margin:52px 0 0;}
+  h2{font-family:'Zilla Slab',serif; font-weight:600; font-size:clamp(24px,3.4vw,30px);
+    letter-spacing:-.01em; margin:0 0 6px; padding-top:18px; border-top:1px solid var(--rule);}
+  h2 .n{font-family:'Spline Sans Mono',monospace; font-size:13px; color:var(--accent);
+    display:block; margin-bottom:6px; letter-spacing:.1em;}
+  .sub{color:var(--ink-mute); font-size:15.5px; max-width:70ch; margin:0 0 18px;}
+
+  /* ── terminal ── */
+  figure{margin:0 0 18px; border:1px solid var(--rule); border-radius:11px; overflow:hidden;
+    background:var(--term);}
+  .term-bar{display:flex; align-items:center; gap:7px; padding:9px 13px; background:var(--term-bar);}
+  .term-bar i{width:10px; height:10px; border-radius:50%; background:oklch(0.62 0.14 25);}
+  .term-bar i.y{background:oklch(0.78 0.13 85)} .term-bar i.g{background:oklch(0.72 0.14 150)}
+  .term-bar span{margin-left:6px; font-family:'Spline Sans Mono',monospace; font-size:12px; color:var(--term-mute);}
+  figure pre{margin:0; padding:16px 18px; overflow-x:auto; color:var(--term-text);
+    font-family:'Spline Sans Mono',monospace; font-size:13.6px; line-height:1.75;}
+  figure pre .c{color:var(--term-mute);}
+  .copy{position:absolute; top:8px; right:8px; display:inline-flex; align-items:center; gap:6px;
+    background:var(--term-bar); color:var(--term-mute); border:1px solid oklch(0.38 0.02 62);
+    border-radius:7px; padding:4px 9px; font-size:11.5px; font-family:'Spline Sans Mono',monospace;
+    cursor:pointer;}
+  .copy:hover{color:var(--term-text);}
+  .codewrap{position:relative;}
+
+  /* ── tabla ── */
+  .tablewrap{overflow-x:auto; border:1px solid var(--rule); border-radius:11px; margin:0 0 18px;}
+  table{width:100%; border-collapse:collapse; font-size:14.6px; min-width:520px;}
+  th{text-align:left; font-family:'Spline Sans Mono',monospace; font-size:11.5px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--ink-mute); font-weight:600;
+    padding:11px 14px; border-bottom:1px solid var(--rule); background:var(--paper-2);}
+  td{padding:11px 14px; border-bottom:1px solid var(--rule-soft); color:var(--ink-soft); vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  td:first-child{color:var(--ink); font-weight:500;}
+
+  /* ── tarjetas ── */
+  .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin:0 0 18px;}
+  .card{border:1px solid var(--rule); border-radius:12px; padding:16px 18px; background:var(--paper);
+    display:block; transition:border-color .2s var(--ease);}
+  .card:hover{border-color:var(--accent);}
+  .card .ic{font-family:'Spline Sans Mono',monospace; font-size:11.5px; color:var(--accent);
+    letter-spacing:.1em; margin:0 0 6px;}
+  .card h3{font-family:'Zilla Slab',serif; font-size:18px; font-weight:600; margin:0 0 5px; color:var(--ink);}
+  .card p{margin:0; font-size:14.5px; color:var(--ink-mute); line-height:1.55;}
+
+  /* ── nota ── */
+  .note{border-left:3px solid var(--accent); background:var(--accent-soft);
+    padding:13px 16px; border-radius:0 9px 9px 0; font-size:14.8px; color:var(--ink-soft); margin:0 0 18px;}
+  .note b{color:var(--ink);}
+
+  footer{margin:64px 0 0; padding-top:20px; border-top:1px solid var(--rule);
+    font-size:13.4px; color:var(--ink-mute); line-height:1.66;}
+
+  html[data-lang="en"] .es{display:none}
+  html[data-lang="es"] .en{display:none}
+</style>
 </head>
 <body>
-  <p>Redirecting to <a href="../README.html">ccp — profiles for Claude Code</a>
-     (<a href="../README.es.html">Español</a>)…</p>
+
+<header class="top">
+  <span class="brand">ccp<span class="cur">_</span></span>
+  <span class="ver">v2.11.0</span>
+  <span class="spacer"></span>
+  <div class="lang" role="group" aria-label="Language / Idioma">
+    <button type="button" data-set="en" aria-pressed="true">EN</button>
+    <button type="button" data-set="es" aria-pressed="false">ES</button>
+  </div>
+  <a class="btn" href="https://github.com/JoseAFlores777/ccp" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub</a>
+</header>
+
+<div class="wrap">
+
+  <p class="kicker"><span class="en">Operator runbook</span><span class="es">Runbook del operador</span> · Go CLI · macOS · Linux</p>
+  <h1>ccp<span class="cur" style="color:var(--accent)">_</span></h1>
+  <p class="lede">
+    <span class="en">A <em>different Claude Code account in every folder.</em> Work repo → company account; personal project → personal account; experiments → DeepSeek. The switch happens on its own, just by <b>cd</b>-ing.</span>
+    <span class="es">Una <em>cuenta de Claude Code distinta en cada carpeta.</em> Repo de trabajo → cuenta de empresa; proyecto personal → cuenta personal; experimentos → DeepSeek. El cambio ocurre solo, con hacer <b>cd</b>.</span>
+  </p>
+  <p class="sub" style="margin-top:10px;">
+    <span class="en">This page is the index: the shortest path from a situation to the command that resolves it. The full guide is the interactive manual.</span>
+    <span class="es">Esta página es el índice: el camino más corto de una situación al comando que la resuelve. La guía completa es el manual interactivo.</span>
+  </p>
+  <div class="cta">
+    <a class="btn primary" id="manualLink" href="../README.html"><span class="en">Open the full manual</span><span class="es">Abrir el manual completo</span> →</a>
+    <a class="btn ch" data-h="instalacion" href="../README.html#instalacion"><span class="en">Install</span><span class="es">Instalar</span></a>
+  </div>
+
+  <!-- ═══ 01 · PRIMERA VEZ ═══ -->
+  <section>
+    <h2><span class="n">01</span><span class="en">First time — five commands</span><span class="es">Primera vez — cinco comandos</span></h2>
+    <p class="sub"><span class="en">Run them in order. Step 5 is what tells you it worked.</span><span class="es">Córrelos en orden. El paso 5 es el que te dice que funcionó.</span></p>
+    <figure class="codewrap">
+      <div class="term-bar"><i></i><i class="y"></i><i class="g"></i><span>setup</span></div>
+      <button class="copy" type="button"><span>copy</span></button>
+<pre>./install.sh                           <span class="c"># 1 · binary + libs</span>
+export PATH="$HOME/.local/bin:$PATH"   <span class="c"># 2 · only if step 1 warned you</span>
+ccp install                            <span class="c"># 3 · shell function + cd hook</span>
+source ~/.zshrc                        <span class="c"># 4 · or ~/.bashrc — YOUR shell</span>
+ccp doctor                             <span class="c"># 5 · logins, keys, function loaded</span></pre>
+    </figure>
+    <div class="note">
+      <span class="en"><b>Why a shell function?</b> The binary runs in a child process and cannot change your terminal's environment. The function can — that is why <code>ccp install</code> puts it in your rc, and why <code>cd</code> alone can flip the profile.</span>
+      <span class="es"><b>¿Por qué una función de shell?</b> El binario corre en un proceso hijo y no puede cambiar el entorno de tu terminal. La función sí — por eso <code>ccp install</code> la mete en tu rc, y por eso un simple <code>cd</code> puede cambiar el perfil.</span>
+    </div>
+  </section>
+
+  <!-- ═══ 02 · RUNBOOK ═══ -->
+  <section>
+    <h2><span class="n">02</span><span class="en">Situation → command</span><span class="es">Situación → comando</span></h2>
+    <p class="sub"><span class="en">The everyday table. Each row links to the chapter that explains the why.</span><span class="es">La tabla del día a día. Cada fila enlaza al capítulo que explica el porqué.</span></p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th><span class="en">Situation</span><span class="es">Situación</span></th>
+          <th><span class="en">Command</span><span class="es">Comando</span></th>
+          <th><span class="en">Chapter</span><span class="es">Capítulo</span></th>
+        </tr></thead>
+        <tbody>
+          <tr><td><span class="en">This folder should use my work account</span><span class="es">Esta carpeta debe usar mi cuenta de trabajo</span></td><td><code>ccp path set . work</code></td><td><a class="ch" data-h="c1" href="../README.html#c1">01</a></td></tr>
+          <tr><td><span class="en">Add another Anthropic account</span><span class="es">Añadir otra cuenta de Anthropic</span></td><td><code>ccp profile add &lt;n&gt; --official</code> → <code>ccp profile login &lt;n&gt;</code></td><td><a class="ch" data-h="c2" href="../README.html#c2">02</a></td></tr>
+          <tr><td><span class="en">Use DeepSeek / Kimi / GLM here</span><span class="es">Usar DeepSeek / Kimi / GLM aquí</span></td><td><code>ccp profile add &lt;n&gt; --deepseek</code> → <code>ccp key &lt;n&gt;</code></td><td><a class="ch" data-h="c3" href="../README.html#c3">03</a></td></tr>
+          <tr><td><span class="en">One subfolder must escape its rule</span><span class="es">Una subcarpeta debe escapar de su regla</span></td><td><code>ccp path set ./sub default</code></td><td><a class="ch" data-h="c4" href="../README.html#c4">04</a></td></tr>
+          <tr><td><span class="en">Switch by hand, just this terminal</span><span class="es">Cambiar a mano, solo en esta terminal</span></td><td><code>ccp use &lt;n&gt;</code> · <code>ccp default</code></td><td><a class="ch" data-h="c5" href="../README.html#c5">05</a></td></tr>
+          <tr><td><span class="en">What is active right now?</span><span class="es">¿Qué está activo ahora mismo?</span></td><td><code>ccp status</code> · <code>ccp resolve .</code></td><td><a class="ch" data-h="c6" href="../README.html#c6">06</a></td></tr>
+          <tr><td><span class="en">This account ran out mid-conversation</span><span class="es">Esta cuenta se acabó a media conversación</span></td><td><code>ccp handoff &lt;to&gt;</code> … <code>ccp handoff end</code></td><td><a class="ch" data-h="handoff" href="../README.html#handoff">↗</a></td></tr>
+          <tr><td><span class="en">Long / unattended run that must survive limits</span><span class="es">Corrida larga o desatendida que debe sobrevivir a los límites</span></td><td><code>ccp session</code> (<code>-p</code> headless)</td><td><a class="ch" data-h="auto" href="../README.html#auto">↗</a></td></tr>
+          <tr><td><span class="en">Add / reorder a profile in the rotation</span><span class="es">Añadir / reordenar un perfil en la rotación</span></td><td><span class="en">edit <code>auto_handoff.policies.*.fallback</code> <b>and</b> <code>allow_from</code> by hand</span><span class="es">edita a mano <code>auto_handoff.policies.*.fallback</code> <b>y</b> <code>allow_from</code></span></td><td><a class="ch" data-h="auto" href="../README.html#auto">↗</a></td></tr>
+          <tr><td><span class="en">Something is off</span><span class="es">Algo va mal</span></td><td><code>ccp doctor</code></td><td><a class="ch" data-h="trouble" href="../README.html#trouble">↗</a></td></tr>
+          <tr><td><span class="en">Move to the latest version</span><span class="es">Pasar a la última versión</span></td><td><code>ccp upgrade</code></td><td><a class="ch" data-h="update" href="../README.html#update">↗</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sub"><span class="en"><b>For scripting:</b> <code>ccp resolve [path]</code> prints the profile (exit <code>0</code> = non-default, <code>1</code> = default) · <code>ccp status --json</code> · <code>ccp auto status --json</code>.</span><span class="es"><b>Para scripting:</b> <code>ccp resolve [ruta]</code> imprime el perfil (exit <code>0</code> = no-default, <code>1</code> = default) · <code>ccp status --json</code> · <code>ccp auto status --json</code>.</span></p>
+  </section>
+
+  <!-- ═══ 03 · AUTO-HANDOFF ═══ -->
+  <section>
+    <h2><span class="n">03</span><span class="en">Unattended: rotate profiles on a usage limit</span><span class="es">Desatendido: rotar de perfil al topar un límite</span></h2>
+    <p class="sub">
+      <span class="en">A live <code>claude</code> cannot change profile — its credentials are read once at startup. <code>ccp session</code> runs it as a child, watches for the limit, hands the session off and relaunches it elsewhere. Six steps, each verifiable before the next.</span>
+      <span class="es">Un <code>claude</code> vivo no puede cambiar de perfil — sus credenciales se leen una sola vez al arrancar. <code>ccp session</code> lo corre como hijo, vigila el límite, presta la sesión y la relanza en otro lado. Seis pasos, cada uno verificable antes del siguiente.</span>
+    </p>
+    <figure class="codewrap">
+      <div class="term-bar"><i></i><i class="y"></i><i class="g"></i><span>auto-handoff · runbook</span></div>
+      <button class="copy" type="button"><span>copy</span></button>
+<pre>ccp resolve .                 <span class="c"># 00 · this is your PRIMARY (if "default", set a rule)</span>
+ccp auto init                 <span class="c"># 01 · seed the policy in ccp.yaml</span>
+ccp auto install              <span class="c"># 02 · sensors into each profile's settings.json</span>
+ccp session --dry-run         <span class="c"># 03 · the chain it WOULD use, and what was denied</span>
+ccp session                   <span class="c"># 04 · run it (-p --yolo for cron/CI)</span>
+<span class="c"># 05 · then read the exit code ↓</span></pre>
+    </figure>
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th>exit</th>
+          <th><span class="en">Meaning</span><span class="es">Qué significa</span></th>
+          <th><span class="en">What to do</span><span class="es">Qué hacer</span></th>
+        </tr></thead>
+        <tbody>
+          <tr><td><code>0</code></td><td><span class="en">the child finished on its own</span><span class="es">el hijo terminó por su cuenta</span></td><td><span class="en">nothing — the loan was closed and the conversation is home</span><span class="es">nada — el préstamo se cerró y la conversación está en casa</span></td></tr>
+          <tr><td><code>1</code></td><td><span class="en">usage / config error</span><span class="es">error de uso / config</span></td><td><span class="en">usually <code>enabled: false</code>, unknown <code>--policy</code>, or empty chain</span><span class="es">casi siempre <code>enabled: false</code>, <code>--policy</code> desconocido, o cadena vacía</span></td></tr>
+          <tr><td><code>2</code></td><td><span class="en">handoff I/O failure</span><span class="es">fallo de E/S del handoff</span></td><td><span class="en">check disk / permissions on <code>~/.config/ccp</code></span><span class="es">revisa disco / permisos en <code>~/.config/ccp</code></span></td></tr>
+          <tr><td><code>75</code></td><td><span class="en">every profile exhausted</span><span class="es">todos los perfiles agotados</span></td><td><span class="en">retry later — the printed table says when each frees up; nothing is lost</span><span class="es">reintenta luego — la tabla dice cuándo se libera cada uno; no se pierde nada</span></td></tr>
+          <tr><td><span class="en">other</span><span class="es">otro</span></td><td><span class="en">claude's own exit code</span><span class="es">el exit code del propio claude</span></td><td><span class="en"><code>130</code> = Ctrl-C: never rotates, the loan is left open</span><span class="es"><code>130</code> = Ctrl-C: nunca rota, el préstamo queda abierto</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="en"><b>The row you'll hit first.</b> <code>ccp auto init</code> never writes an <code>allow_from</code> entry for <code>default</code>. In a directory with no path rule the primary <i>is</i> <code>default</code>, so the whole chain shows up denied and <code>--dry-run</code> prints <code>chain: (empty)</code>. Set a rule, or add a <code>default:</code> entry.</span>
+      <span class="es"><b>El tropiezo que tendrás primero.</b> <code>ccp auto init</code> nunca escribe una entrada <code>allow_from</code> para <code>default</code>. En un directorio sin regla de ruta el primario <i>es</i> <code>default</code>, así que la cadena entera sale denegada y <code>--dry-run</code> imprime <code>chain: (empty)</code>. Pon una regla, o añade una entrada <code>default:</code>.</span>
+    </div>
+    <p class="sub"><a class="ch" data-h="auto" href="../README.html#auto"><span class="en">Full runbook: the pendulum, the sensors, <code>return_check</code>, the <code>allow_from</code> gate →</span><span class="es">Runbook completo: el péndulo, los sensores, <code>return_check</code>, la verja <code>allow_from</code> →</span></a></p>
+  </section>
+
+  <!-- ═══ 04 · DÓNDE VIVE TODO ═══ -->
+  <section>
+    <h2><span class="n">04</span><span class="en">Where everything lives</span><span class="es">Dónde vive todo</span></h2>
+    <p class="sub"><span class="en">One directory. Nothing global, nothing inside Claude Code itself.</span><span class="es">Un solo directorio. Nada global, nada dentro del propio Claude Code.</span></p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th><span class="en">Path</span><span class="es">Ruta</span></th><th><span class="en">What it is</span><span class="es">Qué es</span></th></tr></thead>
+        <tbody>
+          <tr><td><code>~/.config/ccp/ccp.yaml</code></td><td><span class="en">single source of truth: profiles, path rules, <code>auto_handoff</code> policy</span><span class="es">fuente única: perfiles, reglas de ruta, política <code>auto_handoff</code></span></td></tr>
+          <tr><td><code>profiles/&lt;n&gt;/api_key</code></td><td><span class="en">provider key, <code>chmod 600</code> — never in the YAML, the rc, or git</span><span class="es">key del proveedor, <code>chmod 600</code> — nunca en el YAML, el rc ni git</span></td></tr>
+          <tr><td><code>profiles/&lt;n&gt;/cc-home/</code></td><td><span class="en">that profile's <code>CLAUDE_CONFIG_DIR</code> (generated: global ⊕ overlay)</span><span class="es">el <code>CLAUDE_CONFIG_DIR</code> de ese perfil (generado: global ⊕ overlay)</span></td></tr>
+          <tr><td><code>profiles/&lt;n&gt;/overlay/</code></td><td><span class="en">the profile's own config — lowest precedence; a repo's <code>.claude/</code> still wins</span><span class="es">la config propia del perfil — la de menor precedencia; el <code>.claude/</code> del repo manda</span></td></tr>
+          <tr><td><code>handoffs.yaml</code></td><td><span class="en">handoff markers: active + archived (<code>ccp handoff prune</code> trims it)</span><span class="es">marcadores de handoff: activos + archivados (<code>ccp handoff prune</code> los recorta)</span></td></tr>
+          <tr><td><code>state/auto/</code></td><td><span class="en">sensor caches: usage samples and hook sentinels. Deleting them costs detection quality, never correctness</span><span class="es">cachés de sensores: muestras de uso y sentinels de hooks. Borrarlos cuesta calidad de detección, nunca corrección</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══ 05 · LEER MÁS ═══ -->
+  <section>
+    <h2><span class="n">05</span><span class="en">Read further</span><span class="es">Seguir leyendo</span></h2>
+    <div class="cards">
+      <a class="card" href="../README.html">
+        <p class="ic">// manual</p>
+        <h3>User guide — English</h3>
+        <p>Single-page app: routing playground, all the cases, auto-handoff runbook.</p>
+      </a>
+      <a class="card" href="../README.es.html">
+        <p class="ic">// manual</p>
+        <h3>Guía de usuario — Español</h3>
+        <p>App de una página: playground de routing, todos los casos, runbook de auto-handoff.</p>
+      </a>
+      <a class="card" href="https://github.com/JoseAFlores777/ccp/blob/main/CLAUDE.md" target="_blank" rel="noopener">
+        <p class="ic">// internals</p>
+        <h3>CLAUDE.md</h3>
+        <p><span class="en">How it works inside: the binary/shell split, the resolver, the supervisor loop.</span><span class="es">Cómo funciona por dentro: el split binario/shell, el resolver, el bucle del supervisor.</span></p>
+      </a>
+      <a class="card" href="https://github.com/JoseAFlores777/ccp" target="_blank" rel="noopener">
+        <p class="ic">// source</p>
+        <h3>GitHub</h3>
+        <p><span class="en">Source, releases and issues. MIT.</span><span class="es">Código, releases e issues. MIT.</span></p>
+      </a>
+    </div>
+  </section>
+
+  <footer>
+    <p>
+      <span class="en">MIT — use at your own risk, no warranty; you are responsible for your own API keys and accounts.</span>
+      <span class="es">MIT — úsalo bajo tu propio riesgo, sin garantía; eres responsable de tus API keys y cuentas.</span>
+    </p>
+    <p>
+      <span class="en"><b>No affiliation.</b> <code>ccp</code> (profiles for Claude Code) is an independent community project, <b>not affiliated with, endorsed by, or sponsored by</b> Anthropic, DeepSeek, Moonshot AI or Z.ai. "Claude" and "Claude Code" are trademarks of Anthropic, PBC; "DeepSeek", "Kimi" (Moonshot) and "GLM" (Z.ai) are trademarks of their respective owners — used only to describe interoperability.</span>
+      <span class="es"><b>Sin afiliación.</b> <code>ccp</code> (perfiles para Claude Code) es un proyecto independiente y comunitario, <b>no afiliado, avalado ni patrocinado por</b> Anthropic, DeepSeek, Moonshot AI ni Z.ai. "Claude" y "Claude Code" son marcas de Anthropic, PBC; "DeepSeek", "Kimi" (Moonshot) y "GLM" (Z.ai) son marcas de sus respectivos dueños — usadas solo para describir interoperabilidad.</span>
+    </p>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var KEY = 'ccp-index-lang';
+  var root = document.documentElement;
+  var buttons = Array.prototype.slice.call(document.querySelectorAll('.lang button'));
+
+  function apply(lang){
+    root.setAttribute('data-lang', lang);
+    root.setAttribute('lang', lang);
+    buttons.forEach(function(b){ b.setAttribute('aria-pressed', String(b.getAttribute('data-set') === lang)); });
+    // Los enlaces al manual siguen el idioma elegido; el deep link conserva su capítulo.
+    var manual = lang === 'es' ? '../README.es.html' : '../README.html';
+    var main = document.getElementById('manualLink');
+    if (main) main.setAttribute('href', manual);
+    Array.prototype.forEach.call(document.querySelectorAll('a.ch'), function(a){
+      a.setAttribute('href', manual + '#' + a.getAttribute('data-h'));
+    });
+    try { localStorage.setItem(KEY, lang); } catch (e) {}
+  }
+
+  var stored = null;
+  try { stored = localStorage.getItem(KEY); } catch (e) {}
+  var nav = (navigator.language || '').toLowerCase();
+  apply(stored || (nav.indexOf('es') === 0 ? 'es' : 'en'));
+
+  buttons.forEach(function(b){
+    b.addEventListener('click', function(){ apply(b.getAttribute('data-set')); });
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('.copy'), function(btn){
+    btn.addEventListener('click', function(){
+      var pre = btn.parentElement.querySelector('pre');
+      var lbl = btn.querySelector('span');
+      navigator.clipboard.writeText(pre.innerText).then(function(){
+        var old = lbl.textContent; lbl.textContent = 'copied';
+        setTimeout(function(){ lbl.textContent = old; }, 1200);
+      });
+    });
+  });
+})();
+</script>
 </body>
 </html>

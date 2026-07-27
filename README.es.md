@@ -10,7 +10,7 @@
 En tu repo de trabajo, tu cuenta de empresa; en tu proyecto personal, la tuya; en tus experimentos, DeepSeek.
 El cambio ocurre solo, con hacer `cd`.
 
-![version](https://img.shields.io/badge/version-2.10.0-c96442)
+![version](https://img.shields.io/badge/version-2.11.0-c96442)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-c96442)
 ![shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-8a8378)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
@@ -204,7 +204,221 @@ El modelo mental: **pides prestados los tokens de otro perfil para una sesión, 
 
 `ccp handoff` sin argumentos y con TTY abre el **panel gestor**: los activos, los de este repo primero, con `enter` reanudar · `e` terminar (pide confirmación) · `n` nuevo · `y` toggle skip-permissions · `q` salir. Sin nada en vuelo el panel ni se abre: entras directo al wizard de handoff nuevo, perfil → sesión.
 
-Lo que sigue sin soportarse: handoffs encadenados (`A → B → C` **sobre la misma sesión** — termina esa con `end` primero; prestar hacia adelante *otra* sesión del mismo repo sí se puede) y prestar una misma sesión a dos perfiles a la vez. A partir de cinco handoffs sin cerrar, uno nuevo te avisa (no bloquea). Al entrar (`cd`) a un repo con handoff activo aparece un recordatorio de una línea. `status`, `list` y `discard` funcionan en cualquier lado y no lanzan nada — `handoff status` sale con `0` si este repo tiene handoff activo y `1` si no; los comandos que reanudan la sesión (`handoff`, `resume`, `end`) corren a través de la función shell de ccp, así que `ccp install` debe estar activo.
+Los handoffs encadenados **a mano** siguen rechazados (`A → B → C` sobre la misma sesión — termina esa con `end` primero; prestar hacia adelante *otra* sesión del mismo repo sí se puede), y también prestar una misma sesión a dos perfiles a la vez. El supervisor de auto-handoff *sí* encadena (más abajo), pero lo hace sin apilar niveles. A partir de cinco handoffs sin cerrar, uno nuevo te avisa (no bloquea). Al entrar (`cd`) a un repo con handoff activo aparece un recordatorio de una línea. `status`, `list` y `discard` funcionan en cualquier lado y no lanzan nada — `handoff status` sale con `0` si este repo tiene handoff activo y `1` si no; los comandos que reanudan la sesión (`handoff`, `resume`, `end`) corren a través de la función shell de ccp, así que `ccp install` debe estar activo.
+
+Dos subcomandos de mantenimiento lo rematan: `ccp handoff sessions [--json]` lista las sesiones de este directorio en el perfil activo (son los datos del picker, scriptables) y `ccp handoff prune [--keep N]` recorta el historial archivado — crece una entrada por handoff cerrado y nada las quitaba nunca (`--keep` por defecto 50; `--keep 0` lo vacía). Los dos son de solo lectura y no necesitan TTY, pero una función de shell instalada *antes* de que existieran los reenvía como si fueran un perfil destino — si ves un error diciéndolo, corre `ccp install` y abre una terminal nueva.
+
+---
+
+## Auto-handoff — rotar de perfil solo cuando se acaba el uso
+
+`ccp handoff` es la respuesta manual a "esta cuenta se acabó". `ccp session` es la automática.
+
+El problema que resuelve: una sesión larga (un refactor grande, un batch de madrugada) muere cuando la cuenta topa su límite de 5 horas, semanal o de Opus. Y un `claude` vivo **no puede** cambiar de perfil — `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` y `CLAUDE_CONFIG_DIR` se leen una sola vez al arrancar. Así que lo único limpio es un **supervisor** que corre `claude` como hijo, vigila el límite, presta la sesión a otro perfil y la relanza ahí.
+
+```bash
+ccp auto init                     # siembra el bloque auto_handoff en ccp.yaml
+ccp auto install                  # instala los sensores en cada perfil no-default
+ccp session --dry-run             # ¿qué haría aquí? (cadena, umbrales, muestras)
+ccp session                       # interactivo: claude bajo el supervisor
+ccp session -p --policy overnight -- "refactoriza el parser"   # headless (cron/CI)
+ccp auto status [--json]          # política resuelta, sensores, últimas muestras, cooldowns
+ccp auto test [--profile <n>]     # ¿está realmente cableada la detección?
+```
+
+`ccp session` llega al binario por la rama `*) command ccp "$@"` que la función de shell ya tiene, así que **no hace falta refrescar `ccp install`** para usarlo.
+
+### El ciclo: primario → préstamo → vuelta al primario
+
+El **primario** es lo que devuelva `ccp resolve $PWD` — el dueño natural del directorio. Cualquier otro perfil de la cadena es un **préstamo temporal**. El supervisor es un péndulo, no un round-robin: sale cuando el primario se agota y vuelve en cuanto la ventana del primario se reabre, aunque queden préstamos frescos. Trabajar horas en la cuenta equivocada es peor que esperar.
+
+```
+personal-cc  ──[límite]──→  app-cc  ──[límite]──→  personal-deepseek
+                                       │
+                                       └──[se reabrió la ventana del primario]──→ personal-cc
+```
+
+La vuelta a casa no es un handoff al revés: es `handoff end`, que hace back-sync de la conversación al primario **como sesión nueva con uuid nuevo** (no destructivo, el transcript viejo se queda donde está). El supervisor imprime ese uuid nuevo — es el que le pasarías a `claude --resume` para seguir a mano. Cuando la cadena se seca para con código de salida **75** (`EX_TEMPFAIL`, "reintenta luego") y una tabla de cuándo se libera cada perfil; el marcador se deja vivo, así que no se pierde nada.
+
+Hay un préstamo que no tiene marcador que cerrar: una rotación que disparó *antes* de que la conversación existiera (el sensor proactivo puede saltar en una sesión que aún no ha tenido su primer turno) no tiene nada que prestar, así que no abre handoff. Volver de una de esas no ejecuta `handoff end` en absoluto — si nació una conversación durante el préstamo, se **adopta** en el primario como sesión nueva; y si no nació ninguna, el primario simplemente arranca de cero. En ambos casos la traza dice cuál fue. Lo que nunca pasa es un marcador apuntando al revés (`{from: préstamo, to: primario}`), que mandaría la siguiente salida limpia — y a ti — a la cuenta equivocada.
+
+Mientras la sesión está prestada, un **temporizador `return_check`** pregunta solo, cada N minutos, si la ventana del primario se reabrió — nadie tiene que topar un límite para que vuelvas a casa. Ese es justo el punto: la ventana de 5h del primario se reabre a las 3am, y ningún sensor dispara cuando se libera *otra* cuenta, así que sin el temporizador la corrida pasaría la noche en el préstamo. La vuelta respeta igual `min_dwell` (no te sacan de un préstamo al que llegaste hace 30 segundos), y el perfil que dejas **no** se marca agotado — lo dejaste voluntariamente, conserva su crédito:
+
+```
+p2 (2h 00m) ──[return_check: personal-cc ya liberó su ventana]──→ volviendo a personal-cc (vuelta a casa, no gasta préstamo: siguen 1/6)
+```
+
+**La vuelta a casa espera al silencio (`return_idle`, 90s por defecto).** Es el único movimiento que el supervisor hace por razones propias: rotar por un límite mata a un hijo que *ya no puede trabajar* (su cuenta responde 429), pero volver a casa mataría a uno que funciona bien. Solo con los defaults (`min_dwell: 20m` + `return_check: 10m`) cualquier préstamo de más de veinte minutos terminaría en el instante en que venciera el cooldown del primario — contigo tecleando, a mitad de un turno o con una tool call en vuelo, y una tool call interrumpida la re-ejecuta `--resume` y puede no ser idempotente. Por eso el temporizador exige además que la sesión esté **ociosa**: el transcript (que crece con cada turno y cada resultado de herramienta) no puede haber sido tocado en `return_idle`. Si nunca se calla, no se fuerza nada — el temporizador solo sigue ofreciendo; vuelves cuando paras, cuando el hijo sale por su cuenta o en el siguiente límite. Perder una oportunidad de volver es barato; quitarte la terminal a media frase no. Un transcript que no existe **no** cuenta como ocioso (no sabemos nada, y matar por ignorancia es justo lo que se evita), y `return_idle: 0s` es el opt-out explícito. La regla vale también en headless (`-p`): que no haya nadie mirando no hace menos frágil una tool call a medias.
+
+```
+ccp session: p1 ya liberó su ventana; la sesión sigue activa, se volverá cuando lleve 1m30s en silencio
+```
+
+**`max_hops` cuenta préstamos, no movimientos.** Volver a casa es *cerrar* un préstamo, así que ni gasta presupuesto ni lo bloquea uno agotado — si no, `max_hops: 6` significaría "tres viajes de ida y vuelta" y un presupuesto gastado dejaría la conversación varada en la cuenta de otro con el primario libre. Sigue siendo un tope anti-bucle duro: toda vuelta a casa tiene que venir precedida de un préstamo, y ese sí paga, así que una corrida nunca puede hacer más de `2 × max_hops + 1` lanzamientos.
+
+### Configurarlo (`auto_handoff` en `ccp.yaml`)
+
+`ccp auto init` lo siembra a partir de tus perfiles; después edítalo a mano.
+
+```yaml
+auto_handoff:
+  enabled: true              # interruptor maestro: false = ccp session se niega a correr
+  hooks: [personal-cc, app-cc]   # perfiles con la capa de sensores instalada
+                                 # (la gestiona `ccp auto install/uninstall`)
+  policies:
+    default:
+      # Préstamos, en orden de preferencia. El primario es IMPLÍCITO (ccp resolve $PWD)
+      # y se descarta en silencio si lo listas aquí.
+      fallback: [app-cc, personal-deepseek]
+      threshold: 90          # % de la ventana de uso que dispara un salto proactivo
+      min_dwell: 20m         # tiempo mínimo en un perfil antes de volver a rotar
+      max_hops: 6            # tope duro de PRÉSTAMOS por corrida (backstop anti-bucle;
+                             # volver a casa es gratis, ver arriba)
+      return_check: 10m      # cada cuánto reconsiderar el primario estando prestado
+      return_idle: 90s       # …y cuánto tiempo debe llevar la sesión EN SILENCIO
+                             # para que esa vuelta proactiva pueda matar al hijo
+                             # (0s desactiva el guard: vuelve aunque sea a media frase)
+      cooldown:
+        strategy: resets_at  # usa el resets_at que reporta la API (suscripciones)
+        fallback: 1h         # …o esta espera fija cuando no hay resets_at
+
+    overnight:               # `ccp session -p --policy overnight`
+      fallback: [personal-cc, app-cc]
+      threshold: 85
+      max_hops: 12
+
+    work:
+      fallback: []           # sin préstamos: si el primario muere, la corrida para
+
+  allow_from:                # verja de cumplimiento (ver abajo)
+    emco-cc: [emco-cc]                                   # nunca rota
+    app-cc: [app-cc, personal-cc]
+    personal-cc: [personal-cc, app-cc, personal-deepseek]
+```
+
+> **Qué hace de verdad el temporizador `return_check` — no es un reloj pasivo.** Solo se arma mientras la sesión está **prestada**: tiene que haber un marcador de handoff vivo cuyo origen sea el primario (una rotación *degradada* — la que ocurrió antes de que existiera transcript y por eso nunca abrió marcador — no cuenta), más `--no-return` apagado y `return_check > 0`. Ya armado, re-decide una vez por periodo, y cada decisión es barata: unas comparaciones y un `stat` del transcript. Lo que *no* es barato es lo que pasa cuando la decisión sale "a casa" — su única acción es **mandarle `SIGTERM` al `claude` vivo** (10s de gracia para que vacíe su `.jsonl` y corra sus hooks `SessionEnd`), cerrar el préstamo y **relanzar** `claude --resume` en el primario con el uuid nuevo. Eso es un proceso muerto y un hijo nuevo, no una comparación de timestamps. De ahí las cuatro condiciones que exige antes de disparar, todas: préstamo vivo · cooldown del primario vencido · `min_dwell` ya cumplido en el perfil actual · sesión **ociosa** durante `return_idle`. Un evento de límite ya encolado por un sensor también le gana (rotar en su lugar conserva el cooldown del perfil que se deja). Si falta cualquier condición, simplemente espera y vuelve a preguntar al periodo siguiente — nunca fuerza el movimiento. Desactívalo con `return_check: 0s` (entonces vuelves a casa en el siguiente evento de límite, como antes) o con `--no-return`.
+>
+> `--no-return` apaga la vuelta a casa **a media sesión** — el temporizador y la regla de péndulo de `Next()` —, no la limpieza al final de la corrida. Cuando el hijo por fin sale con 0 y queda un préstamo abierto, el préstamo se cierra siempre y la conversación aterriza de vuelta en el primario con un uuid nuevo, con `--no-return` o sin él. Es deliberado: la alternativa es una conversación terminada, varada en una cuenta prestada, detrás de un marcador que tienes que acordarte de cerrar mañana con `ccp handoff end`, mientras tu repo sigue resolviendo al perfil que la prestó. Si *quieres* que se quede ahí, termina la corrida con Ctrl-C (el exit 130 deja el marcador vivo a propósito) o suelta el marcador luego con `ccp handoff discard`.
+
+**Por qué existe `allow_from`:** rotar solo, a las 3am, sin nadie mirando, significa que la conversación de un cliente podría acabar en una cuenta personal — o en la API de un proveedor externo. Las reglas de ruta son *geográficas* (qué carpeta es de quién), no una declaración de confianza, así que la verja va aparte y explícita. La regla exacta:
+
+| `allow_from` | Efecto |
+|---|---|
+| ausente o vacío | **sin verja** — se permite toda la cadena `fallback` |
+| declarado, con entrada para el primario | solo se permiten los perfiles de esa entrada; el resto salen como *denegados* |
+| declarado, **sin** entrada para el primario | **deny total** — ningún préstamo |
+
+Esa última fila es el punto: declarar el mapa es declarar la intención de gobernar los préstamos, así que un perfil que se te olvidó añadir se queda quieto en vez de heredar barra libre. `ccp session --dry-run` y `ccp auto status` imprimen los dos qué se denegó y por qué.
+
+> **La fila con la que topas primero.** `ccp auto init` siembra `allow_from` con una entrada por perfil *con nombre*, y `default` nunca es una de ellas. Así que en un directorio sin regla de ruta el primario es `default`, no hay entrada para él, y la cadena entera sale denegada — `ccp session` corre igual, solo que no tiene a dónde saltar cuando llegue el límite. O pones una regla (`ccp path set . <perfil>`) o añades tú una entrada `default:` a `allow_from`. `--dry-run` lo enseña de inmediato: `chain: (empty)` con todo bajo *denegados*.
+
+### Editar la cadena — añadir, reordenar o quitar un préstamo
+
+**No hay ningún subcomando `ccp auto` que edite la cadena**: la cadena es datos, y se edita a mano en `~/.config/ccp/ccp.yaml`. Es seguro — `ccp` reescribe ese archivo de forma atómica **conservando tus comentarios y cualquier clave que no conozca**, así que puedes anotar por qué un perfil está en la lista y la anotación sobrevive a cada `ccp path set`, `profile add` o `auto install` posterior.
+
+Dos claves gobiernan la cadena, y casi toda edición necesita **las dos**:
+
+| Lo que quieres | Dónde editar |
+|---|---|
+| Añadir un préstamo | añádelo a `policies.<nombre>.fallback` **y** a `allow_from[<primario>]` |
+| Cambiar el orden de preferencia | mueve las líneas dentro de `fallback` — el **orden es la preferencia** |
+| Quitar un préstamo | bórralo de `fallback` (dejarlo en `allow_from` es inocuo — solo permite, nunca añade) |
+| Dejar de rotar en un directorio | dale a ese primario una política con `fallback: []`, o quita su entrada de `allow_from` (eso es deny total) |
+| Otra cadena para otro trabajo | añade otra política bajo `policies:` y corre `ccp session --policy <nombre>` |
+
+```yaml
+auto_handoff:
+  policies:
+    default:
+      # El orden ES la preferencia: primero app-cc, el proveedor solo como último recurso.
+      fallback: [app-cc, personal-deepseek]
+  allow_from:
+    personal-cc: [personal-cc, app-cc, personal-deepseek]   # ← la entrada del primario
+```
+
+Las reglas que el resolver aplica a `fallback`, en una sola pasada: el **primario es implícito** y se descarta en silencio si lo listas; los duplicados se eliminan (no compran un préstamo extra); `default` es un destino legítimo (es tu login normal de `~/.claude`); y el orden que escribiste se respeta tal cual.
+
+Después, los dos pasos de verificación — estar en la cadena **no** es lo mismo que tener detección:
+
+```bash
+ccp auto install personal-deepseek    # sensores para el perfil recién añadido
+ccp session --dry-run                 # a qué resuelve la cadena, aquí
+```
+
+```
+política: default
+primario: work (cwd /home/yo/repo)
+cadena de préstamos: app-cc → deepseek
+umbral 90% · min_dwell 20m0s · max_hops 6 · return_check 10m0s · return_idle 1m30s · cooldown resets_at (respaldo 1h0m0s)
+```
+
+Si solo editaste `fallback` y olvidaste `allow_from`, `--dry-run` te lo dice en vez de no hacer nada en silencio — es el error más común de largo:
+
+```
+cadena de préstamos: (vacía)
+denegados por allow_from: app-cc, deepseek
+```
+
+**Un nombre que no existe es un error duro, no un salto silencioso.** Un typo — o un perfil que borraste — detiene `ccp session` antes de lanzar nada, con exit `1`:
+
+```
+[error] política "default": el perfil de fallback "app" no existe
+```
+
+> **`ccp profile rename` y `ccp profile rm` no tocan `auto_handoff`.** Mueven tus reglas de ruta y tus marcadores de handoff, pero la política de rotación se queda exactamente como estaba — así que renombrar o borrar un perfil que está en una cadena deja un nombre colgando, y el siguiente `ccp session` en ese directorio falla con el error de arriba hasta que arregles el YAML. Tres sitios llevan nombres de perfil: `policies.*.fallback`, `allow_from` (**tanto** las claves como las listas) y `hooks`. Busca el nombre viejo antes de cerrar el archivo.
+
+> **`ccp auto init --force` regenera el bloque desde cero**, así que descarta tus ediciones a mano *y* tus comentarios. Úsalo para empezar de nuevo, no para refrescar. El `ccp auto init` pelado es idempotente: con un bloque ya presente no hace nada.
+
+Ojo a que `ccp auto init` deja a propósito los perfiles de proveedor (DeepSeek/Kimi/GLM) fuera del `allow_from` sembrado de *todos los demás* perfiles. Mandar una conversación a una API de terceros es justo la decisión que la verja existe para hacer explícita, así que añadir uno a una cadena siempre es un acto manual.
+
+### Los sensores — tres a la vez, cuatro en total
+
+Tres sensores corren a la vez en cada modo, porque ninguno lo cubre todo. La redundancia es deliberada: detectar el mismo límite dos veces es gratis (el supervisor deduplica por contenido), estar ciego no.
+
+| Sensor | Qué lee | ¿Proactivo? | Interactivo | Headless |
+|---|---|---|---|---|
+| **statusLine** (`ccp _statusline`) | los `rate_limits.{five_hour,seven_day}.used_percentage` que Claude Code le pasa a la barra de estado; `<cc-home>/.claude.json` como muestra de respaldo | ✅ dispara al `threshold` % **antes** de que falle un turno | ✅ | ❌ (sin TTY no hay barra de estado) |
+| **stream-json** | los eventos `api_retry` / `error: "rate_limit"` de `claude -p --output-format stream-json` | ❌ reactivo | ❌ (no hay nada que parsear) | ✅ |
+| **cola del transcript** | el `.jsonl` de la sesión, buscando `"error":"rate_limit"` / `apiErrorStatus: 429` | ❌ reactivo | ✅ | ✅ |
+| **hook StopFailure** (`ccp _limit-hook`) | el payload que manda Claude Code cuando un turno muere; deja un sentinel en `~/.config/ccp/state/auto/sentinels/` | ❌ reactivo | ⚠️ sin verificar (ver abajo) | ✅ |
+
+O sea: **interactivo** corre statusLine + transcript + sentinel; **headless** corre stream-json + transcript + sentinel. Solo el sensor de statusLine es proactivo, y es justo el que *no* funciona en headless — por eso el camino headless se apoya en el (muy limpio) evento `api_retry`.
+
+⚠️ **Todavía sin verificar empíricamente:** si el hook `StopFailure` dispara siquiera en interactivo con un límite de *suscripción* (ahí Claude Code no termina el turno — ofrece `/rate-limit-options`). Si no dispara, la detección interactiva descansa en el porcentaje de la statusLine más la cola del transcript. `ccp auto test` verifica el cableado, no el comportamiento de Claude Code.
+
+### `ccp auto install` toca el `settings.json` de tus perfiles
+
+Los dos sensores in-process solo se pueden encender desde `cc-home/settings.json`, y ese archivo es **generado** (global ⊕ overlay). Así que `ccp auto install <perfil>` añade el perfil a `auto_handoff.hooks` y regenera: el merge pasa a ser global ⊕ overlay ⊕ **capa auto**, que añade
+
+- `hooks.StopFailure` → `ccp _limit-hook`
+- `statusLine` → `ccp _statusline -- <tu statusLine original>` (la tuya se **envuelve**, no se reemplaza — sigue pintando tu barra; ccp solo muestrea el stdin que le llega)
+
+Cualquier hook `StopFailure` que ya tuvieras se conserva junto al nuestro. Es totalmente reversible: `ccp auto uninstall <perfil>` lo quita de la lista y regenera de vuelta a global ⊕ overlay. Tu overlay no se modifica en ningún caso — la fuente de verdad de "quién tiene los sensores" es `auto_handoff.hooks` en `ccp.yaml`, no el archivo generado.
+
+> La capa graba la **ruta absoluta** del binario `ccp`. Si lo mueves sin correr `ccp upgrade` (o `ccp auto install` / `ccp profile sync`), los sensores se quedan apuntando a la ruta vieja.
+
+### Una sesión, y su traza
+
+```
+$ ccp session
+# primario = personal-cc (regla de ruta de ~/Documents/Personal)
+
+▶ personal-cc · sesión nueva 3f9c1a2b                                   (stderr)
+personal-cc (4h 03m) ──[uso 94% ≥ umbral 90% (ventana session) · statusline]──→ handoff a app-cc (préstamo 1/6)
+▶ app-cc · reanudando 3f9c1a2b                                          (stderr)
+app-cc (1h 12m) ──[You've hit your session limit · transcript]──→ volviendo a personal-cc (vuelta a casa, no gasta préstamo: siguen 1/6)
+sesión devuelta a personal-cc como 7d0e44f1
+▶ personal-cc · reanudando 7d0e44f1                                     (stderr)
+personal-cc ──[termina]──→ ✅ exit 0
+```
+
+**Cómo leer el contador.** Todo movimiento acaba en el mismo presupuesto, dicho de una sola manera: un movimiento de ida es `préstamo N/6` (este es el préstamo N de tus `max_hops`), y una vuelta a casa es `vuelta a casa, no gasta préstamo: siguen N/6`. El número *no* sube al volver — volver es cerrar un préstamo, no abrir uno nuevo (ver `max_hops` arriba) — así que la línea lo dice en voz alta en vez de dejarte adivinando por qué dos movimientos seguidos muestran `1/6`. A la vuelta a casa nunca se le llama *préstamo*, la haya causado lo que la haya causado (un límite en el perfil prestado o el temporizador `return_check`): es el mismo suceso, así que lleva las mismas palabras.
+
+La traza (saltos, vuelta a casa, tabla de cooldowns) va a **stdout** porque *es* la salida del comando — es lo que acaba en el log del cron. La cháchara operativa (`▶ lanzando…`, "esperando min_dwell") va a **stderr**, para que en headless stdout siga siendo parseable: ahí lleva el `stream-json` del hijo tal cual.
+
+Códigos de salida: `0` ok · `1` error de uso/config · `2` fallo de E/S del handoff · `75` todos los perfiles agotados (reintenta luego) · cualquier otro es el código del propio claude, así que `ccp session -p …` entra en un script donde antes iba `claude -p …`.
+
+**Algunos filos que conviene conocer.** `--yolo` (`--dangerously-skip-permissions`) es prácticamente obligatorio para corridas desatendidas, y nunca se persiste — se pide cada vez. Un salto es un `SIGTERM` en frontera de turno, así que una tool call interrumpida la re-ejecuta `--resume` y puede no ser idempotente. `Ctrl-C` (exit 130) nunca rota: el préstamo se deja abierto y se te dice. Y `min_dwell` es lo que evita que tres sensores reportando el mismo límite quemen tres perfiles en diez segundos.
 
 ---
 
@@ -359,6 +573,11 @@ Con comandos: `ccp config show` · `ccp config set <clave> <valor>` · `ccp conf
 | Devolver un handoff a su origen | `ccp handoff end [<uuid>]` |
 | Soltar un marcador de handoff huérfano | `ccp handoff discard [<uuid>]` |
 | Ver qué hay en vuelo | `ccp handoff status [--all]` |
+| Recortar el historial de handoffs | `ccp handoff prune [--keep N]` |
+| Rotar de perfil solo al topar un límite | `ccp session` (`-p` para headless) |
+| Ver qué haría `ccp session` | `ccp session --dry-run` |
+| Montar el auto-handoff | `ccp auto init` y luego `ccp auto install` |
+| Política / sensores del auto-handoff | `ccp auto status [--json]` |
 | Estado / diagnóstico | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
 | Actualizar | `ccp upgrade` |

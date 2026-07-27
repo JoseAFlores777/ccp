@@ -4,10 +4,20 @@ import "testing"
 
 // catálogo de prueba inyectado por el test (no contamina el real).
 func TestT(t *testing.T) {
-	register(map[string]map[Lang]string{
+	sub := map[string]map[Lang]string{
 		"test.hello":   {En: "Hello %s", Es: "Hola %s"},
 		"test.plain":   {En: "Plain", Es: "Liso"},
 		"test.only_en": {En: "only-en"}, // falta es a propósito
+	}
+	register(sub)
+	// El catálogo es global y register entra en pánico ante una key repetida
+	// (así caza colisiones de namespacing entre áreas). Sin retirar las keys de
+	// prueba, una segunda corrida en el mismo proceso —`go test -count=2`, que es
+	// como se buscan los tests inestables— muere en ese pánico.
+	t.Cleanup(func() {
+		for k := range sub {
+			delete(catalog, k)
+		}
 	})
 
 	if got := T(En, "test.hello", "world"); got != "Hello world" {

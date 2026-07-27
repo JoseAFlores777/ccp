@@ -28,6 +28,22 @@ type Marker struct {
 	To      string `yaml:"to"`
 	Title   string `yaml:"title,omitempty"`
 	Since   string `yaml:"since"`
+
+	// Auto marca los marcadores que creó el supervisor (`ccp session`) y no una
+	// mano humana. Sirve para que la limpieza automática (auto-end al salir bien
+	// del bucle, prune) distinga lo que ella misma sembró de lo que el usuario
+	// prestó a mano y espera encontrar donde lo dejó.
+	Auto bool `yaml:"auto,omitempty"`
+	// Hops es el rastro de perfiles DESTINO por los que pasó la sesión, en orden
+	// (el primario es From y no aparece aquí). El encadenado muta el marcador en
+	// sitio en vez de apilar niveles, así que sin este rastro se perdería por
+	// completo la ruta real —el usuario vería `personal-cc → kimi` sin saber que
+	// de por medio se quemó emco-cc, que es justo el dato que explica el gasto.
+	//
+	// Ambos campos son ADITIVOS: van con `omitempty` y HandoffsVersion sigue en 2
+	// a propósito, para que un ccp viejo lea el archivo sin romperse (los ignora)
+	// en vez de tratarlo como «versión futura» y negarse a escribir.
+	Hops []string `yaml:"hops,omitempty"`
 }
 
 // ArchivedMarker es un handoff terminado (historial para `handoff list`).

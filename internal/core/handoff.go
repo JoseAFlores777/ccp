@@ -211,6 +211,12 @@ func oldestActive(h *Handoffs) Marker {
 func HandoffEnd(home, cwd, sessionFlag string, yolo bool, now time.Time) (string, error) {
 	// Gate de versión primero: sin esto el fallo llegaría tras RewriteSession, con
 	// la sesión de vuelta ya escrita en el origen y el marcador todavía activo.
+	// HandoffEndSession lo repite (es su propio gate: el supervisor la llama
+	// directamente, sin pasar por aquí), pero se mantiene aquí para que un
+	// ccp.yaml ilegible se descubra ANTES de mutar nada: si el Load se hiciera
+	// después del back-sync, el marcador ya estaría archivado y el usuario se
+	// quedaría sin emit —es decir, sin volver al perfil origen— con la sesión ya
+	// devuelta y ninguna forma de repetir la operación.
 	if err := ensureHandoffsWritable(home); err != nil {
 		return "", err
 	}
@@ -218,47 +224,7 @@ func HandoffEnd(home, cwd, sessionFlag string, yolo bool, now time.Time) (string
 	if err != nil {
 		return "", err
 	}
-	// Resolver, reescribir el transcript y archivar el marcador van bajo el
-	// MISMO flock: la ventana entre leer y escribir contiene un RewriteSession
-	// completo, y sin el lock sostenido un `end` concurrente resucitaría este
-	// marcador (ya back-synced) desde su copia rancia de la lista.
-	var m Marker
-	var newID string
-	err = UpdateHandoffs(home, func(h *Handoffs) error {
-		idx, _, err := ResolveActive(h, cwd, sessionFlag)
-		if err != nil {
-			return err
-		}
-		m = h.Active[idx]
-
-		toCC, err := CCHome(home, m.To)
-		if err != nil {
-			return err
-		}
-		fromCC, err := CCHome(home, m.From)
-		if err != nil {
-			return err
-		}
-		srcPath := ProjectDir(toCC, m.Slug) + "/" + m.Session + ".jsonl"
-		if _, err := os.Stat(srcPath); err != nil {
-			return fmt.Errorf("no encuentro la sesión %s en %s; el marcador queda activo (si el transcript ya no existe, descártalo)", m.Session, m.To)
-		}
-		newID, err = NewUUID()
-		if err != nil {
-			return err
-		}
-		dstPath := ProjectDir(fromCC, m.Slug) + "/" + newID + ".jsonl"
-		if err := RewriteSession(srcPath, dstPath, m.Session, newID, m.To); err != nil {
-			return err // RewriteSession ya validó; no se archiva el marcador
-		}
-
-		h.Archived = append(h.Archived, ArchivedMarker{
-			Session: m.Session, From: m.From, To: m.To, Slug: m.Slug,
-			ReturnedAs: newID, Since: m.Since, Ended: now.UTC().Format(time.RFC3339),
-		})
-		h.Active = append(h.Active[:idx], h.Active[idx+1:]...)
-		return nil
-	})
+	m, newID, err := HandoffEndSession(home, cwd, sessionFlag, now)
 	if err != nil {
 		return "", err
 	}

@@ -1,5 +1,73 @@
 # Changelog
 
+## [2.11.0] — auto-handoff
+
+### Added
+
+- **`ccp session`** — supervisor que corre `claude` como proceso hijo, detecta
+  el límite de uso, presta la sesión a otro perfil y la relanza ahí. Un `claude`
+  vivo no puede cambiar de perfil (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`
+  y `CLAUDE_CONFIG_DIR` se leen una sola vez al arrancar), así que lo único
+  limpio es un proceso de fuera que pueda matarlo y volver a arrancarlo.
+  Interactivo y headless (`-p`), con `--policy`, `--max-hops`, `--yolo`,
+  `--session`, `--dry-run`, `--no-return` y `--claude-bin`.
+  Códigos de salida: `0` ok · `1` uso/config · `2` E/S de handoff · `75` todos
+  los perfiles agotados (`EX_TEMPFAIL`) · cualquier otro es el de claude.
+- **Rotación en péndulo, no round-robin.** El primario es `ccp resolve $PWD`;
+  todo lo demás son préstamos. Se vuelve a casa en cuanto la ventana del
+  primario se reabre, aunque queden préstamos frescos. `max_hops` cuenta
+  préstamos, no movimientos: la vuelta a casa cierra un préstamo, así que ni
+  gasta presupuesto ni la bloquea uno agotado (tope real: `2·max_hops + 1`
+  lanzamientos).
+- **Temporizador `return_check` + guard `return_idle`.** Ningún sensor dispara
+  cuando se libera *otra* cuenta, así que un temporizador pregunta solo si el
+  primario ya se liberó. Como esa es la única jugada que mata a un hijo *sano*,
+  exige cuatro condiciones a la vez: préstamo vivo, cooldown del primario
+  vencido, `min_dwell` cumplido y transcript en silencio `return_idle` (90s por
+  defecto; `0s` es el opt-out).
+- **Cuatro sensores, tres a la vez.** `ccp _statusline` (proactivo, dispara al
+  `threshold` % antes de que falle un turno), el `api_retry` del stream-json en
+  headless, la cola del transcript, y el hook `StopFailure` (`ccp _limit-hook`).
+  Los dos internos siempre salen con 0: una statusLine rota dejaría a Claude
+  Code sin barra de estado y un hook que falla molesta en cada turno.
+- **`ccp auto init | install | uninstall | status [--json] | test`** — siembra
+  la política, instala la capa de sensores en el `settings.json` generado de
+  cada perfil (envolviendo tu propia statusLine, sin reemplazarla) y verifica el
+  cableado. Reversible: la fuente de verdad es `auto_handoff.hooks` en
+  `ccp.yaml`, no el archivo generado.
+- **Verja `allow_from`** (compliance, default deny). Rotar solo, de madrugada,
+  puede acabar mandando la conversación de un cliente a una cuenta personal o a
+  una API de terceros; las reglas de ruta son geográficas, no una declaración de
+  confianza. Tres estados: ausente ⇒ sin verja · declarada con entrada para el
+  primario ⇒ solo eso pasa · declarada **sin** entrada ⇒ deny total.
+- **`ccp handoff prune [--keep N]`** y **`ccp handoff sessions [--json]`**. El
+  historial archivado crecía una entrada por handoff cerrado y nada lo limpiaba.
+- Documentación: sección de auto-handoff en ambos READMEs, capítulo runbook
+  nuevo en los dos manuales SPA, e `index.html` convertido de redirect a hub
+  bilingüe con tabla situación → comando.
+
+### Changed
+
+- `handoffs.yaml` gana `auto: true` y `hops: [...]` en los marcadores (ambos
+  `omitempty`; la versión del schema no cambia). `ccp.yaml` gana el bloque
+  `auto_handoff` y **sigue en schema `version: 2`**, así que un binario viejo
+  conserva las claves nuevas en vez de rechazar el archivo.
+- El supervisor **sí encadena** handoffs, mutando el marcador vivo en sitio
+  (`To`/`Hops`) en vez de apilar un nivel, así que `handoff end` sigue volviendo
+  a casa en un solo paso. Encadenar a mano sigue prohibido, igual que prestar
+  una sesión a dos perfiles a la vez.
+- El bloque de shell añade `prune|sessions` a la lista de passthrough de
+  `handoff` — un rc instalado antes los reenviaba como si fueran un perfil
+  destino. `ccp session` y `ccp auto` **no** necesitan reinstalarlo: llegan por
+  la rama `*) command ccp "$@"` que ya existía.
+
+### Fixed
+
+- El watcher del transcript ya no rebobina con un archivo de tamaño cero. Una
+  reescritura no atómica (truncar y escribir) exponía un instante vacío en el
+  que el offset caía por debajo de la línea base, y la historia ya descartada se
+  releía como un límite de ahora.
+
 ## [2.10.0] — renombrar perfiles
 
 ### Added

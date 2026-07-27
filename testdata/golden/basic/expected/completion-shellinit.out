@@ -16,7 +16,7 @@ ccp() {
       case "$1" in
         end)          shift; out=$(command ccp _handoff-end "$PWD" "$@") || return ;;
         resume)       shift; out=$(command ccp _handoff-resume "$PWD" "$@") || return ;;
-        status|list|discard)  command ccp handoff "$@"; return ;;
+        status|list|discard|prune|sessions)  command ccp handoff "$@"; return ;;
         *)            out=$(command ccp _handoff "$PWD" "$@") || return ;;
       esac
       ( eval "$out" || exit

@@ -10,7 +10,7 @@
 In your work repo, your company account; in your personal project, your own; in your experiments, DeepSeek.
 The switch happens on its own, just by `cd`-ing.
 
-![version](https://img.shields.io/badge/version-2.10.0-c96442)
+![version](https://img.shields.io/badge/version-2.11.0-c96442)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-c96442)
 ![shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-8a8378)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
@@ -204,7 +204,221 @@ The mental model: **you borrow another profile's tokens for a session, and retur
 
 `ccp handoff` with no arguments and a TTY opens the **manager panel**: active handoffs with this repo's first, `enter` resume · `e` end (asks for confirmation) · `n` new · `y` toggle skip-permissions · `q` quit. With nothing in flight the panel doesn't open at all: you go straight into the new-handoff wizard, profile → session.
 
-Still not supported: chained handoffs (`A → B → C` **on the same session** — finish that one with `end` first; lending a *different* session of the same repo onwards is fine) and lending one session to two profiles at once. Past five handoffs without closing, a new one warns you (it doesn't block). Entering a repo that has a live handoff prints a one-line reminder. `status`, `list` and `discard` work anywhere without launching anything — `handoff status` exits `0` when this repo has an active handoff and `1` when it doesn't; the commands that resume a session (`handoff`, `resume`, `end`) run through the ccp shell function, so `ccp install` must be active.
+Chained handoffs **by hand** are still refused (`A → B → C` on the same session — finish that one with `end` first; lending a *different* session of the same repo onwards is fine), and so is lending one session to two profiles at once. The auto-handoff supervisor *does* chain (see below), but it does it without stacking levels. Past five handoffs without closing, a new one warns you (it doesn't block). Entering a repo that has a live handoff prints a one-line reminder. `status`, `list` and `discard` work anywhere without launching anything — `handoff status` exits `0` when this repo has an active handoff and `1` when it doesn't; the commands that resume a session (`handoff`, `resume`, `end`) run through the ccp shell function, so `ccp install` must be active.
+
+Two housekeeping subcommands round it off: `ccp handoff sessions [--json]` lists this directory's sessions in the active profile (that's the picker's data, scriptable), and `ccp handoff prune [--keep N]` trims the archived history — it grows one entry per closed handoff and nothing ever removed them (`--keep` defaults to 50; `--keep 0` wipes it). Both are read-only-ish and don't need a TTY, but a shell function installed *before* they existed forwards them as if they were a target profile — if you get an error saying so, run `ccp install` and open a new terminal.
+
+---
+
+## Auto-handoff — rotate profiles on their own when usage runs out
+
+`ccp handoff` is the manual answer to "this account ran out". `ccp session` is the automatic one.
+
+The problem it solves: a long session (a big refactor, an overnight batch) dies when the account hits its 5-hour, weekly or Opus limit. And a live `claude` **cannot** change profile — `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` and `CLAUDE_CONFIG_DIR` are read once at startup. So the only clean fix is a **supervisor** that runs `claude` as a child, watches for the limit, hands the session off to another profile, and relaunches it there.
+
+```bash
+ccp auto init                     # seed the auto_handoff block in ccp.yaml
+ccp auto install                  # install the sensors in every non-default profile
+ccp session --dry-run             # what would it do here? (chain, thresholds, samples)
+ccp session                       # interactive: claude under the supervisor
+ccp session -p --policy overnight -- "refactor the parser"   # headless (cron/CI)
+ccp auto status [--json]          # resolved policy, sensors, last samples, cooldowns
+ccp auto test [--profile <n>]     # is the detection path actually wired?
+```
+
+`ccp session` reaches the binary through the `*) command ccp "$@"` branch the shell function already has, so **no `ccp install` refresh is needed** for it.
+
+### The cycle: primary → loan → back to the primary
+
+The **primary** is whatever `ccp resolve $PWD` returns — the natural owner of the directory. Every other profile in the chain is a **temporary loan**. The supervisor is a pendulum, not a round-robin: it swings out when the primary is exhausted and comes back the moment the primary's window reopens, even if fresh loans are still available. Working for hours in the wrong account is worse than waiting.
+
+```
+personal-cc  ──[limit]──→  app-cc  ──[limit]──→  personal-deepseek
+                                       │
+                                       └──[primary's window reopened]──→ personal-cc
+```
+
+The trip home is not a reverse handoff: it is `handoff end`, which back-syncs the conversation to the primary **as a new session with a new uuid** (non-destructive, the old transcript stays where it is). The supervisor prints that new uuid — it's what you'd type into `claude --resume` to continue by hand. When the chain runs dry it stops with exit code **75** (`EX_TEMPFAIL`, "retry later") and a table of when each profile frees up; the marker is left alive so nothing is lost.
+
+There is one loan that has no marker to close: a rotation that fired *before* the conversation existed (the proactive sensor can trip on a session that hasn't had its first turn) has nothing to lend, so no handoff is opened. Coming back from one of those doesn't run `handoff end` at all — if a conversation was born during the loan it is **adopted** into the primary as a new session, and if none was, the primary simply starts fresh. Either way the trace says which happened. What never happens is a marker pointing the wrong way (`{from: loan, to: primary}`), which would send the next clean exit — and you — to the wrong account.
+
+While the session is on loan, a **`return_check` timer** asks on its own, every N minutes, whether the primary's window has reopened — nobody has to hit a limit for you to come home. That is the whole point: the primary's 5-hour window reopens at 3am, and no sensor fires when an *other* account frees up, so without the timer the run would spend the night in the loan. The trip home still honours `min_dwell` (you are not yanked out of a loan you arrived at 30 seconds ago), and the profile you leave is **not** marked exhausted — you left it voluntarily, it keeps its credit:
+
+```
+p2 (2h 00m) ──[return_check: personal-cc ya liberó su ventana]──→ volviendo a personal-cc (vuelta a casa, no gasta préstamo: siguen 1/6)
+```
+
+**The trip home waits for silence (`return_idle`, default 90s).** This is the only move the supervisor makes for its own reasons: rotating on a limit kills a child that *cannot work any more* (its account is answering 429), but coming home would kill one that works fine. With the defaults alone (`min_dwell: 20m` + `return_check: 10m`) any loan longer than twenty minutes would end the instant the primary's cooldown expired — while you are typing, mid-turn, or with a tool call in flight, and an interrupted tool call is re-run by `--resume` and may not be idempotent. So the timer additionally requires the session to be **idle**: the transcript (which grows with every turn and every tool result) must not have been touched for `return_idle`. If it never goes quiet, nothing is forced — the timer just keeps offering; you come home when you stop, when the child exits on its own, or at the next limit. Missing a chance to come home is cheap; taking the terminal away mid-sentence is not. A transcript that does not exist does **not** count as idle (we know nothing, and killing out of ignorance is the thing being avoided), and `return_idle: 0s` is an explicit opt-out. The rule applies in headless (`-p`) too: nobody watching does not make a half-finished tool call any less fragile.
+
+```
+ccp session: p1 ya liberó su ventana; la sesión sigue activa, se volverá cuando lleve 1m30s en silencio
+```
+
+**`max_hops` counts loans, not moves.** Coming home is the *closing* of a loan, so it neither consumes budget nor is blocked by an exhausted one — otherwise `max_hops: 6` would mean "three round trips" and a spent budget would strand the conversation in someone else's account with the primary sitting free. It is still a hard anti-loop backstop: every trip home has to be preceded by a loan, and that one does pay, so a run can never make more than `2 × max_hops + 1` launches.
+
+### Configuring it (`auto_handoff` in `ccp.yaml`)
+
+`ccp auto init` seeds this from your existing profiles; edit it by hand afterwards.
+
+```yaml
+auto_handoff:
+  enabled: true              # master switch: false = ccp session refuses to run
+  hooks: [personal-cc, app-cc]   # profiles with the sensor layer installed
+                                 # (managed by `ccp auto install/uninstall`)
+  policies:
+    default:
+      # Loans, in order of preference. The primary is IMPLICIT (ccp resolve $PWD)
+      # and is silently dropped if you list it here.
+      fallback: [app-cc, personal-deepseek]
+      threshold: 90          # % of the usage window that triggers a proactive hop
+      min_dwell: 20m         # minimum time in a profile before rotating again
+      max_hops: 6            # hard cap on LOANS per run (anti-loop backstop;
+                             # coming home is free, see above)
+      return_check: 10m      # how often to reconsider the primary while on loan
+      return_idle: 90s       # …and how long the session must have been SILENT
+                             # before that proactive trip home may kill the child
+                             # (0s opts out: come home even mid-turn)
+      cooldown:
+        strategy: resets_at  # use the resets_at the API reports (subscriptions)
+        fallback: 1h         # …or this fixed wait when there is no resets_at
+
+    overnight:               # `ccp session -p --policy overnight`
+      fallback: [personal-cc, app-cc]
+      threshold: 85
+      max_hops: 12
+
+    work:
+      fallback: []           # no loans at all: if the primary dies, the run stops
+
+  allow_from:                # compliance gate (see below)
+    emco-cc: [emco-cc]                                   # never rotates
+    app-cc: [app-cc, personal-cc]
+    personal-cc: [personal-cc, app-cc, personal-deepseek]
+```
+
+> **What the `return_check` timer actually does — it is not a passive clock.** It is armed only while the session is on **loan**: there has to be a live handoff marker whose origin is the primary (a *degraded* rotation — one that happened before any transcript existed and so never opened a marker — does not count), plus `--no-return` off and `return_check > 0`. While armed it re-decides once per period, and each decision is cheap: a few comparisons plus one `stat` of the transcript. What is *not* cheap is what happens when the decision comes out "go home" — its only action is to **`SIGTERM` the running `claude`** (10s of grace so it flushes its `.jsonl` and runs its `SessionEnd` hooks), close the loan, and **relaunch** `claude --resume` in the primary under the new uuid. That is a killed process and a fresh child, not a timestamp comparison. Hence the four conditions it demands before firing, all of them: a live loan · the primary's cooldown expired · `min_dwell` already served in the current profile · the session **idle** for `return_idle`. A limit event already queued from a sensor also beats it (rotating instead preserves the cooldown of the profile being left). If any condition is missing it simply waits and asks again next period — it never forces the move. Disable it with `return_check: 0s` (you then come home at the next limit event, as before) or `--no-return`.
+>
+> `--no-return` switches off the **mid-session** trip home — the timer and the pendulum rule in `Next()` — not the cleanup at the end of the run. When the child finally exits 0 with a loan still open, the loan is always closed and the conversation lands back in the primary under a new uuid, `--no-return` or not. That is deliberate: the alternative is a finished conversation stranded in a borrowed account behind a marker you have to remember to `ccp handoff end` tomorrow, while your repo keeps resolving to the profile that lent it. If you *want* it to stay there, end the run with Ctrl-C (exit 130 leaves the marker alive on purpose) or drop the marker later with `ccp handoff discard`.
+
+**Why `allow_from` exists:** rotating on its own, at 3am, with nobody watching, means a client's conversation could end up in a personal account — or in a third-party provider's API. Path rules are *geographic* (which folder belongs to whom), not a statement of trust, so the gate is separate and explicit. The exact rule:
+
+| `allow_from` | Effect |
+|---|---|
+| absent or empty | **no gate** — the whole `fallback` chain is allowed |
+| declared, with an entry for the primary | only the profiles listed in that entry are allowed; the rest show up as *denied* |
+| declared, **without** an entry for the primary | **total deny** — no loans at all |
+
+That last row is the point: declaring the map is declaring the intent to govern loans, so a profile you forgot to add stays put instead of inheriting a free pass. `ccp session --dry-run` and `ccp auto status` both print what was denied and why.
+
+> **The row you'll hit first.** `ccp auto init` seeds `allow_from` with one entry per *named* profile, and `default` is never one of them. So in a directory with no path rule the primary is `default`, there is no entry for it, and the whole chain shows up as denied — `ccp session` still runs, it just has nowhere to hop when the limit lands. Either set a rule (`ccp path set . <profile>`) or add a `default:` entry to `allow_from` yourself. `--dry-run` shows this immediately: `chain: (empty)` with everything under *denied*.
+
+### Editing the chain — add, reorder or remove a loan
+
+There is **no `ccp auto` subcommand that edits the chain**: the chain is data, and you edit it by hand in `~/.config/ccp/ccp.yaml`. That is safe — `ccp` rewrites that file atomically while **preserving your comments and any keys it doesn't know**, so you can annotate why a profile is in the list and the annotation survives every later `ccp path set`, `profile add` or `auto install`.
+
+Two keys govern the chain, and most edits need **both**:
+
+| What you want | Where to edit |
+|---|---|
+| Add a loan | append it to `policies.<name>.fallback` **and** to `allow_from[<primary>]` |
+| Change the preference order | move the lines inside `fallback` — the **order is the preference** |
+| Remove a loan | delete it from `fallback` (leaving it in `allow_from` is harmless — it only permits, it never adds) |
+| Stop rotating in a directory | give that primary a policy with `fallback: []`, or remove its `allow_from` entry (that is a total deny) |
+| A different chain for a different job | add another policy under `policies:` and run `ccp session --policy <name>` |
+
+```yaml
+auto_handoff:
+  policies:
+    default:
+      # Order IS preference: app-cc first, the provider only as a last resort.
+      fallback: [app-cc, personal-deepseek]
+  allow_from:
+    personal-cc: [personal-cc, app-cc, personal-deepseek]   # ← the primary's entry
+```
+
+The rules the resolver applies to `fallback`, in one pass: the **primary is implicit** and is dropped silently if you list it; duplicates are removed (they don't buy an extra loan); `default` is a legitimate target (it's your normal `~/.claude` login); and the order you wrote is kept verbatim.
+
+Then, the two verification steps — chain membership is **not** the same as detection:
+
+```bash
+ccp auto install personal-deepseek    # sensors for the newly added profile
+ccp session --dry-run                 # what the chain resolves to, here
+```
+
+```
+política: default
+primario: work (cwd /home/me/repo)
+cadena de préstamos: app-cc → deepseek
+umbral 90% · min_dwell 20m0s · max_hops 6 · return_check 10m0s · return_idle 1m30s · cooldown resets_at (respaldo 1h0m0s)
+```
+
+If you only edited `fallback` and forgot `allow_from`, `--dry-run` says so instead of silently doing nothing — this is the single most common mistake:
+
+```
+cadena de préstamos: (vacía)
+denegados por allow_from: app-cc, deepseek
+```
+
+**A name that doesn't exist is a hard error, not a silent skip.** A typo — or a profile you removed — stops `ccp session` before it launches anything, with exit `1`:
+
+```
+[error] política "default": el perfil de fallback "app" no existe
+```
+
+> **`ccp profile rename` and `ccp profile rm` do not touch `auto_handoff`.** They move your path rules and your handoff markers, but the rotation policy is left exactly as it was — so renaming or deleting a profile that is in a chain leaves a dangling name, and the next `ccp session` in that directory fails with the error above until you fix the YAML. Three places carry profile names: `policies.*.fallback`, `allow_from` (**both** the keys and the lists) and `hooks`. Grep for the old name before you close the file.
+
+> **`ccp auto init --force` regenerates the block from scratch**, so it discards your hand edits *and* your comments. Use it to start over, not to refresh. Plain `ccp auto init` is idempotent: with a block already present it does nothing.
+
+Note that `ccp auto init` deliberately leaves provider profiles (DeepSeek/Kimi/GLM) out of every *other* profile's seeded `allow_from`. Sending a conversation to a third-party API is exactly the decision the gate exists to make explicit, so adding one to a chain is always a manual act.
+
+### The sensors — three at a time, four in total
+
+Three sensors run at once in each mode, because none of them covers everything. Redundancy is deliberate: detecting the same limit twice is free (the supervisor de-duplicates by content), being blind is not.
+
+| Sensor | What it reads | Proactive? | Interactive | Headless |
+|---|---|---|---|---|
+| **statusLine** (`ccp _statusline`) | `rate_limits.{five_hour,seven_day}.used_percentage` that Claude Code feeds the status bar; `<cc-home>/.claude.json` as a stale-sample fallback | ✅ fires at `threshold` % **before** a turn fails | ✅ | ❌ (no TTY ⇒ no status bar) |
+| **stream-json** | the `api_retry` / `error: "rate_limit"` events of `claude -p --output-format stream-json` | ❌ reactive | ❌ (nothing to parse) | ✅ |
+| **transcript tail** | the session's `.jsonl`, looking for `"error":"rate_limit"` / `apiErrorStatus: 429` | ❌ reactive | ✅ | ✅ |
+| **StopFailure hook** (`ccp _limit-hook`) | the hook payload Claude Code sends when a turn dies; leaves a sentinel in `~/.config/ccp/state/auto/sentinels/` | ❌ reactive | ⚠️ unverified (see below) | ✅ |
+
+So: **interactive** runs statusLine + transcript + sentinel; **headless** runs stream-json + transcript + sentinel. Only the statusLine sensor is proactive, and it is the one that does *not* work headless — which is why the headless path leans on the (very clean) `api_retry` event instead.
+
+⚠️ **Not yet verified empirically:** whether the `StopFailure` hook fires at all in interactive with a *subscription* limit (Claude Code doesn't end the turn there — it offers `/rate-limit-options`). If it doesn't, interactive detection rests on the statusLine percentage plus the transcript tail. `ccp auto test` verifies the wiring, not Claude Code's behaviour.
+
+### `ccp auto install` touches your profiles' `settings.json`
+
+The two in-process sensors can only be turned on from `cc-home/settings.json`, and that file is **generated** (global ⊕ overlay). So `ccp auto install <profile>` adds the profile to `auto_handoff.hooks` and regenerates: the merge becomes global ⊕ overlay ⊕ **auto layer**, which adds
+
+- `hooks.StopFailure` → `ccp _limit-hook`
+- `statusLine` → `ccp _statusline -- <your original statusLine>` (yours is **wrapped**, not replaced — it still renders your status bar; ccp only samples the stdin it gets)
+
+Any `StopFailure` hook you already had is preserved alongside ours. It is fully reversible: `ccp auto uninstall <profile>` drops it from the list and regenerates back to global ⊕ overlay. Your overlay is never modified either way — the source of truth for "who has the sensors" is `auto_handoff.hooks` in `ccp.yaml`, not the generated file.
+
+> The layer records the **absolute path** of the `ccp` binary. If you move it without running `ccp upgrade` (or `ccp auto install` / `ccp profile sync`), the sensors keep pointing at the old path.
+
+### A session, and its trace
+
+```
+$ ccp session
+# primary = personal-cc (path rule for ~/Documents/Personal)
+
+▶ personal-cc · new session 3f9c1a2b                                    (stderr)
+personal-cc (4h 03m) ──[uso 94% ≥ umbral 90% (ventana session) · statusline]──→ handoff a app-cc (préstamo 1/6)
+▶ app-cc · reanudando 3f9c1a2b                                          (stderr)
+app-cc (1h 12m) ──[You've hit your session limit · transcript]──→ volviendo a personal-cc (vuelta a casa, no gasta préstamo: siguen 1/6)
+sesión devuelta a personal-cc como 7d0e44f1
+▶ personal-cc · reanudando 7d0e44f1                                     (stderr)
+personal-cc ──[termina]──→ ✅ exit 0
+```
+
+**Reading the counter.** Every movement ends in the same budget, worded one way only: an outbound move is `préstamo N/6` (this is loan N of your `max_hops`), and a trip home is `vuelta a casa, no gasta préstamo: siguen N/6`. The number does *not* rise on the way home — coming back is the closing of a loan, not a new one (see `max_hops` above) — so the line says so out loud rather than leaving you to wonder why two consecutive moves show `1/6`. The trip home is never called a *préstamo*, whichever of the two things caused it (a limit in the loan profile, or the `return_check` timer): it's the same event, so it gets the same words.
+
+The trace (hops, the trip home, the cooldown table) goes to **stdout** because it *is* the command's output — it's what ends up in the cron log. The operational chatter (`▶ launching…`, "waiting for min_dwell") goes to **stderr**, so that in headless mode stdout stays parseable: there it carries the child's `stream-json` verbatim.
+
+Exit codes: `0` ok · `1` usage/config error · `2` handoff I/O failure · `75` every profile exhausted (retry later) · anything else is claude's own exit code, so `ccp session -p …` drops into a script where `claude -p …` used to be.
+
+**Some sharp edges worth knowing.** `--yolo` (`--dangerously-skip-permissions`) is effectively required for unattended runs, and it is never persisted — you ask for it every time. A hop is a `SIGTERM` at a turn boundary, so an interrupted tool call gets re-run by `--resume` and may not be idempotent. `Ctrl-C` (exit 130) never rotates: the loan is left open and told to you. And `min_dwell` is what stops three sensors reporting the same limit from burning three profiles in ten seconds.
 
 ---
 
@@ -359,6 +573,11 @@ With commands: `ccp config show` · `ccp config set <clave> <valor>` · `ccp con
 | Return a handoff to its origin | `ccp handoff end [<uuid>]` |
 | Drop a stale handoff marker | `ccp handoff discard [<uuid>]` |
 | See what's in flight | `ccp handoff status [--all]` |
+| Trim the handoff history | `ccp handoff prune [--keep N]` |
+| Rotate profiles automatically on a limit | `ccp session` (`-p` for headless) |
+| See what `ccp session` would do | `ccp session --dry-run` |
+| Set up auto-handoff | `ccp auto init` then `ccp auto install` |
+| Auto-handoff policy / sensors | `ccp auto status [--json]` |
 | Status / diagnostics | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
 | Update | `ccp upgrade` |

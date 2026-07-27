@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ccp Auto-Handoff — Diseño de Arquitectura</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+/* ── Design tokens ── */
+:root {
+  --bg: #0a0a0f;
+  --surface: #13131a;
+  --surface2: #1a1a24;
+  --border: #262636;
+  --text: #e4e4ec;
+  --text2: #9898b0;
+  --text3: #686880;
+  --accent: #7c5cfc;
+  --accent2: #a78bfa;
+  --green: #34d399;
+  --amber: #fbbf24;
+  --red: #f87171;
+  --code-bg: #0d0d14;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --font: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+}
+[data-theme="light"] {
+  --bg: #f8f8fc;
+  --surface: #ffffff;
+  --surface2: #f0f0f6;
+  --border: #e4e4ec;
+  --text: #1a1a2e;
+  --text2: #686888;
+  --text3: #9898b0;
+  --accent: #6d28d9;
+  --accent2: #7c3aed;
+  --code-bg: #f4f4fa;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 16px; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ── Header ── */
+header {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--bg); border-bottom: 1px solid var(--border);
+  padding: 0 2rem; height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+  backdrop-filter: blur(12px);
+}
+header .logo { font-weight: 700; font-size: 1.05rem; letter-spacing: -0.01em; }
+header .logo span { color: var(--accent2); }
+.theme-toggle {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 20px; padding: 6px 14px; cursor: pointer;
+  color: var(--text2); font-size: 0.85rem; font-family: var(--font);
+  transition: all 0.2s;
+}
+.theme-toggle:hover { color: var(--text); border-color: var(--accent); }
+
+/* ── Layout ── */
+.container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+
+/* ── Hero ── */
+.hero { padding: 4rem 0 2rem; text-align: center; }
+.hero .badge {
+  display: inline-block; background: var(--accent); color: #fff;
+  font-size: 0.75rem; font-weight: 600; padding: 3px 12px; border-radius: 20px;
+  text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 1rem;
+}
+.hero h1 { font-size: 2.5rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.15; margin-bottom: 0.75rem; }
+.hero h1 span { color: var(--accent2); }
+.hero p { color: var(--text2); font-size: 1.1rem; max-width: 640px; margin: 0 auto; }
+
+/* ── Sections ── */
+section { margin: 3rem 0; }
+.section-title {
+  font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em;
+  margin-bottom: 1.25rem; padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--accent); display: inline-block;
+}
+h3 { font-size: 1.05rem; font-weight: 700; margin: 1.5rem 0 0.75rem; color: var(--accent2); }
+
+/* ── Bento grid ── */
+.bento { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+.bento-3 { grid-template-columns: repeat(3, 1fr); }
+.bento-2 { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 768px) { .bento-3, .bento-2 { grid-template-columns: 1fr; } }
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1.5rem; transition: border-color 0.2s;
+}
+.card:hover { border-color: var(--accent); }
+.card .card-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+.card h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.4rem; }
+.card p, .card li { color: var(--text2); font-size: 0.9rem; line-height: 1.55; }
+.card ul { list-style: none; padding: 0; }
+.card ul li { padding: 0.2rem 0; }
+.card ul li::before { content: "→ "; color: var(--accent2); font-weight: 600; }
+
+/* ── Mermaid container ── */
+.mermaid-wrap {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1.5rem; margin: 1.5rem 0; overflow-x: auto;
+}
+.mermaid-wrap .label {
+  font-size: 0.75rem; color: var(--text3); text-transform: uppercase;
+  letter-spacing: 0.06em; margin-bottom: 0.75rem;
+}
+
+/* ── Tables ── */
+.table-wrap { overflow-x: auto; margin: 1rem 0; }
+table {
+  width: 100%; border-collapse: collapse; font-size: 0.88rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+th, td { padding: 0.65rem 1rem; text-align: left; }
+th { background: var(--surface2); font-weight: 700; color: var(--text); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+td { border-top: 1px solid var(--border); color: var(--text2); }
+tr:hover td { background: var(--surface2); }
+.tag {
+  display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem;
+  font-weight: 600; text-transform: uppercase;
+}
+.tag-green { background: rgba(52,211,153,0.15); color: var(--green); }
+.tag-amber { background: rgba(251,191,36,0.15); color: var(--amber); }
+.tag-red { background: rgba(248,113,113,0.15); color: var(--red); }
+.tag-purple { background: rgba(124,92,252,0.18); color: var(--accent2); }
+
+/* ── Decision cards ── */
+.decision-grid { display: grid; gap: 1rem; }
+.decision {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1.25rem 1.5rem; display: grid; grid-template-columns: 2fr 1fr 2fr; gap: 1rem;
+  align-items: start;
+}
+@media (max-width: 768px) { .decision { grid-template-columns: 1fr; } }
+.decision-col h5 { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.25rem; }
+.decision-col h5.chosen { color: var(--green); }
+.decision-col h5.discarded { color: var(--red); }
+.decision-col h5.why { color: var(--accent2); }
+.decision-col p { font-size: 0.88rem; color: var(--text2); line-height: 1.5; }
+
+/* ── Code blocks ── */
+.code-block {
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 1.25rem; margin: 1rem 0; overflow-x: auto;
+  font-family: var(--mono); font-size: 0.82rem; line-height: 1.6; color: var(--text);
+  position: relative;
+}
+.code-block .lang {
+  position: absolute; top: 8px; right: 12px;
+  font-size: 0.7rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em;
+}
+.copy-btn {
+  position: absolute; top: 6px; right: 52px; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 6px; color: var(--text3);
+  font-size: 0.7rem; padding: 2px 8px; cursor: pointer; font-family: var(--font);
+  transition: all 0.15s;
+}
+.copy-btn:hover { color: var(--text); border-color: var(--accent); }
+.code-block .kw { color: var(--accent2); }
+.code-block .str { color: var(--green); }
+.code-block .cmt { color: var(--text3); font-style: italic; }
+
+/* ── Phase timeline ── */
+.timeline { position: relative; padding-left: 2rem; }
+.timeline::before {
+  content: ''; position: absolute; left: 8px; top: 0; bottom: 0;
+  width: 2px; background: var(--border);
+}
+.phase { position: relative; margin-bottom: 2rem; }
+.phase::before {
+  content: ''; position: absolute; left: -1.75rem; top: 6px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--accent); border: 2px solid var(--bg);
+}
+.phase h4 { font-size: 0.95rem; font-weight: 700; }
+.phase .phase-meta { font-size: 0.78rem; color: var(--text3); margin-bottom: 0.3rem; }
+.phase p, .phase li { font-size: 0.88rem; color: var(--text2); }
+
+/* ── Footer ── */
+footer {
+  border-top: 1px solid var(--border); padding: 2rem;
+  text-align: center; color: var(--text3); font-size: 0.82rem;
+}
+footer .status { display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 0.4rem; }
+footer .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+
+/* ── Callout ── */
+.callout {
+  border-left: 3px solid var(--accent); background: var(--surface);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 1rem 1.25rem; margin: 1rem 0;
+}
+.callout.warn { border-left-color: var(--amber); }
+.callout.danger { border-left-color: var(--red); }
+.callout p { color: var(--text2); font-size: 0.9rem; }
+
+/* ── Summary bar ── */
+.summary-bar {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 2rem 0;
+}
+@media (max-width: 768px) { .summary-bar { grid-template-columns: repeat(2, 1fr); } }
+.stat {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1.25rem; text-align: center;
+}
+.stat .num { font-size: 2rem; font-weight: 800; color: var(--accent2); letter-spacing: -0.02em; }
+.stat .label { font-size: 0.8rem; color: var(--text3); margin-top: 0.2rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">ccp <span>auto-handoff</span></div>
+  <button class="theme-toggle" onclick="toggleTheme()" aria-label="Cambiar tema">🌙 dark</button>
+</header>
+
+<div class="container">
+
+<!-- ═══ HERO ═══ -->
+<div class="hero">
+  <div class="badge">Architecture Decision Record</div>
+  <h1>Handoff automático por<br><span>límite de uso</span></h1>
+  <p>Sesiones de Claude Code de varias horas que sobreviven a límites de uso sin intervención humana. Supervisor en el binario Go de ccp, detección en 3 capas, zero cambios al shell init.</p>
+</div>
+
+<div class="summary-bar">
+  <div class="stat"><div class="num">4</div><div class="label">arquitecturas rivales evaluadas</div></div>
+  <div class="stat"><div class="num">95</div><div class="label">hallazgos verificados empíricamente</div></div>
+  <div class="stat"><div class="num">4</div><div class="label">fases de implementación</div></div>
+  <div class="stat"><div class="num">0</div><div class="label">cambios al rc / shell init</div></div>
+</div>
+
+<!-- ═══ RESUMEN EJECUTIVO ═══ -->
+<section>
+  <h2 class="section-title">Resumen ejecutivo</h2>
+
+  <div class="callout">
+    <p><strong>Hard constraint:</strong> Cambiar de perfil requiere reiniciar <code>claude</code>. <code>ANTHROPIC_BASE_URL</code>, <code>ANTHROPIC_AUTH_TOKEN</code>, <code>CLAUDE_CONFIG_DIR</code> se leen una sola vez al arrancar. No existe failover multi-provider en Claude Code.</p>
+  </div>
+
+  <p style="margin-top:1rem;">La arquitectura elegida es <strong>ccp session</strong>: un supervisor en el binario Go que hace fork/exec de <code>claude</code> como hijo, monitorea 3 sensores de límite, y al detectar agotamiento realiza un handoff en-process y re-lanza <code>claude --resume</code> bajo el siguiente perfil. Cero cambios al rc instalado — el subcomando <code>ccp session</code> llega por el fall-through <code>*) command ccp "$@"</code> que ya existe en shellinit.go.</p>
+
+  <p style="margin-top:0.75rem;">Se evaluaron 4 arquitecturas rivales con crítica adversarial sobre 95 hallazgos verificados en Claude Code 2.1.220 y el código de ccp v2. Se recomienda <strong>shippear headless en v1</strong> y gatear interactive en un experimento de 20 minutos (¿StopFailure dispara en límite de suscripción interactivo?).</p>
+</section>
+
+<!-- ═══ DIAGRAMA DE ARQUITECTURA ═══ -->
+<section>
+  <h2 class="section-title">Diagrama de arquitectura</h2>
+
+  <div class="mermaid-wrap">
+    <div class="label">Flujo del supervisor</div>
+    <pre class="mermaid">
+flowchart TB
+    S(["🧑‍💻 ccp session -- claude"])
+    PRIMARY["🏠 Primario = ccp resolve $PWD<br/>ej: personal-cc"]
+    FALLBACK["📋 Leer fallback + política<br/>return_check + cooldowns"]
+    L["🚀 Fork/Exec claude<br/>primario.env<br/>--session-id &lt;uuid&gt;"]
+    M{"🔍 Monitorear<br/>3 sensores"}
+    M1["📊 statusLine<br/>rate_limits ≥ 90%?"]
+    M2["🛑 StopFailure hook<br/>sentinel file?"]
+    M3["📡 stream-json<br/>api_retry: rate_limit?"]
+    RET{"🏠 return_check:<br/>primario resets_at<br/>ya pasó?"}
+    K["💀 SIGTERM claude<br/>exit 143 · SessionEnd hooks"]
+    H["📦 HandoffForward<br/>in-process via core<br/>primario → fallback[i]"]
+    HBACK["📦 HandoffForward<br/>fallback[i] → primario<br/>VOLVIENDO A CASA"]
+    R["🔄 Re-exec claude --resume<br/>fallback[i].env"]
+    RBACK["🔄 Re-exec claude --resume<br/>primario.env · vuelta al dueño"]
+    D{"¿hay siguiente<br/>fallback?"}
+    E(["✅ Exit 0<br/>tarea completada"])
+    EX(["⚠️ Exit 1<br/>todos agotados<br/>tabla de cooldowns"])
+
+    S --> PRIMARY --> FALLBACK --> L --> M
+    M --> M1
+    M --> M2
+    M --> M3
+    M --> RET
+    M1 -- "umbral alcanzado" --> K
+    M2 -- "límite detectado" --> K
+    M3 -- "rate_limit" --> K
+    RET -- "sí (primario libre)" --> HBACK
+    RET -- "no (sigue en cooldown)" --> M
+    M1 -- "normal" --> M
+    M2 -- "sin evento" --> M
+    M3 -- "sin evento" --> M
+    K --> D
+    D -- "sí" --> H --> R --> M
+    D -- "no" --> EX
+    HBACK --> RBACK --> M
+    M -- "claude exit 0 (éxito)" --> E
+    M -- "error no-límite" --> E
+
+    style S fill:#7c5cfc,color:#fff,stroke:none
+    style PRIMARY fill:#a78bfa,color:#000,stroke:none
+    style E fill:#34d399,color:#000,stroke:none
+    style EX fill:#f87171,color:#fff,stroke:none
+    style K fill:#f87171,color:#fff,stroke:none
+    style H fill:#a78bfa,color:#000,stroke:none
+    style HBACK fill:#34d399,color:#000,stroke:none
+    style RET fill:#fbbf24,color:#000,stroke:none
+    </pre>
+  </div>
+
+  <div class="mermaid-wrap">
+    <div class="label">Capas de detección</div>
+    <pre class="mermaid">
+flowchart LR
+    subgraph Proactiva["🟢 Capa Proactiva"]
+      SL["statusLine hook<br/>rate_limits.used_percentage<br/>+ resets_at (epoch)"]
+    end
+    subgraph Reactiva["🟡 Capa Reactiva"]
+      SF["StopFailure hook<br/>error: rate_limit | billing_error<br/>sentinel → /tmp/ccp-limit-&lt;sid&gt;"]
+    end
+    subgraph Headless["🔵 Capa Headless"]
+      AR["stream-json api_retry<br/>error: rate_limit · error_status: 429<br/>terminal_reason: api_error"]
+    end
+    Proactiva -->|"threshold alcanzado"| SUP["ccp session supervisor"]
+    Reactiva -->|"backstop"| SUP
+    Headless -->|"señal primaria en -p"| SUP
+    SUP -->|"SIGTERM + HandoffForward + re-exec"| NEXT["siguiente perfil"]
+
+    style Proactiva fill:rgba(52,211,153,0.12),stroke:#34d399,color:inherit
+    style Reactiva fill:rgba(251,191,36,0.12),stroke:#fbbf24,color:inherit
+    style Headless fill:rgba(124,92,252,0.12),stroke:#a78bfa,color:inherit
+    style SUP fill:#7c5cfc,color:#fff,stroke:none
+    </pre>
+  </div>
+</section>
+
+<!-- ═══ SEÑALES DE DETECCIÓN ═══ -->
+<section>
+  <h2 class="section-title">Señales de detección</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Sensor</th><th>Proactivo</th><th>Interactive</th><th>Headless</th><th>Calidad</th><th>Nota</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>statusLine</strong> <code>rate_limits</code></td>
+          <td><span class="tag tag-green">✅ % + epoch</span></td>
+          <td><span class="tag tag-green">✅</span></td>
+          <td><span class="tag tag-red">❌ sin TTY</span></td>
+          <td>Mejor señal</td>
+          <td>Solo suscripción. <code>refreshInterval</code> configurable.</td>
+        </tr>
+        <tr>
+          <td><strong>StopFailure</strong> hook</td>
+          <td><span class="tag tag-red">❌ reactivo</span></td>
+          <td><span class="tag tag-amber">⚠️ NO VERIFICADO</span></td>
+          <td><span class="tag tag-green">✅</span></td>
+          <td>Hook correcto</td>
+          <td>¿Dispara en límite de suscripción interactivo? El proceso no termina el turno.</td>
+        </tr>
+        <tr>
+          <td><strong>stream-json</strong> <code>api_retry</code></td>
+          <td><span class="tag tag-red">❌ reactivo</span></td>
+          <td><span class="tag tag-red">N/A</span></td>
+          <td><span class="tag tag-green">✅ documentado</span></td>
+          <td>Más limpia</td>
+          <td><code>error:"rate_limit"</code> + <code>error_status:429</code>.</td>
+        </tr>
+        <tr>
+          <td><strong>Transcript tail</strong> <code>.error=="rate_limit"</code></td>
+          <td><span class="tag tag-red">❌ reactivo</span></td>
+          <td><span class="tag tag-green">✅</span></td>
+          <td><span class="tag tag-green">✅</span></td>
+          <td>Funciona</td>
+          <td>Turno ya falló cuando se detecta.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout warn">
+    <p><strong>Signal gap crítico:</strong> 89/89 eventos reales en esta máquina son <code>five_hour</code> en cuentas oficiales OAuth. Interactive <em>no termina el turno</em> — se queda vivo con <code>/rate-limit-options</code>. Si StopFailure no dispara en ese caso, el sensor reactivo interactivo está ciego. <strong>Gate para phase 3.</strong></p>
+  </div>
+</section>
+
+<!-- ═══ ARQUITECTURAS RIVALES ═══ -->
+<section>
+  <h2 class="section-title">4 arquitecturas evaluadas</h2>
+  <div class="bento bento-2">
+    <div class="card">
+      <div class="card-icon">🏗️</div>
+      <h4>1. Supervisor — <span style="color:var(--green)">Elegida</span></h4>
+      <p><code>ccp session</code>: binario Go hace fork/exec de <code>claude</code> como hijo. Zero cambios al rc. Cero reinstalación. Monitorea 3 sensores en goroutines, mata en turn boundary, handoff en-process, re-exec.</p>
+      <p style="margin-top:0.5rem"><span class="tag tag-purple">XL</span> <span class="tag tag-green">headless ✅</span> <span class="tag tag-amber">interactive ⚠️</span></p>
+    </div>
+    <div class="card">
+      <div class="card-icon">📊</div>
+      <h4>2. Budget Scheduler — <span style="color:var(--accent2)">Graft parcial</span></h4>
+      <p>Pre-emptive: muestrear <code>.cachedUsageUtilization</code>, armar handoff al 85-95%, frenar en Stop hook. Nunca tocar el límite.</p>
+      <p style="margin-top:0.5rem"><span class="tag tag-amber">five_hour.utilization lee 0 en caches</span></p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🪝</div>
+      <h4>3. Sentinel Relay — <span style="color:var(--accent2)">Graft parcial</span></h4>
+      <p>Hooks en cc-home/settings.json detectan límite → sentinel file → <code>_ccp_autocheck</code> actúa en el prompt loop. Sin daemon, peso mínimo.</p>
+      <p style="margin-top:0.5rem"><span class="tag tag-red">actuación desde precmd es frágil</span></p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔀</div>
+      <h4>4. Router Proxy — <span style="color:var(--text3)">Feature separado</span></h4>
+      <p>localhost HTTP proxy multiplexa API keys. Failover in-process sin restart. Pero <strong>0/89 límites reales son API-key</strong> — todos OAuth.</p>
+      <p style="margin-top:0.5rem"><span class="tag tag-purple">XL</span> <span class="tag tag-red">no cubre OAuth</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ DECISIONES Y TRADE-OFFS ═══ -->
+<section>
+  <h2 class="section-title">Decisiones y trade-offs</h2>
+  <div class="decision-grid">
+    <div class="decision">
+      <div class="decision-col"><h5 class="chosen">✅ Elegido</h5><p>Go binary (<code>ccp session</code>)</p></div>
+      <div class="decision-col"><h5 class="discarded">❌ Descartado</h5><p>Shell function (<code>_ccp_autocheck</code>)</p></div>
+      <div class="decision-col"><h5 class="why">💡 Por qué</h5><p>Cron/CI necesita binario. precmd con flock bloqueante + subshells de handoff es frágil.</p></div>
+    </div>
+    <div class="decision">
+      <div class="decision-col"><h5 class="chosen">✅ Elegido</h5><p>statusLine <code>rate_limits</code></p></div>
+      <div class="decision-col"><h5 class="discarded">❌ Descartado</h5><p>Transcript tail parsing</p></div>
+      <div class="decision-col"><h5 class="why">💡 Por qué</h5><p>Proactivo > reactivo. <code>resets_at</code> en epoch. Solo suscripción — pero 89/89 límites reales lo son.</p></div>
+    </div>
+    <div class="decision">
+      <div class="decision-col"><h5 class="chosen">✅ Elegido</h5><p>SIGTERM → handoff → re-exec</p></div>
+      <div class="decision-col"><h5 class="discarded">❌ Descartado</h5><p>Hook <code>continue: false</code></p></div>
+      <div class="decision-col"><h5 class="why">💡 Por qué</h5><p>Hook no puede cambiar provider. SIGTERM documentado (exit 143, SessionEnd corre).</p></div>
+    </div>
+    <div class="decision">
+      <div class="decision-col"><h5 class="chosen">✅ Elegido</h5><p>Headless v1, interactive v3</p></div>
+      <div class="decision-col"><h5 class="discarded">❌ Descartado</h5><p>Ship interactive sin verificar</p></div>
+      <div class="decision-col"><h5 class="why">💡 Por qué</h5><p>StopFailure en interactive no está verificado. 20 min de experimento → gate para phase 3.</p></div>
+    </div>
+    <div class="decision">
+      <div class="decision-col"><h5 class="chosen">✅ Elegido</h5><p><code>allow_from</code> explícito, default deny</p></div>
+      <div class="decision-col"><h5 class="discarded">❌ Descartado</h5><p>Derivar del rules tree</p></div>
+      <div class="decision-col"><h5 class="why">💡 Por qué</h5><p>Reglas son geográficas (path→profile), no de confianza. EMCO→DeepSeek ya pasó manualmente 5×.</p></div>
+    </div>
+    <div class="decision">
+      <div class="decision-col"><h5 class="chosen">✅ Elegido</h5><p>Lift no-chain con <code>--chain</code> para préstamos</p></div>
+      <div class="decision-col"><h5 class="discarded">❌ Descartado</h5><p>Dejar invariante, pagar end→forward</p></div>
+      <div class="decision-col"><h5 class="why">💡 Por qué</h5><p>Sin lift, round-robin 3 cuentas = 2× RewriteSession (29MB) + 4 sesiones nuevas. Con lift = 1 CopyTranscript por hop.</p></div>
+    </div>
+    <div class="decision">
+      <div class="decision-col"><h5 class="chosen">✅ Elegido</h5><p>Router proxy: feature independiente</p></div>
+      <div class="decision-col"><h5 class="discarded">❌ Descartado</h5><p>Daemon compartido, parte del ladder</p></div>
+      <div class="decision-col"><h5 class="why">💡 Por qué</h5><p>0/89 límites reales son API-key. Daemon tiene riesgo de puerto/token invalida otras sesiones.</p></div>
+    </div>
+    <div class="decision">
+      <div class="decision-col"><h5 class="chosen">✅ Elegido</h5><p><code>--yolo</code> flag per-run, nunca persistido</p></div>
+      <div class="decision-col"><h5 class="discarded">❌ Descartado</h5><p>Auto-detectado, guardado en yaml</p></div>
+      <div class="decision-col"><h5 class="why">💡 Por qué</h5><p>Unattended permission skip es peligroso. Usuario debe pedirlo explícitamente cada vez.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ PLAN DE EJECUCIÓN ═══ -->
+<section>
+  <h2 class="section-title">Plan de ejecución por fases</h2>
+
+  <div class="timeline">
+    <div class="phase">
+      <h4>Fase 1: ccp session headless</h4>
+      <div class="phase-meta">2–3 semanas · <span class="tag tag-green">v1 shippeable</span></div>
+      <p><strong>Comando:</strong> <code>ccp session -p [--policy &lt;name&gt;] [--max-hops N] [--yolo] [--session-id &lt;uuid&gt;] [-- &lt;claude args&gt;]</code></p>
+      <p style="margin-top:0.3rem;"><strong>Archivos nuevos:</strong></p>
+      <ul style="list-style:disc; padding-left:1.25rem; font-size:0.85rem; color:var(--text2);">
+        <li><code>internal/cli/session.go</code> — dispatch, flags</li>
+        <li><code>internal/supervisor/supervisor.go</code> — loop: launch → watch → handoff → relaunch</li>
+        <li><code>internal/supervisor/detect.go</code> — stream-json api_retry parser + exit code</li>
+        <li><code>internal/supervisor/policy.go</code> — carga <code>auto_handoff</code> de ccp.yaml</li>
+        <li><code>internal/core/auto.go</code> — <code>AutoConfig</code> struct, load/save, defaults</li>
+      </ul>
+      <p style="margin-top:0.3rem;"><strong>Sin cambios a:</strong> shellinit.go, bash oracle, golden gate, parity test.</p>
+      <p><strong>Tests:</strong> loop sintético con fake claude bin + integración handoff_store real en tmp home.</p>
+    </div>
+
+    <div class="phase">
+      <h4>Fase 2: Detección por hooks + monitoreo</h4>
+      <div class="phase-meta">1–2 semanas · <span class="tag tag-amber">experimento crítico</span></div>
+      <p><strong>Comandos:</strong> <code>ccp auto install</code>, <code>ccp auto status [--json]</code>, <code>ccp auto test --profile &lt;n&gt;</code></p>
+      <p><strong>Archivos:</strong> <code>internal/cli/auto.go</code>, <code>internal/core/autohooks.go</code> (fragmento gestionado de settings.json, merge en <code>CfgRegenerate</code>)</p>
+      <div class="callout warn" style="margin-top:0.5rem;">
+        <p><strong>Experimento crítico:</strong> Agotar cuenta interactivamente, verificar si StopFailure dispara. Si no: notificación sin actuación automática.</p>
+      </div>
+    </div>
+
+    <div class="phase">
+      <h4>Fase 3: Interactive + lift invariantes</h4>
+      <div class="phase-meta">2–3 semanas · <span class="tag tag-amber">gated en experimento fase 2</span></div>
+      <p><strong>Features:</strong> <code>ccp session</code> sin <code>-p</code> hereda TTY, statusLine sensor proactivo, StopFailure backstop, lift invariante no-chain con <code>--chain</code>, <code>ccp handoff prune --keep N</code>, <code>ccp handoff sessions [--json]</code> público.</p>
+      <p><strong>Archivos:</strong> <code>internal/supervisor/tty.go</code>, <code>internal/core/handoff.go</code> (<code>HandoffHop</code>), <code>internal/cli/handoff_prune.go</code></p>
+    </div>
+
+    <div class="phase">
+      <h4>Fase 4: Router proxy (feature independiente)</h4>
+      <div class="phase-meta">2–3 semanas · <span class="tag tag-purple">API-key pool</span></div>
+      <p><strong>Comando:</strong> <code>ccp pool run [--pool &lt;name&gt;] [-- &lt;claude args&gt;]</code></p>
+      <p>Per-session foreground child. Sin daemon. Pool de API keys con failover in-process (mismo proveedor, distintas keys + model name mapping).</p>
+      <p><strong>Archivos:</strong> <code>internal/router/server.go</code>, <code>pool.go</code>, <code>rewrite.go</code>, <code>classify.go</code></p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FLUJOS CLAVE ═══ -->
+<section>
+  <h2 class="section-title">Flujos clave</h2>
+
+  <div class="mermaid-wrap">
+    <div class="label">Forward automático (headless)</div>
+    <pre class="mermaid">
+sequenceDiagram
+    actor U as 👤 Cron / CI
+    participant S as ccp session
+    participant C as claude -p
+    participant API as Anthropic API
+    participant Core as core.HandoffForward
+    participant FS as ~/.config/ccp/handoffs.yaml
+
+    U->>S: ccp session -p --policy overnight -- claude -p "task"
+    S->>S: Load auto_handoff.policies.overnight
+    S->>S: primario = resolver(Path) → personal-cc
+    S->>S: fallback = [app-cc, emco-cc]
+    S->>C: fork/exec claude (personal-deepseek env)
+    C->>API: POST /v1/messages
+    API-->>C: stream (chunks)
+    loop hasta límite o fin
+        S->>C: leer stdout ndjson
+        C->>API: siguiente turno
+    end
+    API-->>C: 429 rate_limit
+    C-->>S: stream-json: type=system, subtype=api_retry, error=rate_limit
+    S->>C: SIGTERM
+    C-->>S: exit 143
+    S->>Core: HandoffForward(home, personal-deepseek, personal-cc, cwd, uuid, ...)
+    Core->>FS: flock + CopyTranscript + append marker
+    Core-->>S: emit (env delta + CCP_RESUME_ID)
+    S->>C: fork/exec claude --resume uuid (personal-cc env)
+    C->>API: POST /v1/messages (personal-cc key)
+    Note over S,C: ... continúa con siguiente perfil hasta éxito o max_hops
+    </pre>
+  </div>
+
+  <div class="mermaid-wrap">
+    <div class="label">Política y compliance gate</div>
+    <pre class="mermaid">
+flowchart LR
+    subgraph Policy["auto_handoff.policies.default"]
+        PRIMARY["🏠 primario = ccp resolve $PWD<br/>ej: personal-cc"]
+        FB["fallback: [app-cc, personal-deepseek]"]
+        TH["threshold: 90%"]
+        DWELL["min_dwell: 20m"]
+        RETCK["return_check: 10m"]
+    end
+    subgraph Gate["allow_from (compliance)"]
+        E["emco-cc → [emco-cc]"]
+        A["app-cc → [app-cc, personal-cc]"]
+        P["personal-cc → [personal-cc, app-cc, personal-deepseek]"]
+        D["personal-deepseek → [personal-deepseek, personal-cc]"]
+    end
+    RES["Resolver: ¿a quién pedir prestado?"]
+    OK["✅ handoff a fallback[i]"]
+    DENY["❌ bloqueado por compliance"]
+    BACK["🏠 return_check: ¿primario libre? → volver"]
+
+    PRIMARY --> FB
+    FB --> RES
+    TH --> RES
+    RES --> Gate
+    Gate --> OK
+    Gate --> DENY
+    RETCK --> BACK
+    BACK --> PRIMARY
+
+    style DENY fill:#f87171,color:#fff,stroke:none
+    style OK fill:#34d399,color:#000,stroke:none
+    style PRIMARY fill:#a78bfa,color:#000,stroke:none
+    style BACK fill:#fbbf24,color:#000,stroke:none
+    style Gate fill:rgba(251,191,36,0.12),stroke:#fbbf24
+    </pre>
+  </div>
+</section>
+
+<!-- ═══ NUEVA CONFIGURACIÓN ═══ -->
+<section>
+  <h2 class="section-title">Nuevas keys en ccp.yaml</h2>
+  <div class="code-block">
+    <div class="lang">yaml</div>
+    <button class="copy-btn" onclick="copyBlock(this)">copy</button>
+auto_handoff:
+  enabled: true
+  policies:
+    default:
+      # Préstamos en orden. El primario es implícito (ccp resolve $PWD).
+      fallback: [app-cc, personal-deepseek]
+      threshold: 90          # % de rate_limits para handoff proactivo
+      min_dwell: 20m         # mínimo en cada perfil antes de rotar
+      max_hops: 6            # máximo de préstamos antes de rendirse
+      return_check: 10m      # cada cuánto verificar si el primario ya es elegible
+      return_idle: 90s       # …y cuánto tiene que llevar CALLADA la sesión antes
+                             # de que ese regreso pueda matar y relanzar al hijo
+      cooldown:
+        strategy: resets_at  # usar epoch resets_at del rate_limits para decidir
+        fallback: 1h         # si no hay resets_at (API-key), espera fija
+
+    overnight:
+      # primario implícito: el que ccp resolve devuelva para el path
+      fallback: [personal-cc, app-cc]
+      threshold: 85          # más conservador para unattended
+      max_hops: 12
+      return_check: 10m
+      cooldown:
+        strategy: resets_at
+        fallback: 2h
+
+    trabajo:
+      fallback: []            # sin préstamos. Solo primario.
+
+  allow_from:                 # compliance gate: default deny
+    emco-cc: [emco-cc]        # solo a sí mismo (no rota)
+    app-cc: [app-cc, personal-cc]
+    personal-cc: [personal-cc, app-cc, personal-deepseek]
+    personal-deepseek: [personal-deepseek, personal-cc]
+  </div>
+</section>
+
+<!-- ═══ RIESGOS Y ROLLBACK ═══ -->
+<section>
+  <h2 class="section-title">Riesgos y rollback</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Riesgo</th><th>Mitigación</th><th>Rollback</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>StopFailure no dispara en interactive</td>
+          <td>Experimento antes de phase 3</td>
+          <td>Phase 3 cancela, headless sigue</td>
+        </tr>
+        <tr>
+          <td><code>five_hour.utilization</code> lee 0</td>
+          <td>Medir en statusline real antes de phase 2</td>
+          <td>Degradar a solo reactivo</td>
+        </tr>
+        <tr>
+          <td>Transcript tool_use no compatible con DeepSeek</td>
+          <td>Prueba empírica manual: handoff → --resume</td>
+          <td>Deshabilitar cross-provider en política</td>
+        </tr>
+        <tr>
+          <td>Auto-markers contaminan handoffs.yaml</td>
+          <td><code>auto: true</code> en Marker, prune, auto-end/discard</td>
+          <td><code>ccp handoff discard</code> manual</td>
+        </tr>
+        <tr>
+          <td>Laptop duerme mid-rotación</td>
+          <td><code>min_dwell</code>, markers sobreviven al crash</td>
+          <td>Sesión siguiente arranca fresco</td>
+        </tr>
+        <tr>
+          <td>Infinite handoff loop</td>
+          <td><code>max_hops</code> hard cap</td>
+          <td>N/A — el cap es estructural</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══ UNKNOWNS ═══ -->
+<section>
+  <h2 class="section-title">Unknowns a verificar primero</h2>
+  <div class="bento">
+    <div class="card">
+      <div class="card-icon">🧪</div>
+      <h4>1. StopFailure en interactive</h4>
+      <p>Agotar cuenta de bajo valor interactivamente, hook dumpea stdin a archivo. <strong>20 min. Gate para phase 3.</strong></p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔀</div>
+      <h4>2. Tool use → DeepSeek/Kimi/GLM</h4>
+      <p>Handoff manual de sesión pequeña, <code>--resume</code> en DeepSeek. <strong>10 min. Gate para cross-provider.</strong></p>
+    </div>
+    <div class="card">
+      <div class="card-icon">📊</div>
+      <h4>3. five_hour.utilization</h4>
+      <p>Script dumpea stdin de statusline durante sesión real. ¿Es siempre 0 o está poblado?</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🚪</div>
+      <h4>4. -p exit code en límite suscripción</h4>
+      <p>Mismo experimento que #1 pero headless. <strong>5 min extra.</strong></p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CASOS DE USO ═══ -->
+<section>
+  <h2 class="section-title">Casos de uso cubiertos</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Caso</th><th>Cómo</th><th>Limitación</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>UC-1</strong> Interactive refactor largo</td><td><code>ccp session</code> con TTY. statusLine → handoff proactivo</td><td><span class="tag tag-amber">Gated en experimento</span></td></tr>
+        <tr><td><strong>UC-2</strong> Overnight headless batch</td><td><code>ccp session -p --policy overnight</code></td><td><span class="tag tag-green">✅ Listo en v1</span></td></tr>
+        <tr><td><strong>UC-3</strong> Opus → Sonnet mismo perfil</td><td><code>per_profile.model</code> en chain</td><td>Feature separado</td></tr>
+        <tr><td><strong>UC-4</strong> Préstamos entre cuentas</td><td><code>fallback: [app-cc, personal-cc]</code>. Primario implícito</td><td><span class="tag tag-amber">Requiere lift no-chain</span></td></tr>
+        <tr><td><strong>UC-5</strong> Oficial → DeepSeek</td><td>Último fallback. <code>--model</code> explícito</td><td><span class="tag tag-amber">Compatibilidad no verificada</span></td></tr>
+        <tr><td><strong>UC-7</strong> Retorno al primario</td><td><code>return_check: 10m</code> verifica <code>resets_at</code>. Si expiró → volver</td><td><span class="tag tag-green">✅ Con cooldowns + resets_at</span></td></tr>
+        <tr><td><strong>UC-9</strong> Cron/CI</td><td><code>ccp session -p</code> no necesita shell function</td><td><span class="tag tag-green">✅</span></td></tr>
+        <tr><td><strong>EDGE-5</strong> Todos agotados</td><td>Exit limpio, marker parked. No loop infinito</td><td><span class="tag tag-green">✅</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</div>
+
+<footer>
+  <div class="status"><span class="dot"></span> Spec · 2026-07-25 · v1</div>
+  <p>ccp auto-handoff · <a href="file:///Volumes/Samsung_SSD_990_EVO_Plus_4TB_Media/Documents/Personal/Projects/dsctl-v2/docs/superpowers/specs/2026-07-25-auto-handoff-design.md" style="color:var(--accent2)">spec markdown</a> · generado por <code>ccp workflow</code> (13 agentes, 95 hallazgos, 4 arquitecturas adversariales)</p>
+</footer>
+
+<script>
+// ── Theme toggle ──
+const html = document.documentElement;
+const saved = localStorage.getItem('ccp-auto-handoff-theme');
+if (saved) html.setAttribute('data-theme', saved);
+else if (window.matchMedia('(prefers-color-scheme: light)').matches) html.setAttribute('data-theme', 'light');
+
+function toggleTheme() {
+  const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', next);
+  localStorage.setItem('ccp-auto-handoff-theme', next);
+  document.querySelector('.theme-toggle').textContent = next === 'dark' ? '🌙 dark' : '☀️ light';
+  mermaid.init(); // re-render diagrams
+}
+
+document.querySelector('.theme-toggle').textContent =
+  html.getAttribute('data-theme') === 'dark' ? '🌙 dark' : '☀️ light';
+
+// ── Mermaid init ──
+mermaid.initialize({
+  startOnLoad: true,
+  theme: html.getAttribute('data-theme') === 'dark' ? 'dark' : 'default',
+  securityLevel: 'loose',
+  fontFamily: 'var(--font)',
+});
+window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+  if (!localStorage.getItem('ccp-auto-handoff-theme')) {
+    html.setAttribute('data-theme', window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    mermaid.init();
+  }
+});
+
+// ── Copy button ──
+function copyBlock(btn) {
+  const code = btn.parentElement.textContent.replace(/copy\s*/,'').trim();
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = 'copied!';
+    setTimeout(() => btn.textContent = 'copy', 1500);
+  });
+}
+</script>
+
+</body>
+</html>

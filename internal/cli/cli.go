@@ -73,6 +73,15 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 		return cmdHandoffEndEmit(rest, stdout, stderr)
 	case "_handoff-resume":
 		return cmdHandoffResumeEmit(rest, stdout, stderr)
+	// Sensores del auto-handoff. Están en esta sección porque, como _env/_hook,
+	// no los teclea nadie: los invoca Claude Code desde el settings.json que ccp
+	// genera (statusLine y el hook StopFailure). Ambos salen SIEMPRE 0 — un
+	// statusLine que revienta deja a CC sin barra y un hook que falla molesta en
+	// mitad del trabajo—, así que el exit code aquí es informativo, no contrato.
+	case "_statusline":
+		return cmdStatusLine(rest, stdout, stderr)
+	case "_limit-hook":
+		return cmdLimitHook(rest, stdout, stderr)
 	case "completion":
 		return cmdCompletion(rest, stdout, stderr)
 	case "completion-shellinit":
@@ -85,6 +94,15 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 	// --- superficie scriptable + gestión ---
 	case "handoff":
 		return cmdHandoff(rest, stdout, stderr)
+	// `session` y `auto` NO son shell-only aunque session lance claude: el
+	// supervisor corre EN el binario y le pasa el entorno al hijo con
+	// EnvForChild, sin necesitar que el shell padre exporte nada. Por eso llegan
+	// aquí por el `*) command ccp "$@"` que el bloque del rc ya tiene desde v2.0
+	// y el usuario no necesita reinstalar el rc para usarlos.
+	case "session":
+		return cmdSession(rest, stdout, stderr)
+	case "auto":
+		return dispatchAuto(rest, stdout, stderr)
 	case "status":
 		return cmdStatus(rest, stdout, stderr)
 	case "path":

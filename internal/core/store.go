@@ -63,6 +63,12 @@ type Config struct {
 	Rules    []Rule             `yaml:"rules"`
 	Authored []Authored         `yaml:"authored"`
 
+	// AutoHandoff es el bloque de política de rotación automática (auto.go).
+	// Puntero + omitempty: quien no usa auto-handoff no ve la clave en su
+	// ccp.yaml, y el bloque es ADITIVO (no sube SchemaVersion) porque un ccp
+	// viejo lo preserva vía Extra sin necesitar entenderlo.
+	AutoHandoff *AutoHandoff `yaml:"auto_handoff,omitempty"`
+
 	// Extra: catch-all para claves de nivel superior que este binario no
 	// conoce. Se preservan tal cual en el round-trip.
 	Extra map[string]any `yaml:",inline"`
@@ -75,12 +81,13 @@ type Config struct {
 // knownTopKeys son las claves de nivel superior que el struct maneja
 // explícitamente; se filtran del catch-all Extra para evitar redundancia.
 var knownTopKeys = map[string]struct{}{
-	"version":  {},
-	"lang":     {},
-	"defaults": {},
-	"profiles": {},
-	"rules":    {},
-	"authored": {},
+	"version":      {},
+	"lang":         {},
+	"defaults":     {},
+	"profiles":     {},
+	"rules":        {},
+	"authored":     {},
+	"auto_handoff": {},
 }
 
 func yamlPath(home string) string { return filepath.Join(home, "ccp.yaml") }

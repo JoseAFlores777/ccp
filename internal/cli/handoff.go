@@ -1,11 +1,13 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -95,6 +97,10 @@ func cmdHandoff(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case "discard":
 		return cmdHandoffDiscard(home, lang, args[1:], stdout, stderr)
+	case "prune":
+		return cmdHandoffPrune(home, lang, args[1:], stdout, stderr)
+	case "sessions":
+		return cmdHandoffSessions(home, lang, args[1:], stdout, stderr)
 	default:
 		// forward / end / resume / no-arg: shell-only.
 		fmt.Fprintln(stderr, i18n.T(lang, "cli.handoff.shell_only"))
@@ -210,6 +216,18 @@ func cmdHandoffEmit(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	cwd := args[0]
+	// Guarda de rc desfasado. La función shell del rc manda a este emit TODO lo
+	// que no reconoce como solo-lectura (`status|list|discard|prune|sessions`),
+	// así que un rc instalado ANTES de que existieran prune/sessions convierte
+	// `ccp handoff prune` en «préstame la sesión al perfil llamado prune»: el
+	// core acabaría diciendo «perfil inexistente: prune», un diagnóstico que
+	// manda al usuario a mirar sus perfiles en vez de a refrescar el rc. Se
+	// detecta aquí, antes de parsear flags, porque el síntoma es exactamente
+	// que el subcomando llegó disfrazado de posicional.
+	if len(args) > 1 && (args[1] == "prune" || args[1] == "sessions") {
+		fmt.Fprintf(stderr, "[error] %s\n", i18n.T(lang, "cli.handoff.prune.stale_rc", args[1]))
+		return 1
+	}
 	f, err := parseHandoffFlags(args[1:])
 	if err != nil {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
@@ -363,6 +381,169 @@ func cmdHandoffDiscard(home string, lang i18n.Lang, args []string, stdout, stder
 	fmt.Fprintln(stdout, i18n.T(lang, "cli.handoff.discarded",
 		m.From, m.To, core.ShortUUID(m.Session), m.Cwd))
 	fmt.Fprintln(stdout, i18n.T(lang, "cli.handoff.discard_note", m.To, m.Session))
+	return 0
+}
+
+// defaultHandoffKeep es cuántas entradas archivadas conserva `prune` sin
+// --keep. 50 es «un par de semanas de trabajo normal»: suficiente para
+// responder «¿con qué uuid volvió aquella sesión?» —la única pregunta que el
+// historial contesta— y poco para que handoffs.yaml siga siendo legible.
+const defaultHandoffKeep = 50
+
+// cmdHandoffPrune implementa `ccp handoff prune [--keep N]`: recorta el
+// historial archivado, que sin esto crece sin tope (cada handoff terminado
+// añade una entrada y nada la quita jamás; con el supervisor rotando solo, un
+// día de trabajo deja decenas).
+//
+// No es shell-only: no lanza claude ni toca el entorno, así que la función
+// shell lo manda por la rama de solo-lectura y aquí solo se imprime.
+func cmdHandoffPrune(home string, lang i18n.Lang, args []string, stdout, stderr io.Writer) int {
+	keep := defaultHandoffKeep
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--keep":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "[error] %s\n", i18n.T(lang, "cli.handoff.prune.flag_needs_value", "--keep"))
+				return 1
+			}
+			i++
+			n, ok := parseKeep(args[i])
+			if !ok {
+				fmt.Fprintf(stderr, "[error] %s\n", i18n.T(lang, "cli.handoff.prune.bad_keep", args[i]))
+				return 1
+			}
+			keep = n
+		case strings.HasPrefix(a, "--keep="):
+			// La forma pegada se acepta porque es la que sale sola al escribir
+			// `--keep=0`, y rechazarla obligaría a adivinar por qué «flag
+			// desconocido» habla de un flag que sí existe.
+			n, ok := parseKeep(strings.TrimPrefix(a, "--keep="))
+			if !ok {
+				fmt.Fprintf(stderr, "[error] %s\n", i18n.T(lang, "cli.handoff.prune.bad_keep", strings.TrimPrefix(a, "--keep=")))
+				return 1
+			}
+			keep = n
+		case strings.HasPrefix(a, "-"):
+			fmt.Fprintf(stderr, "[error] %s\n", i18n.T(lang, "cli.handoff.prune.unknown_flag", a))
+			return 1
+		default:
+			// Un posicional aquí es casi siempre `ccp handoff prune 10` — la
+			// forma que uno escribe por analogía con `head -n`. Callarlo
+			// recortaría a 50 sin decirlo, que es justo lo contrario de lo que
+			// el usuario pidió.
+			fmt.Fprintf(stderr, "[error] %s\n", i18n.T(lang, "cli.handoff.prune.extra_arg", a))
+			return 1
+		}
+	}
+	removed, err := core.HandoffPrune(home, keep)
+	if err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", err)
+		return handoffExit(err)
+	}
+	if removed == 0 {
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.handoff.prune.nothing", keep))
+		return 0
+	}
+	// `keep` y no «lo que quedó»: HandoffPrune solo recorta cuando sobran
+	// entradas, así que con removed>0 las que quedan son exactamente keep, y
+	// releer el archivo para confirmarlo sería una carrera con otro ccp.
+	fmt.Fprintln(stdout, i18n.T(lang, "cli.handoff.prune.done", removed, keep))
+	return 0
+}
+
+// parseKeep acepta solo enteros no negativos. Se rechaza el negativo aquí y no
+// en el core para poder decirlo en el idioma del usuario; el core lo rechaza
+// igual (defensa en profundidad para otros callers).
+func parseKeep(s string) (int, bool) {
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 0 {
+		return 0, false
+	}
+	return n, true
+}
+
+// handoffSessionJSON es una fila de `ccp handoff sessions --json`. Los nombres
+// son estables (superficie scriptable): uuid completo —no el corto, que existe
+// solo para leerlo— , ruta del transcript, título y mtime en RFC3339.
+type handoffSessionJSON struct {
+	UUID  string `json:"uuid"`
+	Path  string `json:"path"`
+	Title string `json:"title"`
+	MTime string `json:"mtime"`
+}
+
+// cmdHandoffSessions implementa `ccp handoff sessions [--json]`: las sesiones
+// del perfil ACTIVO para el cwd actual, que es exactamente el conjunto entre el
+// que elige el picker de `ccp handoff`. Existe para poder pasar `--session
+// <uuid>` sin TTY (CI, scripts, un agente) sin tener que adivinar la ruta del
+// jsonl ni el esquema del slug.
+//
+// Lista vacía NO es error (exit 0, y `[]` en JSON): «este repo aún no tiene
+// conversaciones» es un resultado legítimo, y devolver 1 haría que un `set -e`
+// abortara por ello.
+func cmdHandoffSessions(home string, lang i18n.Lang, args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	for _, a := range args {
+		switch {
+		case a == "--json":
+			asJSON = true
+		case strings.HasPrefix(a, "-"):
+			fmt.Fprintf(stderr, "[error] %s\n", i18n.T(lang, "cli.handoff.sessions.unknown_flag", a))
+			return 1
+		default:
+			fmt.Fprintf(stderr, "[error] %s\n", i18n.T(lang, "cli.handoff.sessions.extra_arg", a))
+			return 1
+		}
+	}
+	cwd := currentDir()
+	profile := activeProfile(home, cwd)
+	ccHome, err := core.CCHome(home, profile)
+	if err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", err)
+		return 1
+	}
+	sessions, err := core.ListSessions(ccHome, core.SlugForCwd(cwd))
+	if err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", err)
+		return 1
+	}
+
+	if asJSON {
+		// Slice no-nil siempre: `jq '.|length'` y un `for` de bash sobre el
+		// resultado tienen que funcionar sin guarda contra null.
+		rows := make([]handoffSessionJSON, 0, len(sessions))
+		for _, s := range sessions {
+			rows = append(rows, handoffSessionJSON{
+				UUID:  s.UUID,
+				Path:  s.Path,
+				Title: s.Title,
+				MTime: s.ModTime.UTC().Format(time.RFC3339),
+			})
+		}
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(rows); err != nil {
+			fmt.Fprintf(stderr, "[error] %v\n", err)
+			return 1
+		}
+		return 0
+	}
+
+	if len(sessions) == 0 {
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.handoff.sessions.none", profile, cwd))
+		return 0
+	}
+	fmt.Fprintln(stdout, i18n.T(lang, "cli.handoff.sessions.header", profile, cwd, len(sessions)))
+	now := time.Now()
+	for _, s := range sessions {
+		title := s.Title
+		if title == "" {
+			title = i18n.T(lang, "cli.handoff.sessions.untitled")
+		}
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.handoff.sessions.row",
+			core.ShortUUID(s.UUID), title, autoShortAge(now.Sub(s.ModTime))))
+	}
 	return 0
 }
 

@@ -741,7 +741,20 @@ HANDOFF (shell function)          several handoffs may be in flight at once
   ccp handoff end [<uuid>]    bring the updated context back to the origin
   ccp handoff discard [<uuid>]  drop a stale marker (no back-sync)
   ccp handoff status [--all] | list   in flight here (or everywhere) + history
+  ccp handoff prune [--keep N]  trim the archived history (keeps 50 by default)
+  ccp handoff sessions [--json] this cwd's sessions in the active profile
   --yolo (--dangerously-skip-permissions)  resume without permission prompts
+
+AUTO-HANDOFF                      rotates profile on its own when usage runs out
+  ccp session [-- <claude args>]    run claude under the supervisor
+  ccp session -p --policy <name>    headless (cron/CI) with a named policy
+  ccp session --dry-run             print the resolved plan without launching
+  --max-hops N · --yolo · --session <uuid> · --no-return · --claude-bin <path>
+  ccp auto init [--force]           seed the auto_handoff block in ccp.yaml
+  ccp auto install [<profile>...]   install the sensors (StopFailure + statusLine)
+  ccp auto uninstall [<profile>...] remove them and regenerate
+  ccp auto status [--json]          policy, sensors, samples, cooldowns
+  ccp auto test [--profile <n>]     check the detection path end to end
 
 PROFILES
   ccp profile add <n> --official            create official account
@@ -801,7 +814,20 @@ HANDOFF (función shell)           puede haber varios handoffs en vuelo a la vez
   ccp handoff end [<uuid>]    trae el contexto actualizado de vuelta al origen
   ccp handoff discard [<uuid>]  suelta un marcador zombi (sin back-sync)
   ccp handoff status [--all] | list   en vuelo aquí (o en todos) + historial
+  ccp handoff prune [--keep N]  recorta el historial archivado (guarda 50)
+  ccp handoff sessions [--json] sesiones de este cwd en el perfil activo
   --yolo (--dangerously-skip-permissions)  reanuda sin prompts de permiso
+
+AUTO-HANDOFF                      rota de perfil solo cuando se acaba el uso
+  ccp session [-- <args de claude>] corre claude bajo el supervisor
+  ccp session -p --policy <nombre>  headless (cron/CI) con una política
+  ccp session --dry-run             imprime el plan resuelto sin lanzar nada
+  --max-hops N · --yolo · --session <uuid> · --no-return · --claude-bin <ruta>
+  ccp auto init [--force]           siembra el bloque auto_handoff en ccp.yaml
+  ccp auto install [<perfil>...]    instala los sensores (StopFailure + statusLine)
+  ccp auto uninstall [<perfil>...]  los quita y regenera
+  ccp auto status [--json]          política, sensores, muestras, cooldowns
+  ccp auto test [--profile <n>]     comprueba la ruta de detección de punta a punta
 
 PERFILES
   ccp profile add <n> --official            crea cuenta oficial

@@ -23,7 +23,7 @@ ccp() {
       case "$1" in
         end)          shift; out=$(command ccp _handoff-end "$PWD" "$@") || return ;;
         resume)       shift; out=$(command ccp _handoff-resume "$PWD" "$@") || return ;;
-        status|list|discard)  command ccp handoff "$@"; return ;;
+        status|list|discard|prune|sessions)  command ccp handoff "$@"; return ;;
         *)            out=$(command ccp _handoff "$PWD" "$@") || return ;;
       esac
       ( eval "$out" || exit
@@ -63,7 +63,7 @@ fi
 // CompletionBash es el bloque verbatim del heredoc COMPLETION_BASH en cmd_completion().
 const CompletionBash = `_ccp() {
   local cur prev; cur="${COMP_WORDS[COMP_CWORD]}"; prev="${COMP_WORDS[COMP_CWORD-1]}"
-  local top="install uninstall upgrade key path profile instruct status config doctor menu completion resolve lang version help use default on off run handoff"
+  local top="install uninstall upgrade key path profile instruct status config doctor menu completion resolve lang version help use default on off run handoff session auto"
   if [[ $COMP_CWORD -eq 1 ]]; then COMPREPLY=( $(compgen -W "$top" -- "$cur") ); return; fi
   case "${COMP_WORDS[1]}" in
     profile) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "add rm rename list show login config sync" -- "$cur") )
@@ -73,7 +73,9 @@ const CompletionBash = `_ccp() {
              [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" =~ ^(set|rm|test)$ ]] && COMPREPLY=( $(compgen -d -- "$cur") )
              [[ $COMP_CWORD -eq 4 && "${COMP_WORDS[2]}" == "set" ]] && COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
     use)     COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
-    handoff) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "resume end discard status list default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
+    handoff) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "resume end discard status list prune sessions default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
+    auto)    [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "init install uninstall status test" -- "$cur") ) ;;
+    session) COMPREPLY=( $(compgen -W "--dry-run --headless --policy --yolo --max-hops --no-return" -- "$cur") ) ;;
     key)     COMPREPLY=( $(compgen -W "$(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
     completion) COMPREPLY=( $(compgen -W "bash zsh" -- "$cur") ) ;;
   esac
@@ -84,7 +86,7 @@ complete -F _ccp ccp
 // CompletionZsh es el bloque verbatim del heredoc COMPLETION_ZSH en cmd_completion().
 const CompletionZsh = `if ! whence compdef >/dev/null 2>&1; then autoload -Uz compinit && compinit -C; fi
 _ccp() {
-  local -a top; top=(install uninstall upgrade key path profile instruct status config doctor menu completion resolve lang version help use default on off run handoff)
+  local -a top; top=(install uninstall upgrade key path profile instruct status config doctor menu completion resolve lang version help use default on off run handoff session auto)
   if (( CURRENT == 2 )); then compadd -- $top; return; fi
   case "${words[2]}" in
     profile) (( CURRENT == 3 )) && compadd -- add rm rename list show login config sync
@@ -94,7 +96,9 @@ _ccp() {
              (( CURRENT == 3 )) || { [[ "${words[3]}" =~ ^(set|rm|test)$ ]] && _path_files -/ }
              (( CURRENT == 4 )) && [[ "${words[3]}" == set ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     use)     compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
-    handoff) (( CURRENT == 3 )) && compadd -- resume end discard status list default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
+    handoff) (( CURRENT == 3 )) && compadd -- resume end discard status list prune sessions default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
+    auto)    (( CURRENT == 3 )) && compadd -- init install uninstall status test ;;
+    session) compadd -- --dry-run --headless --policy --yolo --max-hops --no-return ;;
     key)     compadd -- ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     completion) compadd -- bash zsh ;;
   esac

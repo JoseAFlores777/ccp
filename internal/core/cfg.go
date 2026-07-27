@@ -223,6 +223,13 @@ func cfgMergeSettings(home, name, src string) error {
 	if err != nil {
 		return fmt.Errorf("merge de settings de %q falló: %w", name, err)
 	}
+	// Tercera capa: los sensores del auto-handoff (autohooks.go), solo si este
+	// perfil los tiene instalados en ccp.yaml. Va DESPUÉS del overlay porque es
+	// infraestructura de ccp, no preferencia del usuario: si alguien deja un
+	// statusLine en su overlay, la capa lo envuelve en vez de perderlo.
+	// applyAutoLayer no falla nunca — regenerar un cc-home no puede depender de
+	// que ccp.yaml sea legible en ese instante.
+	merged = applyAutoLayer(home, name, merged)
 	if err := os.MkdirAll(cch, 0o755); err != nil {
 		return fmt.Errorf("no se pudo crear cc-home de %q: %w", name, err)
 	}
@@ -233,8 +240,10 @@ func cfgMergeSettings(home, name, src string) error {
 }
 
 // CfgRegenerate regenera el cc-home efectivo de un perfil desde global ⊕
-// overlay (idempotente). src es la fuente global (CCP_CLAUDE_SRC o ~/.claude).
-// Se ejecuta en create/edit/sync — NUNCA en el hook.
+// overlay ⊕ auto (idempotente). src es la fuente global (CCP_CLAUDE_SRC o
+// ~/.claude); la capa auto solo se aplica a los perfiles listados en
+// auto_handoff.hooks (ver autohooks.go). Se ejecuta en create/edit/sync —
+// NUNCA en el hook.
 func CfgRegenerate(home, name, src string) error {
 	if err := CfgInitOverlay(home, name); err != nil {
 		return err
