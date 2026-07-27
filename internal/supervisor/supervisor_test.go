@@ -1293,8 +1293,17 @@ func TestRunContextoCanceladoMataAlHijo(t *testing.T) {
 	// Un plan que duerme: se sobreescribe el script por uno que se queda quieto
 	// hasta que lo maten, para tener la garantía de que el hijo sigue vivo cuando
 	// se cancela el contexto.
+	//
+	// El `exec` no es cosmético: sin él el hijo directo es el SHELL, y ahí el
+	// resultado depende de qué sea /bin/sh. El bash de macOS hace exec implícito
+	// del último comando (el hijo ES sleep y muere con el SIGTERM), pero dash
+	// —el /bin/sh de Ubuntu, o sea el de CI— APLAZA la señal mientras espera a
+	// un hijo en foreground: el shell sobrevivía los 10s enteros de `termGrace`
+	// y solo moría con el SIGKILL. Verde en macOS, rojo en Linux, y sin decir
+	// nada del supervisor: el `claude` real se ejecuta directo, sin shell en
+	// medio. Con exec el hijo es un único proceso, como en producción.
 	sleeper := filepath.Join(t.TempDir(), "sleeper")
-	if err := os.WriteFile(sleeper, []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
+	if err := os.WriteFile(sleeper, []byte("#!/bin/sh\nexec sleep 30\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	o := e.opts(seedSession)
