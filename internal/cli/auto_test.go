@@ -486,6 +486,11 @@ func TestAutoStatusDistingueAusenteDeDeshabilitado(t *testing.T) {
 
 const statusLineStdin = `{"session_id":"s1","rate_limits":{"five_hour":{"used_percentage":87.6},"seven_day":{"used_percentage":10}}}`
 
+// La barra propia enseña LAS DOS ventanas, etiquetadas. Enseñar solo el máximo
+// —lo que hacía antes— daba un número sin unidad: un `31%` que tanto podía ser
+// «te quedan horas» (5h) como «te quedan días» (7d), y que cambiaba de ventana
+// sin avisar en cuanto la otra la adelantaba. Las etiquetas son las mismas que
+// ya usa `ccp auto status`, que hablaba de 5h/7d desde el principio.
 func TestStatusLineSinEnvueltoImprimeLineaPropia(t *testing.T) {
 	home := autoTestHome(t)
 	t.Setenv("CCP_PROFILE", "work")
@@ -493,8 +498,9 @@ func TestStatusLineSinEnvueltoImprimeLineaPropia(t *testing.T) {
 	if code := runStatusLine(strings.NewReader(statusLineStdin), nil, &out, &errb); code != 0 {
 		t.Fatalf("exit = %d", code)
 	}
-	if got := strings.TrimSpace(out.String()); got != "work · 88%" {
-		t.Errorf("línea = %q, want %q", got, "work · 88%")
+	const want = "work · 5h 88% · 7d 10%"
+	if got := strings.TrimSpace(out.String()); got != want {
+		t.Errorf("línea = %q, want %q", got, want)
 	}
 	rl, _, ok := core.ReadRateLimits(home, "work")
 	if !ok {
@@ -502,6 +508,41 @@ func TestStatusLineSinEnvueltoImprimeLineaPropia(t *testing.T) {
 	}
 	if rl.FiveHour.UsedPercentage != 87.6 {
 		t.Errorf("muestra = %+v", rl)
+	}
+}
+
+// Una ventana sin dato no se inventa: se omite. El bug conocido de CC 2.1.220
+// (five_hour a 0 con seven_day poblado) es justo este caso, y pintar «5h 0%»
+// diría lo contrario de lo que sabemos — que de esa ventana no sabemos nada.
+func TestStatusLineConUnaSolaVentanaOmiteLaOtra(t *testing.T) {
+	autoTestHome(t)
+	t.Setenv("CCP_PROFILE", "work")
+	casos := []struct {
+		nombre string
+		stdin  string
+		quiere string
+	}{
+		{
+			"solo 7d",
+			`{"session_id":"s1","rate_limits":{"seven_day":{"used_percentage":31}}}`,
+			"work · 7d 31%",
+		},
+		{
+			"solo 5h",
+			`{"session_id":"s1","rate_limits":{"five_hour":{"used_percentage":14}}}`,
+			"work · 5h 14%",
+		},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			var out, errb bytes.Buffer
+			if code := runStatusLine(strings.NewReader(c.stdin), nil, &out, &errb); code != 0 {
+				t.Fatalf("exit = %d", code)
+			}
+			if got := strings.TrimSpace(out.String()); got != c.quiere {
+				t.Errorf("línea = %q, want %q", got, c.quiere)
+			}
+		})
 	}
 }
 

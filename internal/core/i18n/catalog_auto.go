@@ -213,7 +213,7 @@ var catalogAuto = map[string]map[Lang]string{
 	// Formato de la línea propia (perfil · uso). Es idéntica en ambos idiomas a
 	// propósito: son datos, no prosa, y la barra de estado de CC es estrecha.
 	"cli.auto.statusline_usage": {
-		En: "%s · %.0f%%",
-		Es: "%s · %.0f%%",
+		En: "%s · %s",
+		Es: "%s · %s",
 	},
 }

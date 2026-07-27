@@ -10,7 +10,7 @@
 In your work repo, your company account; in your personal project, your own; in your experiments, DeepSeek.
 The switch happens on its own, just by `cd`-ing.
 
-![version](https://img.shields.io/badge/version-2.11.1-c96442)
+![version](https://img.shields.io/badge/version-2.11.2-c96442)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-c96442)
 ![shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-8a8378)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
@@ -392,6 +392,8 @@ The two in-process sensors can only be turned on from `cc-home/settings.json`, a
 
 - `hooks.StopFailure` → `ccp _limit-hook`
 - `statusLine` → `ccp _statusline -- <your original statusLine>` (yours is **wrapped**, not replaced — it still renders your status bar; ccp only samples the stdin it gets)
+
+If you had **no** statusLine of your own, ccp paints a minimal one instead: the profile plus both usage windows, each labelled — `emco-cc · 5h 14% · 7d 31%`. Both are shown because both are watched independently (whichever crosses `threshold` first triggers the hop), and a bare percentage wouldn't say whether you have hours or days left. A window with no data is omitted rather than drawn as `0%`.
 
 Any `StopFailure` hook you already had is preserved alongside ours. It is fully reversible: `ccp auto uninstall <profile>` drops it from the list and regenerates back to global ⊕ overlay. Your overlay is never modified either way — the source of truth for "who has the sensors" is `auto_handoff.hooks` in `ccp.yaml`, not the generated file.
 

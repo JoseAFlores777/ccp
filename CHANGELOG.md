@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.11.2] — la barra propia enseña las dos ventanas
+
+### Changed
+
+- La statusLine mínima que ccp pinta cuando **no** tienes una propia pasa de
+  `emco-cc · 31%` a `emco-cc · 5h 14% · 7d 31%`. Antes enseñaba solo el máximo
+  entre las dos ventanas, que es el número que decide (la más gastada corta
+  primero) pero como porcentaje suelto era ambiguo: no dice si te quedan horas
+  o días, y saltaba de una ventana a otra en cuanto la otra la adelantaba, sin
+  indicarlo. El sensor vigila las dos por separado —`ExhaustedAt` compara cada
+  una contra el umbral—, así que la barra ahora enseña las dos.
+  Una ventana **sin dato se omite** en vez de pintarse como `0%`: el bug conocido
+  de CC 2.1.220 (`five_hour` a 0 con `seven_day` poblado) haría que ese `0%`
+  afirmara justo lo contrario de lo que sabemos. Las etiquetas `5h`/`7d` son las
+  que ya usaba `ccp auto status` y las claves del propio Claude Code.
+  Si tienes statusLine propia no cambia nada: se sigue envolviendo y se sigue
+  pintando la tuya intacta.
+
 ## [2.11.1] — CI verde en el commit tageado
 
 Sin cambios de producto: los binarios son idénticos a los de 2.11.0. Lo único

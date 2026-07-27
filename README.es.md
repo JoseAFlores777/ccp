@@ -10,7 +10,7 @@
 En tu repo de trabajo, tu cuenta de empresa; en tu proyecto personal, la tuya; en tus experimentos, DeepSeek.
 El cambio ocurre solo, con hacer `cd`.
 
-![version](https://img.shields.io/badge/version-2.11.1-c96442)
+![version](https://img.shields.io/badge/version-2.11.2-c96442)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-c96442)
 ![shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-8a8378)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
@@ -392,6 +392,8 @@ Los dos sensores in-process solo se pueden encender desde `cc-home/settings.json
 
 - `hooks.StopFailure` → `ccp _limit-hook`
 - `statusLine` → `ccp _statusline -- <tu statusLine original>` (la tuya se **envuelve**, no se reemplaza — sigue pintando tu barra; ccp solo muestrea el stdin que le llega)
+
+Si **no** tenías statusLine propia, ccp pinta una mínima en su lugar: el perfil más las dos ventanas de uso, cada una etiquetada — `emco-cc · 5h 14% · 7d 31%`. Se enseñan las dos porque las dos se vigilan por separado (dispara el salto la primera que cruce el `threshold`), y un porcentaje suelto no diría si te quedan horas o días. Una ventana sin dato se omite en vez de pintarse como `0%`.
 
 Cualquier hook `StopFailure` que ya tuvieras se conserva junto al nuestro. Es totalmente reversible: `ccp auto uninstall <perfil>` lo quita de la lista y regenera de vuelta a global ⊕ overlay. Tu overlay no se modifica en ningún caso — la fuente de verdad de "quién tiene los sensores" es `auto_handoff.hooks` en `ccp.yaml`, no el archivo generado.
 

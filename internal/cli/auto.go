@@ -704,8 +704,8 @@ func runStatusLine(stdin io.Reader, args []string, stdout, stderr io.Writer) (co
 		// Sin comando envuelto la barra la pintamos nosotros: mínima, porque
 		// sustituir la del usuario por algo vistoso sería presuntuoso.
 		line := profile
-		if pct, has := autoMaxUsage(rl); sampled && has {
-			line = i18n.T(currentLang(), "cli.auto.statusline_usage", profile, pct)
+		if usage := autoUsageLabel(rl); sampled && usage != "" {
+			line = i18n.T(currentLang(), "cli.auto.statusline_usage", profile, usage)
 		}
 		fmt.Fprintln(stdout, line)
 		return 0
@@ -758,17 +758,38 @@ func autoWrappedCommand(args []string) []string {
 	return nil
 }
 
-// autoMaxUsage devuelve el mayor porcentaje entre las ventanas CON dato. Se muestra
-// el máximo porque es el que decide: la ventana más gastada es la que va a
-// cortar primero.
-func autoMaxUsage(rl core.RateLimits) (float64, bool) {
-	best, has := 0.0, false
-	for _, w := range []core.Windowed{rl.FiveHour, rl.SevenDay} {
-		if w.HasData() && (!has || w.UsedPercentage > best) {
-			best, has = w.UsedPercentage, true
+// autoUsageLabel arma el trozo de uso de la barra propia: las ventanas CON dato,
+// etiquetadas, en orden de la que antes se libera a la que más tarda ("5h 88% ·
+// 7d 10%"). Devuelve "" cuando ninguna trae dato.
+//
+// Enseña las DOS a propósito. Antes se enseñaba solo el máximo —la ventana más
+// gastada, que es la que va a cortar primero— y como número suelto era
+// ambiguo: un "31%" no dice si te quedan horas o días, y saltaba de una ventana
+// a otra en cuanto la otra la adelantaba, sin que nada lo indicara. El sensor
+// vigila las dos por separado (core.RateLimits.ExhaustedAt), así que la barra
+// enseña las dos.
+//
+// Las etiquetas son fijas, no traducidas: `5h`/`7d` es como las nombra ya
+// `ccp auto status` (cli.auto.status_sample), idénticas en ambos idiomas, y son
+// las claves que usa el propio Claude Code (five_hour / seven_day).
+func autoUsageLabel(rl core.RateLimits) string {
+	parts := make([]string, 0, 2)
+	for _, w := range []struct {
+		win   core.Windowed
+		label string
+	}{
+		{rl.FiveHour, "5h"},
+		{rl.SevenDay, "7d"},
+	} {
+		// Una ventana sin dato se omite en vez de pintarse como 0%: el bug
+		// conocido de CC (five_hour a 0 con seven_day poblado) haría que un
+		// "5h 0%" dijera justo lo contrario de lo que sabemos.
+		if !w.win.HasData() {
+			continue
 		}
+		parts = append(parts, fmt.Sprintf("%s %.0f%%", w.label, w.win.UsedPercentage))
 	}
-	return best, has
+	return strings.Join(parts, " · ")
 }
 
 // --- ccp _limit-hook ---
