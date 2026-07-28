@@ -144,7 +144,8 @@ func TestParseSessionFlagsErrores(t *testing.T) {
 func sameSessionFlags(a, b sessionFlags) bool {
 	if a.headless != b.headless || a.policy != b.policy || a.maxHops != b.maxHops ||
 		a.yolo != b.yolo || a.session != b.session || a.dryRun != b.dryRun ||
-		a.noReturn != b.noReturn || a.claudeBin != b.claudeBin || a.help != b.help {
+		a.noReturn != b.noReturn || a.claudeBin != b.claudeBin || a.help != b.help ||
+		a.setup != b.setup || a.noSetup != b.noSetup {
 		return false
 	}
 	if len(a.args) != len(b.args) {

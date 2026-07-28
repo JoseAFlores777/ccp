@@ -34,6 +34,9 @@ Options:
       --dry-run                  print the plan (chain, thresholds, samples) and exit
       --no-return                no mid-session trip home (the loan is still
                                  closed when the run ends)
+      --setup                    offer to set this repo up even if it was already
+                                 asked once (needs a terminal; never with -p)
+      --no-setup                 never offer to set this repo up
       --claude-bin <path>        internal: claude binary to run (used by the tests)
   --                             everything after this goes verbatim to claude
 
@@ -54,6 +57,9 @@ Opciones:
       --dry-run                  imprime el plan (cadena, umbrales, muestras) y sale
       --no-return                no vuelve a casa a media sesión (el préstamo se
                                  cierra igual al terminar la corrida)
+      --setup                    ofrece configurar este repo aunque ya se haya
+                                 preguntado una vez (necesita terminal; nunca con -p)
+      --no-setup                 no ofrece configurar este repo
       --claude-bin <ruta>        interno: binario de claude a lanzar (lo usan los tests)
   --                             todo lo que venga después va tal cual a claude
 
@@ -77,6 +83,10 @@ perfiles agotados (reintenta luego) · si no, el código de salida de claude.`,
 	"cli.session.extra_arg": {
 		En: "Unexpected argument '%s'. Put claude's own args after '--'.",
 		Es: "Argumento inesperado '%s'. Los args de claude van después de '--'.",
+	},
+	"cli.session.setup_conflict": {
+		En: "--setup and --no-setup contradict each other; pass only one.",
+		Es: "--setup y --no-setup se contradicen; pasa solo uno.",
 	},
 	"cli.session.bad_max_hops": {
 		En: "--max-hops expects a non-negative integer, got '%s'.",

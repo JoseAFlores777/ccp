@@ -181,6 +181,43 @@ func AutoHooksEnabled(cfg *Config, profile string) bool {
 	return false
 }
 
+// AutoHooksSet devuelve la lista `hooks` con `names` añadidos (install) o
+// quitados (install=false). Pura: no toca disco ni el Config.
+//
+// La reconstrucción conserva el ORDEN existente y deduplica. Las dos cosas
+// importan y ninguna es defensa teórica: la lista la puede haber escrito el
+// usuario a mano en ccp.yaml (reordenarla le ensucia el diff) y un yaml editado a
+// mano puede repetir un nombre, en cuyo caso `uninstall` tendría que borrarlo dos
+// veces para que surtiera efecto.
+//
+// Vive aquí, y no en internal/cli, porque tiene DOS llamadores: `ccp auto
+// install/uninstall` y el bootstrap de `ccp session`. Cuando la lógica vivía en el
+// comando, el segundo solo podía copiarla.
+func AutoHooksSet(cur []string, names []string, install bool) []string {
+	target := make(map[string]bool, len(names))
+	for _, n := range names {
+		target[n] = true
+	}
+	var out []string
+	for _, n := range cur {
+		if !install && target[n] {
+			continue
+		}
+		if autoSeen(out, n) {
+			continue
+		}
+		out = append(out, n)
+	}
+	if install {
+		for _, n := range names {
+			if !autoSeen(out, n) {
+				out = append(out, n)
+			}
+		}
+	}
+	return out
+}
+
 // ExtractStatusLineCommand saca statusLine.command de un settings.json ya
 // fusionado. Devuelve "" si no hay, y también "" si el que hay YA es el de ccp.
 //

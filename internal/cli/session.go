@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mattn/go-isatty"
+
 	"github.com/JoseAFlores777/ccp/internal/core"
 	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 	"github.com/JoseAFlores777/ccp/internal/supervisor"
@@ -38,6 +40,8 @@ type sessionFlags struct {
 	dryRun    bool
 	noReturn  bool
 	claudeBin string
+	setup     bool // --setup: preguntar aunque la caché diga que ya se preguntó
+	noSetup   bool // --no-setup: no preguntar nada
 	help      bool
 	args      []string // lo que va DESPUÉS de `--`, sin interpretar
 }
@@ -66,6 +70,37 @@ func cmdSession(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	cwd := currentDir()
+
+	// Bootstrap: detectar lo que le falta al repo, enseñarlo junto y preguntar
+	// UNA vez. Va aquí, ANTES del pre-chequeo de abajo, porque el `case
+	// cfg.AutoHandoff == nil` es justo el estado que el bootstrap existe para
+	// resolver: detrás de él, el comando ya habría salido con 1.
+	//
+	// El guard entero vive en sessionBootstrapBlock —una función, no una
+	// expresión, para que se pueda probar por su nombre— y decide si HAY con quién
+	// hablar: -p, un stdin que no es terminal, o una salida redirigida a archivo
+	// son tres motivos distintos de no preguntar ni escribir nada. Devuelve el
+	// Config RECARGADO cuando aplicó algo — el switch y el ResolveAutoChain de
+	// abajo leen este puntero, y con el viejo el comando fallaría por un ccp.yaml
+	// que acaba de dejar de ser cierto.
+	//
+	// `--dry-run` NO lo desactiva, y es deliberado: dry-run promete no lanzar
+	// nada, no no-preguntar-nada, y el repo sin configurar es justo el estado que
+	// alguien intenta inspeccionar cuando escribe `ccp session --dry-run` y solo
+	// recibe «corre ccp auto init». La mutación sigue estando consentida a mano;
+	// quien quiera inspeccionar sin que se le ofrezca nada tiene `--no-setup`.
+	cfg = sessionBootstrap(cfg, bootstrapEnv{
+		home:   home,
+		cwd:    cwd,
+		block:  sessionBootstrapBlock(f.headless, os.Stdin, stderr),
+		force:  f.setup,
+		skip:   f.noSetup,
+		policy: f.policy,
+		active: os.Getenv("CCP_PROFILE"),
+		stdin:  os.Stdin,
+		w:      stderr,
+		lang:   lang,
+	})
 
 	// Pre-chequeo de la política ANTES de arrancar nada. El supervisor volvería a
 	// resolverla igual (y con el mismo error), pero su mensaje es una cadena de
@@ -161,6 +196,67 @@ func sessionHasTTY() bool {
 	return (info.Mode() & os.ModeCharDevice) != 0
 }
 
+// sessionBootstrapBlock decide si el bootstrap puede hablar, y con qué motivo si
+// no. Es el guard ENTERO, en una función, porque una conversación necesita las
+// dos direcciones y comprobar solo una fue exactamente el fallo:
+//
+//   - -p/--headless: el modo de cron. Nadie va a teclear la respuesta.
+//   - stdin no es terminal (`< /dev/null`, una tubería): no hay quien conteste.
+//     os.ModeCharDevice es cierto para /dev/null, así que aquí se usa isatty —la
+//     ioctl de verdad, ya es dependencia: la usa `ccp key`—, no la heurística de
+//     sessionHasTTY, que se queda tal cual para el aviso de arriba.
+//   - la SALIDA no es terminal (`ccp session > log 2>&1` desde una terminal
+//     interactiva): stdin sí es tty, así que el prompt se leería… pero la tabla y
+//     la pregunta se han escrito en el archivo y el usuario no ha visto nada. Un
+//     Enter cualquiera —el default de [S/n] es SÍ— aplicaría AutoInit, la regla,
+//     el ensanche de allow_from y `auto install` en todos los perfiles. Escribir
+//     en la configuración de alguien que no ha leído la pregunta es la mutación
+//     que este guard existe para impedir, y la mitad que solo miraba stdin la
+//     dejaba pasar.
+//
+// El writer se comprueba por el descriptor real: un io.Writer que no es *os.File
+// (los buffers de los tests, una tubería interna) no es una terminal, y tratarlo
+// como si lo fuera es la misma trampa por otro lado.
+// La decisión en sí (bootstrapBlockFor) se separa de las dos ioctl para poder
+// fijarla por su nombre: montar una pty dentro de `go test` para comprobar una
+// tabla de verdad de tres entradas sería exactamente el tipo de test que no se
+// escribe, y la casilla que faltaba —stdin sí, salida no— es la que costaba una
+// escritura no consentida.
+func sessionBootstrapBlock(headless bool, stdin *os.File, w io.Writer) bootstrapBlock {
+	return bootstrapBlockFor(headless, sessionFileIsTTY(stdin), sessionWriterIsTTY(w))
+}
+
+// bootstrapBlockFor es la decisión pura. El orden de las ramas es el del motivo
+// más específico primero: quien pasa `-p` merece que se le hable del `-p`,
+// aunque además haya redirigido la salida.
+func bootstrapBlockFor(headless, stdinTTY, outTTY bool) bootstrapBlock {
+	switch {
+	case headless:
+		return bootstrapBlockHeadless
+	case !stdinTTY:
+		return bootstrapBlockNoTTY
+	case !outTTY:
+		return bootstrapBlockRedirected
+	}
+	return bootstrapAsk
+}
+
+// sessionFileIsTTY es la ioctl sobre un descriptor concreto.
+func sessionFileIsTTY(f *os.File) bool {
+	return f != nil && isatty.IsTerminal(f.Fd())
+}
+
+// sessionWriterIsTTY reporta si lo que se escriba en w va a aparecer en una
+// terminal. Sin esto, «hay tty» significaba solo «se puede leer», que es media
+// conversación.
+func sessionWriterIsTTY(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	return isatty.IsTerminal(f.Fd())
+}
+
 // parseSessionFlags interpreta la línea de comandos de `ccp session`, al estilo
 // de parseHandoffFlags: a mano, en cualquier orden, y con dos reglas duras.
 //
@@ -186,9 +282,11 @@ func parseSessionFlags(args []string, lang i18n.Lang) (sessionFlags, error) {
 		a := args[i]
 		if a == "--" {
 			// Sin copia: el subslice es exactamente lo que hay que reenviar, y
-			// nadie lo muta después.
+			// nadie lo muta después. Se sale del bucle en vez de devolver aquí
+			// para que las validaciones cruzadas del final (flags incompatibles)
+			// también se apliquen a `ccp session --setup --no-setup -- ...`.
 			f.args = args[i+1:]
-			return f, nil
+			break
 		}
 
 		name, inline, hasInline := splitSessionFlag(a)
@@ -234,6 +332,12 @@ func parseSessionFlags(args []string, lang i18n.Lang) (sessionFlags, error) {
 		case "--no-return":
 			err = bare()
 			f.noReturn = true
+		case "--setup":
+			err = bare()
+			f.setup = true
+		case "--no-setup":
+			err = bare()
+			f.noSetup = true
 		case "-h", "--help":
 			err = bare()
 			f.help = true
@@ -267,6 +371,12 @@ func parseSessionFlags(args []string, lang i18n.Lang) (sessionFlags, error) {
 		if err != nil {
 			return f, err
 		}
+	}
+	// `--setup --no-setup` no tiene una lectura obvia («fuerza pero salta») y
+	// cualquiera de las dos que ganara sorprendería a la mitad de quien lo
+	// escriba. Se rechaza en vez de elegir por él.
+	if f.setup && f.noSetup {
+		return f, fmt.Errorf("%s", i18n.T(lang, "cli.session.setup_conflict"))
 	}
 	return f, nil
 }
