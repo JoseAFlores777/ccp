@@ -28,14 +28,19 @@ const (
 	numPanels
 )
 
-// mode distingue entre el dashboard normal, un formulario huh embebido, y la
-// barra de comandos (`:`).
+// mode distingue entre el dashboard normal, un formulario huh embebido, la
+// barra de comandos (`:`) y la vista Config.
+//
+// modeConfig es un MODO y no un cuarto panel a propósito: los tres paneles se
+// apilan al mismo ancho y a 80 columnas ya van justos, así que la vista Config
+// toma el cuerpo entero (como hace el panel de handoff) en vez de robarles sitio.
 type mode int
 
 const (
 	modeDashboard mode = iota
 	modeForm
 	modeCommand
+	modeConfig
 )
 
 // model es el modelo raíz de bubbletea. Mantiene el Config en memoria (recargado
@@ -58,8 +63,17 @@ type model struct {
 	est         estado
 	estComputed bool
 
+	// vista Config (modeConfig): sección enfocada y fila dentro de ella.
+	cfgSec configSection
+	cfgRow int
+
 	// formulario embebido + su callback de aplicación.
 	cur action
+
+	// formBack es el modo al que vuelve el foco cuando el form embebido se
+	// completa o se cancela. Sin él, un form abierto DESDE la vista Config
+	// devolvía al dashboard y expulsaba al usuario de la vista a mitad de faena.
+	formBack mode
 
 	// barra de comandos.
 	cmdInput string
@@ -125,6 +139,11 @@ func (m *model) reload() {
 	if m.cfg != nil && m.ruleIdx >= len(m.cfg.Rules) {
 		m.ruleIdx = max(0, len(m.cfg.Rules)-1)
 	}
+	// El cursor de la vista Config se reclampa aquí igual que los otros: tras un
+	// `chain rm` la sección tiene una fila menos y el índice quedaría colgando.
+	if n := len(m.configRows()); m.cfgRow >= n {
+		m.cfgRow = max(0, n-1)
+	}
 }
 
 func (m *model) Init() tea.Cmd { return nil }
@@ -144,6 +163,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateForm(msg)
 	case modeCommand:
 		return m.updateCommand(msg)
+	case modeConfig:
+		return m.updateConfig(msg)
 	default:
 		return m.updateDashboard(msg)
 	}
@@ -177,9 +198,13 @@ func (m *model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// exitForm devuelve el foco al dashboard y recarga el estado tras una acción.
+// exitForm devuelve el foco a quien abrió el form (dashboard o vista Config) y
+// recarga el estado tras una acción.
 func (m *model) exitForm() {
-	m.mode = modeDashboard
+	m.mode = m.formBack
+	if m.mode == modeForm {
+		m.mode = modeDashboard // no debería pasar; nunca dejar el foco en el form muerto
+	}
 	m.cur = action{}
 	m.reload()
 	m.estComputed = false // forzar recómputo del panel Estado
@@ -217,7 +242,9 @@ func (m *model) updateCommand(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // cmdList son los comandos de la barra `:` (para autocompletar y sugerir).
-var cmdList = []string{"backup-export", "backup-restore", "doctor", "sync", "install", "help"}
+// Son TOKENS de comando, no prosa: no se traducen. Lo que sí hay que tocar al
+// añadir uno es tui.cmd.help, que los enumera en los dos idiomas.
+var cmdList = []string{"backup-export", "backup-restore", "config", "doctor", "sync", "install", "help"}
 
 // cmdMatches devuelve los comandos que empiezan con prefix.
 func cmdMatches(prefix string) []string {
@@ -262,6 +289,8 @@ func (m *model) runCommand(cmd string) (tea.Model, tea.Cmd) {
 		return m.start(formBackupExport(m.home, m.lang))
 	case "backup-restore":
 		return m.start(formBackupRestore(m.home, m.lang))
+	case "config":
+		return m.openConfigView()
 	case "sync":
 		err := core.ProfileSync(m.home, "")
 		m.setStatus(i18n.T(m.lang, "tui.cmd.synced_all"), err)
@@ -272,7 +301,7 @@ func (m *model) runCommand(cmd string) (tea.Model, tea.Cmd) {
 	case "install":
 		return m.shellOut(i18n.T(m.lang, "tui.cmd.install_done"), "install")
 	default:
-		m.setStatus(i18n.T(m.lang, "tui.cmd.unknown", cmd), errCmd{})
+		m.setStatus("", errCmd{i18n.T(m.lang, "tui.cmd.unknown", cmd)})
 		return m, nil
 	}
 }
@@ -300,14 +329,21 @@ type cmdDoneMsg struct {
 	err error
 }
 
-// errCmd es un error sentinela para marcar el status como error sin envolver.
-type errCmd struct{}
+// errCmd marca el status como error llevando el mensaje YA TRADUCIDO.
+//
+// Antes era un sentinela vacío cuyo Error() devolvía prosa castellana fija, y
+// como setStatus DESCARTA el mensaje cuando hay error, la barra imprimía «Error:
+// comando desconocido» —en español, dijera lo que dijera el idioma de la
+// sesión— y se comía el texto traducido que el llamador había construido.
+type errCmd struct{ msg string }
 
-func (errCmd) Error() string { return "comando desconocido" }
+func (e errCmd) Error() string { return e.msg }
 
-// enterForm monta un form embebido y le cede el foco.
+// enterForm monta un form embebido y le cede el foco, recordando desde dónde se
+// abrió para devolverlo ahí al terminar.
 func (m *model) enterForm(a action) {
 	m.cur = a
+	m.formBack = m.mode
 	m.mode = modeForm
 	if m.width > 0 {
 		m.cur.form = m.cur.form.WithWidth(min(m.width-4, 72))

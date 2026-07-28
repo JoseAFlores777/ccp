@@ -811,6 +811,7 @@ AUTO-HANDOFF                      rotates profile on its own when usage runs out
   ccp session -p --policy <name>    headless (cron/CI) with a named policy
   ccp session --dry-run             print the resolved plan without launching
   --max-hops N · --yolo · --session <uuid> · --no-return · --claude-bin <path>
+  --setup | --no-setup              force (or skip) the first-run repo setup offer
   ccp auto init [--force]           seed the auto_handoff block in ccp.yaml
   ccp auto install [<profile>...]   install the sensors (StopFailure + statusLine)
   ccp auto uninstall [<profile>...] remove them and regenerate
@@ -818,6 +819,7 @@ AUTO-HANDOFF                      rotates profile on its own when usage runs out
   ccp auto test [--profile <n>]     check the detection path end to end
   ccp auto chain [show]             effective loan chain for this repo
   ccp auto chain add|rm|mv|set      edit it (order = preference; add also authorises)
+  --at N · --no-allow · --policy <name>   chain flags ('ccp auto chain help')
 
 PROFILES
   ccp profile add <n> --official            create official account
@@ -888,6 +890,7 @@ AUTO-HANDOFF                      rota de perfil solo cuando se acaba el uso
   ccp session -p --policy <nombre>  headless (cron/CI) con una política
   ccp session --dry-run             imprime el plan resuelto sin lanzar nada
   --max-hops N · --yolo · --session <uuid> · --no-return · --claude-bin <ruta>
+  --setup | --no-setup              fuerza (o salta) la oferta de configurar el repo
   ccp auto init [--force]           siembra el bloque auto_handoff en ccp.yaml
   ccp auto install [<perfil>...]    instala los sensores (StopFailure + statusLine)
   ccp auto uninstall [<perfil>...]  los quita y regenera
@@ -895,6 +898,7 @@ AUTO-HANDOFF                      rota de perfil solo cuando se acaba el uso
   ccp auto test [--profile <n>]     comprueba la ruta de detección de punta a punta
   ccp auto chain [show]             cadena de préstamos efectiva en este repo
   ccp auto chain add|rm|mv|set      la edita (orden = preferencia; add además autoriza)
+  --at N · --no-allow · --policy <nombre>  banderas de la cadena ('ccp auto chain help')
 
 PERFILES
   ccp profile add <n> --official            crea cuenta oficial

@@ -15,8 +15,8 @@ var catalogTUI = map[string]map[Lang]string{
 		Es: "Cancelado.",
 	},
 	"tui.cmd.help": {
-		En: "Commands: backup-export, backup-restore, doctor, sync, install",
-		Es: "Comandos: backup-export, backup-restore, doctor, sync, install",
+		En: "Commands: backup-export, backup-restore, config, doctor, sync, install",
+		Es: "Comandos: backup-export, backup-restore, config, doctor, sync, install",
 	},
 	"tui.cmd.synced_all": {
 		En: "All profiles re-synced.",
@@ -181,8 +181,8 @@ var catalogTUI = map[string]map[Lang]string{
 		Es: "   (tab completa · esc cancela)",
 	},
 	"tui.footer.keys": {
-		En: "tab: panel · j/k: navigate · enter: detail · : commands · L: lang · q: quit",
-		Es: "tab: panel · j/k: navegar · enter: detalle · : comandos · L: idioma · q: salir",
+		En: "tab: panel · j/k: navigate · enter: detail · c: config · : commands · L: lang · q: quit",
+		Es: "tab: panel · j/k: navegar · enter: detalle · c: config · : comandos · L: idioma · q: salir",
 	},
 
 	// --- forms.go: profile add ---
@@ -389,5 +389,233 @@ var catalogTUI = map[string]map[Lang]string{
 	"tui.form.restore_done": {
 		En: "Restore OK. Reversible snapshot: %s (created %d, replaced %d, skipped %d, rules +%d).",
 		Es: "Restore OK. Snapshot reversible: %s (creados %d, reemplazados %d, saltados %d, reglas +%d).",
+	},
+
+	// --- config_view.go: la vista Config (modeConfig) ---
+	"tui.config.eyebrow": {
+		En: "configuration",
+		Es: "configuración",
+	},
+	"tui.config.footer": {
+		En: "tab: section · j/k: move · enter: act · a/d/J/K: chain · e: editor · esc: back · q: quit",
+		Es: "tab: sección · j/k: mover · enter: actuar · a/d/J/K: cadena · e: editor · esc: volver · q: salir",
+	},
+	"tui.config.empty": {
+		En: "(nothing here)",
+		Es: "(nada aquí)",
+	},
+	"tui.config.none": {
+		En: "(none)",
+		Es: "(ninguno)",
+	},
+	"tui.config.sec_defaults": {
+		En: "Defaults",
+		Es: "Defaults",
+	},
+	"tui.config.sec_auto": {
+		En: "Auto-handoff",
+		Es: "Auto-handoff",
+	},
+	"tui.config.sec_chain": {
+		En: "Chain",
+		Es: "Cadena",
+	},
+	"tui.config.sec_allow": {
+		En: "allow_from",
+		Es: "allow_from",
+	},
+	"tui.config.sec_sensors": {
+		En: "Sensors",
+		Es: "Sensores",
+	},
+	"tui.config.hint_defaults": {
+		En: "enter:edit e:open ccp.yaml",
+		Es: "enter:editar e:abrir ccp.yaml",
+	},
+	"tui.config.hint_auto": {
+		En: "enter:open ccp.yaml e:editor",
+		Es: "enter:abrir ccp.yaml e:editor",
+	},
+	"tui.config.hint_chain": {
+		En: "a:add d:remove J/K:reorder e:editor",
+		Es: "a:añadir d:quitar J/K:reordenar e:editor",
+	},
+	"tui.config.hint_allow": {
+		En: "enter:toggle authorization e:editor",
+		Es: "enter:alternar autorización e:editor",
+	},
+	"tui.config.hint_sensors": {
+		En: "enter:install/uninstall e:editor",
+		Es: "enter:instalar/desinstalar e:editor",
+	},
+	"tui.config.gui_auto_suffix": {
+		En: " (auto-detected)",
+		Es: " (autodetectado)",
+	},
+	"tui.config.set_title": {
+		En: "New value for '%s'",
+		Es: "Valor nuevo para '%s'",
+	},
+	"tui.config.value_empty": {
+		En: "the value cannot be empty",
+		Es: "el valor no puede quedar vacío",
+	},
+	"tui.config.set_ok": {
+		En: "defaults.%s = %s",
+		Es: "defaults.%s = %s",
+	},
+	"tui.config.set_failed": {
+		En: "could not write defaults.%s",
+		Es: "no se pudo escribir defaults.%s",
+	},
+	"tui.config.auto_unset": {
+		En: "not configured",
+		Es: "sin configurar",
+	},
+	"tui.config.auto_missing": {
+		En: "there is no auto_handoff block in ccp.yaml yet",
+		Es: "todavía no hay bloque auto_handoff en ccp.yaml",
+	},
+	"tui.config.auto_missing_note": {
+		En: "no auto_handoff block — press enter on this section to seed it (ccp auto init)",
+		Es: "sin bloque auto_handoff — pulsa enter en esta sección para sembrarlo (ccp auto init)",
+	},
+	"tui.config.auto_readonly": {
+		En: "read-only here: these values are edited in ccp.yaml (enter/e opens it and revalidates)",
+		Es: "solo lectura aquí: estos valores se editan en ccp.yaml (enter/e lo abre y revalida)",
+	},
+	"tui.config.auto_init_ok": {
+		En: "auto_handoff seeded in ccp.yaml.",
+		Es: "auto_handoff sembrado en ccp.yaml.",
+	},
+	"tui.config.auto_init_failed": {
+		En: "could not seed auto_handoff",
+		Es: "no se pudo sembrar auto_handoff",
+	},
+	"tui.config.policy_invalid": {
+		En: "policy '%s' does not validate; open ccp.yaml with 'e' to fix it",
+		Es: "la política '%s' no valida; ábrela con 'e' en ccp.yaml para arreglarla",
+	},
+	"tui.config.policy_is": {
+		En: "policy: %s — the order IS the preference (the first one is lent first)",
+		Es: "política: %s — el orden ES la preferencia (al primero se le presta antes)",
+	},
+	"tui.config.chain_now": {
+		En: "chain: %s",
+		Es: "cadena: %s",
+	},
+	"tui.config.chain_failed": {
+		En: "the chain was not modified",
+		Es: "la cadena no se modificó",
+	},
+	"tui.config.chain_no_candidates": {
+		En: "every profile is already in the chain.",
+		Es: "todos los perfiles están ya en la cadena.",
+	},
+	"tui.config.chain_add_title": {
+		En: "Add to the chain",
+		Es: "Añadir a la cadena",
+	},
+	"tui.config.chain_add_desc": {
+		En: "Same as 'ccp auto chain add': it also authorizes the loan in allow_from.",
+		Es: "Igual que 'ccp auto chain add': también autoriza el préstamo en allow_from.",
+	},
+	"tui.config.chain_rm_title": {
+		En: "Remove '%s' from the chain?",
+		Es: "¿Quitar '%s' de la cadena?",
+	},
+	"tui.config.chain_rm_desc": {
+		En: "Same as 'ccp auto chain rm': it also withdraws its authorization in allow_from.",
+		Es: "Igual que 'ccp auto chain rm': también le retira la autorización en allow_from.",
+	},
+	// Las dos entradas de la cadena que el core NO cuenta como préstamo. Se
+	// nombran en vez de marcarlas «bloqueado»: no es el gate quien las descarta.
+	"tui.config.chain_is_primary": {
+		En: "this cwd's primary: it is not lent to itself",
+		Es: "primario de este cwd: no se presta a sí mismo",
+	},
+	"tui.config.chain_ignored": {
+		En: "repeated: it does not add another loan",
+		Es: "repetido: no añade otro préstamo",
+	},
+	"tui.config.gate_allowed": {
+		En: "authorized",
+		Es: "autorizado",
+	},
+	"tui.config.gate_denied": {
+		En: "blocked",
+		Es: "bloqueado",
+	},
+	"tui.config.gate_absent": {
+		En: "no allow_from gate: every loan is permitted",
+		Es: "sin gate allow_from: todos los préstamos permitidos",
+	},
+	"tui.config.gate_absent_note": {
+		En: "allow_from is not declared, so nothing is blocked; adding here will not create the gate",
+		Es: "allow_from no está declarado, así que nada se bloquea; añadir aquí no crea el gate",
+	},
+	"tui.config.gate_deny": {
+		En: "%s has no entry: total deny",
+		Es: "%s no tiene entrada: deny total",
+	},
+	"tui.config.gate_deny_note": {
+		En: "allow_from is declared but '%s' has no entry: today nothing is lent from here",
+		Es: "allow_from está declarado pero '%s' no tiene entrada: hoy no se presta nada desde aquí",
+	},
+	"tui.config.gate_note": {
+		En: "gate of '%s' (the cwd's primary); enter authorizes or withdraws, chain included",
+		Es: "gate de '%s' (el primario del cwd); enter autoriza o retira, cadena incluida",
+	},
+	"tui.config.gate_created": {
+		En: "allow_from %s created: %s",
+		Es: "allow_from %s creado: %s",
+	},
+	"tui.config.gate_changed": {
+		En: "allow_from %s: %s",
+		Es: "allow_from %s: %s",
+	},
+	"tui.config.gate_unchanged": {
+		En: "allow_from %s: unchanged",
+		Es: "allow_from %s: sin cambios",
+	},
+	"tui.config.sensor_on": {
+		En: "installed",
+		Es: "instalado",
+	},
+	"tui.config.sensor_off": {
+		En: "not installed",
+		Es: "no instalado",
+	},
+	"tui.config.sensor_installed": {
+		En: "Sensor layer installed on '%s'.",
+		Es: "Capa de sensores instalada en '%s'.",
+	},
+	"tui.config.sensor_uninstalled": {
+		En: "Sensor layer removed from '%s'.",
+		Es: "Capa de sensores quitada de '%s'.",
+	},
+	"tui.config.sensor_default": {
+		En: "'default' has no cc-home of its own: the sensor layer cannot be installed on it",
+		Es: "'default' no tiene cc-home propio: no se le puede instalar la capa de sensores",
+	},
+	"tui.config.sensor_sync_failed": {
+		En: "hooks written, but '%s' could not be regenerated",
+		Es: "hooks escritos, pero no se pudo regenerar '%s'",
+	},
+	"tui.config.unknown_profile": {
+		En: "unknown profile: %s",
+		Es: "perfil desconocido: %s",
+	},
+	"tui.config.edit_failed": {
+		En: "the editor did not finish well",
+		Es: "el editor no terminó bien",
+	},
+	"tui.config.edit_valid": {
+		En: "%s edited and revalidated.",
+		Es: "%s editado y revalidado.",
+	},
+	"tui.config.edit_no_validate": {
+		En: "'%s' does not wait: nothing was revalidated (save and come back).",
+		Es: "'%s' no espera: no se revalidó nada (guarda y vuelve).",
 	},
 }

@@ -300,20 +300,19 @@ func ResolveAutoChain(home string, cfg *Config, policyName, cwd string) (Resolve
 
 	rc := ResolvedChain{Policy: eff, Primary: primary}
 
-	if len(ah.AllowFrom) == 0 {
+	gate := AutoGateFor(cfg, primary)
+	if gate.Absent {
 		rc.Fallback = candidates
 		return rc, nil
 	}
-
-	allowed, declared := ah.AllowFrom[primary]
-	if !declared {
+	if !gate.Declared {
 		// Deny total: nada pasa, pero se reporta TODO como denegado para que
 		// `--dry-run` muestre exactamente qué se bloqueó y por qué.
 		rc.Denied = candidates
 		return rc, nil
 	}
-	allowSet := make(map[string]bool, len(allowed))
-	for _, a := range allowed {
+	allowSet := make(map[string]bool, len(gate.Entry))
+	for _, a := range gate.Entry {
 		allowSet[strings.TrimSpace(a)] = true
 	}
 	for _, name := range candidates {
@@ -324,6 +323,30 @@ func ResolveAutoChain(home string, cfg *Config, policyName, cwd string) (Resolve
 		rc.Denied = append(rc.Denied, name)
 	}
 	return rc, nil
+}
+
+// AutoGate son los TRES estados del gate `allow_from` para un primario. Es la
+// regla completa, y vive aquí para que exista UNA sola vez: quien la copia para
+// pintarla (la vista Config de la TUI lo hacía) acaba enseñando un reparto que el
+// supervisor no reconoce.
+//
+// El tercer estado es el que importa y el que se pierde al copiarla: el mapa
+// declarado SIN entrada para este primario no es «sin gate», es DENY TOTAL.
+type AutoGate struct {
+	Absent   bool     // no hay mapa allow_from: no hay gate, todo pasa
+	Declared bool     // hay entrada para este primario
+	Entry    []string // esa entrada, tal cual (vacía si no la hay)
+}
+
+// AutoGateFor lee el gate del primario dado. No valida ni resuelve nada más:
+// quién es el primario lo decide Resolve, y qué préstamos sobreviven al gate lo
+// decide ResolveAutoChain — que usa esta misma función.
+func AutoGateFor(cfg *Config, primary string) AutoGate {
+	if cfg == nil || cfg.AutoHandoff == nil || len(cfg.AutoHandoff.AllowFrom) == 0 {
+		return AutoGate{Absent: true}
+	}
+	entry, declared := cfg.AutoHandoff.AllowFrom[primary]
+	return AutoGate{Declared: declared, Entry: entry}
 }
 
 // autoProfileExists acepta 'default' además de los perfiles del yaml: 'default'
@@ -372,7 +395,18 @@ func AutoInit(home string, force bool) error {
 	if cfg.AutoHandoff != nil && !force {
 		return nil
 	}
+	cfg.AutoHandoff = newAutoHandoff(cfg)
+	return Save(home, cfg)
+}
 
+// newAutoHandoff construye el bloque que AutoInit siembra, sin tocar disco.
+//
+// Está separado de AutoInit porque el bootstrap de `ccp session` necesita
+// SIMULAR el resultado para poder decirle al usuario, ANTES de escribir nada, si
+// tras sembrar el bloque le va a quedar cadena o no. Compartir la función es lo
+// que garantiza que el resumen que se enseña y el yaml que se acaba escribiendo
+// no puedan divergir.
+func newAutoHandoff(cfg *Config) *AutoHandoff {
 	names := make([]string, 0, len(cfg.Profiles))
 	for n := range cfg.Profiles {
 		names = append(names, n)
@@ -399,7 +433,7 @@ func AutoInit(home string, force bool) error {
 		allowFrom[n] = entry
 	}
 
-	cfg.AutoHandoff = &AutoHandoff{
+	return &AutoHandoff{
 		Enabled: true,
 		Policies: map[string]AutoPolicy{
 			"default": {
@@ -417,5 +451,4 @@ func AutoInit(home string, force bool) error {
 		},
 		AllowFrom: allowFrom,
 	}
-	return Save(home, cfg)
 }

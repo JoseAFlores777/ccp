@@ -67,6 +67,10 @@ func (m *model) handleDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = modeCommand
 		m.cmdInput = ""
 		return m, nil
+	case "c":
+		// Vista Config (también por `:config`). Ningún panel usa 'c', así que
+		// puede ser global como `:` y `L`.
+		return m.openConfigView()
 	case "L":
 		// Toggle de idioma en vivo; se persiste en ccp.yaml. Un error al
 		// guardar no debe romper la TUI.
@@ -122,7 +126,7 @@ func (m *model) keyProfiles(key string) (tea.Model, tea.Cmd) {
 	case "s": // set key (provider: deepseek/kimi/glm)
 		if name := m.selectedProfile(); name != "" {
 			if !core.IsProviderType(m.profileType(name)) {
-				m.setStatus(i18n.T(m.lang, "tui.profiles.not_provider", name), errCmd{})
+				m.setStatus("", errCmd{i18n.T(m.lang, "tui.profiles.not_provider", name)})
 				return m, nil
 			}
 			return m.start(formSetKey(m.home, name, m.lang))
@@ -172,6 +176,15 @@ func (m *model) keyStatus(key string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// openConfigView entra en la vista Config dejando el dashboard como está
+// (showDetail se cierra, igual que al cambiar de panel con tab).
+func (m *model) openConfigView() (tea.Model, tea.Cmd) {
+	m.showDetail = false
+	m.mode = modeConfig
+	m.reload() // el Config puede haber cambiado por fuera desde el último render
+	return m, nil
+}
+
 // start monta un form embebido y devuelve su Init para arrancarlo.
 func (m *model) start(a action) (tea.Model, tea.Cmd) {
 	m.enterForm(a)
@@ -207,7 +220,7 @@ type editDoneMsg struct{ msg tea.Msg }
 // apuntando al cc-home del perfil (espeja `ccp profile login`).
 func (m *model) login(name string) (tea.Model, tea.Cmd) {
 	if m.profileType(name) != "official" {
-		m.setStatus(i18n.T(m.lang, "tui.profiles.not_official", name), errCmd{})
+		m.setStatus("", errCmd{i18n.T(m.lang, "tui.profiles.not_official", name)})
 		return m, nil
 	}
 	return m.shellOut(i18n.T(m.lang, "tui.profiles.login_done", name), "profile", "login", name)
@@ -254,6 +267,8 @@ func (m *model) View() string {
 	switch m.mode {
 	case modeForm:
 		return m.viewForm()
+	case modeConfig:
+		return m.viewConfig()
 	default:
 		return m.viewDashboard()
 	}
@@ -318,8 +333,15 @@ func padRight(s string, w int) string {
 // box envuelve el cuerpo de un panel en una caja redondeada con título; el foco
 // tiñe el borde y el título de terracota.
 func (m *model) box(p panel, title, hint, body string) string {
+	return m.boxFocused(m.focus == p, title, hint, body)
+}
+
+// boxFocused es la misma caja sin acoplarla a los tres paneles del dashboard:
+// la vista Config tiene su propio foco (una sección, no un panel) y necesitaba
+// exactamente este envoltorio.
+func (m *model) boxFocused(focused bool, title, hint, body string) string {
 	bs, ts, mark := boxStyle, stylePanelTtl, "  "
-	if m.focus == p {
+	if focused {
 		bs, ts, mark = boxStyleFocused, styleFocused, "▸ "
 	}
 	header := ts.Render(mark + title)
