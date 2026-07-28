@@ -72,9 +72,12 @@ const CompletionBash = `_ccp() {
     path)    [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "set rm list test clear edit" -- "$cur") )
              [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" =~ ^(set|rm|test)$ ]] && COMPREPLY=( $(compgen -d -- "$cur") )
              [[ $COMP_CWORD -eq 4 && "${COMP_WORDS[2]}" == "set" ]] && COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
+    config)  [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "show set reset editor gui-editor edit" -- "$cur") )
+             [[ $COMP_CWORD -ge 3 && "${COMP_WORDS[2]}" == "edit" ]] && COMPREPLY=( $(compgen -W "--editor --profile --terminal" -- "$cur") ) ;;
     use)     COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
     handoff) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "resume end discard status list prune sessions default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
-    auto)    [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "init install uninstall status test" -- "$cur") ) ;;
+    auto)    [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "init install uninstall status test chain" -- "$cur") )
+             [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" == "chain" ]] && COMPREPLY=( $(compgen -W "show add rm mv set help" -- "$cur") ) ;;
     session) COMPREPLY=( $(compgen -W "--dry-run --headless --policy --yolo --max-hops --no-return" -- "$cur") ) ;;
     key)     COMPREPLY=( $(compgen -W "$(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
     completion) COMPREPLY=( $(compgen -W "bash zsh" -- "$cur") ) ;;
@@ -95,9 +98,12 @@ _ccp() {
     path)    (( CURRENT == 3 )) && compadd -- set rm list test clear edit
              (( CURRENT == 3 )) || { [[ "${words[3]}" =~ ^(set|rm|test)$ ]] && _path_files -/ }
              (( CURRENT == 4 )) && [[ "${words[3]}" == set ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
+    config)  (( CURRENT == 3 )) && compadd -- show set reset editor gui-editor edit
+             (( CURRENT >= 4 )) && [[ "${words[3]}" == edit ]] && compadd -- --editor --profile --terminal ;;
     use)     compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     handoff) (( CURRENT == 3 )) && compadd -- resume end discard status list prune sessions default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
-    auto)    (( CURRENT == 3 )) && compadd -- init install uninstall status test ;;
+    auto)    (( CURRENT == 3 )) && compadd -- init install uninstall status test chain
+             (( CURRENT == 4 )) && [[ "${words[3]}" == chain ]] && compadd -- show add rm mv set help ;;
     session) compadd -- --dry-run --headless --policy --yolo --max-hops --no-return ;;
     key)     compadd -- ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     completion) compadd -- bash zsh ;;

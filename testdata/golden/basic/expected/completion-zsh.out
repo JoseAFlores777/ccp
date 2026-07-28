@@ -9,9 +9,12 @@ _ccp() {
     path)    (( CURRENT == 3 )) && compadd -- set rm list test clear edit
              (( CURRENT == 3 )) || { [[ "${words[3]}" =~ ^(set|rm|test)$ ]] && _path_files -/ }
              (( CURRENT == 4 )) && [[ "${words[3]}" == set ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
+    config)  (( CURRENT == 3 )) && compadd -- show set reset editor gui-editor edit
+             (( CURRENT >= 4 )) && [[ "${words[3]}" == edit ]] && compadd -- --editor --profile --terminal ;;
     use)     compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     handoff) (( CURRENT == 3 )) && compadd -- resume end discard status list prune sessions default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
-    auto)    (( CURRENT == 3 )) && compadd -- init install uninstall status test ;;
+    auto)    (( CURRENT == 3 )) && compadd -- init install uninstall status test chain
+             (( CURRENT == 4 )) && [[ "${words[3]}" == chain ]] && compadd -- show add rm mv set help ;;
     session) compadd -- --dry-run --headless --policy --yolo --max-hops --no-return ;;
     key)     compadd -- ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     completion) compadd -- bash zsh ;;
