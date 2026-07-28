@@ -1033,9 +1033,22 @@ go test ./...                                 <span class="c"># parity verde ⇒
     <div class="risk lo">
       <div class="r-head"><span class="sev lo">bajo</span><h3>R5 · Claves nuevas en <code>ccp.yaml</code></h3></div>
       <p>
-        <code>defaults.gui_editor</code> es aditiva y el esquema <strong>se queda en <code>version: 2</code></strong>,
-        por la misma razón que <code>auto_handoff</code> en su día: un binario viejo la conserva vía
-        <code>Config.Extra</code> en vez de negarse a leer el archivo.
+        <code>defaults.gui_editor</code> es aditiva y el esquema <strong>se queda en <code>version: 2</code></strong>.
+      </p>
+      <p style="margin-top:12px">
+        <strong>Corregido tras implementar.</strong> La versión original de este riesgo decía que un binario viejo
+        la conserva vía <code>Config.Extra</code>. Es falso: <code>Extra</code> es el catch-all de <strong>nivel
+        superior</strong> y <code>Defaults</code> no lleva <code>yaml:",inline"</code>. Un ccp anterior
+        <strong>lee</strong> el archivo sin quejarse —la parte que de verdad importa— pero <strong>borra la clave
+        en la primera escritura</strong> de cualquier comando. Con dos máquinas en versiones distintas, el ajuste
+        se pierde en silencio cada vez que escribe la vieja.
+      </p>
+      <p style="margin-top:12px">
+        Se acepta la degradación en vez de mover la clave al nivel superior: es una preferencia de UI
+        <strong>reconstruible</strong> (vacía = autodetecta) y sacarla de <code>defaults</code> la separaría de
+        <code>editor</code>, que es su gemela. Lo que <strong>no</strong> ocurre es lo mismo con
+        <code>auto_handoff</code>: ahí las claves desconocidas sí sobreviven, porque el bloque entero viaja en
+        <code>Extra</code>.
       </p>
       <div class="rollback"><b>rollback</b> — la clave es opcional; ignorarla restaura el comportamiento anterior</div>
     </div>

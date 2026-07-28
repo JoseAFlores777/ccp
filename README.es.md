@@ -10,7 +10,7 @@
 En tu repo de trabajo, tu cuenta de empresa; en tu proyecto personal, la tuya; en tus experimentos, DeepSeek.
 El cambio ocurre solo, con hacer `cd`.
 
-![version](https://img.shields.io/badge/version-2.12.0-c96442)
+![version](https://img.shields.io/badge/version-2.13.0-c96442)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-c96442)
 ![shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-8a8378)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
@@ -314,17 +314,46 @@ Esa última fila es el punto: declarar el mapa es declarar la intención de gobe
 
 ### Editar la cadena — añadir, reordenar o quitar un préstamo
 
-**No hay ningún subcomando `ccp auto` que edite la cadena**: la cadena es datos, y se edita a mano en `~/.config/ccp/ccp.yaml`. Es seguro — `ccp` reescribe ese archivo de forma atómica **conservando tus comentarios y cualquier clave que no conozca**, así que puedes anotar por qué un perfil está en la lista y la anotación sobrevive a cada `ccp path set`, `profile add` o `auto install` posterior.
+```bash
+ccp auto chain                        # la cadena EFECTIVA de este directorio
+ccp auto chain add personal-deepseek  # lo añade al final, y autoriza el préstamo
+ccp auto chain add app-cc --at 1      # lo inserta en una posición (1-based)
+ccp auto chain mv app-cc 2            # reordena — el orden ES la preferencia
+ccp auto chain rm personal-deepseek   # lo saca, y retira la autorización
+ccp auto chain set app-cc,emco-cc     # reemplaza la cadena entera
+```
 
-Dos claves gobiernan la cadena, y casi toda edición necesita **las dos**:
+Todos aceptan `--policy <nombre>` (por defecto: `default`) y actúan sobre el primario del **directorio actual**, que es el único cuya entrada de `allow_from` pueden tocar.
 
-| Lo que quieres | Dónde editar |
+**`add` escribe dos claves, y eso es justo el punto.** Quien escribe «añádelo a la cadena» quiere que el perfil *se use*, y un `fallback` sin su `allow_from` no se usa jamás, en silencio. Dejar las dos claves separadas en la CLI reproduciría la trampa que el yaml ya tiende. Pero `allow_from` es un **gate de cumplimiento** y puede estar puesto a propósito, así que el ensanche va con tres límites duros:
+
+1. Toca **solo** la entrada del primario al que resuelve el directorio actual. Nunca la de otro — un rewrite en bloque ensancharía permisos de repos donde ni siquiera estás.
+2. Imprime **exactamente qué cambió en cada clave, por separado**. `+nombre` autoriza, `-nombre` retira.
+3. `--no-allow` lo desactiva.
+
+`rm` (y los perfiles que `set` deja fuera) va en la dirección contraria y **retira** la autorización, otra vez solo de esa entrada. Eso es lo que hace reversible a `add`: sin ello el gate solo podría crecer, y deshacer un `add` equivocado exigiría editar el yaml a mano — exactamente lo que estos comandos vienen a evitar.
+
+```console
+$ ccp auto chain add personal-deepseek
+
+[ok] fallback   app-cc → emco-cc → personal-deepseek
+[ok] allow_from personal-cc: +personal-deepseek
+
+cadena efectiva desde este repo:
+  app-cc → emco-cc → personal-deepseek
+```
+
+Toda mutación cierra releyendo la cadena efectiva **del disco**, así que ves lo que va a ver el motor — incluido lo que `allow_from` siga bloqueando.
+
+| Lo que quieres | Comando |
 |---|---|
-| Añadir un préstamo | añádelo a `policies.<nombre>.fallback` **y** a `allow_from[<primario>]` |
-| Cambiar el orden de preferencia | mueve las líneas dentro de `fallback` — el **orden es la preferencia** |
-| Quitar un préstamo | bórralo de `fallback` (dejarlo en `allow_from` es inocuo — solo permite, nunca añade) |
-| Dejar de rotar en un directorio | dale a ese primario una política con `fallback: []`, o quita su entrada de `allow_from` (eso es deny total) |
-| Otra cadena para otro trabajo | añade otra política bajo `policies:` y corre `ccp session --policy <nombre>` |
+| Añadir un préstamo | `ccp auto chain add <perfil>` (escribe `fallback` **y** `allow_from[<primario>]`) |
+| Cambiar el orden de preferencia | `ccp auto chain mv <perfil> <pos>` — el **orden es la preferencia** |
+| Quitar un préstamo | `ccp auto chain rm <perfil>` (retira también la autorización; `--no-allow` la conserva) |
+| Dejar de rotar en un directorio | `ccp auto chain rm` de cada préstamo, o dale a ese primario una política con `fallback: []` |
+| Otra cadena para otro trabajo | añade otra política bajo `policies:` y usa `--policy <nombre>` |
+
+Editar el archivo a mano sigue siendo perfectamente válido, y es como se añade una política nueva entera. `ccp` reescribe `~/.config/ccp/ccp.yaml` de forma atómica **conservando tus comentarios y cualquier clave que no conozca**, así que una anotación sobre por qué un perfil está en la lista sobrevive a cada `ccp path set`, `profile add` o `auto install` posterior.
 
 ```yaml
 auto_handoff:
@@ -337,6 +366,8 @@ auto_handoff:
 ```
 
 Las reglas que el resolver aplica a `fallback`, en una sola pasada: el **primario es implícito** y se descarta en silencio si lo listas; los duplicados se eliminan (no compran un préstamo extra); `default` es un destino legítimo (es tu login normal de `~/.claude`); y el orden que escribiste se respeta tal cual.
+
+> **El único comando que te saca de un deny total.** En un directorio cuyo primario no tiene entrada en `allow_from`, `ccp auto chain show` dice `cadena (ninguno)` mientras todos los perfiles están ya dentro de `fallback` (es lo que siembra `ccp auto init`). `ccp auto chain add <perfil>` lo resuelve: un perfil que ya está en la cadena pero al que el gate cierra el paso *no* se trata como duplicado — se crea la entrada, se avisa de que la cadena en sí no cambió, y el repo empieza a rotar.
 
 Después, los dos pasos de verificación — estar en la cadena **no** es lo mismo que tener detección:
 
@@ -461,6 +492,21 @@ ccp config editor "code -w"                  # editor a usar (fallback: $EDITOR)
 - **Settings**: `cc-home/settings.json` = global ⊕ overlay (deep-merge puro en Go).
 - **Prioridad real**: es una baseline — la config del repo (`.claude/settings.json`) gana en conflicto.
 - `default` no tiene overlay: `ccp profile config default` abre tu `~/.claude` global directo.
+
+### Editar `ccp.yaml` — `ccp config edit`
+
+```bash
+ccp config edit                     # abre ~/.config/ccp/ccp.yaml, y al cerrar lo relee y valida
+ccp config edit --profile personal-cc   # abre el overlay de ese perfil
+ccp config edit --terminal          # fuerza el editor de terminal ($EDITOR / nano)
+ccp config gui-editor "code -w"     # fija el editor gráfico de una vez
+```
+
+El editor es el **primer escalón que exista**: `--editor <cmd>` → `defaults.gui_editor` → `$VISUAL` → VS Code y familia en el `PATH` (`code` → `cursor` → `code-insiders`, invocados con `-w`) → lanzador del SO (`open -W -t`, `notepad`, `xdg-open`) → `defaults.editor` / `$EDITOR` / `nano`. El comando te dice qué escalón ganó.
+
+**El `-w` ES la decisión, no un detalle.** `code archivo` retorna al instante, y sin esperar a que el editor cierre no se puede hacer lo único que da valor real al comando: **releer el yaml y validarlo**. Un `ccp.yaml` roto por una edición gráfica no se manifiesta al guardar — se manifiesta en el siguiente `ccp session`, en mitad de un salto, con un error de parseo a las 3am. Por eso, cuando el editor bloquea, `ccp` recarga el archivo y comprueba la semántica de `auto_handoff` (cada política por `Effective()`, cada perfil del fallback existiendo de verdad) y nombra la clave y el valor ofensivos si falla.
+
+Cuando el editor **no** bloquea (`xdg-open`, o `code` sin `-w`) esa validación es imposible, y `ccp` lo avisa en vez de fingir que sí — también en la ruta `--profile`, donde además no regenera el `cc-home` y te manda a `ccp profile sync <perfil>` para cuando termines.
 
 ## Comandos `/ccp:` — recordar y explorar artefactos
 

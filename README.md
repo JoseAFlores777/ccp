@@ -10,7 +10,7 @@
 In your work repo, your company account; in your personal project, your own; in your experiments, DeepSeek.
 The switch happens on its own, just by `cd`-ing.
 
-![version](https://img.shields.io/badge/version-2.12.0-c96442)
+![version](https://img.shields.io/badge/version-2.13.0-c96442)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-c96442)
 ![shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-8a8378)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
@@ -314,17 +314,46 @@ That last row is the point: declaring the map is declaring the intent to govern 
 
 ### Editing the chain — add, reorder or remove a loan
 
-There is **no `ccp auto` subcommand that edits the chain**: the chain is data, and you edit it by hand in `~/.config/ccp/ccp.yaml`. That is safe — `ccp` rewrites that file atomically while **preserving your comments and any keys it doesn't know**, so you can annotate why a profile is in the list and the annotation survives every later `ccp path set`, `profile add` or `auto install`.
+```bash
+ccp auto chain                        # the EFFECTIVE chain for this directory
+ccp auto chain add personal-deepseek  # append it, and authorise the loan
+ccp auto chain add app-cc --at 1      # insert at a 1-based position
+ccp auto chain mv app-cc 2            # reorder — the order IS the preference
+ccp auto chain rm personal-deepseek   # take it out, and withdraw the authorisation
+ccp auto chain set app-cc,emco-cc     # replace the whole chain
+```
 
-Two keys govern the chain, and most edits need **both**:
+All of them take `--policy <name>` (default: `default`) and act on the primary of the **current directory**, which is the one whose `allow_from` entry they are allowed to touch.
 
-| What you want | Where to edit |
+**`add` writes two keys, and that is the whole point.** Whoever types "add it to the chain" wants the profile to *be used*, and a `fallback` entry without its `allow_from` is never used — silently. Leaving the two keys apart in the CLI would just reproduce the trap the YAML already sets. But `allow_from` is a **compliance gate** and may be there on purpose, so the widening has three hard limits:
+
+1. It touches **only** the entry of the primary that the current directory resolves to. Never anyone else's — a blanket rewrite would widen permissions for repos you are not even standing in.
+2. It prints **exactly what changed in each key, separately**. `+name` authorises, `-name` withdraws.
+3. `--no-allow` turns it off.
+
+`rm` (and the profiles that `set` drops) goes the other way and **withdraws** the authorisation, again only from that one entry. That is what makes `add` reversible: without it the gate could only ever grow, and undoing a mistaken `add` would mean hand-editing the YAML — exactly what these commands exist to avoid.
+
+```console
+$ ccp auto chain add personal-deepseek
+
+[ok] fallback   app-cc → emco-cc → personal-deepseek
+[ok] allow_from personal-cc: +personal-deepseek
+
+effective chain from this repo:
+  app-cc → emco-cc → personal-deepseek
+```
+
+Every mutation ends by re-reading the effective chain **from disk**, so you see what the engine will see — including anything `allow_from` is still blocking.
+
+| What you want | Command |
 |---|---|
-| Add a loan | append it to `policies.<name>.fallback` **and** to `allow_from[<primary>]` |
-| Change the preference order | move the lines inside `fallback` — the **order is the preference** |
-| Remove a loan | delete it from `fallback` (leaving it in `allow_from` is harmless — it only permits, it never adds) |
-| Stop rotating in a directory | give that primary a policy with `fallback: []`, or remove its `allow_from` entry (that is a total deny) |
-| A different chain for a different job | add another policy under `policies:` and run `ccp session --policy <name>` |
+| Add a loan | `ccp auto chain add <profile>` (writes `fallback` **and** `allow_from[<primary>]`) |
+| Change the preference order | `ccp auto chain mv <profile> <pos>` — the **order is the preference** |
+| Remove a loan | `ccp auto chain rm <profile>` (withdraws the authorisation too; `--no-allow` keeps it) |
+| Stop rotating in a directory | `ccp auto chain rm` every loan, or give that primary a policy with `fallback: []` |
+| A different chain for a different job | add another policy under `policies:` and use `--policy <name>` |
+
+Editing the file by hand is still perfectly fine, and is how you add a whole new policy. `ccp` rewrites `~/.config/ccp/ccp.yaml` atomically while **preserving your comments and any keys it doesn't know**, so an annotation about why a profile is in the list survives every later `ccp path set`, `profile add` or `auto install`.
 
 ```yaml
 auto_handoff:
@@ -337,6 +366,8 @@ auto_handoff:
 ```
 
 The rules the resolver applies to `fallback`, in one pass: the **primary is implicit** and is dropped silently if you list it; duplicates are removed (they don't buy an extra loan); `default` is a legitimate target (it's your normal `~/.claude` login); and the order you wrote is kept verbatim.
+
+> **The one command that gets you out of a total deny.** In a directory whose primary has no `allow_from` entry, `ccp auto chain show` says `chain (none)` while every profile is already sitting in `fallback` (that is what `ccp auto init` seeds). `ccp auto chain add <profile>` handles that: a profile already in the chain but blocked by the gate is *not* treated as a duplicate — it creates the entry, tells you the chain itself did not change, and the repo starts rotating.
 
 Then, the two verification steps — chain membership is **not** the same as detection:
 
@@ -461,6 +492,21 @@ ccp config editor "code -w"                  # editor a usar (fallback: $EDITOR)
 - **Settings**: `cc-home/settings.json` = global ⊕ overlay (pure-Go deep-merge).
 - **Real precedence**: it's a baseline — the repo's config (`.claude/settings.json`) wins on conflict.
 - `default` has no overlay: `ccp profile config default` opens your global `~/.claude` directly.
+
+### Editing `ccp.yaml` — `ccp config edit`
+
+```bash
+ccp config edit                     # opens ~/.config/ccp/ccp.yaml, then re-reads and validates it
+ccp config edit --profile personal-cc   # opens that profile's overlay instead
+ccp config edit --terminal          # force the terminal editor ($EDITOR / nano)
+ccp config gui-editor "code -w"     # pin the GUI editor for good
+```
+
+The editor is the **first rung that exists**: `--editor <cmd>` → `defaults.gui_editor` → `$VISUAL` → VS Code and family on the `PATH` (`code` → `cursor` → `code-insiders`, invoked with `-w`) → an OS launcher (`open -W -t`, `notepad`, `xdg-open`) → `defaults.editor` / `$EDITOR` / `nano`. The command tells you which rung won.
+
+**The `-w` is the decision, not a detail.** `code file` returns instantly, and without waiting for the editor to close there is no way to do the one thing that gives this command value: **re-read the YAML and validate it**. A `ccp.yaml` broken by a graphical edit does not show up when you save — it shows up in the next `ccp session`, mid-hop, as a parse error at 3am. So when the editor blocks, `ccp` reloads the file and checks the semantics of `auto_handoff` (every policy through `Effective()`, every fallback profile actually existing) and names the offending key and value if it fails.
+
+When the editor **does not** block (`xdg-open`, or `code` without `-w`) that validation is impossible, and `ccp` says so instead of pretending otherwise — including on the `--profile` path, where it also skips regenerating the `cc-home` and points you at `ccp profile sync <name>` for when you finish.
 
 ## `/ccp:` commands — remember and explore artifacts
 

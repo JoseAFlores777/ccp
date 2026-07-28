@@ -290,10 +290,22 @@ bootstrap no escribe nada** — ni `ccp.yaml`, ni sensores, ni la caché.
 
 ### R5 · Claves nuevas en `ccp.yaml`
 
-`defaults.gui_editor` es aditiva y el esquema **se queda en `version: 2`**, por la misma razón que
-`auto_handoff` en su día: un binario viejo la conserva vía `Config.Extra` en vez de negarse a leer
-el archivo. Subir la versión cobraría un precio absurdo por una clave que el binario viejo no
-necesita entender.
+`defaults.gui_editor` es aditiva y el esquema **se queda en `version: 2`**. Subir la versión cobraría
+un precio absurdo por una clave que el binario viejo no necesita entender.
+
+**Corregido tras implementar.** La versión original de este riesgo decía que un binario viejo la
+conserva vía `Config.Extra`. Es falso, y conviene tenerlo claro porque cambia lo que se puede
+prometer: `Extra` es el catch-all de **nivel superior** (`Config`), y `Defaults` no lleva
+`yaml:",inline"`. Un ccp anterior a esta clave **lee** el archivo sin quejarse —que es la parte que
+de verdad importa, y esa sí se cumple—, pero **la borra en la primera escritura** de cualquier
+comando (`config set`, `path set`, `profile add`…). Con dos máquinas en versiones distintas, el
+ajuste se pierde en silencio cada vez que escribe la vieja.
+
+Se acepta la degradación en vez de mover `gui_editor` al nivel superior: es una preferencia de UI
+**reconstruible** —vacía significa «autodetecta», y la cadena de seis escalones vuelve a resolver—,
+y sacarla de `defaults` la separaría de `editor`, que es exactamente su gemela. Lo que **no** puede
+pasar es que la misma degradación afecte a `auto_handoff`: ahí las claves desconocidas sí sobreviven,
+porque el bloque entero viaja en `Extra`.
 
 ### R6 · Unicode y terminales
 

@@ -1,5 +1,40 @@
 # Changelog
 
+## [2.13.0] — editar la config sin abrir el yaml a mano
+
+### Added
+
+- **`ccp auto chain`** — `show` / `add` / `rm` / `mv` / `set`, con `--policy`, `--at N` y
+  `--no-allow`. El orden de la cadena ES la preferencia, y ahora se edita con un comando en vez de
+  a mano en el yaml.
+  `add` toca **también `allow_from`**, porque quien escribe «añádelo a la cadena» quiere que el
+  perfil se use, y `fallback` sin `allow_from` no lo usa. Con tres límites: solo la entrada del
+  primario del cwd (nunca las de otros), se reporta qué cambió en **cada** clave por separado, y
+  `--no-allow` lo desactiva. `rm` estrecha el gate en la dirección contraria, así que `add` seguido
+  de `rm` devuelve las dos claves al estado previo.
+- **`ccp config edit`** — abre `ccp.yaml` en un editor **gráfico**: `--editor`, `defaults.gui_editor`,
+  `$VISUAL`, VS Code y familia (`code`/`cursor`/`code-insiders` con `-w`), el lanzador del SO
+  (`open -W -t`, `notepad`, `xdg-open`) y, de último recurso, el editor de terminal de siempre.
+  `--profile <n>` abre el overlay de un perfil; `--terminal` salta directo al fallback.
+  Si el editor **espera**, al cerrarlo ccp relee el archivo y lo valida, nombrando la clave y el
+  valor ofensivos. Si **no** espera, lo dice en vez de fingir que validó — un `ccp.yaml` roto por
+  una edición gráfica no se manifiesta al guardar, se manifiesta en el siguiente `ccp session`.
+- **`ccp config gui-editor <cmd>`** — fija la preferencia. Sin argumento, enseña lo que la cadena
+  elegiría **ahora mismo en esta máquina**: saber que la clave está vacía no te dice qué se va a abrir.
+- Completions bash y zsh para todo lo anterior, con el oráculo bash y el golden regenerados.
+
+### Fixed
+
+- `ccp auto chain add` ya no deja el repo **atascado** cuando `allow_from` está declarado sin entrada
+  para el primario (deny total). Antes el chequeo de duplicado miraba la lista `fallback` cruda y
+  respondía «ya está en la cadena» para todos los perfiles, abortando antes de crear la entrada que
+  desbloquea el repo — con `auto init` sembrando el fallback con todos los perfiles, ese era el estado
+  de partida por defecto. Ahora crea la entrada y explica que lo que se abrió fue el gate, no la cadena.
+- Los errores de política (`ccp auto chain show`, `ccp auto status`, el campo `error` de
+  `auto status --json` y el pre-chequeo de `ccp session`) salen **en tu idioma**. Antes la misma
+  condición se veía en inglés por un subcomando y en español por otro, porque `ResolveAutoChain`
+  devolvía prosa castellana cruda. Ahora es un `ChainError` tipado que cada front-end renderiza.
+
 ## [2.12.0] — la barra dice cuándo vuelve la cuota
 
 ### Added

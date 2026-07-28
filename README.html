@@ -388,7 +388,7 @@
 <div class="app">
   <aside class="sidebar" id="sidebar">
     <div class="brand">ccp<span class="cur">_</span></div>
-    <p class="brand-sub">User guide · v2.12.0</p>
+    <p class="brand-sub">User guide · v2.13.0</p>
 
     <div class="side-actions">
       <a class="tbtn" href="https://github.com/JoseAFlores777/ccp" target="_blank" rel="noopener" aria-label="GitHub repository"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg> GitHub</a>
@@ -431,7 +431,7 @@
 
     <!-- ═══ INICIO ═══ -->
     <section class="view" id="view-inicio">
-      <p class="kicker"><span class="s">User guide</span><span class="t">v2.12.0 · Go CLI</span></p>
+      <p class="kicker"><span class="s">User guide</span><span class="t">v2.13.0 · Go CLI</span></p>
       <div class="hero-actions">
         <a class="tbtn" href="https://github.com/JoseAFlores777/ccp" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg> View on GitHub</a>
         <a class="tbtn" href="README.es.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z"/></svg> Español</a>
@@ -944,18 +944,36 @@ personal-cc ──[termina]──→ ✅ exit 0</pre>
       <p class="hint">That last row is the point: declaring the map is declaring the intent to govern loans, so a profile you forgot to add stays put instead of inheriting a free pass. <code>ccp session --dry-run</code> and <code>ccp auto status</code> both print what was denied and why.</p>
 
       <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:36px 0 4px;">Editing the chain — add, reorder or remove a loan</h3>
-      <p class="intro">There is <b>no <code>ccp auto</code> subcommand that edits the chain</b>: the chain is data, and you edit it by hand in <code>~/.config/ccp/ccp.yaml</code>. That is safe — <code>ccp</code> rewrites the file atomically while <b>preserving your comments and any keys it doesn't know</b>, so an annotation about why a profile is on the list survives every later <code>ccp path set</code>, <code>profile add</code> or <code>auto install</code>.</p>
-      <p class="intro">Two keys govern the chain, and most edits need <b>both</b>:</p>
+      <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp auto chain                        <span class="c"># the EFFECTIVE chain for this directory</span>
+ccp auto chain add personal-deepseek  <span class="c"># append it, and authorise the loan</span>
+ccp auto chain add app-cc --at 1      <span class="c"># insert at a 1-based position</span>
+ccp auto chain mv app-cc 2            <span class="c"># reorder — the order IS the preference</span>
+ccp auto chain rm personal-deepseek   <span class="c"># take it out, and withdraw the authorisation</span>
+ccp auto chain set app-cc,emco-cc     <span class="c"># replace the whole chain</span></pre></div>
+      <p class="intro">All of them take <code>--policy &lt;name&gt;</code> (default: <code>default</code>) and act on the primary of the <b>current directory</b>, which is the only one whose <code>allow_from</code> entry they may touch.</p>
+      <p class="intro"><b><code>add</code> writes two keys, and that is the whole point.</b> Whoever types “add it to the chain” wants the profile to <i>be used</i>, and a <code>fallback</code> entry without its <code>allow_from</code> is never used — silently. Leaving the two keys apart in the CLI would just reproduce the trap the YAML already sets. But <code>allow_from</code> is a <b>compliance gate</b> and may be there on purpose, so the widening carries three hard limits: it touches <b>only</b> the current primary's entry, it prints <b>exactly what changed in each key separately</b> (<code>+name</code> authorises, <code>-name</code> withdraws), and <code>--no-allow</code> turns it off.</p>
+      <p class="intro"><code>rm</code> — and the profiles that <code>set</code> drops — goes the other way and <b>withdraws</b> the authorisation, again from that one entry only. That is what makes <code>add</code> reversible: without it the gate could only ever grow, and undoing a mistaken <code>add</code> would mean hand-editing the YAML, which is exactly what these commands exist to avoid.</p>
+      <figure>
+        <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>ccp auto chain add personal-deepseek</span></div>
+<pre>[ok] fallback   app-cc → emco-cc → personal-deepseek
+[ok] allow_from personal-cc: +personal-deepseek
+
+effective chain from this repo:
+  app-cc → emco-cc → personal-deepseek</pre>
+      </figure>
+      <p class="hint">Every mutation closes by re-reading the effective chain <b>from disk</b>, so you see what the engine will see — including whatever <code>allow_from</code> is still blocking.</p>
       <table>
-        <thead><tr><th>What you want</th><th>Where to edit</th></tr></thead>
+        <thead><tr><th>What you want</th><th>Command</th></tr></thead>
         <tbody>
-          <tr><td>Add a loan</td><td>append it to <code>policies.&lt;name&gt;.fallback</code> <b>and</b> to <code>allow_from[&lt;primary&gt;]</code></td></tr>
-          <tr><td>Change the preference order</td><td>move the lines inside <code>fallback</code> — the <b>order is the preference</b></td></tr>
-          <tr><td>Remove a loan</td><td>delete it from <code>fallback</code> (leaving it in <code>allow_from</code> is harmless — that key only permits, it never adds)</td></tr>
-          <tr><td>Stop rotating in a directory</td><td>give that primary a policy with <code>fallback: []</code>, or remove its <code>allow_from</code> entry (total deny)</td></tr>
-          <tr><td>A different chain for a different job</td><td>add another policy under <code>policies:</code> and run <code>ccp session --policy &lt;name&gt;</code></td></tr>
+          <tr><td>Add a loan</td><td><code>ccp auto chain add &lt;profile&gt;</code> — writes <code>fallback</code> <b>and</b> <code>allow_from[&lt;primary&gt;]</code></td></tr>
+          <tr><td>Change the preference order</td><td><code>ccp auto chain mv &lt;profile&gt; &lt;pos&gt;</code> — the <b>order is the preference</b></td></tr>
+          <tr><td>Remove a loan</td><td><code>ccp auto chain rm &lt;profile&gt;</code> — withdraws the authorisation too (<code>--no-allow</code> keeps it)</td></tr>
+          <tr><td>Stop rotating in a directory</td><td><code>ccp auto chain rm</code> every loan, or give that primary a policy with <code>fallback: []</code></td></tr>
+          <tr><td>A different chain for a different job</td><td>add another policy under <code>policies:</code> and use <code>--policy &lt;name&gt;</code></td></tr>
         </tbody>
       </table>
+      <div class="tip"><span class="lbl">The one command that gets you out of a total deny</span>In a directory whose primary has no <code>allow_from</code> entry, <code>ccp auto chain show</code> says <code>chain (none)</code> while every profile already sits in <code>fallback</code> — that is what <code>ccp auto init</code> seeds. <code>ccp auto chain add &lt;profile&gt;</code> handles it: a profile already in the chain but blocked by the gate is <b>not</b> a duplicate, so it creates the entry, says the chain itself did not change, and the repo starts rotating.</div>
+      <p class="intro">Editing the file by hand is still perfectly fine, and is how you add a whole new policy. <code>ccp</code> rewrites <code>~/.config/ccp/ccp.yaml</code> atomically while <b>preserving your comments and any keys it doesn't know</b>, so an annotation about why a profile is on the list survives every later <code>ccp path set</code>, <code>profile add</code> or <code>auto install</code>.</p>
       <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>auto_handoff:
   policies:
     default:
@@ -1135,6 +1153,22 @@ ccp (TSV)         <span class="c"># profiles.tsv / rules.tsv</span>
         <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp config reset
 ccp config editor nano     <span class="c"># o vim, code, etc.</span></pre></div>
       </div>
+
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Opening it safely — <code>ccp config edit</code></h3>
+      <div class="do">
+        <p class="lead">Edit the file and have <code>ccp</code> check it for you when you close the editor.</p>
+        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp config edit                        <span class="c"># abre ccp.yaml, y al cerrar lo relee y valida</span>
+ccp config edit --profile personal-cc  <span class="c"># abre el overlay de ese perfil</span>
+ccp config edit --terminal             <span class="c"># fuerza el editor de terminal</span>
+ccp config gui-editor "code -w"        <span class="c"># fija el editor gráfico</span></pre></div>
+      </div>
+      <p class="intro">The editor is the <b>first rung that exists</b>: <code>--editor &lt;cmd&gt;</code> → <code>defaults.gui_editor</code> → <code>$VISUAL</code> → VS Code and family on the <code>PATH</code> (<code>code</code> → <code>cursor</code> → <code>code-insiders</code>, invoked with <code>-w</code>) → an OS launcher (<code>open -W -t</code>, <code>notepad</code>, <code>xdg-open</code>) → <code>defaults.editor</code> / <code>$EDITOR</code> / <code>nano</code>. The command tells you which rung won.</p>
+      <p class="intro"><b>The <code>-w</code> is the decision, not a detail.</b> <code>code file</code> returns instantly, and without waiting for the editor to close there is no way to do the one thing that gives this command value: <b>re-read the YAML and validate it</b>. A <code>ccp.yaml</code> broken by a graphical edit does not show up when you save — it shows up in the next <code>ccp session</code>, mid-hop, as a parse error at 3am. So when the editor blocks, <code>ccp</code> reloads the file and checks the semantics of <code>auto_handoff</code> (every policy through <code>Effective()</code>, every fallback profile actually existing) and names the offending key and value if it fails.</p>
+      <figure>
+        <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>exit 1</span></div>
+<pre>[error] policy "default": fallback profile "fantasma" does not exist — re-edit with: ccp config edit</pre>
+      </figure>
+      <div class="tip"><span class="lbl">A non-blocking editor gets a warning, not a lie</span>With <code>xdg-open</code> — or <code>code</code> without <code>-w</code> — the command returns before you have typed anything, so nothing can be validated. <code>ccp</code> says so up front instead of pretending. That includes <code>--profile</code>, where it also skips regenerating the <code>cc-home</code> (doing it there would rebuild it from the <i>pre-edit</i> content) and points you at <code>ccp profile sync &lt;name&gt;</code> for when you finish.</div>
 
       <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">The file, annotated</h3>
       <p class="intro">It lives in <code>~/.config/ccp/ccp.yaml</code> (or <code>$CCP_HOME/ccp.yaml</code>).</p>
