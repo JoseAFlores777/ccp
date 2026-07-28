@@ -510,9 +510,70 @@ var catalogCLI = map[string]map[Lang]string{
 		En: " Editor:      %s\n",
 		Es: " Editor:      %s\n",
 	},
+	"cli.config.gui_editor": {
+		En: " GUI editor:  %s\n",
+		Es: " Editor GUI:  %s\n",
+	},
+	"cli.config.gui_editor_auto": {
+		En: "(auto-detect)",
+		Es: "(autodetectar)",
+	},
+	"cli.config.gui_editor_set": {
+		En: "GUI editor: %s",
+		Es: "Editor GUI: %s",
+	},
 	"cli.config.usage_set": {
 		En: "Usage: ccp config set <key> <value>",
 		Es: "Uso: ccp config set <clave> <valor>",
+	},
+	"cli.config.usage_edit": {
+		En: "Usage: ccp config edit [--editor <cmd>] [--profile <name>] [--terminal]",
+		Es: "Uso: ccp config edit [--editor <cmd>] [--profile <perfil>] [--terminal]",
+	},
+	"cli.config.edit_using": {
+		En: "Opening with: %s  (from %s)",
+		Es: "Abriendo con: %s  (de %s)",
+	},
+	"cli.config.edit_no_validate": {
+		En: "%s does not wait for the editor to close: ccp will NOT re-read or validate the file. Check it with `ccp doctor` when you are done.",
+		Es: "%s no espera a que se cierre el editor: ccp NO releerá ni validará el archivo. Compruébalo con `ccp doctor` al terminar.",
+	},
+	"cli.config.edit_valid": {
+		En: "%s is valid.",
+		Es: "%s es válido.",
+	},
+	"cli.config.edit_profile_ok": {
+		En: "Overlay for profile %s edited; cc-home regenerated.",
+		Es: "Overlay del perfil %s editado; cc-home regenerado.",
+	},
+	// El gemelo honesto del anterior, para el editor que no espera: NO se validó
+	// el settings.overlay.json y NO se regeneró el cc-home, porque al volver de
+	// launch el usuario aún no había escrito nada. Decir «editado; regenerado»
+	// ahí era afirmar un trabajo que no se hizo.
+	"cli.config.edit_profile_open": {
+		En: "Overlay for profile %s opened. Nothing was validated and cc-home was NOT regenerated: run `ccp profile sync %s` when you finish editing.",
+		Es: "Overlay del perfil %s abierto. No se validó nada ni se regeneró el cc-home: corre `ccp profile sync %s` cuando termines de editar.",
+	},
+	// Errores del parseo a mano de `config edit`. Salen PEGADOS a usage_edit, que
+	// sí estaba traducida: tenerlos en castellano fijo era el contraste más
+	// visible que podía tener el comando.
+	"cli.config.edit_flag_needs_value": {
+		En: "%s needs a value",
+		Es: "%s necesita un valor",
+	},
+	"cli.config.edit_unknown_flag": {
+		En: "unknown option: %s",
+		Es: "opción desconocida: %s",
+	},
+	"cli.config.edit_launch_failed": {
+		En: "the editor failed (%s): %v",
+		Es: "el editor falló (%s): %v",
+	},
+	// Sufijo común a TODOS los fallos de la revalidación. Es la mitad útil del
+	// mensaje: sin ella el usuario sabe qué está mal pero no que puede volver.
+	"cli.config.edit_reopen": {
+		En: "re-edit with: ccp config edit",
+		Es: "reedita: ccp config edit",
 	},
 	"cli.config.set_ok": {
 		En: "Config: %s = %s",
@@ -523,8 +584,8 @@ var catalogCLI = map[string]map[Lang]string{
 		Es: "Editor: %s",
 	},
 	"cli.config.usage": {
-		En: "Usage: ccp config [show|set|reset|editor]",
-		Es: "Uso: ccp config [show|set|reset|editor]",
+		En: "Usage: ccp config [show|set|reset|editor|gui-editor|edit]",
+		Es: "Uso: ccp config [show|set|reset|editor|gui-editor|edit]",
 	},
 
 	// --- handoff.go ---
@@ -755,6 +816,8 @@ AUTO-HANDOFF                      rotates profile on its own when usage runs out
   ccp auto uninstall [<profile>...] remove them and regenerate
   ccp auto status [--json]          policy, sensors, samples, cooldowns
   ccp auto test [--profile <n>]     check the detection path end to end
+  ccp auto chain [show]             effective loan chain for this repo
+  ccp auto chain add|rm|mv|set      edit it (order = preference; add also authorises)
 
 PROFILES
   ccp profile add <n> --official            create official account
@@ -789,7 +852,9 @@ LIFE CYCLE
   ccp install | uninstall     add/remove the shell-init block from the rc
   ccp upgrade [--pull] [--from-source]  reinstall (release, or build this repo) + sync
   ccp doctor                  diagnostics
-  ccp config [show|set|reset|editor]
+  ccp config [show|set|reset|editor|gui-editor]
+  ccp config edit [--editor <cmd>] [--profile <name>] [--terminal]
+                              open ccp.yaml (or a profile overlay) in your GUI editor and validate on close
 
 TROUBLESHOOTING
   "ccp handoff only works via the ccp shell function"
@@ -828,6 +893,8 @@ AUTO-HANDOFF                      rota de perfil solo cuando se acaba el uso
   ccp auto uninstall [<perfil>...]  los quita y regenera
   ccp auto status [--json]          política, sensores, muestras, cooldowns
   ccp auto test [--profile <n>]     comprueba la ruta de detección de punta a punta
+  ccp auto chain [show]             cadena de préstamos efectiva en este repo
+  ccp auto chain add|rm|mv|set      la edita (orden = preferencia; add además autoriza)
 
 PERFILES
   ccp profile add <n> --official            crea cuenta oficial
@@ -862,7 +929,9 @@ CICLO DE VIDA
   ccp install | uninstall     añade/quita el bloque shell-init del rc
   ccp upgrade [--pull] [--from-source]  reinstala (release, o compila este repo) + sync
   ccp doctor                  diagnóstico
-  ccp config [show|set|reset|editor]
+  ccp config [show|set|reset|editor|gui-editor]
+  ccp config edit [--editor <cmd>] [--profile <perfil>] [--terminal]
+                              abre ccp.yaml (o el overlay de un perfil) en tu editor gráfico y valida al cerrar
 
 SOLUCIÓN DE PROBLEMAS
   "ccp handoff only works via the ccp shell function"

@@ -58,6 +58,17 @@ func launchEditor(editorLine string, files ...string) error {
 // es nil se usa launchEditor real).
 type ProfileConfigOpts struct {
 	Launch func(editorLine string, files ...string) error
+
+	// NoPostEdit corta la validación + regeneración de después de editar.
+	//
+	// Existe para el editor que NO BLOQUEA (`code` sin -w, xdg-open): launch
+	// vuelve al instante y el usuario todavía no ha escrito nada, así que validar
+	// ahí es validar el contenido PRE-edición y regenerar el cc-home desde lo
+	// viejo. El resultado era peor que no hacer nada: el comando afirmaba en
+	// stdout que el overlay se había editado, y el settings.overlay.json que el
+	// usuario guardara después no lo miraba nadie. Con esta bandera el llamador se
+	// limita a abrir los archivos y a mandar al usuario a `ccp profile sync`.
+	NoPostEdit bool
 }
 
 // ProfileConfig abre los archivos overlay (instrucciones + settings) del perfil
@@ -103,6 +114,10 @@ func ProfileConfig(home, name string, opts ProfileConfigOpts) error {
 	settings := cfgSettingsFile(home, name)
 	if err := launch(ResolveEditor(home), instr, settings); err != nil {
 		return fmt.Errorf("el editor falló: %w", err)
+	}
+
+	if opts.NoPostEdit {
+		return nil
 	}
 
 	if err := CfgValidateJSON(settings); err != nil {

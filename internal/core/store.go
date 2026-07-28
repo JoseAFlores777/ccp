@@ -22,6 +22,15 @@ type Defaults struct {
 	ModelFlash string `yaml:"model_flash"`
 	Effort     string `yaml:"effort"`
 	Editor     string `yaml:"editor"`
+
+	// GuiEditor es el editor GRÁFICO que prefiere `ccp config edit`. Vacío
+	// significa "autodetecta" (VS Code y familia en el PATH, luego el lanzador
+	// del SO), NO "usa nano": por eso no tiene built-in y BuiltinDefaults lo
+	// deja a cero. Es aditivo dentro de `defaults`, que es un bloque conocido
+	// —un ccp viejo lee el archivo sin quejarse—, pero OJO: Defaults no tiene
+	// catch-all inline, así que un binario anterior a este campo lo borra al
+	// reescribir. Degradación aceptada: se vuelve a autodetectar.
+	GuiEditor string `yaml:"gui_editor"`
 }
 
 // Profile es un perfil con nombre. 'default' es IMPLÍCITO y nunca se serializa.

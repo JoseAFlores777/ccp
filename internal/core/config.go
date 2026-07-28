@@ -52,8 +52,8 @@ func effectiveDefaults(d Defaults) Defaults {
 	return d
 }
 
-// configKeys son las claves que `config set` acepta (excluye editor, que tiene
-// su propio subcomando). El orden no importa.
+// configKeys son las claves que `config set` acepta (excluye editor y
+// gui_editor, que tienen su propio subcomando). El orden no importa.
 var configKeys = map[string]struct{}{
 	"base_url":    {},
 	"model_pro":   {},
@@ -93,13 +93,46 @@ func SetDefault(home, key, value string) error {
 }
 
 // fillProviderDefaults completa con built-ins los 4 campos de provider
-// (base_url/model_pro/model_flash/effort) si están vacíos, dejando Editor
-// intacto. Se usa al persistir para no escribir strings vacíos.
+// (base_url/model_pro/model_flash/effort) si están vacíos, dejando Editor y
+// GuiEditor intactos. Se usa al persistir para no escribir strings vacíos.
+//
+// Restaurar los dos editores a mano (en vez de confiar en que
+// effectiveDefaults no los toque) es deliberado: el día que alguien le dé un
+// built-in a gui_editor, un `ccp config set effort low` le fijaría al usuario
+// un editor gráfico que nunca pidió.
 func fillProviderDefaults(d Defaults) Defaults {
-	editor := d.Editor
+	editor, gui := d.Editor, d.GuiEditor
 	d = effectiveDefaults(d)
-	d.Editor = editor
+	d.Editor, d.GuiEditor = editor, gui
 	return d
+}
+
+// SetGuiEditor fija el campo `gui_editor` del bloque `defaults` y persiste.
+// Gemelo de SetEditor: un valor vacío se rechaza (para volver a la
+// autodetección se edita ccp.yaml a mano, igual que con `editor`).
+func SetGuiEditor(home, guiEditor string) error {
+	if guiEditor == "" {
+		return fmt.Errorf("Uso: ccp config gui-editor <comando>")
+	}
+	c, err := Load(home)
+	if err != nil {
+		return err
+	}
+	c.Defaults = fillProviderDefaults(c.Defaults)
+	c.Defaults.GuiEditor = guiEditor
+	return Save(home, c)
+}
+
+// GetGuiEditor devuelve el `gui_editor` configurado, o "" si no hay ninguno
+// (que es la señal de "autodetecta", no un error). No cae a $VISUAL ni al PATH:
+// esa cadena vive entera en ResolveEditEditor, y partirla en dos sitios es cómo
+// se acaba con dos órdenes de precedencia distintos.
+func GetGuiEditor(home string) (string, error) {
+	c, err := Load(home)
+	if err != nil {
+		return "", err
+	}
+	return c.Defaults.GuiEditor, nil
 }
 
 // SetEditor fija el campo `editor` del bloque `defaults` y persiste. Un valor
