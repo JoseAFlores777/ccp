@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -114,6 +113,12 @@ type EffectivePolicy struct {
 // Cada error nombra la política, la clave y el valor ofensivo: el usuario edita
 // ccp.yaml a mano y "duración inválida" sin coordenadas lo obliga a adivinar
 // cuál de las cuatro duraciones del bloque es la rota.
+//
+// Los errores son *ChainError TIPADOS y no fmt.Errorf. La prosa de Error() sigue
+// siendo la misma castellana de siempre (los llamadores que solo la imprimen no
+// notan el cambio), pero ahora internal/cli puede traducirla: estos errores
+// salen por `ccp auto status`, por `ccp auto chain` y por la validación de
+// `ccp config edit`, y en las tres una sesión en inglés recibía español crudo.
 func (p AutoPolicy) Effective(name string) (EffectivePolicy, error) {
 	if name == "" {
 		name = "default"
@@ -144,16 +149,16 @@ func (p AutoPolicy) Effective(name string) (EffectivePolicy, error) {
 	// (dedo pegado) desactivaría de facto la detección proactiva.
 	if p.Threshold != 0 {
 		if p.Threshold < 1 || p.Threshold > 100 {
-			return EffectivePolicy{}, fmt.Errorf(
-				"política %q: threshold %d fuera de rango (1..100)", name, p.Threshold)
+			return EffectivePolicy{}, &ChainError{
+				Kind: ChainErrThreshold, Policy: name, Key: "threshold", Num: p.Threshold}
 		}
 		eff.Threshold = p.Threshold
 	}
 
 	if p.MaxHops != 0 {
 		if p.MaxHops < 0 {
-			return EffectivePolicy{}, fmt.Errorf(
-				"política %q: max_hops %d no puede ser negativo", name, p.MaxHops)
+			return EffectivePolicy{}, &ChainError{
+				Kind: ChainErrMaxHops, Policy: name, Key: "max_hops", Num: p.MaxHops}
 		}
 		eff.MaxHops = p.MaxHops
 	}
@@ -183,9 +188,9 @@ func (p AutoPolicy) Effective(name string) (EffectivePolicy, error) {
 	case CooldownResetsAt, CooldownFixed:
 		eff.CooldownStrategy = strings.TrimSpace(p.Cooldown.Strategy)
 	default:
-		return EffectivePolicy{}, fmt.Errorf(
-			"política %q: cooldown.strategy %q desconocida (usa %q o %q)",
-			name, p.Cooldown.Strategy, CooldownResetsAt, CooldownFixed)
+		return EffectivePolicy{}, &ChainError{
+			Kind: ChainErrCooldown, Policy: name,
+			Key: "cooldown.strategy", Value: p.Cooldown.Strategy}
 	}
 
 	return eff, nil
@@ -201,10 +206,10 @@ func autoDuration(policy, key, raw string, def time.Duration) (time.Duration, er
 	}
 	d, err := time.ParseDuration(raw)
 	if err != nil {
-		return 0, fmt.Errorf("política %q: %s inválido (%q): %w", policy, key, raw, err)
+		return 0, &ChainError{Kind: ChainErrDuration, Policy: policy, Key: key, Value: raw, Cause: err}
 	}
 	if d < 0 {
-		return 0, fmt.Errorf("política %q: %s inválido (%q): no puede ser negativo", policy, key, raw)
+		return 0, &ChainError{Kind: ChainErrDurationNeg, Policy: policy, Key: key, Value: raw}
 	}
 	return d, nil
 }
@@ -254,13 +259,10 @@ func ResolveAutoChain(home string, cfg *Config, policyName, cwd string) (Resolve
 
 	ah := cfg.AutoHandoff
 	if ah == nil {
-		return ResolvedChain{}, fmt.Errorf(
-			"auto_handoff no está configurado en ccp.yaml; corre `ccp auto init`")
+		return ResolvedChain{}, &ChainError{Kind: ChainErrNotConfigured}
 	}
 	if !ah.Enabled {
-		return ResolvedChain{}, fmt.Errorf(
-			"auto_handoff está deshabilitado (enabled: false en ccp.yaml); " +
-				"ponlo en true o corre `ccp auto init --force`")
+		return ResolvedChain{}, &ChainError{Kind: ChainErrDisabled}
 	}
 
 	if policyName == "" {
@@ -268,9 +270,8 @@ func ResolveAutoChain(home string, cfg *Config, policyName, cwd string) (Resolve
 	}
 	pol, ok := ah.Policies[policyName]
 	if !ok {
-		return ResolvedChain{}, fmt.Errorf(
-			"política %q no existe en auto_handoff.policies (hay: %s)",
-			policyName, autoPolicyNames(ah.Policies))
+		return ResolvedChain{}, &ChainError{
+			Kind: ChainErrNoPolicy, Policy: policyName, Detail: autoPolicyNames(ah.Policies)}
 	}
 
 	eff, err := pol.Effective(policyName)
@@ -287,8 +288,8 @@ func ResolveAutoChain(home string, cfg *Config, policyName, cwd string) (Resolve
 	candidates := make([]string, 0, len(eff.Fallback))
 	for _, name := range eff.Fallback {
 		if !autoProfileExists(cfg, name) {
-			return ResolvedChain{}, fmt.Errorf(
-				"política %q: el perfil de fallback %q no existe", policyName, name)
+			return ResolvedChain{}, &ChainError{
+				Kind: ChainErrFallbackProfile, Policy: policyName, Profile: name}
 		}
 		if name == primary || seen[name] {
 			continue

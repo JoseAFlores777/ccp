@@ -73,6 +73,8 @@ func dispatchAuto(args []string, stdout, stderr io.Writer) int {
 		return autoStatus(rest, stdout, stderr)
 	case "test":
 		return autoTest(rest, stdout, stderr)
+	case "chain":
+		return autoChain(rest, stdout, stderr)
 	case "", "help", "--help", "-h":
 		fmt.Fprintln(stdout, i18n.T(currentLang(), "cli.auto.usage"))
 		return 0
@@ -364,7 +366,9 @@ func autoStatus(args []string, stdout, stderr io.Writer) int {
 	rc, rerr := core.ResolveAutoChain(home, cfg, "", cwd)
 	threshold := core.DefaultAutoThreshold
 	if rerr != nil {
-		out.Error = rerr.Error()
+		// El campo `error` es superficie legible por máquina, pero también la lee
+		// gente: sale traducido, igual que el resto del comando.
+		out.Error = chainErrText(lang, rerr)
 	} else {
 		threshold = rc.Policy.Threshold
 		out.Primary = rc.Primary
@@ -398,7 +402,7 @@ func autoStatus(args []string, stdout, stderr io.Writer) int {
 
 	printAutoStatus(stdout, lang, out, cfg.AutoHandoff != nil)
 	if rerr != nil {
-		fmt.Fprintf(stderr, "[error] %v\n", rerr)
+		fmt.Fprintf(stderr, "[error] %s\n", chainErrText(lang, rerr))
 		return 1
 	}
 	return 0

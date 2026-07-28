@@ -84,7 +84,9 @@ func cmdSession(args []string, stdout, stderr io.Writer) int {
 		// Política inexistente, fallback a un perfil que no existe, duración mal
 		// escrita: errores de ccp.yaml, no del supervisor. Fallar aquí evita
 		// dejar un claude lanzado y morir en el primer salto, dos horas después.
-		fmt.Fprintf(stderr, "[error] %v\n", err)
+		// Van por chainErrText, que es el mismo traductor que usa `ccp auto`: son
+		// literalmente los mismos errores tipados.
+		fmt.Fprintf(stderr, "[error] %s\n", chainErrText(lang, err))
 		return 1
 	}
 

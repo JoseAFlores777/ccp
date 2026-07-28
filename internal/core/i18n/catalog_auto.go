@@ -17,14 +17,16 @@ var catalogAuto = map[string]map[Lang]string{
   install [<profile>...]   install the sensor layer (hooks + statusLine) and regenerate
   uninstall [<profile>...] remove it and regenerate
   status [--json]          resolved policy, installed sensors, last samples, cooldowns
-  test [--profile <n>]     inject a synthetic StopFailure and check the detection path`,
+  test [--profile <n>]     inject a synthetic StopFailure and check the detection path
+  chain [show|add|rm|mv|set]  read and edit the loan chain (chain help for details)`,
 		Es: `Uso: ccp auto <subcomando>
 
   init [--force]           siembra el bloque auto_handoff en ccp.yaml
   install [<perfil>...]    instala la capa de sensores (hooks + statusLine) y regenera
   uninstall [<perfil>...]  la quita y regenera
   status [--json]          política resuelta, sensores instalados, últimas muestras, cooldowns
-  test [--profile <n>]     inyecta un StopFailure sintético y comprueba la ruta de detección`,
+  test [--profile <n>]     inyecta un StopFailure sintético y comprueba la ruta de detección
+  chain [show|add|rm|mv|set]  lee y edita la cadena de préstamos (chain help para el detalle)`,
 	},
 	"cli.auto.unknown_sub": {
 		En: "ccp auto: unknown subcommand %q",
@@ -161,6 +163,188 @@ var catalogAuto = map[string]map[Lang]string{
 	"cli.auto.status_cooldown_until": {
 		En: "over threshold, free at %s",
 		Es: "sobre el umbral, libre a las %s",
+	},
+
+	// --- chain ---
+	//
+	// Las etiquetas de la izquierda se alinean a 11 columnas (fallback/allow_from)
+	// para que las dos claves del yaml que este comando toca se lean como dos
+	// filas de la misma tabla, no como dos frases sueltas.
+	"cli.auto.chain_usage": {
+		En: `Usage: ccp auto chain <subcommand> [--policy <name>]
+
+  show                     effective chain for the cwd (after the allow_from gate)
+  add <profile>... [--at N] [--no-allow]
+                           append to the chain (or insert at 1-based position N)
+                           and authorise the loan from the current primary
+  rm <profile>...          take profiles out of the chain
+  mv <profile> <pos>       move a profile to the 1-based position pos
+  set <a,b,c>              replace the whole chain (order = preference)
+
+The order IS the preference: the supervisor walks the chain top to bottom.
+'add' also touches allow_from[<primary>] —and only that entry— because a profile
+in the chain without its allow_from is never used, silently. --no-allow turns
+that off.`,
+		Es: `Uso: ccp auto chain <subcomando> [--policy <nombre>]
+
+  show                     cadena efectiva para el cwd (tras el gate allow_from)
+  add <perfil>... [--at N] [--no-allow]
+                           añade al final de la cadena (o en la posición N, 1-based)
+                           y autoriza el préstamo desde el primario actual
+  rm <perfil>...           saca perfiles de la cadena
+  mv <perfil> <pos>        mueve un perfil a la posición pos (1-based)
+  set <a,b,c>              reemplaza la cadena entera (el orden = la preferencia)
+
+El orden ES la preferencia: el supervisor recorre la cadena de arriba abajo.
+'add' toca además allow_from[<primario>] —y solo esa entrada— porque un perfil
+en la cadena sin su allow_from no se usa nunca, en silencio. --no-allow lo apaga.`,
+	},
+	"cli.auto.chain_unknown_sub": {
+		En: "ccp auto chain: unknown subcommand %q",
+		Es: "ccp auto chain: subcomando desconocido %q",
+	},
+	"cli.auto.chain_mv_usage": {
+		En: "ccp auto chain mv needs exactly two arguments: <profile> <position>",
+		Es: "ccp auto chain mv necesita exactamente dos argumentos: <perfil> <posición>",
+	},
+	"cli.auto.chain_bad_pos": {
+		En: "%q is not a valid position: use an integer >= 1 (positions are 1-based)",
+		Es: "%q no es una posición válida: usa un entero >= 1 (las posiciones son 1-based)",
+	},
+	// Una bandera que no aplica al subcomando se RECHAZA en vez de ignorarse: el
+	// usuario que escribe `--at 3 rm x` cree haber pedido algo concreto.
+	"cli.auto.chain_flag_only": {
+		En: "ccp auto chain: %s only applies to `%s`",
+		Es: "ccp auto chain: %s solo aplica a `%s`",
+	},
+	"cli.auto.chain_show_extra": {
+		En: "ccp auto chain show takes no arguments (leftover: %s) — did you mean `ccp auto chain add`?",
+		Es: "ccp auto chain show no lleva argumentos (sobra: %s) — ¿querías `ccp auto chain add`?",
+	},
+
+	// Líneas del parte de una mutación. Cada clave del yaml tiene la suya: quien
+	// lee la salida tiene que poder decir qué cambió en `fallback` y qué cambió en
+	// `allow_from` sin abrir el archivo.
+	"cli.auto.chain_fallback": {
+		En: "fallback   %s",
+		Es: "fallback   %s",
+	},
+	"cli.auto.chain_removed": {
+		En: "removed    %s",
+		Es: "quitados   %s",
+	},
+	"cli.auto.chain_moved": {
+		En: "moved      %s to position %d",
+		Es: "movido     %s a la posición %d",
+	},
+	"cli.auto.chain_allow_added": {
+		En: "allow_from %s: %s",
+		Es: "allow_from %s: %s",
+	},
+	// El estado que faltaba: gate declarado y esta mutación no lo movió (mv, o un
+	// rm de algo que no estaba autorizado). Antes se pintaba como SILENCIO, que se
+	// lee igual que «no me he fijado» — y con `set` significaba que la cadena podía
+	// quedarse sin ningún destino autorizado sin una sola línea que lo dijera.
+	"cli.auto.chain_allow_unchanged": {
+		En: "allow_from %s: unchanged",
+		Es: "allow_from %s: sin cambios",
+	},
+	// Estado 3 del gate: estaba declarado SIN entrada para este primario, o sea
+	// deny total. Se dice que la entrada es NUEVA porque el efecto no es «uno más»
+	// sino «se abre el primero».
+	"cli.auto.chain_allow_created": {
+		En: "allow_from %s: new entry %s (it had none: everything was denied)",
+		Es: "allow_from %s: entrada nueva %s (no tenía: todo estaba denegado)",
+	},
+	// Estado 1: no hay gate. No se toca nada, y se explica por qué para que no
+	// parezca que se olvidó.
+	"cli.auto.chain_allow_nogate": {
+		En: "allow_from untouched: no gate is declared, so nothing was blocking the loan",
+		Es: "allow_from sin tocar: no hay gate declarado, así que nada bloqueaba el préstamo",
+	},
+	"cli.auto.chain_allow_skipped": {
+		En: "allow_from untouched (--no-allow): the loan from %s may still be denied",
+		Es: "allow_from sin tocar (--no-allow): el préstamo desde %s puede seguir denegado",
+	},
+	"cli.auto.chain_note_primary": {
+		En: "%s is the primary for this cwd: it stays in the chain, but it is implicit and never a loan to itself",
+		Es: "%s es el primario de este cwd: se queda en la cadena, pero es implícito y nunca se presta a sí mismo",
+	},
+	// Sin esta línea, un `add` que solo abre el gate imprimiría una cadena idéntica
+	// a la anterior y parecería un no-op.
+	"cli.auto.chain_note_already": {
+		En: "%s was already in the chain: the chain did not change, only the allow_from gate opened",
+		Es: "%s ya estaba en la cadena: la cadena no cambió, solo se abrió el gate de allow_from",
+	},
+	"cli.auto.chain_effective": {
+		En: "effective chain from this repo:",
+		Es: "cadena efectiva desde este repo:",
+	},
+	"cli.auto.chain_denied": {
+		En: "denied by allow_from: %s",
+		Es: "denegados por allow_from: %s",
+	},
+	"cli.auto.chain_effective_unavailable": {
+		En: "saved, but the effective chain cannot be resolved: %v",
+		Es: "guardado, pero la cadena efectiva no se puede resolver: %v",
+	},
+
+	// Errores tipados que devuelve core/auto_chain.go.
+	"cli.auto.chain_err_no_policy": {
+		En: "policy %q does not exist in auto_handoff.policies (there are: %s)",
+		Es: "la política %q no existe en auto_handoff.policies (hay: %s)",
+	},
+	"cli.auto.chain_err_duplicate": {
+		En: "%q is already in the chain of policy %q",
+		Es: "%q ya está en la cadena de la política %q",
+	},
+	"cli.auto.chain_err_not_in_chain": {
+		En: "%q is not in the chain of policy %q (there are: %s)",
+		Es: "%q no está en la cadena de la política %q (hay: %s)",
+	},
+	"cli.auto.chain_err_range": {
+		En: "position %d is out of range (valid: %d..%d)",
+		Es: "la posición %d está fuera de rango (válido: %d..%d)",
+	},
+	"cli.auto.chain_err_empty": {
+		En: "name at least one profile",
+		Es: "nombra al menos un perfil",
+	},
+
+	// Errores de VALIDACIÓN de la política. Los devuelve el mismo *ChainError, así
+	// que salen traducidos vengan de `auto chain show`, de `auto status --json`,
+	// de `ccp session` o de la revalidación de `ccp config edit`. Antes cada una
+	// de esas superficies reenviaba la prosa castellana del core.
+	"cli.auto.chain_err_disabled": {
+		En: "auto_handoff is disabled (enabled: false in ccp.yaml); set it to true or run `ccp auto init --force`",
+		Es: "auto_handoff está deshabilitado (enabled: false en ccp.yaml); ponlo en true o corre `ccp auto init --force`",
+	},
+	"cli.auto.chain_err_fallback_profile": {
+		En: "policy %q: fallback profile %q does not exist",
+		Es: "política %q: el perfil de fallback %q no existe",
+	},
+	"cli.auto.chain_err_threshold": {
+		En: "policy %q: threshold %d is out of range (1..100)",
+		Es: "política %q: threshold %d fuera de rango (1..100)",
+	},
+	"cli.auto.chain_err_max_hops": {
+		En: "policy %q: max_hops %d cannot be negative",
+		Es: "política %q: max_hops %d no puede ser negativo",
+	},
+	// El %v final es el error de time.ParseDuration: es de la stdlib y no se
+	// traduce, pero la coordenada (política + clave + valor) sí, que es lo que el
+	// usuario necesita para encontrar la línea del yaml.
+	"cli.auto.chain_err_duration": {
+		En: "policy %q: invalid %s (%q): %v",
+		Es: "política %q: %s inválido (%q): %v",
+	},
+	"cli.auto.chain_err_duration_neg": {
+		En: "policy %q: invalid %s (%q): it cannot be negative",
+		Es: "política %q: %s inválido (%q): no puede ser negativo",
+	},
+	"cli.auto.chain_err_cooldown": {
+		En: "policy %q: unknown cooldown.strategy %q (use %q or %q)",
+		Es: "política %q: cooldown.strategy %q desconocida (usa %q o %q)",
 	},
 
 	// --- test ---
