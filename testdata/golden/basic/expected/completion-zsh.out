@@ -14,8 +14,9 @@ _ccp() {
     use)     compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     handoff) (( CURRENT == 3 )) && compadd -- resume end discard status list prune sessions default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     auto)    (( CURRENT == 3 )) && compadd -- init install uninstall status test chain
-             (( CURRENT == 4 )) && [[ "${words[3]}" == chain ]] && compadd -- show add rm mv set help ;;
-    session) compadd -- --dry-run --headless --policy --yolo --max-hops --no-return ;;
+             (( CURRENT == 4 )) && [[ "${words[3]}" == chain ]] && compadd -- show add rm mv set help --policy
+             (( CURRENT >= 5 )) && [[ "${words[3]}" == chain && "${words[4]}" =~ ^(add|rm|mv|set)$ ]] && compadd -- --policy --at --no-allow ${(f)"$(ccp profile list 2>/dev/null)"} ;;
+    session) compadd -- --dry-run --headless --policy --yolo --max-hops --no-return --setup --no-setup ;;
     key)     compadd -- ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     completion) compadd -- bash zsh ;;
   esac

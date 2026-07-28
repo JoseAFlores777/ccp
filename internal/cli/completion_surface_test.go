@@ -84,5 +84,53 @@ func TestCompletionConoceAutoChain(t *testing.T) {
 				t.Errorf("%s: la completion de auto chain no ofrece %q:\n%s", sh, want, branch)
 			}
 		}
+		// Las banderas de chain: sin ellas, `--at` y `--no-allow` solo existen
+		// en `ccp auto chain help`, que es justo donde nadie mira con el cursor
+		// a medio comando.
+		for _, want := range []string{"--policy", "--at", "--no-allow"} {
+			if !strings.Contains(branch, want) {
+				t.Errorf("%s: la completion de auto chain no ofrece %q:\n%s", sh, want, branch)
+			}
+		}
+	}
+}
+
+// TestCompletionCompletaPerfilesEnAutoChain: completar el SUBCOMANDO y no su
+// argumento deja al usuario en el sitio exacto donde hace falta memoria — el
+// nombre del perfil. `use`, `key` y `handoff` ya lo resuelven con la misma
+// llamada a `ccp profile list`; chain la reusa palabra a palabra.
+//
+// El índice se asegura por shell porque es lo único que ningún test podía
+// cazar: bash cuenta COMP_CWORD desde 0 y zsh CURRENT desde 1, así que la MISMA
+// posición se escribe distinta en cada uno. Copiar la línea de bash a zsh sin
+// sumar 1 no rompe ningún test de texto (la rama sigue nombrando el perfil) y
+// deja la completion muda en la práctica.
+func TestCompletionCompletaPerfilesEnAutoChain(t *testing.T) {
+	idx := map[string]string{"bash": "$COMP_CWORD -ge 4", "zsh": "CURRENT >= 5"}
+	for _, sh := range []string{"bash", "zsh"} {
+		branch := completionBranch(t, completionScript(t, sh), "auto")
+		if !strings.Contains(branch, "ccp profile list 2>/dev/null") {
+			t.Errorf("%s: auto chain no completa nombres de perfil:\n%s", sh, branch)
+		}
+		if !strings.Contains(branch, idx[sh]) {
+			t.Errorf("%s: el nivel del argumento de chain no es %q:\n%s", sh, idx[sh], branch)
+		}
+	}
+}
+
+// TestCompletionConoceLosFlagsDeSession: `ccp session` no tiene subcomandos, así
+// que su rama ES su lista de banderas; una que falte ahí no se descubre por
+// tabulador en ninguna parte.
+func TestCompletionConoceLosFlagsDeSession(t *testing.T) {
+	for _, sh := range []string{"bash", "zsh"} {
+		branch := completionBranch(t, completionScript(t, sh), "session")
+		for _, want := range []string{
+			"--dry-run", "--headless", "--policy", "--yolo", "--max-hops",
+			"--no-return", "--setup", "--no-setup",
+		} {
+			if !strings.Contains(branch, want) {
+				t.Errorf("%s: la completion de session no ofrece %q:\n%s", sh, want, branch)
+			}
+		}
 	}
 }

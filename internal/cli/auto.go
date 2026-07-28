@@ -188,31 +188,10 @@ func autoInstall(args []string, install bool, stdout, stderr io.Writer) int {
 	for _, n := range cfg.AutoHandoff.Hooks {
 		had[n] = true
 	}
-	target := make(map[string]bool, len(names))
-	for _, n := range names {
-		target[n] = true
-	}
-
-	// Reconstrucción conservando el orden existente: la lista la puede haber
-	// escrito el usuario a mano y reordenarla ensuciaría su diff de ccp.yaml.
-	var hooks []string
-	for _, n := range cfg.AutoHandoff.Hooks {
-		if !install && target[n] {
-			continue
-		}
-		if autoSeenIn(hooks, n) {
-			continue // dedupe defensivo: un yaml editado a mano puede repetir
-		}
-		hooks = append(hooks, n)
-	}
-	if install {
-		for _, n := range names {
-			if !autoSeenIn(hooks, n) {
-				hooks = append(hooks, n)
-			}
-		}
-	}
-	cfg.AutoHandoff.Hooks = hooks
+	// La reconstrucción (orden conservado + dedupe) vive en core porque el
+	// bootstrap de `ccp session` cierra el mismo hueco por el mismo camino; ver
+	// core.AutoHooksSet.
+	cfg.AutoHandoff.Hooks = core.AutoHooksSet(cfg.AutoHandoff.Hooks, names, install)
 	if err := core.Save(home, cfg); err != nil {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
@@ -239,17 +218,6 @@ func autoInstall(args []string, install bool, stdout, stderr io.Writer) int {
 		}
 	}
 	return rc
-}
-
-// autoSeenIn es el `slices.Contains` del repo (Go 1.24 lo tiene, pero el resto del
-// paquete no usa slices y mezclar estilos aquí no aporta).
-func autoSeenIn(list []string, want string) bool {
-	for _, s := range list {
-		if s == want {
-			return true
-		}
-	}
-	return false
 }
 
 // autoSortedProfileNames lista los perfiles del yaml en orden estable ('default' no

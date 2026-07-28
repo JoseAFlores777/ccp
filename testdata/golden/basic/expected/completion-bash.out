@@ -14,8 +14,9 @@ _ccp() {
     use)     COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
     handoff) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "resume end discard status list prune sessions default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
     auto)    [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "init install uninstall status test chain" -- "$cur") )
-             [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" == "chain" ]] && COMPREPLY=( $(compgen -W "show add rm mv set help" -- "$cur") ) ;;
-    session) COMPREPLY=( $(compgen -W "--dry-run --headless --policy --yolo --max-hops --no-return" -- "$cur") ) ;;
+             [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" == "chain" ]] && COMPREPLY=( $(compgen -W "show add rm mv set help --policy" -- "$cur") )
+             [[ $COMP_CWORD -ge 4 && "${COMP_WORDS[2]}" == "chain" && "${COMP_WORDS[3]}" =~ ^(add|rm|mv|set)$ ]] && COMPREPLY=( $(compgen -W "--policy --at --no-allow $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
+    session) COMPREPLY=( $(compgen -W "--dry-run --headless --policy --yolo --max-hops --no-return --setup --no-setup" -- "$cur") ) ;;
     key)     COMPREPLY=( $(compgen -W "$(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
     completion) COMPREPLY=( $(compgen -W "bash zsh" -- "$cur") ) ;;
   esac
