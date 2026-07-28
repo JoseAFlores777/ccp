@@ -1,5 +1,43 @@
 # Changelog
 
+## [2.14.0] — `ccp session` se configura solo, y la TUI edita la config
+
+### Added
+
+- **`ccp session` detecta lo que le falta al repo y lo ofrece.** Lista los huecos —la política, la
+  regla, la cadena vacía por el gate, los sensores—, enseña **la ruta exacta** que va a escribir, y
+  pregunta una vez. Cada hueco se cierra por el **mismo camino** que el comando que habrías tecleado
+  (`auto init`, `path set`, `auto chain add`, `auto install`): cero rutas de escritura nuevas.
+  La regla se propone sobre la **raíz del repo git**, no sobre el cwd — una regla en un subdirectorio
+  es casi siempre un error de dedo que luego confunde.
+  Pregunta **una vez por repo**, contestes lo que contestes; la marca vive bajo `state/auto/bootstrap/`,
+  que es caché: borrarla vuelve a ofrecerlo. `--setup` lo fuerza, `--no-setup` lo salta.
+- **Vista Config en la TUI** (`c`, o `:config`). Toma el cuerpo del dashboard en vez de añadir un
+  cuarto panel: a 80 columnas los tres actuales ya van justos. Cinco secciones —Defaults,
+  Auto-handoff, Cadena (reordena con `J`/`K`), allow_from y Sensores— y `e` abre la config entera en
+  el editor gráfico. No reimplementa ninguna regla: la cadena y el gate salen de las mismas funciones
+  de `core` que usa `ccp auto chain`.
+- Completions de segundo nivel: `ccp auto chain add|rm|mv <TAB>` ofrece **nombres de perfil**, y los
+  flags (`--policy`, `--at`, `--no-allow`, `--setup`, `--no-setup`, y los de `config edit`) se
+  completan. Antes solo se completaba el comando, no el argumento que de verdad hay que recordar.
+
+### Fixed
+
+- El bootstrap **no escribe nada si los dos extremos de la conversación no son una terminal**. La
+  primera versión solo miraba stdin: con `ccp session > log 2>&1` desde una terminal real, la pregunta
+  se escribía en el archivo, el usuario no la veía, y como el default de `[S/n]` es sí, un Enter
+  aplicaba la configuración entera. Ahora se comprueban stdin **y** la salida, con un mensaje distinto
+  por motivo (sin TTY / `-p` / salida redirigida).
+- El detector de TTY del bootstrap usa `isatty` y no `os.ModeCharDevice`: `/dev/null` **es** un
+  dispositivo de caracteres, así que `ccp session < /dev/null` desde cron pasaba por interactivo.
+- Un EOF a mitad del prompt ya no gasta la marca de «preguntar una vez»: una pregunta que nadie llegó
+  a contestar no cuenta como contestada.
+- La regla se ancla bien **a través de symlinks**: antes proponía un subdirectorio y además afirmaba
+  que no estabas en un repo git cuando sí lo estabas.
+- Cuando no se puede deducir el perfil, la columna dice `(falta perfil)` en vez de `(crear)`, se avisa
+  con el `ccp path set` exacto, y **no** se crea una entrada `allow_from` para `default` (el `~/.claude`
+  llano) hacia terceros.
+
 ## [2.13.0] — editar la config sin abrir el yaml a mano
 
 ### Added

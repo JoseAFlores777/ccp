@@ -10,7 +10,7 @@
 En tu repo de trabajo, tu cuenta de empresa; en tu proyecto personal, la tuya; en tus experimentos, DeepSeek.
 El cambio ocurre solo, con hacer `cd`.
 
-![version](https://img.shields.io/badge/version-2.13.0-c96442)
+![version](https://img.shields.io/badge/version-2.14.0-c96442)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-c96442)
 ![shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-8a8378)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
@@ -51,6 +51,8 @@ Cuando entras a una carpeta, `ccp` aplica el perfil correcto en esa terminal med
 ## La interfaz
 
 Corre `ccp` sin argumentos (con TTY) y obtienes el **dashboard interactivo** de la foto de arriba: tres paneles (Perfiles · Reglas · Estado) con navegación por teclado, indicadores de salud (`✓` login / key), y una barra de comandos `:` con **autocompletado** (Tab). Cada acción tiene su comando CLI equivalente.
+
+Pulsa `c` (o `:config`) para la **vista Config**, que toma el cuerpo en vez de añadir un cuarto panel — a 80 columnas los tres actuales ya van justos. Cinco secciones: Defaults, Auto-handoff, Cadena (reordena con `J`/`K`), allow_from y Sensores. `e` abre la config entera en tu editor gráfico. La vista no reimplementa ninguna regla: editar la cadena desde ahí pasa por las mismas funciones de `core` que `ccp auto chain`, gate incluido.
 
 ¿Sin TTY o prefieres la terminal? Todo está en el CLI, con la misma paleta:
 
@@ -227,6 +229,10 @@ ccp auto test [--profile <n>]     # ¿está realmente cableada la detección?
 ```
 
 `ccp session` llega al binario por la rama `*) command ccp "$@"` que la función de shell ya tiene, así que **no hace falta refrescar `ccp install`** para usarlo.
+
+En la práctica puedes saltarte las dos primeras líneas: corre `ccp session` en un repo sin configurar y te lista lo que falta —la regla, la política, los sensores—, te enseña la ruta exacta que escribiría, y pregunta una vez. Si aceptas, cierra cada hueco por el mismo camino que el comando que habrías tecleado. Pregunta **una vez por repo**, contestes lo que contestes; `--setup` lo vuelve a ofrecer y `--no-setup` lo salta.
+
+Nunca pregunta, ni escribe, si **los dos extremos de la conversación no son una terminal**. Con `-p`, sin TTY, o con la salida redirigida a un archivo, se limita a decir por qué y sigue como antes. `ccp session -p` corre desde cron: un prompt ahí cuelga el trabajo, y un prompt escrito en un log es peor todavía — nunca verías la pregunta que tu Enter contestó.
 
 ### El ciclo: primario → préstamo → vuelta al primario
 

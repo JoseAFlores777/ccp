@@ -10,7 +10,7 @@
 In your work repo, your company account; in your personal project, your own; in your experiments, DeepSeek.
 The switch happens on its own, just by `cd`-ing.
 
-![version](https://img.shields.io/badge/version-2.13.0-c96442)
+![version](https://img.shields.io/badge/version-2.14.0-c96442)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-c96442)
 ![shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-8a8378)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
@@ -51,6 +51,8 @@ When you enter a folder, `ccp` applies the right profile in that terminal via a 
 ## The interface
 
 Run `ccp` with no arguments (with a TTY) and you get the **interactive dashboard** from the screenshot above: three panels (Profiles · Rules · Status) with keyboard navigation, health indicators (`✓` login / key), and a `:` command bar with **autocompletion** (Tab). Every action has its equivalent CLI command.
+
+Press `c` (or `:config`) for the **Config view**, which takes over the body rather than adding a fourth panel — at 80 columns the three existing ones are already tight. Five sections: Defaults, Auto-handoff, Chain (reorder with `J`/`K`), allow_from, and Sensors. `e` opens the whole config in your graphical editor. The view never reimplements a rule: editing the chain from here goes through the same `core` functions as `ccp auto chain`, gate included.
 
 No TTY, or prefer the terminal? Everything is in the CLI, with the same palette:
 
@@ -227,6 +229,10 @@ ccp auto test [--profile <n>]     # is the detection path actually wired?
 ```
 
 `ccp session` reaches the binary through the `*) command ccp "$@"` branch the shell function already has, so **no `ccp install` refresh is needed** for it.
+
+In practice you can skip the first two lines: run `ccp session` in a repo that isn't set up and it lists what's missing — the rule, the policy, the sensors — shows the exact path it would write, and asks once. Answer and it applies each gap through the same code path as the command you'd have typed. It asks **once per repo**, whatever you answer; `--setup` offers it again, `--no-setup` skips it.
+
+It never asks, and never writes, unless **both ends of the conversation are a terminal**. With `-p`, without a TTY, or with the output redirected to a file, it just says why and carries on as before. `ccp session -p` runs from cron: a prompt there hangs the job, and a prompt written to a log is worse — you would never see the question your Enter answered.
 
 ### The cycle: primary → loan → back to the primary
 
