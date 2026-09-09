@@ -1,5 +1,40 @@
 # Changelog
 
+## [Unreleased] — una instancia de Claude Desktop por perfil, con el Code tab aislado de verdad
+
+### Added
+
+- **`ccp desktop`**: una instancia aislada de Claude Desktop por perfil. Llega al binario por el
+  `*) command ccp "$@"` que el rc ya tiene, así que **funciona sin reinstalar el rc**; `ccp install`
+  solo hace falta para que autocomplete.
+  - `ccp desktop open [<perfil>]` (sin perfil, se resuelve por el cwd igual que el hook del prompt),
+    `list [--json]`, `path <perfil>`, `prepare <perfil>`, `rm <perfil> --yes`.
+  - El aislamiento son **dos** cosas, y la segunda es la que no se ve. `--user-data-dir` mueve la
+    identidad de la app (sesión, tokens, MCP, Cowork), pero **el Code tab de Desktop no lo lee**:
+    lee `process.env.CLAUDE_CONFIG_DIR` y cae a `~/.claude` si está vacío. Sin inyectar el entorno
+    del perfil al lanzar, dos ventanas con cuentas distintas comparten credenciales de CLI,
+    `projects/` e historial. `ccp desktop` emite las dos a la vez.
+  - Solo perfiles `official` y `default`. Un perfil de proveedor se rechaza con mensaje explícito:
+    Desktop no lee `ANTHROPIC_BASE_URL`, así que la ventana quedaría con el Code tab en DeepSeek y
+    la mitad de chat en Anthropic sin autenticar, sin forma de saber cuál estás mirando.
+  - `default` **no se reubica**: su instancia es la de siempre, en la ubicación estándar de la app.
+  - En el primer arranque de cada instancia se avisa de la carrera de `claude://` (los deep links
+    van a la instancia que registró el esquema de último, así que el login se hace de una en una).
+
+- **`MirrorForDesktop`**, que es lo que hace que lo anterior sea posible. Desktop valida el
+  «co-writable boundary» y **rechaza symlinks en cualquier componente no-hoja bajo el config root**,
+  y `seedCCHome` siembra exactamente eso (`cc-home/commands -> ~/.claude/commands`). No se cambia
+  `seedCCHome`: el oráculo bash afirma `[[ -L "$cch/plugins" ]]`, o sea que la forma con symlinks de
+  directorio **es** el contrato de `profile add`. La conversión es opt-in y por perfil.
+  - El espejo son directorios **reales** replicando el árbol global, con symlinks solo en los
+    archivos **hoja** — que la regla exime, porque recorre `c[0..len-2]`. Se conserva el compartido
+    en vivo con `~/.claude` sin dejar un symlink en posición no-hoja.
+  - `agents/` y `skills/` pasan a ser directorios reales del perfil aunque el global no los tenga:
+    es lo que permite tener **agentes distintos por perfil**.
+  - Una entrada que ya existe **nunca se pisa**, así que el re-espejado es idempotente y un archivo
+    propio del perfil gana sobre el global. Solo se podan enlaces colgados que apuntan **dentro** del
+    origen global; un symlink del usuario a otro sitio no es nuestro y se respeta.
+
 ## [2.15.0] — instalar con una sola línea, y la TUI suelta la terminal al editar
 
 ### Added

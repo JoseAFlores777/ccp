@@ -510,6 +510,56 @@ Exit codes: `0` ok · `1` usage/config error · `2` handoff I/O failure · `75` 
 
 ---
 
+## Claude Desktop — one window per profile
+
+`ccp desktop` opens an isolated **Claude Desktop** instance per profile: account, MCP servers, Cowork
+environment… and the Code tab. You can keep work and personal open side by side.
+
+```bash
+ccp desktop open emco            # launch the 'emco' profile's instance
+ccp desktop open                 # no profile: whichever the current directory resolves to
+ccp desktop list                 # instances on disk and their size
+ccp desktop open emco --dry-run  # print the plan without launching or touching anything
+```
+
+It works **without reinstalling the rc** (`ccp install` is only needed for completion).
+
+### The isolation is two things, and the second one is the invisible one
+
+`--user-data-dir` moves the app's identity: session, tokens, `claude_desktop_config.json` (MCP) and
+Cowork state. That is half of it.
+
+The other half is the **Code tab**, which does *not* read that directory: it reads `CLAUDE_CONFIG_DIR`
+from the Desktop process's environment, falling back to `~/.claude` when empty. Without injecting it,
+two windows on different accounts would share CLI credentials, `projects/`, history and agents.
+`ccp desktop` emits both, so the whole window — chat and Code tab — sits on the same profile as your
+terminal.
+
+### What it changes in the profile's `cc-home`
+
+Desktop **refuses symlinked directories** under its config root, and `ccp profile add` seeds exactly
+that (`cc-home/commands -> ~/.claude/commands`). The first time you open an instance, `ccp` converts
+those entries into **real** directories whose files are symlinks to the global one:
+
+- commands and plugins stay shared live with `~/.claude`;
+- `agents/` and `skills/` become the profile's own, so **each profile can have its own agents**;
+- a file of yours inside the profile wins over the global one and is never overwritten on re-mirror.
+
+When you add new files to the global config, re-mirror with `ccp desktop prepare <profile>`.
+
+### Limits
+
+- **`official`** and **`default`** profiles only. Claude Desktop does not read `ANTHROPIC_BASE_URL`, so
+  a DeepSeek/Kimi/GLM profile is refused rather than leaving you with a half-configured window.
+- **`default` is never relocated**: its instance is the usual one, in the usual place.
+- Each instance downloads its own copy of the embedded Claude Code (~190 MB), plus the Cowork
+  environment if you use it. `ccp desktop list` tells you how much each one takes.
+- **Sign in one at a time**: `claude://` links go to whichever instance registered the scheme last, so
+  with several windows open a login can land on the wrong one. `ccp` reminds you on each instance's
+  first launch.
+- `ccp desktop rm <profile> --yes` deletes the instance: it is a logout that takes session, tokens and
+  MCP config with it.
+
 ## Backup and restore
 
 Take everything to another machine, or back it up before a big change:
@@ -681,6 +731,7 @@ With commands: `ccp config show` · `ccp config set <clave> <valor>` · `ccp con
 | See what `ccp session` would do | `ccp session --dry-run` |
 | Set up auto-handoff | `ccp auto init` then `ccp auto install` |
 | Auto-handoff policy / sensors | `ccp auto status [--json]` |
+| Open Claude Desktop with a profile | `ccp desktop open [<n>]` |
 | Status / diagnostics | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
 | Update | `ccp upgrade` |

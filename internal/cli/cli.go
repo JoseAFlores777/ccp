@@ -103,6 +103,11 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 		return cmdSession(rest, stdout, stderr)
 	case "auto":
 		return dispatchAuto(rest, stdout, stderr)
+	// `desktop` entra por la misma puerta que session/auto: no muta el entorno
+	// del shell padre, así que el `*)` del rc lo deja pasar y NO hace falta
+	// reinstalar el rc para usarlo (solo para que autocomplete).
+	case "desktop":
+		return dispatchDesktop(rest, stdout, stderr)
 	case "status":
 		return cmdStatus(rest, stdout, stderr)
 	case "path":
