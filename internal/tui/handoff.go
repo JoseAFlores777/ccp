@@ -8,6 +8,7 @@ import (
 	"github.com/JoseAFlores777/ccp/internal/core"
 	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // HandoffProfileOptions devuelve los nombres de perfil candidatos a destino
@@ -26,11 +27,26 @@ func HandoffProfileOptions(cfg *core.Config, active string) []string {
 
 // openTTY abre /dev/tty para interacción directa con la terminal, ignorando
 // redirecciones de stdin/stdout. Devuelve error si no hay TTY disponible.
+//
+// Además apunta el renderer por defecto de lipgloss a esa tty, y esa línea es la
+// que hace que el estilo exista. Todo lo que se pinta desde aquí (el panel y los
+// tres pickers de huh) sale por /dev/tty, pero el renderer por defecto detecta
+// capacidades contra os.Stdout — y en la ruta real de `ccp handoff` ese stdout es
+// la sustitución de comando de la función de shell, o sea una tubería. Sin esto,
+// termenv resuelve «sin color», el negrita del panel no se emite y el estilo es
+// código muerto que además se prueba verde (los tests tampoco tienen tty). Es el
+// mismo fallo que este repo ya diagnosticó y corrigió en el CLI, ver present.go.
+//
+// Es seguro reapuntar el renderer global porque `ccp _handoff` es un proceso
+// aparte del dashboard, y NO se salta NO_COLOR: termenv lo sigue consultando por
+// entorno. El ANSI acaba solo en la tty; stdout sigue llevando únicamente el
+// delta eval-able que la shell necesita.
 func openTTY(lang i18n.Lang) (*os.File, error) {
 	f, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", i18n.T(lang, "cli.handoff.no_tty"), err)
 	}
+	lipgloss.SetDefaultRenderer(lipgloss.NewRenderer(f))
 	return f, nil
 }
 
