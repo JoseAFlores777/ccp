@@ -232,3 +232,85 @@ func TestRewriteSessionTitleIdempotent(t *testing.T) {
 		t.Fatalf("prefijo duplicado: %s", data)
 	}
 }
+
+// TestRewriteSessionLineaEnorme fija que una línea de más de 8 MB se reescribe.
+//
+// Ese era el tope del bufio.Scanner que había aquí, y una línea así no es
+// exótica: una imagen pegada o un tool_result grande la produce. El efecto no
+// era degradado sino permanente y asimétrico — CopyTranscript (la IDA) nunca
+// tuvo tope, así que la sesión se podía prestar y no se podía devolver NUNCA:
+// `handoff end` y la vuelta a casa del supervisor fallaban siempre para ella, y
+// la única salida era `discard`, que deja la conversación viviendo solo en el
+// perfil prestado.
+func TestRewriteSessionLineaEnorme(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "viejo.jsonl")
+	dst := filepath.Join(dir, "sub", "nuevo.jsonl")
+
+	// 12 MB de payload en UNA línea: por encima del tope viejo de 8 MB.
+	gordo := strings.Repeat("A", 12*1024*1024)
+	line, err := json.Marshal(map[string]any{
+		"type": "user", "sessionId": "viejo", "uuid": "u1", "data": gordo,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := append(line, '\n')
+	body = append(body, []byte(`{"type":"ai-title","sessionId":"viejo","aiTitle":"T"}`+"\n")...)
+	if err := os.WriteFile(src, body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := RewriteSession(src, dst, "viejo", "nuevo", "p1"); err != nil {
+		t.Fatalf("RewriteSession con una línea de 12 MB: %v", err)
+	}
+
+	out, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("líneas de salida = %d, quería 2", len(lines))
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &m); err != nil {
+		t.Fatalf("la línea grande no sobrevivió como JSON: %v", err)
+	}
+	if m["sessionId"] != "nuevo" {
+		t.Errorf("sessionId = %v, quería nuevo", m["sessionId"])
+	}
+	if s, _ := m["data"].(string); len(s) != len(gordo) {
+		t.Errorf("el payload se truncó: %d bytes, quería %d", len(s), len(gordo))
+	}
+}
+
+// TestRewriteSessionNoDejaTemporales fija que la escritura atómica no deja
+// basura al lado del destino, y en particular nada acabado en .jsonl: el picker
+// de sesiones (ListSessions) lista ese directorio por extensión, así que un
+// temporal mal nombrado se le ofrecería al usuario como una sesión suya.
+func TestRewriteSessionNoDejaTemporales(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "viejo.jsonl")
+	dstDir := filepath.Join(dir, "destino")
+	dst := filepath.Join(dstDir, "nuevo.jsonl")
+
+	if err := os.WriteFile(src, []byte(`{"type":"user","sessionId":"viejo","uuid":"u1"}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := RewriteSession(src, dst, "viejo", "nuevo", "p1"); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := os.ReadDir(dstDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "nuevo.jsonl" {
+		var names []string
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Fatalf("el destino contiene %v, quería solo nuevo.jsonl", names)
+	}
+}

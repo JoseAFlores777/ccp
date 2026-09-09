@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -149,6 +151,49 @@ func readAITitle(path string) string {
 	return title
 }
 
+// writeTranscriptAtomic escribe data en path por tmp+rename.
+//
+// El transcript es el ÚNICO dato de todo ccp que no se puede reconstruir: si se
+// corrompe, la conversación del usuario se pierde. Y era lo único que se
+// escribía con un os.WriteFile a pelo, o sea truncando el destino antes de tener
+// el contenido nuevo: un Ctrl-C o un disco lleno a media escritura dejaba un
+// jsonl medio escrito CON EL UUID BUENO, que es peor que no tener nada porque
+// `claude --resume` lo encuentra y lo abre.
+//
+// El temporal se crea con os.CreateTemp en el MISMO directorio (rename entre
+// sistemas de archivos falla) y con nombre aleatorio, no fijo: el RewriteSession
+// de HandoffAdoptHome corre fuera del flock de handoffs.yaml, así que dos
+// procesos pueden estar escribiendo el mismo destino y un tmp compartido los
+// haría pisarse. El patrón "ccp-*.tmp" no acaba en .jsonl a propósito: si
+// acabara, ListSessions ofrecería el temporal en el picker de sesiones.
+func writeTranscriptAtomic(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("no se pudo crear %s: %w", dir, err)
+	}
+	tmp, err := os.CreateTemp(dir, "ccp-*.tmp")
+	if err != nil {
+		return fmt.Errorf("no se pudo crear temporal en %s: %w", dir, err)
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName) // no-op si el rename salió bien
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("no se pudo escribir %s: %w", tmpName, err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("no se pudo cerrar %s: %w", tmpName, err)
+	}
+	if err := os.Chmod(tmpName, 0o644); err != nil {
+		return fmt.Errorf("no se pudo ajustar permisos de %s: %w", tmpName, err)
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		return fmt.Errorf("no se pudo renombrar %s -> %s: %w", tmpName, path, err)
+	}
+	return nil
+}
+
 // CopyTranscript copia srcPath al directorio dstDir conservando el nombre
 // (mismo uuid). El sessionId interno ya == uuid y el cwd es el mismo repo, así
 // que NO se reescribe nada. Si dstDir ya tiene ese archivo: si el contenido es
@@ -158,9 +203,6 @@ func CopyTranscript(srcPath, dstDir string, force bool) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("no se pudo leer %s: %w", srcPath, err)
 	}
-	if err := os.MkdirAll(dstDir, 0o755); err != nil {
-		return "", fmt.Errorf("no se pudo crear %s: %w", dstDir, err)
-	}
 	dstPath := filepath.Join(dstDir, filepath.Base(srcPath))
 	if !force {
 		if existing, err := os.ReadFile(dstPath); err == nil {
@@ -169,8 +211,8 @@ func CopyTranscript(srcPath, dstDir string, force bool) (string, error) {
 			}
 		}
 	}
-	if err := os.WriteFile(dstPath, data, 0o644); err != nil {
-		return "", fmt.Errorf("no se pudo escribir %s: %w", dstPath, err)
+	if err := writeTranscriptAtomic(dstPath, data); err != nil {
+		return "", err
 	}
 	return dstPath, nil
 }
@@ -191,31 +233,45 @@ func RewriteSession(srcPath, dstPath, oldID, newID, fromLabel string) error {
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false) // no escapar <,>,& : mantener el JSON natural
 
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
-	for sc.Scan() {
-		raw := sc.Bytes()
-		if len(bytes.TrimSpace(raw)) == 0 {
-			continue
-		}
-		var m map[string]any
-		if err := json.Unmarshal(raw, &m); err != nil {
-			return fmt.Errorf("línea JSONL inválida en %s: %w", srcPath, err)
-		}
-		if sid, ok := m["sessionId"].(string); ok && sid == oldID {
-			m["sessionId"] = newID
-		}
-		if m["type"] == "ai-title" {
-			if t, ok := m["aiTitle"].(string); ok && !strings.HasPrefix(t, "[de ") {
-				m["aiTitle"] = "[de " + fromLabel + "] " + t
+	// bufio.Reader y no bufio.Scanner: el Scanner obliga a declarar un techo por
+	// línea y CUALQUIER techo aquí es un fallo permanente. Una sola línea con una
+	// imagen en base64 o un tool_result grande pasaba de los 8 MB que se fijaban
+	// aquí, y entonces `handoff end` —y la vuelta a casa del supervisor, que la
+	// usa— fallaban SIEMPRE para esa sesión: la conversación se podía prestar y
+	// no se podía devolver nunca, con `discard` como única salida, o sea dejarla
+	// viviendo solo en el perfil prestado. Justo el desenlace que todo el módulo
+	// de handoff existe para evitar. La ida (CopyTranscript) nunca tuvo tope, así
+	// que el límite además era asimétrico.
+	//
+	// No se empeora el uso de memoria: la salida ya se materializa entera en buf.
+	rd := bufio.NewReaderSize(f, 64*1024)
+	for lineno := 1; ; lineno++ {
+		raw, err := rd.ReadBytes('\n')
+		if len(bytes.TrimSpace(raw)) > 0 {
+			var m map[string]any
+			if jerr := json.Unmarshal(raw, &m); jerr != nil {
+				return fmt.Errorf("línea JSONL inválida en %s:%d: %w", srcPath, lineno, jerr)
+			}
+			if sid, ok := m["sessionId"].(string); ok && sid == oldID {
+				m["sessionId"] = newID
+			}
+			if m["type"] == "ai-title" {
+				if t, ok := m["aiTitle"].(string); ok && !strings.HasPrefix(t, "[de ") {
+					m["aiTitle"] = "[de " + fromLabel + "] " + t
+				}
+			}
+			if eerr := enc.Encode(m); eerr != nil { // Encode añade '\n'
+				return fmt.Errorf("no se pudo serializar línea: %w", eerr)
 			}
 		}
-		if err := enc.Encode(m); err != nil { // Encode añade '\n'
-			return fmt.Errorf("no se pudo serializar línea: %w", err)
+		if err != nil {
+			// io.EOF sin newline final es fin normal: la última línea ya se
+			// procesó arriba. Cualquier otro error sí es de lectura.
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return fmt.Errorf("error leyendo %s: %w", srcPath, err)
 		}
-	}
-	if err := sc.Err(); err != nil {
-		return fmt.Errorf("error leyendo %s: %w", srcPath, err)
 	}
 
 	// Validación: cero oldID en sessionId, JSONL válido. Una salida vacía (todas
@@ -234,11 +290,5 @@ func RewriteSession(srcPath, dstPath, oldID, newID, fromLabel string) error {
 		}
 	}
 
-	if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
-		return fmt.Errorf("no se pudo crear %s: %w", filepath.Dir(dstPath), err)
-	}
-	if err := os.WriteFile(dstPath, out, 0o644); err != nil {
-		return fmt.Errorf("no se pudo escribir %s: %w", dstPath, err)
-	}
-	return nil
+	return writeTranscriptAtomic(dstPath, out)
 }

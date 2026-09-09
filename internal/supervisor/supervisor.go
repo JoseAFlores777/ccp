@@ -314,15 +314,34 @@ func Run(ctx context.Context, o Options) (Result, error) {
 			return res, err
 		}
 
-		// Los dos primeros casos se miran SIN consultar out.exited a propósito.
-		// Hay una carrera inherente: el hijo puede imprimir la línea del límite y
-		// morir en el mismo instante, de modo que el sensor entrega el evento
-		// mientras el proceso ya está muerto y el bucle cree haberlo matado él.
-		// Lo que decide qué pasó es el CÓDIGO, no quién creyó dar el golpe: un 0
-		// significa trabajo terminado y un 130 significa Ctrl-C del usuario, y en
-		// ninguno de los dos se rota aunque haya un límite detectado.
+		// Solo UNO de los dos desenlaces terminales consulta out.exited, y la
+		// asimetría es el fondo del asunto: la pregunta no es quién dio el golpe
+		// sino qué códigos puede producir nuestro SIGTERM.
+		//
+		// El 130 no puede. Un hijo al que matamos sale 143, o sale con lo que su
+		// handler elija, y elegir justo el código de Ctrl-C sería patológico. Así
+		// que ahí el código basta y sigue mandando él solo, igual que antes: el
+		// usuario interrumpió a propósito y rotar sería lo contrario de lo pedido.
+		//
+		// El 0 sí puede, y por eso es el único ambiguo. Un claude que atrape
+		// SIGTERM para correr sus hooks SessionEnd —justo lo que termGrace le
+		// concede— y salga con 0 después de que lo matáramos por un límite es, por
+		// el código, indistinguible de uno que terminó su trabajo. Leerlo como
+		// «fin feliz» cierra el préstamo y retorna: la rotación se apaga entera,
+		// siempre, sin un solo síntoma. `exited` (o sea: la señal ni llegó a
+		// salir, el hijo ya estaba muerto cuando fuimos a matarlo) es lo que los
+		// separa, y deja intacta la carrera que documentaba el comentario viejo —
+		// el hijo que imprime el límite y muere en el mismo instante devuelve
+		// signaled=false y vuelve a ser un exit propio.
+		//
+		// Queda una ventana: entre que el hijo llama a exit() y que nuestro
+		// cosechador recoge el estado, la señal sale contra un zombi y se cuenta
+		// como golpe nuestro. Un fin feliz genuino que coincida ahí con un límite
+		// en vuelo rota un préstamo de más. Es el intercambio correcto: cuesta un
+		// relanzamiento en una carrera de microsegundos, y evita apagar la función
+		// entera de forma sistemática.
 		switch {
-		case out.code == 0:
+		case out.exited && out.code == 0:
 			// Fin feliz. Si la conversación está prestada, devolverla es parte
 			// del trabajo: dejar el marcador vivo obligaría al usuario a
 			// acordarse de `ccp handoff end` mañana por la mañana, y mientras
@@ -715,11 +734,16 @@ func (r *runner) launchAndWatch(ctx context.Context, session string, resume, onL
 	// razones de hacerlo (rotación por límite / vuelta a casa por return_check);
 	// el trato del hijo es idéntico, lo que cambia es lo que hará el bucle.
 	kill := func(returnHome bool) (childOutcome, error) {
-		if terr := proc.Terminate(termGrace); terr != nil {
+		signaled, terr := proc.Terminate(termGrace)
+		if terr != nil {
 			r.warnf("%v", terr)
 		}
 		w := <-waitCh
-		return childOutcome{code: w.code, limit: limit, returnHome: returnHome}, w.err
+		// `exited` es «murió por su cuenta», no «murió»: si la señal no llegó a
+		// salir es que ya estaba muerto cuando fuimos a matarlo, y eso es la
+		// carrera que el switch de desenlaces documenta y quiere seguir tratando
+		// como salida propia del hijo.
+		return childOutcome{code: w.code, exited: !signaled, limit: limit, returnHome: returnHome}, w.err
 	}
 
 	for {
@@ -756,10 +780,12 @@ func (r *runner) launchAndWatch(ctx context.Context, session string, resume, onL
 			}
 			e := ev
 			limit = &e
-			if r.chain.DwellSatisfied(o.Now()) {
+			// La permanencia exigible depende de QUIÉN avisó: entera para el
+			// sensor proactivo, techo corto para los reactivos (ver DwellFor).
+			if r.chain.DwellSatisfiedFor(o.Now(), r.chain.DwellFor(ev.Source)) {
 				return kill(false)
 			}
-			// MinDwell sin cumplir: se deja al hijo VIVO mientras se espera. Es
+			// Dwell sin cumplir: se deja al hijo VIVO mientras se espera. Es
 			// mejor que matarlo ya y esperar apagados — puede que termine el
 			// turno en curso, y si no, al menos el usuario ve progreso.
 			r.traceDwellWait(ev)
@@ -767,7 +793,9 @@ func (r *runner) launchAndWatch(ctx context.Context, session string, resume, onL
 			dwellC = dwellTicker.C
 
 		case <-dwellC:
-			if r.chain.DwellSatisfied(o.Now()) {
+			// Mismo criterio que arriba: el evento que abrió la espera es el que
+			// manda, y es el que sigue en `limit`.
+			if limit != nil && r.chain.DwellSatisfiedFor(o.Now(), r.chain.DwellFor(limit.Source)) {
 				return kill(false)
 			}
 

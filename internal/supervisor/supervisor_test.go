@@ -61,6 +61,12 @@ func (s *safeBuf) String() string {
 //	FAKE_SLUG    slug del proyecto, para saber dónde escribir el transcript
 //	FAKE_RELEASE archivo-testigo que suelta a un lanzamiento en modo "wait"
 //
+// El modo "trap" instala `trap 'exit 0' TERM` y luego espera igual que "wait":
+// es el claude que atrapa la señal para correr sus hooks SessionEnd —justo lo
+// que termGrace le concede— y sale con 0 DESPUÉS de que lo hayamos matado. Por
+// el código es indistinguible de un fin feliz; lo que los separa es que la señal
+// SÍ salió (Terminate ⇒ signaled), y de eso cuelga que la rotación siga viva.
+//
 // El modo "wait" es lo que hace probable el temporizador de regreso: el hijo se
 // queda VIVO (sin emitir nada) hasta que el test crea FAKE_RELEASE o hasta que
 // el supervisor lo mata. Las esperas son rodajas de 50ms —no un `sleep 30`—
@@ -116,7 +122,11 @@ if [ -n "$emit" ]; then
   fi
 fi
 
-if [ "$mode" = "wait" ] || [ "$mode" = "busy" ]; then
+if [ "$mode" = "trap" ]; then
+  trap 'exit 0' TERM
+fi
+
+if [ "$mode" = "wait" ] || [ "$mode" = "busy" ] || [ "$mode" = "trap" ]; then
   i=0
   while [ "$i" -lt 400 ]; do
     if [ -n "$FAKE_RELEASE" ] && [ -f "$FAKE_RELEASE" ]; then break; fi
@@ -140,6 +150,9 @@ type runStep struct {
 	// busy es wait + ESCRIBIR en el transcript cada rodaja: es la sesión que el
 	// usuario está usando ahora mismo, la que el guard de inactividad protege.
 	busy bool
+	// trapTerm es wait + atrapar SIGTERM y salir con 0. El hijo que se comporta
+	// así hace que matarlo y que termine su trabajo produzcan el MISMO exit code.
+	trapTerm bool
 }
 
 // limitStdout es la línea que `claude -p --output-format stream-json` imprime
@@ -319,6 +332,9 @@ func setup(t *testing.T, s seed) *env {
 		}
 		if st.busy {
 			mode = "busy"
+		}
+		if st.trapTerm {
+			mode = "trap"
 		}
 		lines = append(lines, strconv.Itoa(st.exit)+"|"+st.where+"|"+st.emit+"|"+mode)
 	}
@@ -1453,5 +1469,47 @@ func TestRunNoReturnCierraElPrestamoAlTerminar(t *testing.T) {
 	}
 	if res.Session == seedSession || res.Session != h.Archived[0].ReturnedAs {
 		t.Fatalf("Session = %q, quería el uuid nuevo %q", res.Session, h.Archived[0].ReturnedAs)
+	}
+}
+
+// TestRunHijoQueAtrapaSIGTERMYSaleCeroSigueRotando fija el desenlace de un
+// claude que instala un handler de SIGTERM, corre sus hooks SessionEnd y sale
+// con 0 después de que lo hayamos matado por un límite.
+//
+// Es el único estado en el que matar al hijo y que el hijo termine su trabajo
+// producen el MISMO exit code, así que decidir por el código —como se hacía—
+// lee la rotación como «fin feliz»: se cierra el préstamo, se retorna, y la
+// corrida se acaba sola al primer límite, de madrugada y a mitad del trabajo.
+// Lo que los separa es si la señal llegó a salir (Terminate ⇒ signaled), que es
+// lo que ahora alimenta childOutcome.exited.
+//
+// El plan pide DOS lanzamientos: si la regresión vuelve, el segundo no ocurre.
+func TestRunHijoQueAtrapaSIGTERMYSaleCeroSigueRotando(t *testing.T) {
+	e := setup(t, seed{
+		fallback: []string{"p2"},
+		plan: []runStep{
+			// p1 emite el límite y se queda vivo atrapando SIGTERM: cuando el
+			// supervisor lo mate, saldrá con 0 por su cuenta.
+			{exit: 0, where: "transcript", emit: limitTranscript("p1"), trapTerm: true},
+			{exit: 0},
+		},
+	})
+
+	res, err := Run(context.Background(), e.opts(seedSession))
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got := e.launches(t); got != 2 {
+		t.Fatalf("lanzamientos = %d, quería 2: el hijo que atrapa SIGTERM cortó la rotación (out=%q err=%q)",
+			got, e.out.String(), e.errb.String())
+	}
+	if got := e.profiles(t); len(got) != 2 || got[1] != "p2" {
+		t.Fatalf("perfiles lanzados = %v, quería terminar en p2", got)
+	}
+	if len(res.Hops) != 1 || res.Hops[0].To != "p2" {
+		t.Fatalf("hops = %+v, quería un salto a p2", res.Hops)
+	}
+	if res.ExitCode != 0 {
+		t.Fatalf("ExitCode = %d, quería 0", res.ExitCode)
 	}
 }
