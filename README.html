@@ -415,6 +415,7 @@
       <h3>Advanced</h3>
       <a data-view="handoff"><span class="ix">·</span>Handoff</a>
       <a data-view="auto"><span class="ix">·</span>Auto-handoff · runbook</a>
+      <a data-view="desktop"><span class="ix">·</span>Claude Desktop</a>
       <a data-view="update"><span class="ix">·</span>Update ccp</a>
       <a data-view="backup"><span class="ix">·</span>Backup &amp; restore</a>
       <a data-view="config"><span class="ix">·</span>Manual config (YAML)</a>
@@ -1034,6 +1035,74 @@ denegados por allow_from: app-cc, deepseek</pre>
     </section>
 
     <!-- ═══ ACTUALIZAR ═══ -->
+    <!-- ═══ CLAUDE DESKTOP ═══ -->
+    <section class="view" id="view-desktop">
+      <div class="kicker"><span class="s">·</span><span class="t">Advanced · Desktop</span></div>
+      <h2 class="sec">Claude Desktop — one window per profile</h2>
+      <p class="sec-lede">The desktop app holds a single session at a time. <code>ccp desktop</code> gives each profile its own instance: account, MCP servers, Cowork environment… and the Code tab. Work and personal, open side by side.</p>
+
+      <div class="do">
+        <p class="lead">Open a profile's window.</p>
+        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop open emco</pre></div>
+        <p class="hint">With no name, <code>ccp desktop open</code> uses whichever profile the current directory resolves to — the same resolver as the prompt hook, so the window and the terminal never end up on different accounts.</p>
+      </div>
+
+      <div class="do">
+        <p class="lead">See what it would do, without launching or touching anything.</p>
+        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop open emco --dry-run</pre></div>
+        <p class="hint">Prints the plan and what it would convert in the <code>cc-home</code>. It is the recommended way to try the command on a profile you already use.</p>
+      </div>
+
+      <div class="tip"><span class="lbl">Nothing to reinstall</span><code>desktop</code> reaches the binary through the rc function's default branch, just like <code>session</code> and <code>auto</code>. You only need <code>ccp install</code> if you want completion.</div>
+
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">The isolation is two things</h3>
+      <p class="intro">And the second one is the invisible one. Without it the command would be pointless:</p>
+      <table>
+        <thead><tr><th>What gets isolated</th><th>By what</th></tr></thead>
+        <tbody>
+          <tr><td>The app's identity: session, tokens, MCP, Cowork</td><td><code>--user-data-dir</code></td></tr>
+          <tr><td>The <b>Code tab</b>: CLI credentials, <code>projects/</code>, history, agents</td><td><code>CLAUDE_CONFIG_DIR</code> in the process environment</td></tr>
+        </tbody>
+      </table>
+      <div class="tip"><span class="lbl">Why it matters</span>The Code tab does <b>not</b> read the <code>--user-data-dir</code>: it reads <code>CLAUDE_CONFIG_DIR</code> from the Desktop process's environment, falling back to <code>~/.claude</code> when empty. With only the first one, two windows on different accounts would share CLI credentials, history and agents. <code>ccp desktop</code> emits both, so the whole window sits on the same profile as your terminal.</div>
+
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">What it changes in the profile's <code>cc-home</code></h3>
+      <p class="intro">Desktop <b>refuses symlinked directories</b> under its config root, and <code>ccp profile add</code> seeds exactly that. The first time you open an instance, <code>ccp</code> converts those entries into <b>real</b> directories whose files are symlinks to the global one.</p>
+      <ol class="ideas">
+        <li><code>commands/</code> and <code>plugins/</code> stay shared live with <code>~/.claude</code>.</li>
+        <li><code>agents/</code> and <code>skills/</code> become the profile's own: <b>each profile can have its own agents</b>.</li>
+        <li>A file of yours inside the profile wins over the global one and is never overwritten on re-mirror.</li>
+      </ol>
+      <details class="why"><summary>why symlinks only on the files?</summary><div class="why-body">
+        <p>Desktop validates what it calls the <i>co-writable boundary</i> and refuses a symlink at any <b>non-leaf</b> component of the path it touches. A <code>commands/</code> that is a symlink breaks as soon as the app writes to <code>commands/something</code>.</p>
+        <p>But the rule <b>exempts the leaf</b>. So the mirror replicates the tree with real directories and leaves the symlink only on the final file: live sharing survives without a single symlink in a forbidden position.</p>
+        <p>When you add new files to the global config, re-mirror with <code>ccp desktop prepare &lt;profile&gt;</code>.</p>
+      </div></details>
+
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Managing instances</h3>
+      <div class="do">
+        <p class="lead">See which ones exist and how much they take.</p>
+        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop list</pre></div>
+        <p class="hint"><code>--json</code> returns <code>profile</code>, <code>data_dir</code>, <code>exists</code> and <code>bytes</code>; always an array, with <code>default</code> first.</p>
+      </div>
+      <div class="do">
+        <p class="lead">Delete an instance.</p>
+        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop rm emco --yes</pre></div>
+        <div class="tip"><span class="lbl">Careful</span>It is a logout that takes that instance's session, tokens and MCP config with it. That is why it demands <code>--yes</code>.</div>
+      </div>
+
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Limits</h3>
+      <table>
+        <thead><tr><th>Limit</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td><code>official</code> and <code>default</code> profiles only</td><td>Claude Desktop does not read <code>ANTHROPIC_BASE_URL</code>. A DeepSeek/Kimi/GLM profile would leave the Code tab on the provider and the chat half on Anthropic, unauthenticated — so it is refused.</td></tr>
+          <tr><td><code>default</code> is never relocated</td><td>Its instance is your usual login, in the usual place. Giving it its own directory would move the session you already have.</td></tr>
+          <tr><td>~190 MB per instance</td><td>Each one downloads its own copy of the embedded Claude Code, plus the Cowork environment if you use it.</td></tr>
+          <tr><td>Sign in one at a time</td><td><code>claude://</code> links go to whichever instance registered the scheme last; with several windows open a login can land on the wrong one. <code>ccp</code> reminds you on each instance's first launch.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
     <section class="view" id="view-update">
       <div class="kicker"><span class="s">·</span><span class="t">Advanced · Versions</span></div>
       <h2 class="sec">Update ccp</h2>
@@ -1314,6 +1383,7 @@ ccp lang es     <span class="c"># Spanish</span></pre></div>
           <tr><td>See what <code>ccp session</code> would do</td><td><code>ccp session --dry-run</code></td></tr>
           <tr><td>Set up auto-handoff</td><td><code>ccp auto init</code> → <code>ccp auto install</code></td></tr>
           <tr><td>Auto-handoff policy / sensors</td><td><code>ccp auto status [--json]</code></td></tr>
+          <tr><td>Open Claude Desktop with a profile</td><td><code>ccp desktop open [&lt;n&gt;]</code></td></tr>
           <tr><td>Status / diagnostics</td><td><code>ccp status</code> · <code>ccp doctor</code></td></tr>
           <tr><td>Full help</td><td><code>ccp help</code></td></tr>
         </tbody>
@@ -1334,11 +1404,11 @@ ccp lang es     <span class="c"># Spanish</span></pre></div>
 
 <script>
   (function(){
-    var ORDER = ['inicio','modelo','instalacion','c1','c2','c3','c4','c5','c6','c7','handoff','auto','update','backup','config','idioma','trouble','ref'];
+    var ORDER = ['inicio','modelo','instalacion','c1','c2','c3','c4','c5','c6','c7','handoff','auto','desktop','update','backup','config','idioma','trouble','ref'];
     var TITLES = {inicio:'Home',modelo:'Mental model',instalacion:'Installation',
       c1:'Work account',c2:'Personal account',c3:'Provider folder',c4:'Carve-out',
       c5:'Switch by hand',c6:"See what's going on",c7:'Coming from dsctl',
-      handoff:'Handoff',auto:'Auto-handoff · runbook',update:'Update ccp',backup:'Backup & restore',config:'Manual config (YAML)',
+      handoff:'Handoff',auto:'Auto-handoff · runbook',desktop:'Claude Desktop',update:'Update ccp',backup:'Backup & restore',config:'Manual config (YAML)',
       idioma:'Language',trouble:'Troubleshooting',ref:'Quick reference'};
 
     var navLinks = Array.prototype.slice.call(document.querySelectorAll('.nav-group a'));

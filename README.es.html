@@ -415,6 +415,7 @@
       <h3>Avanzado</h3>
       <a data-view="handoff"><span class="ix">·</span>Handoff</a>
       <a data-view="auto"><span class="ix">·</span>Auto-handoff · runbook</a>
+      <a data-view="desktop"><span class="ix">·</span>Claude Desktop</a>
       <a data-view="update"><span class="ix">·</span>Actualizar ccp</a>
       <a data-view="backup"><span class="ix">·</span>Backup &amp; restore</a>
       <a data-view="config"><span class="ix">·</span>Config manual (YAML)</a>
@@ -1029,6 +1030,74 @@ denegados por allow_from: app-cc, deepseek</pre>
     </section>
 
     <!-- ═══ ACTUALIZAR ═══ -->
+    <!-- ═══ CLAUDE DESKTOP ═══ -->
+    <section class="view" id="view-desktop">
+      <div class="kicker"><span class="s">·</span><span class="t">Avanzado · Escritorio</span></div>
+      <h2 class="sec">Claude Desktop — una ventana por perfil</h2>
+      <p class="sec-lede">La app de escritorio guarda una sola sesión a la vez. <code>ccp desktop</code> le da a cada perfil su propia instancia: cuenta, servidores MCP, entorno Cowork… y el Code tab. Trabajo y personal, abiertas en paralelo.</p>
+
+      <div class="do">
+        <p class="lead">Abrir la ventana de un perfil.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop open emco</pre></div>
+        <p class="hint">Sin nombre, <code>ccp desktop open</code> usa el perfil que resuelva la carpeta actual — el mismo resolutor que el hook del prompt, así que la ventana y la terminal nunca acaban en cuentas distintas.</p>
+      </div>
+
+      <div class="do">
+        <p class="lead">Ver qué haría, sin lanzar ni tocar nada.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop open emco --dry-run</pre></div>
+        <p class="hint">Imprime el plan y lo que convertiría en el <code>cc-home</code>. Es la forma recomendada de estrenar el comando sobre un perfil que ya usas.</p>
+      </div>
+
+      <div class="tip"><span class="lbl">Sin reinstalar nada</span><code>desktop</code> llega al binario por la salida por defecto de la función del rc, igual que <code>session</code> y <code>auto</code>. Solo necesitas <code>ccp install</code> si quieres que autocomplete.</div>
+
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">El aislamiento son dos cosas</h3>
+      <p class="intro">Y la segunda es la que no se ve. Sin ella el comando no serviría de nada:</p>
+      <table>
+        <thead><tr><th>Qué queda aislado</th><th>Con qué</th></tr></thead>
+        <tbody>
+          <tr><td>La identidad de la app: sesión, tokens, MCP, Cowork</td><td><code>--user-data-dir</code></td></tr>
+          <tr><td>El <b>Code tab</b>: credenciales de CLI, <code>projects/</code>, historial, agentes</td><td><code>CLAUDE_CONFIG_DIR</code> en el entorno del proceso</td></tr>
+        </tbody>
+      </table>
+      <div class="tip"><span class="lbl">Por qué importa</span>El Code tab <b>no</b> lee el <code>--user-data-dir</code>: lee <code>CLAUDE_CONFIG_DIR</code> del entorno del proceso Desktop, y cae a <code>~/.claude</code> cuando está vacía. Con solo lo primero, dos ventanas con cuentas distintas compartirían credenciales de CLI, historial y agentes. <code>ccp desktop</code> emite las dos, así que la ventana entera queda en el mismo perfil que tu terminal.</div>
+
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Qué cambia en el <code>cc-home</code> del perfil</h3>
+      <p class="intro">Desktop <b>rechaza symlinks de directorio</b> bajo su config root, y <code>ccp profile add</code> siembra justo eso. La primera vez que abres una instancia, <code>ccp</code> convierte esas entradas en directorios <b>reales</b> cuyos archivos son symlinks al global.</p>
+      <ol class="ideas">
+        <li>Sigues compartiendo <code>commands/</code> y <code>plugins/</code> en vivo con <code>~/.claude</code>.</li>
+        <li><code>agents/</code> y <code>skills/</code> pasan a ser del perfil: <b>cada perfil puede tener sus propios agentes</b>.</li>
+        <li>Un archivo tuyo dentro del perfil gana sobre el global y no se pisa al re-espejar.</li>
+      </ol>
+      <details class="why"><summary>¿por qué symlinks solo en los archivos?</summary><div class="why-body">
+        <p>Desktop valida lo que llama el <i>co-writable boundary</i> y rechaza un symlink en cualquier componente <b>no-hoja</b> del path que toca. Un <code>commands/</code> que es symlink revienta en cuanto la app escribe en <code>commands/algo</code>.</p>
+        <p>Pero la regla <b>exime la hoja</b>. Por eso el espejo replica el árbol con directorios reales y deja el symlink solo en el archivo final: se conserva el compartido en vivo sin dejar un symlink en posición prohibida.</p>
+        <p>Si añades archivos nuevos al global, vuelve a espejarlos con <code>ccp desktop prepare &lt;perfil&gt;</code>.</p>
+      </div></details>
+
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Gestionar las instancias</h3>
+      <div class="do">
+        <p class="lead">Ver cuáles existen y cuánto ocupan.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop list</pre></div>
+        <p class="hint"><code>--json</code> devuelve <code>profile</code>, <code>data_dir</code>, <code>exists</code> y <code>bytes</code>; siempre un array, con <code>default</code> de primero.</p>
+      </div>
+      <div class="do">
+        <p class="lead">Borrar una instancia.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop rm emco --yes</pre></div>
+        <div class="tip"><span class="lbl">Cuidado</span>Es un logout que se lleva la sesión, los tokens y la config MCP de esa instancia. Por eso exige <code>--yes</code>.</div>
+      </div>
+
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Límites</h3>
+      <table>
+        <thead><tr><th>Límite</th><th>Por qué</th></tr></thead>
+        <tbody>
+          <tr><td>Solo perfiles <code>official</code> y <code>default</code></td><td>Claude Desktop no lee <code>ANTHROPIC_BASE_URL</code>. Un perfil DeepSeek/Kimi/GLM dejaría el Code tab en el proveedor y la mitad de chat en Anthropic sin autenticar, así que se rechaza.</td></tr>
+          <tr><td><code>default</code> no se reubica</td><td>Su instancia es tu login de siempre, donde siempre. Darle un directorio propio movería la sesión que ya tienes.</td></tr>
+          <tr><td>~190 MB por instancia</td><td>Cada una se baja su copia del Claude Code embebido, más el entorno de Cowork si lo usas.</td></tr>
+          <tr><td>Inicia sesión de una en una</td><td>Los enlaces <code>claude://</code> van a la instancia que registró el esquema de último; con varias ventanas abiertas el login puede aterrizar en la equivocada. <code>ccp</code> te lo recuerda en el primer arranque de cada una.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
     <section class="view" id="view-update">
       <div class="kicker"><span class="s">·</span><span class="t">Avanzado · Versiones</span></div>
       <h2 class="sec">Actualizar ccp</h2>
@@ -1309,6 +1378,7 @@ ccp lang es     <span class="c"># español</span></pre></div>
           <tr><td>Ver qué haría <code>ccp session</code></td><td><code>ccp session --dry-run</code></td></tr>
           <tr><td>Montar el auto-handoff</td><td><code>ccp auto init</code> → <code>ccp auto install</code></td></tr>
           <tr><td>Política / sensores del auto-handoff</td><td><code>ccp auto status [--json]</code></td></tr>
+          <tr><td>Abrir Claude Desktop con un perfil</td><td><code>ccp desktop open [&lt;n&gt;]</code></td></tr>
           <tr><td>Estado / diagnóstico</td><td><code>ccp status</code> · <code>ccp doctor</code></td></tr>
           <tr><td>Ayuda completa</td><td><code>ccp help</code></td></tr>
         </tbody>
@@ -1329,11 +1399,12 @@ ccp lang es     <span class="c"># español</span></pre></div>
 
 <script>
   (function(){
-    var ORDER = ['inicio','modelo','instalacion','c1','c2','c3','c4','c5','c6','c7','handoff','auto','update','backup','config','idioma','trouble','ref'];
+    var ORDER = ['inicio','modelo','instalacion','c1','c2','c3','c4','c5','c6','c7','handoff','auto','desktop','update','backup','config','idioma','trouble','ref'];
     var TITLES = {inicio:'Inicio',modelo:'Modelo mental',instalacion:'Instalación',
       c1:'Cuenta de trabajo',c2:'Cuenta personal',c3:'Proveedor (DS/Kimi/GLM)',c4:'Carve-out',
       c5:'Cambiar a mano',c6:'Ver qué pasa',c7:'Vengo de dsctl',handoff:'Handoff',
       auto:'Auto-handoff · runbook',
+      desktop:'Claude Desktop',
       update:'Actualizar ccp',backup:'Backup & restore',config:'Config manual (YAML)',
       idioma:'Idioma',trouble:'Solución de problemas',ref:'Referencia rápida'};
 
