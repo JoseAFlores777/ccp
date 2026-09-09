@@ -1,6 +1,6 @@
 # Changelog
 
-## [Sin publicar] — instalar con una sola línea, sin clonar
+## [2.15.0] — instalar con una sola línea, y la TUI suelta la terminal al editar
 
 ### Added
 
@@ -17,6 +17,21 @@
     no del código) y el aviso dice qué se pierde — comandos `/ccp:` y fuente para `ccp upgrade`.
   - Perillas nuevas: `CCP_SRC_DIR` (dónde queda esa copia) y `CCP_NO_SOURCE=1` (solo binario).
   - El binario sigue saliendo del GitHub Release con **sha256 verificado**; nada de eso cambia.
+
+### Fixed
+
+- **La tecla `e` del panel Perfiles abre el editor de verdad.** Salía del alt-screen con
+  `tea.Sequence(tea.ExitAltScreen, …)`, que quita la pantalla alternativa pero **no suelta la tty**:
+  el renderer de bubbletea seguía repintando y su lector seguía leyendo stdin, así que el `nano`
+  arrancaba debajo del dashboard y las teclas se repartían entre los dos procesos. Medido en un pty:
+  con `nano` abierto, teclear `HOLA` le llegaba solo la `H`. Ahora va por `tea.Exec`, el mismo
+  adaptador que la vista Config ya usaba.
+  - El daño no se quedaba en la `e`: a partir de ahí **toda la sesión** quedaba corrupta, porque el
+    `tab` para llegar al panel Reglas también se lo comía el editor invisible y la `a` abría el form
+    de añadir perfil. Lo que parecían dos bugs («la `e` parpadea», «no me deja añadir una regla») era
+    este.
+- La leyenda del panel Perfiles decía `e:config` mientras el pie decía `c: config` para la vista
+  Config — dos cosas distintas con el mismo nombre. Ahora dice `e:overlay`, que es lo que edita.
 
 ## [2.14.0] — `ccp session` se configura solo, y la TUI edita la config
 
