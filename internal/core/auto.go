@@ -440,7 +440,7 @@ func newAutoHandoff(cfg *Config) *AutoHandoff {
 
 	allowFrom := make(map[string][]string, len(names))
 	for _, n := range names {
-		// El propio perfil primero: leer `emco-cc: [emco-cc, ...]` deja claro
+		// El propio perfil primero: leer `work-1: [work-1, ...]` deja claro
 		// que "no rotar" se escribe dejando solo a sí mismo.
 		entry := []string{n}
 		for _, o := range official {

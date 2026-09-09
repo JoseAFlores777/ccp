@@ -795,7 +795,7 @@ ccp handoff <b>sessions</b> --json      <span class="c"># las sesiones de este d
           <p class="lead"><b>Preflight.</b> Cada perfil que quieras en la cadena tiene que servir por su cuenta, y este directorio necesita una regla de ruta.</p>
           <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp doctor                    <span class="c"># logins, keys, función de shell</span>
 ccp resolve .                 <span class="c"># ← este es tu PRIMARIO</span>
-ccp path set . personal-cc    <span class="c"># solo si resolve imprimió "default"</span></pre></div>
+ccp path set . personal-1     <span class="c"># solo si resolve imprimió "default"</span></pre></div>
           <p class="hint">El <b>primario</b> es lo que devuelva <code>ccp resolve $PWD</code> — el dueño natural del directorio. Todo lo demás en la cadena es un <b>préstamo temporal</b>. Si el primario es <code>default</code>, el paso 03 te enseñará una cadena vacía (mira el aviso de ahí).</p>
         </div></div>
 
@@ -808,13 +808,13 @@ ccp path set . personal-cc    <span class="c"># solo si resolve imprimió "defau
         <div class="step"><div class="num">02</div><div class="body">
           <p class="lead">Instala los <b>sensores</b> en los perfiles que van a participar.</p>
           <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp auto install                  <span class="c"># todos los perfiles no-default</span>
-ccp auto install personal-cc app-cc   <span class="c"># o solo estos</span>
-ccp auto uninstall app-cc         <span class="c"># totalmente reversible</span></pre></div>
+ccp auto install personal-1 work-2   <span class="c"># o solo estos</span>
+ccp auto uninstall work-2         <span class="c"># totalmente reversible</span></pre></div>
           <details class="why"><summary>¿qué escribe exactamente?</summary><div class="why-body">
             <p>Los dos sensores in-process solo se pueden encender desde <code>cc-home/settings.json</code>, y ese archivo es <b>generado</b> (global ⊕ overlay). Así que <code>auto install</code> añade el perfil a <code>auto_handoff.hooks</code> y regenera como global ⊕ overlay ⊕ <b>capa auto</b>:</p>
             <p><b>·</b> <code>hooks.StopFailure</code> → <code>ccp _limit-hook</code></p>
             <p><b>·</b> <code>statusLine</code> → <code>ccp _statusline -- &lt;tu statusLine original&gt;</code> — la tuya se <b>envuelve</b>, no se reemplaza: sigue pintando tu barra, ccp solo muestrea el stdin que le llega.</p>
-            <p>Si <b>no</b> tenías statusLine propia, ccp pinta una mínima en su lugar — el perfil más las dos ventanas de uso, cada una con su medidor y su cuenta atrás hasta el reset: <code>emco-cc  5h ▏█░░░░░░░░░▏ 2% ·2h13m  7d ▏██████░░░░▏ 59% ·3d</code>. Las dos, porque las dos se vigilan por separado (el salto lo dispara la primera que cruce el <code>threshold</code>) y un porcentaje suelto no diría si te quedan horas o días.</p>
+            <p>Si <b>no</b> tenías statusLine propia, ccp pinta una mínima en su lugar — el perfil más las dos ventanas de uso, cada una con su medidor y su cuenta atrás hasta el reset: <code>work-1  5h ▏█░░░░░░░░░▏ 2% ·2h13m  7d ▏██████░░░░▏ 59% ·3d</code>. Las dos, porque las dos se vigilan por separado (el salto lo dispara la primera que cruce el <code>threshold</code>) y un porcentaje suelto no diría si te quedan horas o días.</p>
             <p>El medidor va verde por debajo del 70%, ámbar entre 70 y 89, y rojo del 90 en adelante — el rojo empieza exactamente en el default de <code>threshold</code>, así que la barra y el motor nunca cuentan historias distintas. Con <code>NO_COLOR</code> se va el tinte y el medidor se sigue leyendo.</p>
             <p>Tres cosas que la barra se calla a propósito. Una ventana <b>sin dato</b> se omite, no se pinta como <code>0%</code>. Un <code>resets_at</code> que ya pasó <b>no produce cuenta atrás</b>: un dato caducado no puede afirmar que tu cuota volvió. Y los días redondean <b>hacia arriba</b> — <code>·3d</code> cuando faltan 2d23h, nunca <code>·2d</code>, porque lo único que una cuenta atrás no puede hacer es prometer que la cuota vuelve antes de lo que va a volver.</p>
             <p>La línea se dimensiona sola: ccp la monta a tres niveles de detalle, los mide y pinta el más ancho que quepa. Un nombre de perfil largo cuesta celdas de medidor, no corrección — y si no cabe ninguno, recibes la forma compacta sin recortar, porque lo primero que se comería el recorte es el nombre del perfil.</p>
@@ -825,7 +825,7 @@ ccp auto uninstall app-cc         <span class="c"># totalmente reversible</span>
 
         <div class="step"><div class="num">03</div><div class="body">
           <p class="lead">Verifica el <b>cableado</b> y la <b>cadena resuelta</b> — antes de que algo largo dependa de ello.</p>
-          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp auto test --profile personal-cc   <span class="c"># payload sintético → camino de detección</span>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp auto test --profile personal-1   <span class="c"># payload sintético → camino de detección</span>
 ccp auto status                       <span class="c"># política, sensores, muestras, cooldowns</span>
 ccp session --dry-run                 <span class="c"># la cadena que USARÍA, y qué se denegó</span></pre></div>
           <p class="hint"><code>ccp auto status --json</code> emite <code>enabled</code>, <code>cwd</code>, <code>policy</code>, <code>primary</code>, <code>fallback</code>, <code>denied</code> y <code>sensors</code> (los arrays nunca son <code>null</code>), más <code>error</code> cuando la política no resuelve — el JSON sigue siendo válido y el exit code es <code>1</code>.</p>
@@ -866,9 +866,9 @@ ccp session -p --policy overnight --yolo -- "refactoriza el parser"</pre></div>
       <p class="intro">El supervisor es un <b>péndulo, no un round-robin</b>: sale cuando el primario se agota y vuelve en cuanto la ventana del primario se reabre, aunque queden préstamos frescos. Trabajar horas en la cuenta equivocada es peor que esperar.</p>
       <figure>
         <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>el péndulo</span></div>
-<pre>personal-cc  ──[límite]──→  app-cc  ──[límite]──→  personal-deepseek
-                                       │
-                                       └──[se reabrió la ventana del primario]──→ personal-cc</pre>
+<pre>personal-1  ──[límite]──→  work-2  ──[límite]──→  personal-deepseek
+                                      │
+                                      └──[se reabrió la ventana del primario]──→ personal-1</pre>
       </figure>
       <p class="intro">La vuelta a casa <b>no</b> es un handoff al revés: es <code>handoff end</code>, que hace back-sync de la conversación al primario <b>como sesión nueva con uuid nuevo</b> (no destructivo — el transcript viejo se queda donde está). El supervisor imprime ese uuid: es el que le pasarías a <code>claude --resume</code> para seguir a mano.</p>
 
@@ -887,27 +887,27 @@ ccp session -p --policy overnight --yolo -- "refactoriza el parser"</pre></div>
 
       <figure>
         <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>ccp session · stdout</span></div>
-<pre><span class="c"># primario = personal-cc (regla de ruta de ~/Documents/Personal)</span>
-▶ personal-cc · sesión nueva 3f9c1a2b
-personal-cc (4h 03m) ──[uso 94% ≥ umbral 90% (ventana session) · statusline]──→ handoff a app-cc (préstamo 1/6)
-▶ app-cc · reanudando 3f9c1a2b
-app-cc (1h 12m) ──[You've hit your session limit · transcript]──→ volviendo a personal-cc (vuelta a casa, no gasta préstamo: siguen 1/6)
-sesión devuelta a personal-cc como 7d0e44f1
-▶ personal-cc · reanudando 7d0e44f1
-personal-cc ──[termina]──→ ✅ exit 0</pre>
+<pre><span class="c"># primario = personal-1 (regla de ruta de ~/Documents/Personal)</span>
+▶ personal-1 · sesión nueva 3f9c1a2b
+personal-1 (4h 03m) ──[uso 94% ≥ umbral 90% (ventana session) · statusline]──→ handoff a work-2 (préstamo 1/6)
+▶ work-2 · reanudando 3f9c1a2b
+work-2 (1h 12m) ──[You've hit your session limit · transcript]──→ volviendo a personal-1 (vuelta a casa, no gasta préstamo: siguen 1/6)
+sesión devuelta a personal-1 como 7d0e44f1
+▶ personal-1 · reanudando 7d0e44f1
+personal-1 ──[termina]──→ ✅ exit 0</pre>
       </figure>
       <p class="hint" style="margin-top:0;"><b>Cómo leer el contador.</b> Un movimiento de ida es <code>préstamo N/6</code> (el préstamo N de tus <code>max_hops</code>); una vuelta a casa es <code>vuelta a casa, no gasta préstamo: siguen N/6</code>. El número no sube al volver, y la línea lo dice en voz alta en vez de dejarte adivinando por qué dos movimientos seguidos muestran <code>1/6</code>. A la vuelta a casa nunca se le llama <i>préstamo</i>, la haya causado lo que la haya causado.</p>
 
       <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:36px 0 4px;">La política (<code>auto_handoff</code> en <code>ccp.yaml</code>)</h3>
       <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>auto_handoff:
   enabled: true              <span class="c"># interruptor maestro: false = ccp session se niega a correr</span>
-  hooks: [personal-cc, app-cc]   <span class="c"># perfiles con la capa de sensores instalada</span>
+  hooks: [personal-1, work-2]    <span class="c"># perfiles con la capa de sensores instalada</span>
                                  <span class="c"># (la gestiona `ccp auto install/uninstall`)</span>
   policies:
     default:
       <span class="c"># Préstamos, en orden de preferencia. El primario es IMPLÍCITO (ccp resolve $PWD)</span>
       <span class="c"># y se descarta en silencio si lo listas aquí.</span>
-      fallback: [app-cc, personal-deepseek]
+      fallback: [work-2, personal-deepseek]
       threshold: 90          <span class="c"># % de la ventana de uso que dispara un salto proactivo</span>
       min_dwell: 20m         <span class="c"># tiempo mínimo antes de rotar (entero solo para el sensor proactivo)</span>
       max_hops: 6            <span class="c"># tope duro de PRÉSTAMOS por corrida (volver es gratis)</span>
@@ -918,7 +918,7 @@ personal-cc ──[termina]──→ ✅ exit 0</pre>
         fallback: 1h         <span class="c"># …o esta espera fija cuando no hay resets_at</span>
 
     overnight:               <span class="c"># `ccp session -p --policy overnight`</span>
-      fallback: [personal-cc, app-cc]
+      fallback: [personal-1, work-2]
       threshold: 85
       max_hops: 12
 
@@ -926,9 +926,9 @@ personal-cc ──[termina]──→ ✅ exit 0</pre>
       fallback: []           <span class="c"># sin préstamos: si el primario muere, la corrida para</span>
 
   allow_from:                <span class="c"># verja de cumplimiento</span>
-    emco-cc: [emco-cc]                                   <span class="c"># nunca rota</span>
-    app-cc: [app-cc, personal-cc]
-    personal-cc: [personal-cc, app-cc, personal-deepseek]</pre></div>
+    work-1: [work-1]                                   <span class="c"># nunca rota</span>
+    work-2: [work-2, personal-1]
+    personal-1: [personal-1, work-2, personal-deepseek]</pre></div>
 
       <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:36px 0 4px;">La verja <code>allow_from</code></h3>
       <p class="intro">Rotar solo, a las 3am, sin nadie mirando, significa que la conversación de un cliente podría acabar en una cuenta personal — o en la API de un proveedor externo. Las reglas de ruta son <b>geográficas</b> (qué carpeta es de quién), no una declaración de confianza, así que la verja va aparte y explícita.</p>
@@ -945,20 +945,20 @@ personal-cc ──[termina]──→ ✅ exit 0</pre>
       <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:36px 0 4px;">Editar la cadena — añadir, reordenar o quitar un préstamo</h3>
       <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp auto chain                        <span class="c"># la cadena EFECTIVA de este directorio</span>
 ccp auto chain add personal-deepseek  <span class="c"># lo añade al final, y autoriza el préstamo</span>
-ccp auto chain add app-cc --at 1      <span class="c"># lo inserta en una posición (1-based)</span>
-ccp auto chain mv app-cc 2            <span class="c"># reordena — el orden ES la preferencia</span>
+ccp auto chain add work-2 --at 1      <span class="c"># lo inserta en una posición (1-based)</span>
+ccp auto chain mv work-2 2            <span class="c"># reordena — el orden ES la preferencia</span>
 ccp auto chain rm personal-deepseek   <span class="c"># lo saca, y retira la autorización</span>
-ccp auto chain set app-cc,emco-cc     <span class="c"># reemplaza la cadena entera</span></pre></div>
+ccp auto chain set work-1,work-2      <span class="c"># reemplaza la cadena entera</span></pre></div>
       <p class="intro">Todos aceptan <code>--policy &lt;nombre&gt;</code> (por defecto: <code>default</code>) y actúan sobre el primario del <b>directorio actual</b>, que es el único cuya entrada de <code>allow_from</code> pueden tocar.</p>
       <p class="intro"><b><code>add</code> escribe dos claves, y eso es justo el punto.</b> Quien escribe «añádelo a la cadena» quiere que el perfil <i>se use</i>, y un <code>fallback</code> sin su <code>allow_from</code> no se usa jamás, en silencio. Dejar las dos claves separadas en la CLI reproduciría la trampa que el yaml ya tiende. Pero <code>allow_from</code> es un <b>gate de cumplimiento</b> y puede estar puesto a propósito, así que el ensanche va con tres límites duros: toca <b>solo</b> la entrada del primario actual, imprime <b>exactamente qué cambió en cada clave por separado</b> (<code>+nombre</code> autoriza, <code>-nombre</code> retira), y <code>--no-allow</code> lo desactiva.</p>
       <p class="intro"><code>rm</code> —y los perfiles que <code>set</code> deja fuera— va en la dirección contraria y <b>retira</b> la autorización, otra vez solo de esa entrada. Eso es lo que hace reversible a <code>add</code>: sin ello el gate solo podría crecer, y deshacer un <code>add</code> equivocado exigiría editar el yaml a mano, que es justo lo que estos comandos vienen a evitar.</p>
       <figure>
         <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>ccp auto chain add personal-deepseek</span></div>
-<pre>[ok] fallback   app-cc → emco-cc → personal-deepseek
-[ok] allow_from personal-cc: +personal-deepseek
+<pre>[ok] fallback   work-1 → work-2 → personal-deepseek
+[ok] allow_from personal-1: +personal-deepseek
 
 cadena efectiva desde este repo:
-  app-cc → emco-cc → personal-deepseek</pre>
+  work-1 → work-2 → personal-deepseek</pre>
       </figure>
       <p class="hint">Toda mutación cierra releyendo la cadena efectiva <b>del disco</b>, así que ves lo que va a ver el motor — incluido lo que <code>allow_from</code> siga bloqueando.</p>
       <table>
@@ -976,10 +976,10 @@ cadena efectiva desde este repo:
       <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>auto_handoff:
   policies:
     default:
-      <span class="c"># El orden ES la preferencia: primero app-cc, el proveedor solo como último recurso.</span>
-      fallback: [app-cc, personal-deepseek]
+      <span class="c"># El orden ES la preferencia: primero work-2, el proveedor solo como último recurso.</span>
+      fallback: [work-2, personal-deepseek]
   allow_from:
-    personal-cc: [personal-cc, app-cc, personal-deepseek]   <span class="c"># ← la entrada del primario</span></pre></div>
+    personal-1: [personal-1, work-2, personal-deepseek]   <span class="c"># ← la entrada del primario</span></pre></div>
       <p class="hint">Lo que el resolver le hace a <code>fallback</code>, en una sola pasada: el <b>primario es implícito</b> y se descarta en silencio si lo listas · los duplicados se eliminan (no compran un préstamo extra) · <code>default</code> es un destino legítimo (tu login normal de <code>~/.claude</code>) · el orden que escribiste se respeta tal cual.</p>
 
       <div class="do">
@@ -991,14 +991,14 @@ ccp session --dry-run                <span class="c"># a qué resuelve la cadena
         <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>ccp session --dry-run · cadena OK</span></div>
 <pre>política: default
 primario: work (cwd /home/yo/repo)
-cadena de préstamos: app-cc → deepseek
+cadena de préstamos: work-2 → deepseek
 umbral 90% · min_dwell 20m0s · max_hops 6 · return_check 10m0s · return_idle 1m30s · cooldown resets_at (respaldo 1h0m0s)</pre>
       </figure>
       <p class="intro">¿Editaste <code>fallback</code> y olvidaste <code>allow_from</code>? <code>--dry-run</code> te lo dice en vez de no hacer nada en silencio. Es el error más común de largo:</p>
       <figure>
         <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>ccp session --dry-run · verja cerrada</span></div>
 <pre>cadena de préstamos: (vacía)
-denegados por allow_from: app-cc, deepseek</pre>
+denegados por allow_from: work-2, deepseek</pre>
       </figure>
       <p class="intro">Y un nombre que <b>no existe es un error duro, no un salto silencioso</b>. Un typo — o un perfil que borraste — detiene <code>ccp session</code> antes de lanzar nada, con exit <code>1</code>:</p>
       <figure>
@@ -1040,13 +1040,13 @@ denegados por allow_from: app-cc, deepseek</pre>
 
       <div class="do">
         <p class="lead">Abrir la ventana de un perfil.</p>
-        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop open emco</pre></div>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop open work-1</pre></div>
         <p class="hint">Sin nombre, <code>ccp desktop open</code> usa el perfil que resuelva la carpeta actual — el mismo resolutor que el hook del prompt, así que la ventana y la terminal nunca acaban en cuentas distintas.</p>
       </div>
 
       <div class="do">
         <p class="lead">Ver qué haría, sin lanzar ni tocar nada.</p>
-        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop open emco --dry-run</pre></div>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop open work-1 --dry-run</pre></div>
         <p class="hint">Imprime el plan y lo que convertiría en el <code>cc-home</code>. Es la forma recomendada de estrenar el comando sobre un perfil que ya usas.</p>
       </div>
 
@@ -1084,7 +1084,7 @@ denegados por allow_from: app-cc, deepseek</pre>
       </div>
       <div class="do">
         <p class="lead">Borrar una instancia.</p>
-        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop rm emco --yes</pre></div>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop rm work-1 --yes</pre></div>
         <div class="tip"><span class="lbl">Cuidado</span>Es un logout que se lleva la sesión, los tokens y la config MCP de esa instancia. Por eso exige <code>--yes</code>.</div>
       </div>
 
@@ -1225,7 +1225,7 @@ ccp config editor nano     <span class="c"># o vim, code, etc.</span></pre></div
       <div class="do">
         <p class="lead">Editar el archivo y que <code>ccp</code> te lo revise al cerrar el editor.</p>
         <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp config edit                        <span class="c"># abre ccp.yaml, y al cerrar lo relee y valida</span>
-ccp config edit --profile personal-cc  <span class="c"># abre el overlay de ese perfil</span>
+ccp config edit --profile personal-1   <span class="c"># abre el overlay de ese perfil</span>
 ccp config edit --terminal             <span class="c"># fuerza el editor de terminal</span>
 ccp config gui-editor "code -w"        <span class="c"># fija el editor gráfico</span></pre></div>
       </div>

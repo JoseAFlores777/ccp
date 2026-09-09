@@ -22,10 +22,10 @@ func TestHandoffAdoptHomeMueveLaConversacionSinCrearMarcador(t *testing.T) {
 	cwd := "/repo/uno"
 	slug := SlugForCwd(cwd)
 	uuid := "aaaaaaaa-3333-4333-8333-aaaaaaaaaaaa"
-	// La conversación vive en el PRÉSTAMO (emco-cc): nació allí.
-	writeJSONL(t, ProjectDir(ccHomeOf(home, "emco-cc"), slug), uuid, "Refactor", time.Now())
+	// La conversación vive en el PRÉSTAMO (work-1): nació allí.
+	writeJSONL(t, ProjectDir(ccHomeOf(home, "work-1"), slug), uuid, "Refactor", time.Now())
 
-	newID, err := HandoffAdoptHome(home, "emco-cc", "personal-cc", cwd, uuid)
+	newID, err := HandoffAdoptHome(home, "work-1", "personal-1", cwd, uuid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestHandoffAdoptHomeMueveLaConversacionSinCrearMarcador(t *testing.T) {
 
 	// Llegó a casa con el uuid nuevo y con el sessionId reescrito: si quedara el
 	// viejo, `claude --resume` abriría una conversación que se cree de otro sitio.
-	dst := ProjectDir(ccHomeOf(home, "personal-cc"), slug) + "/" + newID + ".jsonl"
+	dst := ProjectDir(ccHomeOf(home, "personal-1"), slug) + "/" + newID + ".jsonl"
 	data, err := os.ReadFile(dst)
 	if err != nil {
 		t.Fatalf("no llegó a casa: %v", err)
@@ -51,7 +51,7 @@ func TestHandoffAdoptHomeMueveLaConversacionSinCrearMarcador(t *testing.T) {
 			continue
 		}
 		if m["type"] == "ai-title" {
-			if s, _ := m["aiTitle"].(string); strings.HasPrefix(s, "[de emco-cc] ") {
+			if s, _ := m["aiTitle"].(string); strings.HasPrefix(s, "[de work-1] ") {
 				titled = true
 			}
 		}
@@ -61,7 +61,7 @@ func TestHandoffAdoptHomeMueveLaConversacionSinCrearMarcador(t *testing.T) {
 	}
 
 	// No destructivo: el original sigue en el préstamo.
-	if _, err := os.Stat(ProjectDir(ccHomeOf(home, "emco-cc"), slug) + "/" + uuid + ".jsonl"); err != nil {
+	if _, err := os.Stat(ProjectDir(ccHomeOf(home, "work-1"), slug) + "/" + uuid + ".jsonl"); err != nil {
 		t.Fatalf("borró el transcript del origen: %v", err)
 	}
 
@@ -86,12 +86,12 @@ func TestHandoffAdoptHomeRechazaSiHayMarcadorVivo(t *testing.T) {
 	cwd := "/repo/uno"
 	slug := SlugForCwd(cwd)
 	uuid := "bbbbbbbb-3333-4333-8333-bbbbbbbbbbbb"
-	writeJSONL(t, ProjectDir(ccHomeOf(home, "personal-cc"), slug), uuid, "Refactor", time.Now())
+	writeJSONL(t, ProjectDir(ccHomeOf(home, "personal-1"), slug), uuid, "Refactor", time.Now())
 
-	if _, err := HandoffChain(home, "personal-cc", "emco-cc", cwd, uuid, true, false, time.Now()); err != nil {
+	if _, err := HandoffChain(home, "personal-1", "work-1", cwd, uuid, true, false, time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	_, err := HandoffAdoptHome(home, "emco-cc", "personal-cc", cwd, uuid)
+	_, err := HandoffAdoptHome(home, "work-1", "personal-1", cwd, uuid)
 	if err == nil {
 		t.Fatal("se esperaba rechazo: hay un handoff activo para esa sesión")
 	}
@@ -106,20 +106,20 @@ func TestHandoffAdoptHomeErrores(t *testing.T) {
 	cwd := "/repo/uno"
 	uuid := "cccccccc-3333-4333-8333-cccccccccccc"
 
-	if _, err := HandoffAdoptHome(home, "emco-cc", "emco-cc", cwd, uuid); err == nil {
+	if _, err := HandoffAdoptHome(home, "work-1", "work-1", cwd, uuid); err == nil {
 		t.Error("origen == destino debe fallar")
 	}
-	if _, err := HandoffAdoptHome(home, "emco-cc", "no-existe", cwd, uuid); err == nil {
+	if _, err := HandoffAdoptHome(home, "work-1", "no-existe", cwd, uuid); err == nil {
 		t.Error("perfil desconocido debe fallar")
 	}
 	// El uuid se concatena para formar el path: un `..` leería un jsonl ajeno.
-	if _, err := HandoffAdoptHome(home, "emco-cc", "personal-cc", cwd, "../../etc/passwd"); err == nil {
+	if _, err := HandoffAdoptHome(home, "work-1", "personal-1", cwd, "../../etc/passwd"); err == nil {
 		t.Error("un uuid con travesía debe rechazarse")
 	}
 	// Sin transcript no hay nada que adoptar, y decirlo importa: el supervisor
 	// distingue ese caso ANTES de llamar (arranca de cero), así que llegar aquí
 	// significa que algo desapareció entre medias.
-	if _, err := HandoffAdoptHome(home, "emco-cc", "personal-cc", cwd, uuid); err == nil {
+	if _, err := HandoffAdoptHome(home, "work-1", "personal-1", cwd, uuid); err == nil {
 		t.Error("sin transcript en el origen debe fallar")
 	}
 }

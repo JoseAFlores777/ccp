@@ -31,16 +31,16 @@ func TestHandoffForwardVersionFuturaNoCopiaTranscript(t *testing.T) {
 	cwd := "/repo/proj"
 	slug := SlugForCwd(cwd)
 	uuid := "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-	writeJSONL(t, ProjectDir(home+"/profiles/personal-cc/cc-home", slug), uuid, "A", time.Now())
+	writeJSONL(t, ProjectDir(home+"/profiles/personal-1/cc-home", slug), uuid, "A", time.Now())
 
-	_, err := HandoffForward(home, "personal-cc", "emco-cc", cwd, uuid, true, false, false, time.Now())
+	_, err := HandoffForward(home, "personal-1", "work-1", cwd, uuid, true, false, false, time.Now())
 	if err == nil {
 		t.Fatal("con handoffs.yaml de versión futura el forward debe abortar")
 	}
 	if !strings.Contains(err.Error(), "versión más nueva") {
 		t.Fatalf("mensaje inesperado: %v", err)
 	}
-	dst := ProjectDir(home+"/profiles/emco-cc/cc-home", slug)
+	dst := ProjectDir(home+"/profiles/work-1/cc-home", slug)
 	if _, err := os.Stat(dst + "/" + uuid + ".jsonl"); err == nil {
 		t.Fatalf("el forward abortado dejó el transcript copiado en %s", dst)
 	}
@@ -58,17 +58,17 @@ func TestHandoffEndVersionFuturaNoReescribe(t *testing.T) {
 	cwd := "/repo/proj"
 	slug := SlugForCwd(cwd)
 	uuid := "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
-	writeJSONL(t, ProjectDir(home+"/profiles/emco-cc/cc-home", slug), uuid, "B", time.Now())
+	writeJSONL(t, ProjectDir(home+"/profiles/work-1/cc-home", slug), uuid, "B", time.Now())
 	// El marcador se escribe ANTES de romper la versión (si no, no habría estado).
 	if err := SaveHandoffs(home, &Handoffs{Version: HandoffsVersion, Active: []Marker{{
-		Session: uuid, Slug: slug, Cwd: cwd, From: "personal-cc", To: "emco-cc",
+		Session: uuid, Slug: slug, Cwd: cwd, From: "personal-1", To: "work-1",
 		Since: "2026-07-25T00:00:00Z",
 	}}}); err != nil {
 		t.Fatal(err)
 	}
 	writeFutureHandoffs(t, home)
 
-	origen := ProjectDir(home+"/profiles/personal-cc/cc-home", slug)
+	origen := ProjectDir(home+"/profiles/personal-1/cc-home", slug)
 	for _, op := range []struct {
 		name string
 		run  func() error
@@ -107,13 +107,13 @@ func TestHandoffForwardForceResuelveColision(t *testing.T) {
 	cwd := "/repo/proj"
 	slug := SlugForCwd(cwd)
 	uuid := "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
-	src := ProjectDir(home+"/profiles/personal-cc/cc-home", slug)
-	dst := ProjectDir(home+"/profiles/emco-cc/cc-home", slug)
+	src := ProjectDir(home+"/profiles/personal-1/cc-home", slug)
+	dst := ProjectDir(home+"/profiles/work-1/cc-home", slug)
 	writeJSONL(t, src, uuid, "Origen", time.Now())
 	// Mismo uuid ya en el destino, con contenido DISTINTO.
 	writeJSONL(t, dst, uuid, "Otro contenido", time.Now())
 
-	_, err := HandoffForward(home, "personal-cc", "emco-cc", cwd, uuid, true, false, false, time.Now())
+	_, err := HandoffForward(home, "personal-1", "work-1", cwd, uuid, true, false, false, time.Now())
 	if err == nil {
 		t.Fatal("una colisión con contenido distinto debe bloquear el forward")
 	}
@@ -124,7 +124,7 @@ func TestHandoffForwardForceResuelveColision(t *testing.T) {
 		t.Fatalf("un forward fallido no debe dejar marcador: %+v", h.Active)
 	}
 
-	if _, err := HandoffForward(home, "personal-cc", "emco-cc", cwd, uuid, true, false, true, time.Now()); err != nil {
+	if _, err := HandoffForward(home, "personal-1", "work-1", cwd, uuid, true, false, true, time.Now()); err != nil {
 		t.Fatalf("--force debe completar el forward: %v", err)
 	}
 	want, err := os.ReadFile(src + "/" + uuid + ".jsonl")

@@ -82,11 +82,11 @@ func writeJSONL(t *testing.T, dir, uuid, title string, mod time.Time) {
 }
 
 func TestCCHomeProfile(t *testing.T) {
-	got, err := CCHome("/cfg/ccp", "emco-cc")
+	got, err := CCHome("/cfg/ccp", "work-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "/cfg/ccp/profiles/emco-cc/cc-home"
+	want := "/cfg/ccp/profiles/work-1/cc-home"
 	if got != want {
 		t.Fatalf("CCHome(profile) = %q, want %q", got, want)
 	}
@@ -186,7 +186,7 @@ func TestRewriteSession(t *testing.T) {
 	newID := "66666666-6666-4666-8666-666666666666"
 	dstPath := filepath.Join(dst, newID+".jsonl")
 
-	if err := RewriteSession(srcPath, dstPath, old, newID, "emco-cc"); err != nil {
+	if err := RewriteSession(srcPath, dstPath, old, newID, "work-1"); err != nil {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(dstPath)
@@ -197,7 +197,7 @@ func TestRewriteSession(t *testing.T) {
 	if !strings.Contains(s, newID) {
 		t.Fatal("no aparece el sessionId nuevo")
 	}
-	if !strings.Contains(s, `[de emco-cc] Refactor`) {
+	if !strings.Contains(s, `[de work-1] Refactor`) {
 		t.Fatal("aiTitle no quedó prefijado con el origen")
 	}
 	// cwd intacto, árbol de mensajes intacto.
@@ -224,7 +224,7 @@ func TestRewriteSessionTitleIdempotent(t *testing.T) {
 	srcPath := filepath.Join(dir, old+".jsonl")
 	dstPath := filepath.Join(dst, "n.jsonl")
 
-	if err := RewriteSession(srcPath, dstPath, old, "n", "emco-cc"); err != nil {
+	if err := RewriteSession(srcPath, dstPath, old, "n", "work-1"); err != nil {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(dstPath)

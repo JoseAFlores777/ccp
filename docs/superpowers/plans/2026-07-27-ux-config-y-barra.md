@@ -16,7 +16,7 @@ en un editor de terminal, edita dos claves que no están juntas (`policies.defau
 gate, la cadena queda vacía **en silencio**: `allow_from` declarado sin entrada para el primario
 es deny total, y eso no se ve en el yaml, se ve en la ausencia de saltos a las tres de la mañana.
 
-Y la barra de estado dice `personal-cc · 5h 2% · 7d 59%`. Un porcentaje sin horizonte. «59%» no
+Y la barra de estado dice `personal-1 · 5h 2% · 7d 59%`. Un porcentaje sin horizonte. «59%» no
 responde la única pregunta que el usuario se hace al mirarla: *¿me va a cortar hoy, y cuándo
 vuelvo a tener cuota?*
 
@@ -40,7 +40,7 @@ Tres bloques:
 **Elegido**
 
 ```
-personal-cc  5h ▏██░░░░░░░░▏ 2% ·2h14m  7d ▏██████░░░░▏ 59% ·3d
+personal-1  5h ▏██░░░░░░░░▏ 2% ·2h14m  7d ▏██████░░░░▏ 59% ·3d
 ```
 
 **Descartado**
@@ -58,9 +58,9 @@ que es donde va el dato del reset.
 
 | Ancho | Render |
 |---|---|
-| ≥ 60 | `personal-cc  5h ▏██░░░░░░░░▏ 2% ·2h14m  7d ▏██████░░░░▏ 59% ·3d` |
-| 40–59 | `personal-cc · 5h ▏██░░▏2% ·2h14m · 7d ▏██▆░▏59% ·3d` (medidor de 4) |
-| < 40 | `personal-cc · 5h 2% ·2h · 7d 59% ·3d` (sin medidor) |
+| ≥ 60 | `personal-1  5h ▏██░░░░░░░░▏ 2% ·2h14m  7d ▏██████░░░░▏ 59% ·3d` |
+| 40–59 | `personal-1 · 5h ▏██░░▏2% ·2h14m · 7d ▏██▆░▏59% ·3d` (medidor de 4) |
+| < 40 | `personal-1 · 5h 2% ·2h · 7d 59% ·3d` (sin medidor) |
 
 El ancho sale de `COLUMNS` y, si no está, de un default de 80. **No se consulta la tty**: el
 statusLine corre dentro de CC con el stdout redirigido, así que preguntarle a la terminal es a la
@@ -154,11 +154,11 @@ que el problema que resuelve. Tres límites:
 ```
 $ ccp auto chain add personal-deepseek
 
-✔ fallback   app-cc → emco-cc → personal-deepseek
-✔ allow_from personal-cc: +personal-deepseek
+✔ fallback   work-1 → work-2 → personal-deepseek
+✔ allow_from personal-1: +personal-deepseek
 
 cadena efectiva desde este repo:
-  app-cc → emco-cc → personal-deepseek
+  work-1 → work-2 → personal-deepseek
 ```
 
 Validaciones: el perfil existe (`autoProfileExists`), no se duplica, y añadir el **primario** al
@@ -173,8 +173,8 @@ Al arrancar, si falta algo, se detecta en este orden y se muestra junto:
 $ ccp session
 
 Este repo no está configurado del todo:
-  · regla    joseiz-poc → personal-cc   (crear)
-  · sensores personal-cc, app-cc          (instalar)
+  · regla    joseiz-poc → personal-1   (crear)
+  · sensores personal-1, work-2           (instalar)
   · política default                      (ok)
 
 ¿Configurar ahora? [S/n]
@@ -342,7 +342,7 @@ Manual, con `CCP_HOME` temporal para no tocar la config real:
 ```bash
 export CCP_HOME=$(mktemp -d)
 ccp auto init
-ccp auto chain add emco-cc
+ccp auto chain add work-1
 ccp auto status
 COLUMNS=40 ccp _statusline </dev/null    # nivel medio
 COLUMNS=30 ccp _statusline </dev/null    # sin medidor

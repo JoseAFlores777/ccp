@@ -154,11 +154,11 @@ git add internal/core/transcript.go internal/core/transcript_test.go
 
 ```go
 func TestCCHomeProfile(t *testing.T) {
-	got, err := CCHome("/cfg/ccp", "emco-cc")
+	got, err := CCHome("/cfg/ccp", "work-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "/cfg/ccp/profiles/emco-cc/cc-home"
+	want := "/cfg/ccp/profiles/work-1/cc-home"
 	if got != want {
 		t.Fatalf("CCHome(profile) = %q, want %q", got, want)
 	}
@@ -497,7 +497,7 @@ func TestRewriteSession(t *testing.T) {
 	newID := "66666666-6666-4666-8666-666666666666"
 	dstPath := filepath.Join(dst, newID+".jsonl")
 
-	if err := RewriteSession(srcPath, dstPath, old, newID, "emco-cc"); err != nil {
+	if err := RewriteSession(srcPath, dstPath, old, newID, "work-1"); err != nil {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(dstPath)
@@ -508,7 +508,7 @@ func TestRewriteSession(t *testing.T) {
 	if !strings.Contains(s, newID) {
 		t.Fatal("no aparece el sessionId nuevo")
 	}
-	if !strings.Contains(s, `[de emco-cc] Refactor`) {
+	if !strings.Contains(s, `[de work-1] Refactor`) {
 		t.Fatal("aiTitle no quedó prefijado con el origen")
 	}
 	// cwd intacto, árbol de mensajes intacto.
@@ -536,7 +536,7 @@ func TestRewriteSessionTitleIdempotent(t *testing.T) {
 	srcPath := filepath.Join(dir, old+".jsonl")
 	dstPath := filepath.Join(dst, "n.jsonl")
 
-	if err := RewriteSession(srcPath, dstPath, old, "n", "emco-cc"); err != nil {
+	if err := RewriteSession(srcPath, dstPath, old, "n", "work-1"); err != nil {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(dstPath)
@@ -659,7 +659,7 @@ func TestHandoffsRoundTrip(t *testing.T) {
 	}
 	h.Active = &Marker{
 		Session: "abc", Slug: "-r", Cwd: "/r",
-		From: "personal-cc", To: "emco-cc", Title: "T", Since: "2026-06-19T00:00:00Z",
+		From: "personal-1", To: "work-1", Title: "T", Since: "2026-06-19T00:00:00Z",
 	}
 	if err := SaveHandoffs(home, h); err != nil {
 		t.Fatal(err)
@@ -668,7 +668,7 @@ func TestHandoffsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if h2.Active == nil || h2.Active.To != "emco-cc" || h2.Active.Session != "abc" {
+	if h2.Active == nil || h2.Active.To != "work-1" || h2.Active.Session != "abc" {
 		t.Fatalf("no round-tripeó: %+v", h2.Active)
 	}
 }
@@ -822,7 +822,7 @@ func seedHandoffEnv(t *testing.T, home string) {
 	t.Helper()
 	cfg := &Config{
 		Version:  SchemaVersion,
-		Profiles: map[string]Profile{"personal-cc": {Type: "official"}, "emco-cc": {Type: "official"}},
+		Profiles: map[string]Profile{"personal-1": {Type: "official"}, "work-1": {Type: "official"}},
 	}
 	if err := Save(home, cfg); err != nil {
 		t.Fatal(err)
@@ -835,28 +835,28 @@ func TestHandoffForwardCopiesAndMarks(t *testing.T) {
 	cwd := "/repo"
 	slug := SlugForCwd(cwd)
 	uuid := "88888888-8888-4888-8888-888888888888"
-	srcDir := ProjectDir(home+"/profiles/personal-cc/cc-home", slug)
+	srcDir := ProjectDir(home+"/profiles/personal-1/cc-home", slug)
 	writeJSONL(t, srcDir, uuid, "Trabajo", time.Now())
 
-	emit, err := HandoffForward(home, "personal-cc", "emco-cc", cwd, uuid, true, time.Now())
+	emit, err := HandoffForward(home, "personal-1", "work-1", cwd, uuid, true, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Emit debe ser eval-able: env del destino + CCP_RESUME_ID.
-	if !strings.Contains(emit, "CLAUDE_CONFIG_DIR=") || !strings.Contains(emit, "emco-cc/cc-home") {
+	if !strings.Contains(emit, "CLAUDE_CONFIG_DIR=") || !strings.Contains(emit, "work-1/cc-home") {
 		t.Fatalf("emit sin env del destino: %s", emit)
 	}
 	if !strings.Contains(emit, "CCP_RESUME_ID="+uuid) {
 		t.Fatalf("emit sin CCP_RESUME_ID correcto: %s", emit)
 	}
 	// Copió el jsonl al destino con el mismo uuid.
-	dstDir := ProjectDir(home+"/profiles/emco-cc/cc-home", slug)
+	dstDir := ProjectDir(home+"/profiles/work-1/cc-home", slug)
 	if _, err := os.Stat(dstDir + "/" + uuid + ".jsonl"); err != nil {
 		t.Fatalf("no copió al destino: %v", err)
 	}
 	// Escribió el marcador activo.
 	h, _ := LoadHandoffs(home)
-	if h.Active == nil || h.Active.To != "emco-cc" || h.Active.Session != uuid {
+	if h.Active == nil || h.Active.To != "work-1" || h.Active.Session != uuid {
 		t.Fatalf("marcador activo incorrecto: %+v", h.Active)
 	}
 }
@@ -865,7 +865,7 @@ func TestHandoffForwardBlocksWhenActive(t *testing.T) {
 	home := t.TempDir()
 	seedHandoffEnv(t, home)
 	_ = SaveHandoffs(home, &Handoffs{Version: 1, Active: &Marker{Session: "x", From: "a", To: "b"}})
-	if _, err := HandoffForward(home, "personal-cc", "emco-cc", "/repo", "u", true, time.Now()); err == nil {
+	if _, err := HandoffForward(home, "personal-1", "work-1", "/repo", "u", true, time.Now()); err == nil {
 		t.Fatal("esperaba error 1-nivel con handoff activo")
 	}
 }
@@ -873,7 +873,7 @@ func TestHandoffForwardBlocksWhenActive(t *testing.T) {
 func TestHandoffForwardSameProfile(t *testing.T) {
 	home := t.TempDir()
 	seedHandoffEnv(t, home)
-	if _, err := HandoffForward(home, "emco-cc", "emco-cc", "/repo", "u", true, time.Now()); err == nil {
+	if _, err := HandoffForward(home, "work-1", "work-1", "/repo", "u", true, time.Now()); err == nil {
 		t.Fatal("esperaba error destino==origen")
 	}
 }
@@ -985,10 +985,10 @@ func TestHandoffEndBackSyncsAsNewSession(t *testing.T) {
 	uuid := "99999999-9999-4999-8999-999999999999"
 
 	// Estado tras un forward: marcador activo + jsonl (crecido) en el destino.
-	dstDir := ProjectDir(home+"/profiles/emco-cc/cc-home", slug)
+	dstDir := ProjectDir(home+"/profiles/work-1/cc-home", slug)
 	writeJSONL(t, dstDir, uuid, "Refactor", time.Now())
 	_ = SaveHandoffs(home, &Handoffs{Version: 1, Active: &Marker{
-		Session: uuid, Slug: slug, Cwd: cwd, From: "personal-cc", To: "emco-cc",
+		Session: uuid, Slug: slug, Cwd: cwd, From: "personal-1", To: "work-1",
 		Title: "Refactor", Since: "2026-06-19T00:00:00Z",
 	}})
 
@@ -997,7 +997,7 @@ func TestHandoffEndBackSyncsAsNewSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Emit lleva el env del ORIGEN + el uuid NUEVO.
-	if !strings.Contains(emit, "personal-cc/cc-home") {
+	if !strings.Contains(emit, "personal-1/cc-home") {
 		t.Fatalf("emit sin env del origen: %s", emit)
 	}
 	// Marcador archivado, active vacío.
@@ -1013,12 +1013,12 @@ func TestHandoffEndBackSyncsAsNewSession(t *testing.T) {
 		t.Fatalf("emit no resume el uuid nuevo: %s", emit)
 	}
 	// La sesión nueva existe en el ORIGEN; la vieja del origen no se tocó.
-	srcNew := ProjectDir(home+"/profiles/personal-cc/cc-home", slug) + "/" + newID + ".jsonl"
+	srcNew := ProjectDir(home+"/profiles/personal-1/cc-home", slug) + "/" + newID + ".jsonl"
 	if _, err := os.Stat(srcNew); err != nil {
 		t.Fatalf("no creó la sesión nueva en origen: %v", err)
 	}
 	data, _ := os.ReadFile(srcNew)
-	if !strings.Contains(string(data), "[de emco-cc] Refactor") {
+	if !strings.Contains(string(data), "[de work-1] Refactor") {
 		t.Fatal("título no marca el origen")
 	}
 }
@@ -1185,7 +1185,7 @@ func TestHandoffForwardShellOnly(t *testing.T) {
 	t.Setenv("CCP_HOME", home)
 	var out, errb bytes.Buffer
 	// `ccp handoff <perfil>` directo al binario (sin función shell) = shell-only.
-	code := Dispatch([]string{"handoff", "emco-cc"}, &out, &errb)
+	code := Dispatch([]string{"handoff", "work-1"}, &out, &errb)
 	if code != 1 {
 		t.Fatalf("exit = %d, want 1", code)
 	}
@@ -1195,20 +1195,20 @@ func TestHandoffEmitForward(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("CCP_HOME", home)
 	cfg := &core.Config{Version: core.SchemaVersion,
-		Profiles: map[string]core.Profile{"personal-cc": {Type: "official"}, "emco-cc": {Type: "official"}}}
+		Profiles: map[string]core.Profile{"personal-1": {Type: "official"}, "work-1": {Type: "official"}}}
 	if err := core.Save(home, cfg); err != nil {
 		t.Fatal(err)
 	}
 	cwd := "/repo"
 	slug := core.SlugForCwd(cwd)
 	uuid := "abababab-abab-4bab-8bab-abababababab"
-	dir := core.ProjectDir(home+"/profiles/personal-cc/cc-home", slug)
+	dir := core.ProjectDir(home+"/profiles/personal-1/cc-home", slug)
 	_ = writeJSONLForTest(t, dir, uuid) // helper local (ver Step 3)
 
-	t.Setenv("CCP_PROFILE", "personal-cc")
+	t.Setenv("CCP_PROFILE", "personal-1")
 	var out, errb bytes.Buffer
 	// _handoff <pwd> <to> --session <uuid>
-	code := Dispatch([]string{"_handoff", cwd, "emco-cc", "--session", uuid}, &out, &errb)
+	code := Dispatch([]string{"_handoff", cwd, "work-1", "--session", uuid}, &out, &errb)
 	if code != 0 {
 		t.Fatalf("exit = %d, stderr=%s", code, errb.String())
 	}
@@ -1555,16 +1555,16 @@ import (
 
 func TestHandoffProfileOptionsExcludesActive(t *testing.T) {
 	cfg := &core.Config{Profiles: map[string]core.Profile{
-		"personal-cc": {Type: "official"}, "emco-cc": {Type: "official"},
+		"personal-1": {Type: "official"}, "work-1": {Type: "official"},
 	}}
-	opts := HandoffProfileOptions(cfg, "personal-cc")
+	opts := HandoffProfileOptions(cfg, "personal-1")
 	for _, o := range opts {
-		if o == "personal-cc" {
+		if o == "personal-1" {
 			t.Fatal("el perfil activo no debe aparecer como destino")
 		}
 	}
-	if len(opts) != 1 || opts[0] != "emco-cc" {
-		t.Fatalf("opciones = %v, want [emco-cc]", opts)
+	if len(opts) != 1 || opts[0] != "work-1" {
+		t.Fatalf("opciones = %v, want [work-1]", opts)
 	}
 }
 ```
@@ -1701,8 +1701,8 @@ func TestHandoffEmitEvalEffect(t *testing.T) {
 			seedHandoffEnv(t, home)
 			cwd := "/repo"
 			uuid := "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd"
-			writeJSONL(t, ProjectDir(home+"/profiles/personal-cc/cc-home", SlugForCwd(cwd)), uuid, "T", time.Now())
-			emit, err := HandoffForward(home, "personal-cc", "emco-cc", cwd, uuid, true, time.Now())
+			writeJSONL(t, ProjectDir(home+"/profiles/personal-1/cc-home", SlugForCwd(cwd)), uuid, "T", time.Now())
+			emit, err := HandoffForward(home, "personal-1", "work-1", cwd, uuid, true, time.Now())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1712,7 +1712,7 @@ func TestHandoffEmitEvalEffect(t *testing.T) {
 				t.Fatalf("%s: %v\n%s", sh, err, out)
 			}
 			s := string(out)
-			if !strings.Contains(s, "emco-cc/cc-home") || !strings.Contains(s, "RID="+uuid) {
+			if !strings.Contains(s, "work-1/cc-home") || !strings.Contains(s, "RID="+uuid) {
 				t.Fatalf("%s eval no exportó lo esperado:\n%s", sh, s)
 			}
 		})
@@ -1769,7 +1769,7 @@ Expected: PASS.
 go build -o /tmp/ccp ./cmd/ccp
 /tmp/ccp handoff status        # "Sin handoff activo." exit 1
 /tmp/ccp handoff list          # "Sin handoffs registrados." exit 0
-/tmp/ccp handoff emco-cc       # mensaje shell-only, exit 1
+/tmp/ccp handoff work-1        # mensaje shell-only, exit 1
 ```
 
 - [ ] **Step 5: Commit final (requiere autorización)**

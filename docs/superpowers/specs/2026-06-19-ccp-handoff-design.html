@@ -216,14 +216,14 @@ command ccp _handoff-end &lt;pwd&gt;       <span class="c"># return: back-sync +
   <span class="a">session:</span> bbc1ed61-ada1-408f-...    <span class="c"># uuid copiado (mismo en origen y destino)</span>
   <span class="a">slug:</span> -Volumes-...-dsctl-v2        <span class="c"># proyecto (cwd → guiones)</span>
   <span class="a">cwd:</span> /Volumes/.../dsctl-v2         <span class="c"># ruta absoluta, para validar</span>
-  <span class="a">from:</span> personal-cc                  <span class="c"># perfil padre</span>
-  <span class="a">to:</span> emco-cc                        <span class="c"># perfil destino (tokens prestados)</span>
+  <span class="a">from:</span> personal-1                   <span class="c"># perfil padre</span>
+  <span class="a">to:</span> work-1                         <span class="c"># perfil destino (tokens prestados)</span>
   <span class="a">title:</span> <span class="s">"Refactor handoff en ccp"</span>   <span class="c"># aiTitle al forward (display)</span>
   <span class="a">since:</span> 2026-06-19T14:30:00Z
 <span class="a">archived:</span>                            <span class="c"># historial (para `handoff list`)</span>
   - <span class="a">session:</span> 9c2e0d4f-...
-    <span class="a">from:</span> personal-cc
-    <span class="a">to:</span> emco-cc
+    <span class="a">from:</span> personal-1
+    <span class="a">to:</span> work-1
     <span class="a">returned_as:</span> a1b2f0d3-...        <span class="c"># uuid nuevo del back-sync</span>
     <span class="a">since:</span> 2026-06-18T10:00:00Z
     <span class="a">ended:</span> 2026-06-18T15:20:00Z</pre></div>
@@ -350,16 +350,16 @@ command ccp _handoff-end &lt;pwd&gt;       <span class="c"># return: back-sync +
       <!-- columns -->
       <rect x="20" y="20" width="320" height="320" rx="6" fill="#ece7dd" stroke="#d8d2c4"/>
       <rect x="420" y="20" width="320" height="320" rx="6" fill="#ece7dd" stroke="#d8d2c4"/>
-      <text x="180" y="44" text-anchor="middle" fill="#1a1915" font-weight="700">personal-cc (sin tokens)</text>
-      <text x="580" y="44" text-anchor="middle" fill="#1a1915" font-weight="700">emco-cc (tokens frescos)</text>
+      <text x="180" y="44" text-anchor="middle" fill="#1a1915" font-weight="700">personal-1 (sin tokens)</text>
+      <text x="580" y="44" text-anchor="middle" fill="#1a1915" font-weight="700">work-1 (tokens frescos)</text>
 
       <!-- nodes left -->
       <rect x="50" y="64" width="260" height="30" rx="4" fill="#f4f1ea" stroke="#d8d2c4"/>
       <text x="62" y="83" fill="#3a3833">bbc1ed61.jsonl</text>
 
       <!-- forward arrow -->
-      <text x="62" y="120" fill="#6f6a60">ccp handoff → pick emco-cc → bbc1ed61</text>
-      <text x="62" y="138" fill="#c96442">marcador active: personal-cc → emco-cc</text>
+      <text x="62" y="120" fill="#6f6a60">ccp handoff → pick work-1 → bbc1ed61</text>
+      <text x="62" y="138" fill="#c96442">marcador active: personal-1 → work-1</text>
       <line x1="62" y1="152" x2="700" y2="152" stroke="#c96442" stroke-width="1.5" marker-end="url(#ar)"/>
       <text x="370" y="146" text-anchor="middle" fill="#6f6a60">copia bbc1ed61 (mismo uuid)</text>
 
@@ -371,7 +371,7 @@ command ccp _handoff-end &lt;pwd&gt;       <span class="c"># return: back-sync +
       <text x="390" y="204" text-anchor="middle" fill="#6f6a60">ccp handoff end · reescribe sessionId→a1b2</text>
 
       <rect x="50" y="236" width="290" height="30" rx="4" fill="#f4f1ea" stroke="#d8d2c4"/>
-      <text x="62" y="255" fill="#3a3833">a1b2.jsonl  "[de emco-cc] ..."</text>
+      <text x="62" y="255" fill="#3a3833">a1b2.jsonl  "[de work-1] ..."</text>
       <rect x="50" y="274" width="290" height="30" rx="4" fill="#f4f1ea" stroke="#d8d2c4"/>
       <text x="62" y="293" fill="#6f6a60">bbc1ed61.jsonl  (original intacto)</text>
 

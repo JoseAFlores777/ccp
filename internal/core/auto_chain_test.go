@@ -13,22 +13,22 @@ import (
 // sino los tres límites del ensanche de allow_from: solo la entrada del primario,
 // nunca inventar un gate donde no lo había, y --no-allow como interruptor.
 
-// chainYAML es autoBaseYAML (perfiles personal-cc/app-cc/emco-cc/personal-deepseek
-// y reglas /work/personal→personal-cc, /work/emco→emco-cc) más un bloque
+// chainYAML es autoBaseYAML (perfiles personal-1/work-2/work-1/personal-deepseek
+// y reglas /work/personal→personal-1, /work/beta→work-1) más un bloque
 // auto_handoff con gate DECLARADO.
 const chainYAML = autoBaseYAML + `auto_handoff:
   enabled: true
   policies:
     default:
       fallback:
-        - app-cc
-        - emco-cc
+        - work-2
+        - work-1
   allow_from:
-    personal-cc:
-      - app-cc
-      - emco-cc
-    emco-cc:
-      - emco-cc
+    personal-1:
+      - work-2
+      - work-1
+    work-1:
+      - work-1
 `
 
 // chainYAMLSinGate es el mismo bloque SIN allow_from: no hay gate.
@@ -37,8 +37,8 @@ const chainYAMLSinGate = autoBaseYAML + `auto_handoff:
   policies:
     default:
       fallback:
-        - app-cc
-        - emco-cc
+        - work-2
+        - work-1
 `
 
 // chainHome siembra un home temporal con el yaml dado.
@@ -106,23 +106,23 @@ func TestChainAddNoTocaOtrosPrimarios(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ChainAdd: %v", err)
 	}
-	if res.Primary != "personal-cc" {
-		t.Fatalf("primario = %q, want personal-cc", res.Primary)
+	if res.Primary != "personal-1" {
+		t.Fatalf("primario = %q, want personal-1", res.Primary)
 	}
 	if !chainEq(res.AllowAdded, []string{"personal-deepseek"}) {
 		t.Errorf("AllowAdded = %v, want [personal-deepseek]", res.AllowAdded)
 	}
 
-	if got := chainFallbackOf(t, home); !chainEq(got, []string{"app-cc", "emco-cc", "personal-deepseek"}) {
+	if got := chainFallbackOf(t, home); !chainEq(got, []string{"work-2", "work-1", "personal-deepseek"}) {
 		t.Errorf("fallback = %v", got)
 	}
-	if got, _ := chainAllowOf(t, home, "personal-cc"); !chainEq(got, []string{"app-cc", "emco-cc", "personal-deepseek"}) {
-		t.Errorf("allow_from[personal-cc] = %v", got)
+	if got, _ := chainAllowOf(t, home, "personal-1"); !chainEq(got, []string{"work-2", "work-1", "personal-deepseek"}) {
+		t.Errorf("allow_from[personal-1] = %v", got)
 	}
 	// El corazón del test: la entrada de OTRO primario no se movió ni un byte.
 	// Un rewrite en bloque ensancharía permisos de repos donde el usuario ni está.
-	if got, _ := chainAllowOf(t, home, "emco-cc"); !chainEq(got, []string{"emco-cc"}) {
-		t.Errorf("allow_from[emco-cc] = %v, want [emco-cc] intacto", got)
+	if got, _ := chainAllowOf(t, home, "work-1"); !chainEq(got, []string{"work-1"}) {
+		t.Errorf("allow_from[work-1] = %v, want [work-1] intacto", got)
 	}
 }
 
@@ -157,7 +157,7 @@ func TestChainAddSinGateNoLoInventa(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !chainEq(rc.Fallback, []string{"app-cc", "emco-cc", "personal-deepseek"}) {
+	if !chainEq(rc.Fallback, []string{"work-2", "work-1", "personal-deepseek"}) {
 		t.Errorf("cadena efectiva = %v", rc.Fallback)
 	}
 }
@@ -165,10 +165,10 @@ func TestChainAddSinGateNoLoInventa(t *testing.T) {
 // Estado 3 del gate: declarado SIN entrada para el primario (deny total). La
 // entrada se CREA, y con exactamente lo autorizado: ni un candidato más.
 func TestChainAddCreaLaEntradaEnDenyTotal(t *testing.T) {
-	// El primario de /work/emco es emco-cc... pero usamos app-cc como primario
+	// El primario de /work/beta es work-1... pero usamos work-2 como primario
 	// declarando una regla nueva: /work/labs no tiene entrada en allow_from.
 	home := chainHome(t, chainYAML)
-	if _, err := RuleSet(home, "/work/labs", "app-cc"); err != nil {
+	if _, err := RuleSet(home, "/work/labs", "work-2"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -176,19 +176,19 @@ func TestChainAddCreaLaEntradaEnDenyTotal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ChainAdd: %v", err)
 	}
-	if res.Primary != "app-cc" {
-		t.Fatalf("primario = %q, want app-cc", res.Primary)
+	if res.Primary != "work-2" {
+		t.Fatalf("primario = %q, want work-2", res.Primary)
 	}
 	if !res.AllowCreated {
-		t.Error("AllowCreated debería ser true: no había entrada para app-cc")
+		t.Error("AllowCreated debería ser true: no había entrada para work-2")
 	}
-	got, ok := chainAllowOf(t, home, "app-cc")
+	got, ok := chainAllowOf(t, home, "work-2")
 	if !ok {
-		t.Fatal("no se creó allow_from[app-cc]")
+		t.Fatal("no se creó allow_from[work-2]")
 	}
 	// Solo lo pedido: los otros candidatos siguen tan bloqueados como estaban.
 	if !chainEq(got, []string{"personal-deepseek"}) {
-		t.Errorf("allow_from[app-cc] = %v, want [personal-deepseek]", got)
+		t.Errorf("allow_from[work-2] = %v, want [personal-deepseek]", got)
 	}
 	rc, err := ResolveAutoChain(home, nil, "", "/work/labs")
 	if err != nil {
@@ -197,8 +197,8 @@ func TestChainAddCreaLaEntradaEnDenyTotal(t *testing.T) {
 	if !chainEq(rc.Fallback, []string{"personal-deepseek"}) {
 		t.Errorf("cadena efectiva = %v, want solo el recién autorizado", rc.Fallback)
 	}
-	if !chainEq(rc.Denied, []string{"emco-cc"}) {
-		t.Errorf("denegados = %v, want [emco-cc]", rc.Denied)
+	if !chainEq(rc.Denied, []string{"work-1"}) {
+		t.Errorf("denegados = %v, want [work-1]", rc.Denied)
 	}
 }
 
@@ -216,8 +216,8 @@ func TestChainAddNoAllow(t *testing.T) {
 	if !res.AllowSkipped || len(res.AllowAdded) != 0 {
 		t.Errorf("con --no-allow: skipped=%v added=%v", res.AllowSkipped, res.AllowAdded)
 	}
-	if got, _ := chainAllowOf(t, home, "personal-cc"); !chainEq(got, []string{"app-cc", "emco-cc"}) {
-		t.Errorf("allow_from[personal-cc] = %v, debía quedar intacto", got)
+	if got, _ := chainAllowOf(t, home, "personal-1"); !chainEq(got, []string{"work-2", "work-1"}) {
+		t.Errorf("allow_from[personal-1] = %v, debía quedar intacto", got)
 	}
 	// Y la consecuencia que el usuario tiene que ver: el perfil está en la cadena
 	// pero el gate lo sigue denegando.
@@ -248,12 +248,12 @@ func TestChainAddRechazaPerfilInexistente(t *testing.T) {
 		t.Errorf("el error debe nombrar el perfil: %q", err.Error())
 	}
 	// Validación completa ANTES de mutar: el perfil bueno tampoco entró.
-	if got := chainFallbackOf(t, home); !chainEq(got, []string{"app-cc", "emco-cc"}) {
+	if got := chainFallbackOf(t, home); !chainEq(got, []string{"work-2", "work-1"}) {
 		t.Errorf("la cadena se mutó a medias: %v", got)
 	}
 
 	// Duplicado: tampoco entra dos veces.
-	_, err = ChainAdd(home, ChainOpts{Cwd: "/work/personal"}, []string{"app-cc"})
+	_, err = ChainAdd(home, ChainOpts{Cwd: "/work/personal"}, []string{"work-2"})
 	if k := chainErrKind(t, err); k != ChainErrDuplicate {
 		t.Errorf("kind = %v, want ChainErrDuplicate", k)
 	}
@@ -265,7 +265,7 @@ func TestChainAddPosicion(t *testing.T) {
 	if _, err := ChainAdd(home, ChainOpts{Cwd: "/work/personal", At: 1}, []string{"personal-deepseek"}); err != nil {
 		t.Fatalf("ChainAdd --at 1: %v", err)
 	}
-	if got := chainFallbackOf(t, home); !chainEq(got, []string{"personal-deepseek", "app-cc", "emco-cc"}) {
+	if got := chainFallbackOf(t, home); !chainEq(got, []string{"personal-deepseek", "work-2", "work-1"}) {
 		t.Errorf("--at 1 dejó %v", got)
 	}
 
@@ -294,7 +294,7 @@ func TestChainAddPosicion(t *testing.T) {
 func TestChainAddPrimarioAvisaQueEsImplicito(t *testing.T) {
 	home := chainHome(t, chainYAML)
 
-	res, err := ChainAdd(home, ChainOpts{Cwd: "/work/personal"}, []string{"personal-cc"})
+	res, err := ChainAdd(home, ChainOpts{Cwd: "/work/personal"}, []string{"personal-1"})
 	if err != nil {
 		t.Fatalf("añadir el primario debe ACEPTARSE: %v", err)
 	}
@@ -302,7 +302,7 @@ func TestChainAddPrimarioAvisaQueEsImplicito(t *testing.T) {
 		t.Fatalf("faltó el aviso de primario implícito: %+v", res.Notes)
 	}
 	// Se guarda tal cual (mañana la regla cambia y la entrada empieza a valer)...
-	if got := chainFallbackOf(t, home); !chainEq(got, []string{"app-cc", "emco-cc", "personal-cc"}) {
+	if got := chainFallbackOf(t, home); !chainEq(got, []string{"work-2", "work-1", "personal-1"}) {
 		t.Errorf("fallback = %v", got)
 	}
 	// ...pero hoy ResolveAutoChain lo filtra, que es de lo que avisa la nota.
@@ -310,11 +310,11 @@ func TestChainAddPrimarioAvisaQueEsImplicito(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if chainIndex(rc.Fallback, "personal-cc") >= 0 {
+	if chainIndex(rc.Fallback, "personal-1") >= 0 {
 		t.Errorf("el primario no debe aparecer en la cadena efectiva: %v", rc.Fallback)
 	}
 	// Y no se autoriza a sí mismo en el gate: sería ruido en el yaml.
-	if got, _ := chainAllowOf(t, home, "personal-cc"); chainIndex(got, "personal-cc") >= 0 {
+	if got, _ := chainAllowOf(t, home, "personal-1"); chainIndex(got, "personal-1") >= 0 {
 		t.Errorf("el primario se metió en su propia entrada: %v", got)
 	}
 }
@@ -332,7 +332,7 @@ func TestChainMvReordena(t *testing.T) {
 	if res.Moved != "personal-deepseek" || res.MovedTo != 1 {
 		t.Errorf("res = %+v", res)
 	}
-	if got := chainFallbackOf(t, home); !chainEq(got, []string{"personal-deepseek", "app-cc", "emco-cc"}) {
+	if got := chainFallbackOf(t, home); !chainEq(got, []string{"personal-deepseek", "work-2", "work-1"}) {
 		t.Errorf("fallback = %v", got)
 	}
 
@@ -340,7 +340,7 @@ func TestChainMvReordena(t *testing.T) {
 	if _, err := ChainMv(home, ChainOpts{Cwd: "/work/personal"}, "personal-deepseek", 2); err != nil {
 		t.Fatal(err)
 	}
-	if got := chainFallbackOf(t, home); !chainEq(got, []string{"app-cc", "personal-deepseek", "emco-cc"}) {
+	if got := chainFallbackOf(t, home); !chainEq(got, []string{"work-2", "personal-deepseek", "work-1"}) {
 		t.Errorf("fallback = %v", got)
 	}
 
@@ -372,42 +372,42 @@ func TestChainRmAvisaSiNoEstaba(t *testing.T) {
 		t.Fatalf("kind = %v, want ChainErrNotInChain", k)
 	}
 	msg := err.Error()
-	if !strings.Contains(msg, "personal-deepseek") || !strings.Contains(msg, "app-cc") {
+	if !strings.Contains(msg, "personal-deepseek") || !strings.Contains(msg, "work-2") {
 		t.Errorf("el error debe nombrar el perfil y lo que SÍ hay: %q", msg)
 	}
 
-	// El caso bueno, y con validación previa: `rm app-cc fantasma` no deja app-cc
+	// El caso bueno, y con validación previa: `rm work-2 fantasma` no deja work-2
 	// fuera antes de descubrir que fantasma no estaba.
-	if _, err := ChainRm(home, ChainOpts{Cwd: "/work/personal"}, []string{"app-cc", "fantasma"}); err == nil {
+	if _, err := ChainRm(home, ChainOpts{Cwd: "/work/personal"}, []string{"work-2", "fantasma"}); err == nil {
 		t.Fatal("se esperaba error")
 	}
-	if got := chainFallbackOf(t, home); !chainEq(got, []string{"app-cc", "emco-cc"}) {
+	if got := chainFallbackOf(t, home); !chainEq(got, []string{"work-2", "work-1"}) {
 		t.Errorf("la cadena se mutó a medias: %v", got)
 	}
 
-	res, err := ChainRm(home, ChainOpts{Cwd: "/work/personal"}, []string{"app-cc"})
+	res, err := ChainRm(home, ChainOpts{Cwd: "/work/personal"}, []string{"work-2"})
 	if err != nil {
 		t.Fatalf("ChainRm: %v", err)
 	}
-	if !chainEq(res.Removed, []string{"app-cc"}) {
+	if !chainEq(res.Removed, []string{"work-2"}) {
 		t.Errorf("Removed = %v", res.Removed)
 	}
-	if got := chainFallbackOf(t, home); !chainEq(got, []string{"emco-cc"}) {
+	if got := chainFallbackOf(t, home); !chainEq(got, []string{"work-1"}) {
 		t.Errorf("fallback = %v", got)
 	}
 	// rm SÍ retira la autorización, y solo la del primario actual: es la única
 	// forma que hay por CLI de estrechar el gate. Sin esto `add` sería un embudo
 	// —el gate solo podría CRECER— y deshacer un `add` equivocado obligaría a
 	// editar el yaml a mano, que es justo lo que estos comandos vienen a evitar.
-	if !chainEq(res.AllowRemoved, []string{"app-cc"}) {
-		t.Errorf("AllowRemoved = %v, want [app-cc]", res.AllowRemoved)
+	if !chainEq(res.AllowRemoved, []string{"work-2"}) {
+		t.Errorf("AllowRemoved = %v, want [work-2]", res.AllowRemoved)
 	}
-	if got, _ := chainAllowOf(t, home, "personal-cc"); !chainEq(got, []string{"emco-cc"}) {
-		t.Errorf("allow_from[personal-cc] = %v, want [emco-cc]", got)
+	if got, _ := chainAllowOf(t, home, "personal-1"); !chainEq(got, []string{"work-1"}) {
+		t.Errorf("allow_from[personal-1] = %v, want [work-1]", got)
 	}
 	// Límite 1, también aquí: la entrada de OTRO primario no se toca.
-	if got, _ := chainAllowOf(t, home, "emco-cc"); !chainEq(got, []string{"emco-cc"}) {
-		t.Errorf("allow_from[emco-cc] = %v, want [emco-cc] intacto", got)
+	if got, _ := chainAllowOf(t, home, "work-1"); !chainEq(got, []string{"work-1"}) {
+		t.Errorf("allow_from[work-1] = %v, want [work-1] intacto", got)
 	}
 }
 
@@ -419,12 +419,12 @@ func TestChainRmCierraElCicloDeAdd(t *testing.T) {
 	opts := ChainOpts{Cwd: "/work/personal"}
 
 	fbAntes := chainFallbackOf(t, home)
-	allowAntes, _ := chainAllowOf(t, home, "personal-cc")
+	allowAntes, _ := chainAllowOf(t, home, "personal-1")
 
 	if _, err := ChainAdd(home, opts, []string{"personal-deepseek"}); err != nil {
 		t.Fatalf("ChainAdd: %v", err)
 	}
-	if got, _ := chainAllowOf(t, home, "personal-cc"); chainIndex(got, "personal-deepseek") < 0 {
+	if got, _ := chainAllowOf(t, home, "personal-1"); chainIndex(got, "personal-deepseek") < 0 {
 		t.Fatalf("el add no autorizó nada: %v", got)
 	}
 
@@ -434,8 +434,8 @@ func TestChainRmCierraElCicloDeAdd(t *testing.T) {
 	if got := chainFallbackOf(t, home); !chainEq(got, fbAntes) {
 		t.Errorf("fallback = %v, want %v", got, fbAntes)
 	}
-	if got, _ := chainAllowOf(t, home, "personal-cc"); !chainEq(got, allowAntes) {
-		t.Errorf("allow_from[personal-cc] = %v, want %v", got, allowAntes)
+	if got, _ := chainAllowOf(t, home, "personal-1"); !chainEq(got, allowAntes) {
+		t.Errorf("allow_from[personal-1] = %v, want %v", got, allowAntes)
 	}
 }
 
@@ -445,15 +445,15 @@ func TestChainRmCierraElCicloDeAdd(t *testing.T) {
 func TestChainRmNoAllow(t *testing.T) {
 	home := chainHome(t, chainYAML)
 
-	res, err := ChainRm(home, ChainOpts{Cwd: "/work/personal", NoAllow: true}, []string{"app-cc"})
+	res, err := ChainRm(home, ChainOpts{Cwd: "/work/personal", NoAllow: true}, []string{"work-2"})
 	if err != nil {
 		t.Fatalf("ChainRm: %v", err)
 	}
 	if !res.AllowSkipped || len(res.AllowRemoved) != 0 {
 		t.Errorf("con --no-allow: skipped=%v removed=%v", res.AllowSkipped, res.AllowRemoved)
 	}
-	if got, _ := chainAllowOf(t, home, "personal-cc"); !chainEq(got, []string{"app-cc", "emco-cc"}) {
-		t.Errorf("allow_from[personal-cc] = %v, debía quedar intacto", got)
+	if got, _ := chainAllowOf(t, home, "personal-1"); !chainEq(got, []string{"work-2", "work-1"}) {
+		t.Errorf("allow_from[personal-1] = %v, debía quedar intacto", got)
 	}
 }
 
@@ -465,8 +465,8 @@ func TestChainRmNoAllow(t *testing.T) {
 // ninguna invocación de `ccp auto chain` capaz de des-denegar el repo.
 func TestChainAddDesatascaElDenyTotal(t *testing.T) {
 	home := chainHome(t, chainYAML)
-	// /work/labs → app-cc, que NO tiene entrada en allow_from: deny total.
-	if _, err := RuleSet(home, "/work/labs", "app-cc"); err != nil {
+	// /work/labs → work-2, que NO tiene entrada en allow_from: deny total.
+	if _, err := RuleSet(home, "/work/labs", "work-2"); err != nil {
 		t.Fatal(err)
 	}
 	opts := ChainOpts{Cwd: "/work/labs"}
@@ -479,23 +479,23 @@ func TestChainAddDesatascaElDenyTotal(t *testing.T) {
 		t.Fatalf("el fixture debía partir en deny total: %v", rc.Fallback)
 	}
 
-	// emco-cc YA está en `fallback`. Antes esto era ChainErrDuplicate y el repo
+	// work-1 YA está en `fallback`. Antes esto era ChainErrDuplicate y el repo
 	// se quedaba sin salida.
-	res, err := ChainAdd(home, opts, []string{"emco-cc"})
+	res, err := ChainAdd(home, opts, []string{"work-1"})
 	if err != nil {
 		t.Fatalf("add de un perfil en la cadena pero denegado debe ABRIR el gate: %v", err)
 	}
-	if !res.AllowCreated || !chainEq(res.AllowAdded, []string{"emco-cc"}) {
+	if !res.AllowCreated || !chainEq(res.AllowAdded, []string{"work-1"}) {
 		t.Errorf("res = created:%v added:%v", res.AllowCreated, res.AllowAdded)
 	}
 	// La cadena no cambió, y hay que decirlo: si no, la línea de fallback sale
 	// idéntica y parece un no-op.
-	if !chainEq(res.Fallback, []string{"app-cc", "emco-cc"}) {
+	if !chainEq(res.Fallback, []string{"work-2", "work-1"}) {
 		t.Errorf("la cadena no debía cambiar: %v", res.Fallback)
 	}
 	var vistaNota bool
 	for _, n := range res.Notes {
-		if n.Kind == ChainNoteAlreadyInChain && n.Profile == "emco-cc" {
+		if n.Kind == ChainNoteAlreadyInChain && n.Profile == "work-1" {
 			vistaNota = true
 		}
 	}
@@ -508,16 +508,16 @@ func TestChainAddDesatascaElDenyTotal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !chainEq(rc.Fallback, []string{"emco-cc"}) {
-		t.Errorf("cadena efectiva = %v, want [emco-cc]", rc.Fallback)
+	if !chainEq(rc.Fallback, []string{"work-1"}) {
+		t.Errorf("cadena efectiva = %v, want [work-1]", rc.Fallback)
 	}
 
 	// Repetirlo ya SÍ es un duplicado: está en la cadena y además autorizado.
-	if _, err := ChainAdd(home, opts, []string{"emco-cc"}); chainErrKind(t, err) != ChainErrDuplicate {
+	if _, err := ChainAdd(home, opts, []string{"work-1"}); chainErrKind(t, err) != ChainErrDuplicate {
 		t.Errorf("el segundo add debe ser duplicado: %v", err)
 	}
 	// Y con --no-allow tampoco hay gate que abrir, así que vuelve a ser duplicado.
-	if _, err := ChainAdd(home, ChainOpts{Cwd: "/work/labs", NoAllow: true}, []string{"app-cc"}); err == nil {
+	if _, err := ChainAdd(home, ChainOpts{Cwd: "/work/labs", NoAllow: true}, []string{"work-2"}); err == nil {
 		t.Error("add --no-allow de algo ya en la cadena debe seguir siendo duplicado")
 	}
 }
@@ -525,36 +525,36 @@ func TestChainAddDesatascaElDenyTotal(t *testing.T) {
 func TestChainSetReemplaza(t *testing.T) {
 	home := chainHome(t, chainYAML)
 
-	res, err := ChainSet(home, ChainOpts{Cwd: "/work/personal"}, []string{"emco-cc", "personal-deepseek"})
+	res, err := ChainSet(home, ChainOpts{Cwd: "/work/personal"}, []string{"work-1", "personal-deepseek"})
 	if err != nil {
 		t.Fatalf("ChainSet: %v", err)
 	}
-	if !chainEq(res.Fallback, []string{"emco-cc", "personal-deepseek"}) {
+	if !chainEq(res.Fallback, []string{"work-1", "personal-deepseek"}) {
 		t.Errorf("Fallback = %v", res.Fallback)
 	}
-	if got := chainFallbackOf(t, home); !chainEq(got, []string{"emco-cc", "personal-deepseek"}) {
+	if got := chainFallbackOf(t, home); !chainEq(got, []string{"work-1", "personal-deepseek"}) {
 		t.Errorf("fallback en disco = %v", got)
 	}
 	// set ajusta el gate en las DOS direcciones, porque es el rm+add que de hecho
-	// es: personal-deepseek entra y se autoriza, app-cc sale y pierde el permiso,
-	// emco-cc sigue en ambos lados y no se toca. Sin esto, `set` podía dejar la
+	// es: personal-deepseek entra y se autoriza, work-2 sale y pierde el permiso,
+	// work-1 sigue en ambos lados y no se toca. Sin esto, `set` podía dejar la
 	// cadena INERTE —lista nueva en el yaml, ningún destino autorizado— con un
 	// `[ok]` delante y sin una línea que lo dijera.
 	if !chainEq(res.AllowAdded, []string{"personal-deepseek"}) {
 		t.Errorf("AllowAdded = %v", res.AllowAdded)
 	}
-	if !chainEq(res.AllowRemoved, []string{"app-cc"}) {
+	if !chainEq(res.AllowRemoved, []string{"work-2"}) {
 		t.Errorf("AllowRemoved = %v", res.AllowRemoved)
 	}
-	if got, _ := chainAllowOf(t, home, "personal-cc"); !chainEq(got, []string{"emco-cc", "personal-deepseek"}) {
-		t.Errorf("allow_from[personal-cc] = %v", got)
+	if got, _ := chainAllowOf(t, home, "personal-1"); !chainEq(got, []string{"work-1", "personal-deepseek"}) {
+		t.Errorf("allow_from[personal-1] = %v", got)
 	}
 	// Y la consecuencia: la cadena que se acaba de escribir se usa de verdad.
 	rc, err := ResolveAutoChain(home, nil, "", "/work/personal")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !chainEq(rc.Fallback, []string{"emco-cc", "personal-deepseek"}) {
+	if !chainEq(rc.Fallback, []string{"work-1", "personal-deepseek"}) {
 		t.Errorf("cadena efectiva = %v, la lista nueva quedó inerte", rc.Fallback)
 	}
 
@@ -562,7 +562,7 @@ func TestChainSetReemplaza(t *testing.T) {
 	if _, err := ChainSet(home, ChainOpts{Cwd: "/work/personal"}, []string{"fantasma"}); chainErrKind(t, err) != ChainErrNoProfile {
 		t.Errorf("set con perfil inexistente: %v", err)
 	}
-	if _, err := ChainSet(home, ChainOpts{Cwd: "/work/personal"}, []string{"app-cc", "app-cc"}); chainErrKind(t, err) != ChainErrDuplicate {
+	if _, err := ChainSet(home, ChainOpts{Cwd: "/work/personal"}, []string{"work-2", "work-2"}); chainErrKind(t, err) != ChainErrDuplicate {
 		t.Errorf("set con duplicado: %v", err)
 	}
 	// Sin nombres: vaciar la cadena en silencio dejaría a `ccp session` sin
@@ -615,7 +615,7 @@ future_block:
 func TestChainSinBloqueAutoHandoff(t *testing.T) {
 	home := chainHome(t, autoBaseYAML)
 
-	_, err := ChainAdd(home, ChainOpts{Cwd: "/work/personal"}, []string{"app-cc"})
+	_, err := ChainAdd(home, ChainOpts{Cwd: "/work/personal"}, []string{"work-2"})
 	if k := chainErrKind(t, err); k != ChainErrNotConfigured {
 		t.Fatalf("kind = %v, want ChainErrNotConfigured", k)
 	}
@@ -629,7 +629,7 @@ func TestChainSinBloqueAutoHandoff(t *testing.T) {
 
 	// Política inexistente: se nombran las que hay.
 	home = chainHome(t, chainYAML)
-	_, err = ChainAdd(home, ChainOpts{Cwd: "/work/personal", Policy: "noche"}, []string{"app-cc"})
+	_, err = ChainAdd(home, ChainOpts{Cwd: "/work/personal", Policy: "noche"}, []string{"work-2"})
 	if k := chainErrKind(t, err); k != ChainErrNoPolicy {
 		t.Fatalf("kind = %v, want ChainErrNoPolicy", k)
 	}

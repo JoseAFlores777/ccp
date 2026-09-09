@@ -26,7 +26,7 @@ func TestHandoffForwardConcurrenteNoPierdeMarcadores(t *testing.T) {
 	const n = 8
 	home := t.TempDir()
 	seedHandoffEnv(t, home)
-	cc := home + "/profiles/personal-cc/cc-home"
+	cc := home + "/profiles/personal-1/cc-home"
 
 	cwds := make([]string, n)
 	uuids := make([]string, n)
@@ -42,7 +42,7 @@ func TestHandoffForwardConcurrenteNoPierdeMarcadores(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, errs[i] = HandoffForward(home, "personal-cc", "emco-cc", cwds[i], uuids[i], true, false, false, time.Now())
+			_, errs[i] = HandoffForward(home, "personal-1", "work-1", cwds[i], uuids[i], true, false, false, time.Now())
 		}(i)
 	}
 	wg.Wait()
@@ -67,7 +67,7 @@ func TestHandoffEndConcurrenteNoResucitaMarcadores(t *testing.T) {
 	const n = 6
 	home := t.TempDir()
 	seedHandoffEnv(t, home)
-	dst := home + "/profiles/emco-cc/cc-home"
+	dst := home + "/profiles/work-1/cc-home"
 
 	var pre []Marker
 	cwds := make([]string, n)
@@ -77,7 +77,7 @@ func TestHandoffEndConcurrenteNoResucitaMarcadores(t *testing.T) {
 		writeJSONL(t, ProjectDir(dst, SlugForCwd(cwds[i])), uuid, "T", time.Now())
 		pre = append(pre, Marker{
 			Session: uuid, Slug: SlugForCwd(cwds[i]), Cwd: cwds[i],
-			From: "personal-cc", To: "emco-cc", Since: "2026-07-25T00:00:00Z",
+			From: "personal-1", To: "work-1", Since: "2026-07-25T00:00:00Z",
 		})
 	}
 	if err := SaveHandoffs(home, &Handoffs{Version: HandoffsVersion, Active: pre}); err != nil {
@@ -118,7 +118,7 @@ func TestHandoffEndConcurrenteNoResucitaMarcadores(t *testing.T) {
 // archivo editado a mano) se cuela por la ruta v1.
 func TestLoadHandoffsVersionFuturaConActiveMapping(t *testing.T) {
 	home := t.TempDir()
-	future := "version: 99\nactive:\n  bbc1ed61-aaaa:\n    to: emco-cc\n    slug: -repo\n"
+	future := "version: 99\nactive:\n  bbc1ed61-aaaa:\n    to: work-1\n    slug: -repo\n"
 	if err := os.WriteFile(filepath.Join(home, "handoffs.yaml"), []byte(future), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestLoadHandoffsVersionFuturaConActiveMapping(t *testing.T) {
 // `handoff list` y contaría para el aviso de acumulación).
 func TestLoadHandoffsIgnoraMarcadorV1SinSesion(t *testing.T) {
 	home := t.TempDir()
-	raw := "version: 1\nactive:\n  perfil: emco-cc\n  ruta: /repo\n"
+	raw := "version: 1\nactive:\n  perfil: work-1\n  ruta: /repo\n"
 	if err := os.WriteFile(filepath.Join(home, "handoffs.yaml"), []byte(raw), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestLoadHandoffsIgnoraMarcadorV1SinSesion(t *testing.T) {
 func TestSaveHandoffsNoPisaVersionFutura(t *testing.T) {
 	home := t.TempDir()
 	path := filepath.Join(home, "handoffs.yaml")
-	future := "version: 99\nnuevo_campo: x\nactive:\n- session: futuro\n  to: emco-cc\n"
+	future := "version: 99\nnuevo_campo: x\nactive:\n- session: futuro\n  to: work-1\n"
 	if err := os.WriteFile(path, []byte(future), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestSaveHandoffsNoPisaVersionFutura(t *testing.T) {
 // guarda el marcador: si no, `end` desde un repo cierra el handoff de otro.
 func TestActiveForCwdNoConfundeSlugsColisionados(t *testing.T) {
 	h := &Handoffs{Version: HandoffsVersion, Active: []Marker{
-		{Session: "aaa", Slug: SlugForCwd("/repo/foo-bar"), Cwd: "/repo/foo-bar", From: "personal-cc", To: "emco-cc", Since: "2026-07-25T00:00:00Z"},
+		{Session: "aaa", Slug: SlugForCwd("/repo/foo-bar"), Cwd: "/repo/foo-bar", From: "personal-1", To: "work-1", Since: "2026-07-25T00:00:00Z"},
 	}}
 	if SlugForCwd("/repo/foo-bar") != SlugForCwd("/repo/foo/bar") {
 		t.Skip("los slugs ya no colisionan; el caso perdió sentido")
@@ -201,9 +201,9 @@ func TestHandoffEndNoCierraElHandoffDeOtroProyecto(t *testing.T) {
 	seedHandoffEnv(t, home)
 	cwd := "/repo/foo-bar"
 	uuid := "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
-	writeJSONL(t, ProjectDir(home+"/profiles/emco-cc/cc-home", SlugForCwd(cwd)), uuid, "A", time.Now())
+	writeJSONL(t, ProjectDir(home+"/profiles/work-1/cc-home", SlugForCwd(cwd)), uuid, "A", time.Now())
 	if err := SaveHandoffs(home, &Handoffs{Version: HandoffsVersion, Active: []Marker{{
-		Session: uuid, Slug: SlugForCwd(cwd), Cwd: cwd, From: "personal-cc", To: "emco-cc", Since: "2026-07-25T00:00:00Z",
+		Session: uuid, Slug: SlugForCwd(cwd), Cwd: cwd, From: "personal-1", To: "work-1", Since: "2026-07-25T00:00:00Z",
 	}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -222,8 +222,8 @@ func TestHandoffEndNoCierraElHandoffDeOtroProyecto(t *testing.T) {
 func TestResolveActiveSesionArchivada(t *testing.T) {
 	h := &Handoffs{
 		Version:  HandoffsVersion,
-		Active:   []Marker{mk("vivo", "/otro", "personal-cc", "emco-cc")},
-		Archived: []ArchivedMarker{{Session: "muerto", From: "personal-cc", To: "emco-cc", Slug: "-repo", ReturnedAs: "nuevo-uuid", Ended: "2026-07-25T10:00:00Z"}},
+		Active:   []Marker{mk("vivo", "/otro", "personal-1", "work-1")},
+		Archived: []ArchivedMarker{{Session: "muerto", From: "personal-1", To: "work-1", Slug: "-repo", ReturnedAs: "nuevo-uuid", Ended: "2026-07-25T10:00:00Z"}},
 	}
 	_, _, err := ResolveActive(h, "/repo", "muerto")
 	if err == nil {
@@ -239,7 +239,7 @@ func TestResolveActiveSesionArchivada(t *testing.T) {
 // (sin TTY, --session es la única salida) no existe.
 func TestResolveActiveAceptaPrefijoDeSesion(t *testing.T) {
 	full := "bbc1ed61-1111-4111-8111-111111111111"
-	h := &Handoffs{Version: HandoffsVersion, Active: []Marker{mk(full, "/repo/uno", "personal-cc", "emco-cc")}}
+	h := &Handoffs{Version: HandoffsVersion, Active: []Marker{mk(full, "/repo/uno", "personal-1", "work-1")}}
 	_, _, err := ResolveActive(h, "/otro", "")
 	if err == nil {
 		t.Fatal("esperaba error sin activo para este cwd")
@@ -278,7 +278,7 @@ func TestHandoffDiscardSueltaMarcadorHuerfano(t *testing.T) {
 	cwd := "/repo"
 	uuid := "ffffffff-ffff-4fff-8fff-ffffffffffff"
 	if err := SaveHandoffs(home, &Handoffs{Version: HandoffsVersion, Active: []Marker{{
-		Session: uuid, Slug: SlugForCwd(cwd), Cwd: cwd, From: "personal-cc", To: "emco-cc", Since: "2026-07-25T00:00:00Z",
+		Session: uuid, Slug: SlugForCwd(cwd), Cwd: cwd, From: "personal-1", To: "work-1", Since: "2026-07-25T00:00:00Z",
 	}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -308,8 +308,8 @@ func TestHandoffDiscardAmbiguoNoTocaNada(t *testing.T) {
 	cwd := "/repo"
 	slug := SlugForCwd(cwd)
 	if err := SaveHandoffs(home, &Handoffs{Version: HandoffsVersion, Active: []Marker{
-		{Session: "aaa", Slug: slug, Cwd: cwd, From: "personal-cc", To: "emco-cc", Since: "2026-07-25T00:00:00Z"},
-		{Session: "bbb", Slug: slug, Cwd: cwd, From: "personal-cc", To: "kimi", Since: "2026-07-25T01:00:00Z"},
+		{Session: "aaa", Slug: slug, Cwd: cwd, From: "personal-1", To: "work-1", Since: "2026-07-25T00:00:00Z"},
+		{Session: "bbb", Slug: slug, Cwd: cwd, From: "personal-1", To: "kimi", Since: "2026-07-25T01:00:00Z"},
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +335,7 @@ func TestHandoffForwardRechazaSessionConTraversal(t *testing.T) {
 	seedHandoffEnv(t, home)
 	cwd := "/work"
 	slug := SlugForCwd(cwd)
-	srcDir := ProjectDir(home+"/profiles/personal-cc/cc-home", slug)
+	srcDir := ProjectDir(home+"/profiles/personal-1/cc-home", slug)
 	if err := os.MkdirAll(srcDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -353,10 +353,10 @@ func TestHandoffForwardRechazaSessionConTraversal(t *testing.T) {
 		t.Fatalf("el caso debe salir del cc-home para probar algo: %s", traversal)
 	}
 
-	if _, err := HandoffForward(home, "personal-cc", "emco-cc", cwd, traversal, true, false, false, time.Now()); err == nil {
+	if _, err := HandoffForward(home, "personal-1", "work-1", cwd, traversal, true, false, false, time.Now()); err == nil {
 		t.Fatal("un --session con .. debe rechazarse, no copiar un jsonl ajeno")
 	}
-	dstDir := ProjectDir(home+"/profiles/emco-cc/cc-home", slug)
+	dstDir := ProjectDir(home+"/profiles/work-1/cc-home", slug)
 	if entries, _ := os.ReadDir(dstDir); len(entries) != 0 {
 		t.Fatalf("no debía copiarse nada al perfil destino: %v", entries)
 	}
@@ -409,7 +409,7 @@ func TestCheckUsableDistingueVacioDeIlegible(t *testing.T) {
 	if err := vacio.CheckUsable(); err != nil {
 		t.Fatalf("un handoffs.yaml ausente es legible y vacío: %v", err)
 	}
-	future := "version: 99\nactive:\n- session: 99999999-0000-4000-8000-000000000001\n  to: emco-cc\n"
+	future := "version: 99\nactive:\n- session: 99999999-0000-4000-8000-000000000001\n  to: work-1\n"
 	if err := os.WriteFile(filepath.Join(home, "handoffs.yaml"), []byte(future), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -470,7 +470,7 @@ func TestHandoffEmitNoEjecutaComandosDelCwd(t *testing.T) {
 				pre = append(pre, Marker{
 					Session: fmt.Sprintf("old-%d-2222-4222-8222-222222222222", i),
 					Slug:    SlugForCwd(cwd), Cwd: cwd,
-					From: "personal-cc", To: "emco-cc",
+					From: "personal-1", To: "work-1",
 					Since: fmt.Sprintf("2026-07-0%dT00:00:00Z", i+1),
 				})
 			}
@@ -480,8 +480,8 @@ func TestHandoffEmitNoEjecutaComandosDelCwd(t *testing.T) {
 
 			cwd := "/repo/nuevo"
 			uuid := "12341234-1234-4234-8234-123412341234"
-			writeJSONL(t, ProjectDir(home+"/profiles/personal-cc/cc-home", SlugForCwd(cwd)), uuid, "N", time.Now())
-			emit, err := HandoffForward(home, "personal-cc", "emco-cc", cwd, uuid, true, false, false, time.Now())
+			writeJSONL(t, ProjectDir(home+"/profiles/personal-1/cc-home", SlugForCwd(cwd)), uuid, "N", time.Now())
+			emit, err := HandoffForward(home, "personal-1", "work-1", cwd, uuid, true, false, false, time.Now())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -597,7 +597,7 @@ func TestHandoffEmitParseaConComillasEnElCwd(t *testing.T) {
 				pre = append(pre, Marker{
 					Session: fmt.Sprintf("old-%d-3333-4333-8333-333333333333", i),
 					Slug:    SlugForCwd(cwd), Cwd: cwd,
-					From: "personal-cc", To: "emco-cc",
+					From: "personal-1", To: "work-1",
 					Since: fmt.Sprintf("2026-07-0%dT00:00:00Z", i+1),
 				})
 			}
@@ -606,8 +606,8 @@ func TestHandoffEmitParseaConComillasEnElCwd(t *testing.T) {
 			}
 			cwd := "/repo/nuevo"
 			uuid := "56785678-5678-4678-8678-567856785678"
-			writeJSONL(t, ProjectDir(home+"/profiles/personal-cc/cc-home", SlugForCwd(cwd)), uuid, "A", time.Now())
-			emit, err := HandoffForward(home, "personal-cc", "emco-cc", cwd, uuid, true, false, false, time.Now())
+			writeJSONL(t, ProjectDir(home+"/profiles/personal-1/cc-home", SlugForCwd(cwd)), uuid, "A", time.Now())
+			emit, err := HandoffForward(home, "personal-1", "work-1", cwd, uuid, true, false, false, time.Now())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -615,7 +615,7 @@ func TestHandoffEmitParseaConComillasEnElCwd(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%s: el emit no evaluó limpio: %v\nsalida:\n%s\nscript:\n%s", sh, err, out, emit)
 			}
-			if !strings.Contains(string(out), "emco-cc/cc-home") {
+			if !strings.Contains(string(out), "work-1/cc-home") {
 				t.Fatalf("%s: el env del destino no se aplicó:\n%s", sh, out)
 			}
 		})

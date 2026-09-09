@@ -15,9 +15,9 @@ func seedChainEnv(t *testing.T, home string) {
 	cfg := &Config{
 		Version: SchemaVersion,
 		Profiles: map[string]Profile{
-			"personal-cc": {Type: "official"},
-			"emco-cc":     {Type: "official"},
-			"kimi-cc":     {Type: "official"},
+			"personal-1": {Type: "official"},
+			"work-1":     {Type: "official"},
+			"kimi-cc":    {Type: "official"},
 		},
 	}
 	if err := Save(home, cfg); err != nil {
@@ -35,20 +35,20 @@ func TestHandoffChainPrimerHopSiembraMarcador(t *testing.T) {
 	cwd := "/repo/uno"
 	slug := SlugForCwd(cwd)
 	uuid := "11111111-1111-4111-8111-111111111111"
-	writeJSONL(t, ProjectDir(ccHomeOf(home, "personal-cc"), slug), uuid, "Refactor", time.Now())
+	writeJSONL(t, ProjectDir(ccHomeOf(home, "personal-1"), slug), uuid, "Refactor", time.Now())
 
 	now := time.Date(2026, 7, 25, 3, 0, 0, 0, time.UTC)
-	m, err := HandoffChain(home, "personal-cc", "emco-cc", cwd, uuid, true, false, now)
+	m, err := HandoffChain(home, "personal-1", "work-1", cwd, uuid, true, false, now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.From != "personal-cc" || m.To != "emco-cc" {
+	if m.From != "personal-1" || m.To != "work-1" {
 		t.Fatalf("marcador con perfiles incorrectos: %+v", m)
 	}
 	if !m.Auto {
 		t.Fatalf("auto=true debe marcar el marcador: %+v", m)
 	}
-	if len(m.Hops) != 1 || m.Hops[0] != "emco-cc" {
+	if len(m.Hops) != 1 || m.Hops[0] != "work-1" {
 		t.Fatalf("hops mal sembrado: %+v", m.Hops)
 	}
 	if m.Title != "Refactor" {
@@ -58,7 +58,7 @@ func TestHandoffChainPrimerHopSiembraMarcador(t *testing.T) {
 		t.Fatalf("since inesperado: %q", m.Since)
 	}
 	// Copió el jsonl al destino con el mismo uuid.
-	if _, err := os.Stat(ProjectDir(ccHomeOf(home, "emco-cc"), slug) + "/" + uuid + ".jsonl"); err != nil {
+	if _, err := os.Stat(ProjectDir(ccHomeOf(home, "work-1"), slug) + "/" + uuid + ".jsonl"); err != nil {
 		t.Fatalf("no copió al destino: %v", err)
 	}
 	h, _ := LoadHandoffs(home)
@@ -78,21 +78,21 @@ func TestHandoffChainSegundoHopMutaElMismoMarcador(t *testing.T) {
 	cwd := "/repo/uno"
 	slug := SlugForCwd(cwd)
 	uuid := "22222222-2222-4222-8222-222222222222"
-	writeJSONL(t, ProjectDir(ccHomeOf(home, "personal-cc"), slug), uuid, "Largo", time.Now())
+	writeJSONL(t, ProjectDir(ccHomeOf(home, "personal-1"), slug), uuid, "Largo", time.Now())
 
 	t0 := time.Date(2026, 7, 25, 3, 0, 0, 0, time.UTC)
-	if _, err := HandoffChain(home, "personal-cc", "emco-cc", cwd, uuid, true, false, t0); err != nil {
+	if _, err := HandoffChain(home, "personal-1", "work-1", cwd, uuid, true, false, t0); err != nil {
 		t.Fatalf("primer hop: %v", err)
 	}
-	// El transcript creció en emco-cc mientras se usaba; el segundo hop copia ESE.
-	writeJSONL(t, ProjectDir(ccHomeOf(home, "emco-cc"), slug), uuid, "Largo", time.Now())
+	// El transcript creció en work-1 mientras se usaba; el segundo hop copia ESE.
+	writeJSONL(t, ProjectDir(ccHomeOf(home, "work-1"), slug), uuid, "Largo", time.Now())
 
 	t1 := t0.Add(2 * time.Hour)
-	m, err := HandoffChain(home, "emco-cc", "kimi-cc", cwd, uuid, true, false, t1)
+	m, err := HandoffChain(home, "work-1", "kimi-cc", cwd, uuid, true, false, t1)
 	if err != nil {
 		t.Fatalf("segundo hop debe permitirse (esto es lo que forward bloquea): %v", err)
 	}
-	if m.From != "personal-cc" {
+	if m.From != "personal-1" {
 		t.Fatalf("From debe seguir siendo el primario, got %q", m.From)
 	}
 	if m.To != "kimi-cc" {
@@ -101,14 +101,14 @@ func TestHandoffChainSegundoHopMutaElMismoMarcador(t *testing.T) {
 	if m.Since != "2026-07-25T03:00:00Z" {
 		t.Fatalf("Since no debe cambiar en un hop encadenado: %q", m.Since)
 	}
-	if len(m.Hops) != 2 || m.Hops[0] != "emco-cc" || m.Hops[1] != "kimi-cc" {
+	if len(m.Hops) != 2 || m.Hops[0] != "work-1" || m.Hops[1] != "kimi-cc" {
 		t.Fatalf("hops debe rastrear los dos saltos: %+v", m.Hops)
 	}
 	h, _ := LoadHandoffs(home)
 	if len(h.Active) != 1 {
 		t.Fatalf("el encadenado NO debe apilar un segundo marcador: %+v", h.Active)
 	}
-	if h.Active[0].From != "personal-cc" || h.Active[0].To != "kimi-cc" {
+	if h.Active[0].From != "personal-1" || h.Active[0].To != "kimi-cc" {
 		t.Fatalf("marcador persistido incorrecto: %+v", h.Active[0])
 	}
 	if _, err := os.Stat(ProjectDir(ccHomeOf(home, "kimi-cc"), slug) + "/" + uuid + ".jsonl"); err != nil {
@@ -124,27 +124,27 @@ func TestHandoffChainFanOutSigueProhibido(t *testing.T) {
 	cwd := "/repo/uno"
 	slug := SlugForCwd(cwd)
 	uuid := "33333333-3333-4333-8333-333333333333"
-	// Activo personal-cc → emco-cc: quien tiene la sesión es emco-cc.
+	// Activo personal-1 → work-1: quien tiene la sesión es work-1.
 	if err := SaveHandoffs(home, &Handoffs{Version: HandoffsVersion, Active: []Marker{{
-		Session: uuid, Slug: slug, Cwd: cwd, From: "personal-cc", To: "emco-cc",
+		Session: uuid, Slug: slug, Cwd: cwd, From: "personal-1", To: "work-1",
 		Since: "2026-07-25T00:00:00Z",
 	}}}); err != nil {
 		t.Fatal(err)
 	}
 	// El jsonl sigue en el primario (el forward no lo borra): un fan-out desde
-	// personal-cc sería técnicamente posible, y es justo lo que hay que impedir.
-	writeJSONL(t, ProjectDir(ccHomeOf(home, "personal-cc"), slug), uuid, "A", time.Now())
+	// personal-1 sería técnicamente posible, y es justo lo que hay que impedir.
+	writeJSONL(t, ProjectDir(ccHomeOf(home, "personal-1"), slug), uuid, "A", time.Now())
 
-	_, err := HandoffChain(home, "personal-cc", "kimi-cc", cwd, uuid, true, false, time.Now())
+	_, err := HandoffChain(home, "personal-1", "kimi-cc", cwd, uuid, true, false, time.Now())
 	if err == nil {
-		t.Fatal("esperaba error de fan-out: la sesión la tiene emco-cc, no personal-cc")
+		t.Fatal("esperaba error de fan-out: la sesión la tiene work-1, no personal-1")
 	}
 	if !strings.Contains(err.Error(), "ya está en vuelo") {
 		t.Fatalf("mensaje inesperado: %v", err)
 	}
 	// Ni marcador nuevo ni transcript copiado al tercer perfil.
 	h, _ := LoadHandoffs(home)
-	if len(h.Active) != 1 || h.Active[0].To != "emco-cc" {
+	if len(h.Active) != 1 || h.Active[0].To != "work-1" {
 		t.Fatalf("el fan-out rechazado no debe tocar el estado: %+v", h.Active)
 	}
 	if _, err := os.Stat(ProjectDir(ccHomeOf(home, "kimi-cc"), slug)); err == nil {
@@ -161,17 +161,17 @@ func TestHandoffChainRechazos(t *testing.T) {
 		session    string
 		wantSubstr string
 	}{
-		{"mismo perfil", "emco-cc", "emco-cc", uuid, "el mismo que el origen"},
-		{"destino desconocido", "personal-cc", "no-existe", uuid, "perfil destino desconocido"},
-		{"origen desconocido", "no-existe", "emco-cc", uuid, "perfil origen desconocido"},
-		{"uuid inválido", "personal-cc", "emco-cc", "../../x", "id de sesión inválido"},
-		{"sesión ausente", "personal-cc", "emco-cc", "55555555-5555-4555-8555-555555555555", "no encuentro la sesión"},
+		{"mismo perfil", "work-1", "work-1", uuid, "el mismo que el origen"},
+		{"destino desconocido", "personal-1", "no-existe", uuid, "perfil destino desconocido"},
+		{"origen desconocido", "no-existe", "work-1", uuid, "perfil origen desconocido"},
+		{"uuid inválido", "personal-1", "work-1", "../../x", "id de sesión inválido"},
+		{"sesión ausente", "personal-1", "work-1", "55555555-5555-4555-8555-555555555555", "no encuentro la sesión"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			home := t.TempDir()
 			seedChainEnv(t, home)
-			writeJSONL(t, ProjectDir(ccHomeOf(home, "personal-cc"), SlugForCwd(cwd)), uuid, "A", time.Now())
+			writeJSONL(t, ProjectDir(ccHomeOf(home, "personal-1"), SlugForCwd(cwd)), uuid, "A", time.Now())
 			_, err := HandoffChain(home, tc.from, tc.to, cwd, tc.session, true, false, time.Now())
 			if err == nil {
 				t.Fatalf("esperaba error %q", tc.wantSubstr)
@@ -195,17 +195,17 @@ func TestHandoffChainVersionFuturaNoCopia(t *testing.T) {
 	cwd := "/repo/uno"
 	slug := SlugForCwd(cwd)
 	uuid := "66666666-6666-4666-8666-666666666666"
-	writeJSONL(t, ProjectDir(ccHomeOf(home, "personal-cc"), slug), uuid, "A", time.Now())
+	writeJSONL(t, ProjectDir(ccHomeOf(home, "personal-1"), slug), uuid, "A", time.Now())
 	writeFutureHandoffs(t, home)
 
-	_, err := HandoffChain(home, "personal-cc", "emco-cc", cwd, uuid, true, false, time.Now())
+	_, err := HandoffChain(home, "personal-1", "work-1", cwd, uuid, true, false, time.Now())
 	if err == nil {
 		t.Fatal("con versión futura debe abortar")
 	}
 	if !strings.Contains(err.Error(), "versión más nueva") {
 		t.Fatalf("mensaje inesperado: %v", err)
 	}
-	dst := ProjectDir(ccHomeOf(home, "emco-cc"), slug)
+	dst := ProjectDir(ccHomeOf(home, "work-1"), slug)
 	if _, err := os.Stat(dst); err == nil {
 		t.Fatalf("el chain abortado creó %s", dst)
 	}
@@ -226,14 +226,14 @@ func TestHandoffEndSessionTrasCadenaVuelveAlPrimario(t *testing.T) {
 	cwd := "/repo/uno"
 	slug := SlugForCwd(cwd)
 	uuid := "77777777-7777-4777-8777-777777777777"
-	writeJSONL(t, ProjectDir(ccHomeOf(home, "personal-cc"), slug), uuid, "Sesión", time.Now())
+	writeJSONL(t, ProjectDir(ccHomeOf(home, "personal-1"), slug), uuid, "Sesión", time.Now())
 
 	t0 := time.Date(2026, 7, 25, 3, 0, 0, 0, time.UTC)
-	if _, err := HandoffChain(home, "personal-cc", "emco-cc", cwd, uuid, true, false, t0); err != nil {
+	if _, err := HandoffChain(home, "personal-1", "work-1", cwd, uuid, true, false, t0); err != nil {
 		t.Fatal(err)
 	}
-	writeJSONL(t, ProjectDir(ccHomeOf(home, "emco-cc"), slug), uuid, "Sesión", time.Now())
-	if _, err := HandoffChain(home, "emco-cc", "kimi-cc", cwd, uuid, true, false, t0.Add(time.Hour)); err != nil {
+	writeJSONL(t, ProjectDir(ccHomeOf(home, "work-1"), slug), uuid, "Sesión", time.Now())
+	if _, err := HandoffChain(home, "work-1", "kimi-cc", cwd, uuid, true, false, t0.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -241,14 +241,14 @@ func TestHandoffEndSessionTrasCadenaVuelveAlPrimario(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.From != "personal-cc" || m.To != "kimi-cc" {
+	if m.From != "personal-1" || m.To != "kimi-cc" {
 		t.Fatalf("marcador cerrado inesperado: %+v", m)
 	}
 	if newID == "" || newID == uuid {
 		t.Fatalf("uuid de vuelta inválido: %q", newID)
 	}
 	// La sesión de vuelta aterriza en el PRIMARIO, no en el perfil intermedio.
-	back := ProjectDir(ccHomeOf(home, "personal-cc"), slug) + "/" + newID + ".jsonl"
+	back := ProjectDir(ccHomeOf(home, "personal-1"), slug) + "/" + newID + ".jsonl"
 	data, err := os.ReadFile(back)
 	if err != nil {
 		t.Fatalf("no creó la sesión de vuelta en el primario: %v", err)
@@ -260,7 +260,7 @@ func TestHandoffEndSessionTrasCadenaVuelveAlPrimario(t *testing.T) {
 	if len(h.Active) != 0 || len(h.Archived) != 1 {
 		t.Fatalf("un solo end debe cerrar toda la cadena: %+v", h)
 	}
-	if h.Archived[0].ReturnedAs != newID || h.Archived[0].From != "personal-cc" {
+	if h.Archived[0].ReturnedAs != newID || h.Archived[0].From != "personal-1" {
 		t.Fatalf("archivado incorrecto: %+v", h.Archived[0])
 	}
 }
@@ -274,7 +274,7 @@ func TestHandoffPrune(t *testing.T) {
 		var arch []ArchivedMarker
 		for i := 0; i < 5; i++ {
 			arch = append(arch, ArchivedMarker{
-				Session: string(rune('a'+i)) + "-sess", From: "personal-cc", To: "emco-cc",
+				Session: string(rune('a'+i)) + "-sess", From: "personal-1", To: "work-1",
 				Slug: "-repo", ReturnedAs: "r", Since: "2026-07-0" + string(rune('1'+i)) + "T00:00:00Z",
 				Ended: "2026-07-0" + string(rune('1'+i)) + "T01:00:00Z",
 			})
@@ -334,7 +334,7 @@ func TestHandoffPrune(t *testing.T) {
 		home := t.TempDir()
 		seedChainEnv(t, home)
 		if err := SaveHandoffs(home, &Handoffs{Version: HandoffsVersion,
-			Active:   []Marker{{Session: "vivo", Slug: "-repo", Cwd: "/repo", From: "personal-cc", To: "emco-cc", Since: "2026-07-25T00:00:00Z"}},
+			Active:   []Marker{{Session: "vivo", Slug: "-repo", Cwd: "/repo", From: "personal-1", To: "work-1", Since: "2026-07-25T00:00:00Z"}},
 			Archived: []ArchivedMarker{{Session: "viejo"}},
 		}); err != nil {
 			t.Fatal(err)

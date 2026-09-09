@@ -410,14 +410,14 @@ func TestPlanDesktopHintExplicitoGana(t *testing.T) {
 	cfg := cfgConPerfiles(t, map[string]Profile{"work": {Type: "official"}})
 	h := DesktopHost{
 		GOOS:    "darwin",
-		Stat:    fakeStat("/Applications/Claude.app", "/Users/x/Claude EMCO.app"),
-		AppHint: "/Users/x/Claude EMCO.app",
+		Stat:    fakeStat("/Applications/Claude.app", "/Users/x/Claude Work.app"),
+		AppHint: "/Users/x/Claude Work.app",
 	}
 	plan, err := PlanDesktop(h, "/h", "work", cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.App != "/Users/x/Claude EMCO.app" {
+	if plan.App != "/Users/x/Claude Work.app" {
 		t.Fatalf("el hint debería ganar, dio %q", plan.App)
 	}
 }

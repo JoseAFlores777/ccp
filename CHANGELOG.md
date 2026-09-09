@@ -224,8 +224,8 @@ la sexta salió de que la rama estaba en rojo y nadie lo sabía.
 
 ### Added
 
-- La statusLine mínima pasa de `emco-cc · 5h 14% · 7d 31%` a un **medidor con
-  cuenta atrás**: `emco-cc  5h ▏█░░░░░░░░░▏ 2% ·2h13m  7d ▏██████░░░░▏ 59% ·3d`.
+- La statusLine mínima pasa de `work-1 · 5h 14% · 7d 31%` a un **medidor con
+  cuenta atrás**: `work-1  5h ▏█░░░░░░░░░▏ 2% ·2h13m  7d ▏██████░░░░▏ 59% ·3d`.
   El porcentaje solo decía cuánto llevas gastado; no respondía la pregunta que
   uno se hace al mirar la barra, que es **cuándo vuelve la cuota**.
   El medidor va verde por debajo del 70%, ámbar de 70 a 89 y rojo del 90 en
@@ -267,7 +267,7 @@ la sexta salió de que la rama estaba en rojo y nadie lo sabía.
 ### Changed
 
 - La statusLine mínima que ccp pinta cuando **no** tienes una propia pasa de
-  `emco-cc · 31%` a `emco-cc · 5h 14% · 7d 31%`. Antes enseñaba solo el máximo
+  `work-1 · 31%` a `work-1 · 5h 14% · 7d 31%`. Antes enseñaba solo el máximo
   entre las dos ventanas, que es el número que decide (la más gastada corta
   primero) pero como porcentaje suelto era ambiguo: no dice si te quedan horas
   o días, y saltaba de una ventana a otra en cuanto la otra la adelantaba, sin

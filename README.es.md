@@ -283,9 +283,9 @@ Nunca pregunta, ni escribe, si **los dos extremos de la conversación no son una
 El **primario** es lo que devuelva `ccp resolve $PWD` — el dueño natural del directorio. Cualquier otro perfil de la cadena es un **préstamo temporal**. El supervisor es un péndulo, no un round-robin: sale cuando el primario se agota y vuelve en cuanto la ventana del primario se reabre, aunque queden préstamos frescos. Trabajar horas en la cuenta equivocada es peor que esperar.
 
 ```
-personal-cc  ──[límite]──→  app-cc  ──[límite]──→  personal-deepseek
-                                       │
-                                       └──[se reabrió la ventana del primario]──→ personal-cc
+personal-1  ──[límite]──→  work-2  ──[límite]──→  personal-deepseek
+                                      │
+                                      └──[se reabrió la ventana del primario]──→ personal-1
 ```
 
 La vuelta a casa no es un handoff al revés: es `handoff end`, que hace back-sync de la conversación al primario **como sesión nueva con uuid nuevo** (no destructivo, el transcript viejo se queda donde está). El supervisor imprime ese uuid nuevo — es el que le pasarías a `claude --resume` para seguir a mano. Cuando la cadena se seca para con código de salida **75** (`EX_TEMPFAIL`, "reintenta luego") y una tabla de cuándo se libera cada perfil; el marcador se deja vivo, así que no se pierde nada.
@@ -295,7 +295,7 @@ Hay un préstamo que no tiene marcador que cerrar: una rotación que disparó *a
 Mientras la sesión está prestada, un **temporizador `return_check`** pregunta solo, cada N minutos, si la ventana del primario se reabrió — nadie tiene que topar un límite para que vuelvas a casa. Ese es justo el punto: la ventana de 5h del primario se reabre a las 3am, y ningún sensor dispara cuando se libera *otra* cuenta, así que sin el temporizador la corrida pasaría la noche en el préstamo. La vuelta respeta igual `min_dwell` (no te sacan de un préstamo al que llegaste hace 30 segundos), y el perfil que dejas **no** se marca agotado — lo dejaste voluntariamente, conserva su crédito:
 
 ```
-p2 (2h 00m) ──[return_check: personal-cc ya liberó su ventana]──→ volviendo a personal-cc (vuelta a casa, no gasta préstamo: siguen 1/6)
+p2 (2h 00m) ──[return_check: personal-1 ya liberó su ventana]──→ volviendo a personal-1 (vuelta a casa, no gasta préstamo: siguen 1/6)
 ```
 
 **La vuelta a casa espera al silencio (`return_idle`, 90s por defecto).** Es el único movimiento que el supervisor hace por razones propias: rotar por un límite mata a un hijo que *ya no puede trabajar* (su cuenta responde 429), pero volver a casa mataría a uno que funciona bien. Solo con los defaults (`min_dwell: 20m` + `return_check: 10m`) cualquier préstamo de más de veinte minutos terminaría en el instante en que venciera el cooldown del primario — contigo tecleando, a mitad de un turno o con una tool call en vuelo, y una tool call interrumpida la re-ejecuta `--resume` y puede no ser idempotente. Por eso el temporizador exige además que la sesión esté **ociosa**: el transcript (que crece con cada turno y cada resultado de herramienta) no puede haber sido tocado en `return_idle`. Si nunca se calla, no se fuerza nada — el temporizador solo sigue ofreciendo; vuelves cuando paras, cuando el hijo sale por su cuenta o en el siguiente límite. Perder una oportunidad de volver es barato; quitarte la terminal a media frase no. Un transcript que no existe **no** cuenta como ocioso (no sabemos nada, y matar por ignorancia es justo lo que se evita), y `return_idle: 0s` es el opt-out explícito. La regla vale también en headless (`-p`): que no haya nadie mirando no hace menos frágil una tool call a medias.
@@ -313,13 +313,13 @@ ccp session: p1 ya liberó su ventana; la sesión sigue activa, se volverá cuan
 ```yaml
 auto_handoff:
   enabled: true              # interruptor maestro: false = ccp session se niega a correr
-  hooks: [personal-cc, app-cc]   # perfiles con la capa de sensores instalada
+  hooks: [personal-1, work-2]    # perfiles con la capa de sensores instalada
                                  # (la gestiona `ccp auto install/uninstall`)
   policies:
     default:
       # Préstamos, en orden de preferencia. El primario es IMPLÍCITO (ccp resolve $PWD)
       # y se descarta en silencio si lo listas aquí.
-      fallback: [app-cc, personal-deepseek]
+      fallback: [work-2, personal-deepseek]
       threshold: 90          # % de la ventana de uso que dispara un salto proactivo
       min_dwell: 20m         # tiempo mínimo antes de rotar (entero solo para el sensor proactivo)
       max_hops: 6            # tope duro de PRÉSTAMOS por corrida (backstop anti-bucle;
@@ -333,7 +333,7 @@ auto_handoff:
         fallback: 1h         # …o esta espera fija cuando no hay resets_at
 
     overnight:               # `ccp session -p --policy overnight`
-      fallback: [personal-cc, app-cc]
+      fallback: [personal-1, work-2]
       threshold: 85
       max_hops: 12
 
@@ -341,9 +341,9 @@ auto_handoff:
       fallback: []           # sin préstamos: si el primario muere, la corrida para
 
   allow_from:                # verja de cumplimiento (ver abajo)
-    emco-cc: [emco-cc]                                   # nunca rota
-    app-cc: [app-cc, personal-cc]
-    personal-cc: [personal-cc, app-cc, personal-deepseek]
+    work-1: [work-1]                                   # nunca rota
+    work-2: [work-2, personal-1]
+    personal-1: [personal-1, work-2, personal-deepseek]
 ```
 
 > **Qué hace de verdad el temporizador `return_check` — no es un reloj pasivo.** Solo se arma mientras la sesión está **prestada**: tiene que haber un marcador de handoff vivo cuyo origen sea el primario (una rotación *degradada* — la que ocurrió antes de que existiera transcript y por eso nunca abrió marcador — no cuenta), más `--no-return` apagado y `return_check > 0`. Ya armado, re-decide una vez por periodo, y cada decisión es barata: unas comparaciones y un `stat` del transcript. Lo que *no* es barato es lo que pasa cuando la decisión sale "a casa" — su única acción es **mandarle `SIGTERM` al `claude` vivo** (10s de gracia para que vacíe su `.jsonl` y corra sus hooks `SessionEnd`), cerrar el préstamo y **relanzar** `claude --resume` en el primario con el uuid nuevo. Eso es un proceso muerto y un hijo nuevo, no una comparación de timestamps. De ahí las cuatro condiciones que exige antes de disparar, todas: préstamo vivo · cooldown del primario vencido · `min_dwell` ya cumplido en el perfil actual · sesión **ociosa** durante `return_idle`. Un evento de límite ya encolado por un sensor también le gana (rotar en su lugar conserva el cooldown del perfil que se deja). Si falta cualquier condición, simplemente espera y vuelve a preguntar al periodo siguiente — nunca fuerza el movimiento. Desactívalo con `return_check: 0s` (entonces vuelves a casa en el siguiente evento de límite, como antes) o con `--no-return`.
@@ -367,10 +367,10 @@ Esa última fila es el punto: declarar el mapa es declarar la intención de gobe
 ```bash
 ccp auto chain                        # la cadena EFECTIVA de este directorio
 ccp auto chain add personal-deepseek  # lo añade al final, y autoriza el préstamo
-ccp auto chain add app-cc --at 1      # lo inserta en una posición (1-based)
-ccp auto chain mv app-cc 2            # reordena — el orden ES la preferencia
+ccp auto chain add work-2 --at 1      # lo inserta en una posición (1-based)
+ccp auto chain mv work-2 2            # reordena — el orden ES la preferencia
 ccp auto chain rm personal-deepseek   # lo saca, y retira la autorización
-ccp auto chain set app-cc,emco-cc     # reemplaza la cadena entera
+ccp auto chain set work-1,work-2      # reemplaza la cadena entera
 ```
 
 Todos aceptan `--policy <nombre>` (por defecto: `default`) y actúan sobre el primario del **directorio actual**, que es el único cuya entrada de `allow_from` pueden tocar.
@@ -386,11 +386,11 @@ Todos aceptan `--policy <nombre>` (por defecto: `default`) y actúan sobre el pr
 ```console
 $ ccp auto chain add personal-deepseek
 
-[ok] fallback   app-cc → emco-cc → personal-deepseek
-[ok] allow_from personal-cc: +personal-deepseek
+[ok] fallback   work-1 → work-2 → personal-deepseek
+[ok] allow_from personal-1: +personal-deepseek
 
 cadena efectiva desde este repo:
-  app-cc → emco-cc → personal-deepseek
+  work-1 → work-2 → personal-deepseek
 ```
 
 Toda mutación cierra releyendo la cadena efectiva **del disco**, así que ves lo que va a ver el motor — incluido lo que `allow_from` siga bloqueando.
@@ -409,10 +409,10 @@ Editar el archivo a mano sigue siendo perfectamente válido, y es como se añade
 auto_handoff:
   policies:
     default:
-      # El orden ES la preferencia: primero app-cc, el proveedor solo como último recurso.
-      fallback: [app-cc, personal-deepseek]
+      # El orden ES la preferencia: primero work-2, el proveedor solo como último recurso.
+      fallback: [work-2, personal-deepseek]
   allow_from:
-    personal-cc: [personal-cc, app-cc, personal-deepseek]   # ← la entrada del primario
+    personal-1: [personal-1, work-2, personal-deepseek]   # ← la entrada del primario
 ```
 
 Las reglas que el resolver aplica a `fallback`, en una sola pasada: el **primario es implícito** y se descarta en silencio si lo listas; los duplicados se eliminan (no compran un préstamo extra); `default` es un destino legítimo (es tu login normal de `~/.claude`); y el orden que escribiste se respeta tal cual.
@@ -429,7 +429,7 @@ ccp session --dry-run                 # a qué resuelve la cadena, aquí
 ```
 política: default
 primario: work (cwd /home/yo/repo)
-cadena de préstamos: app-cc → deepseek
+cadena de préstamos: work-2 → deepseek
 umbral 90% · min_dwell 20m0s · max_hops 6 · return_check 10m0s · return_idle 1m30s · cooldown resets_at (respaldo 1h0m0s)
 ```
 
@@ -437,7 +437,7 @@ Si solo editaste `fallback` y olvidaste `allow_from`, `--dry-run` te lo dice en 
 
 ```
 cadena de préstamos: (vacía)
-denegados por allow_from: app-cc, deepseek
+denegados por allow_from: work-2, deepseek
 ```
 
 **Un nombre que no existe es un error duro, no un salto silencioso.** Un typo — o un perfil que borraste — detiene `ccp session` antes de lanzar nada, con exit `1`:
@@ -474,7 +474,7 @@ Los dos sensores in-process solo se pueden encender desde `cc-home/settings.json
 - `hooks.StopFailure` → `ccp _limit-hook`
 - `statusLine` → `ccp _statusline -- <tu statusLine original>` (la tuya se **envuelve**, no se reemplaza — sigue pintando tu barra; ccp solo muestrea el stdin que le llega)
 
-Si **no** tenías statusLine propia, ccp pinta una mínima en su lugar: el perfil más las dos ventanas de uso, cada una con su medidor y su cuenta atrás hasta el reset — `emco-cc  5h ▏█░░░░░░░░░▏ 2% ·2h13m  7d ▏██████░░░░▏ 59% ·3d`. Se enseñan las dos porque las dos se vigilan por separado (dispara el salto la primera que cruce el `threshold`), y un porcentaje suelto no diría si te quedan horas o días.
+Si **no** tenías statusLine propia, ccp pinta una mínima en su lugar: el perfil más las dos ventanas de uso, cada una con su medidor y su cuenta atrás hasta el reset — `work-1  5h ▏█░░░░░░░░░▏ 2% ·2h13m  7d ▏██████░░░░▏ 59% ·3d`. Se enseñan las dos porque las dos se vigilan por separado (dispara el salto la primera que cruce el `threshold`), y un porcentaje suelto no diría si te quedan horas o días.
 
 El medidor va verde por debajo del 70%, ámbar entre 70 y 89, y rojo del 90 en adelante — el rojo empieza exactamente en el default de `threshold`, así que la barra y el motor nunca cuentan historias distintas. Con `NO_COLOR` se va el tinte y el medidor se sigue leyendo.
 
@@ -490,15 +490,15 @@ Cualquier hook `StopFailure` que ya tuvieras se conserva junto al nuestro. Es to
 
 ```
 $ ccp session
-# primario = personal-cc (regla de ruta de ~/Documents/Personal)
+# primario = personal-1 (regla de ruta de ~/Documents/Personal)
 
-▶ personal-cc · sesión nueva 3f9c1a2b                                   (stderr)
-personal-cc (4h 03m) ──[uso 94% ≥ umbral 90% (ventana session) · statusline]──→ handoff a app-cc (préstamo 1/6)
-▶ app-cc · reanudando 3f9c1a2b                                          (stderr)
-app-cc (1h 12m) ──[You've hit your session limit · transcript]──→ volviendo a personal-cc (vuelta a casa, no gasta préstamo: siguen 1/6)
-sesión devuelta a personal-cc como 7d0e44f1
-▶ personal-cc · reanudando 7d0e44f1                                     (stderr)
-personal-cc ──[termina]──→ ✅ exit 0
+▶ personal-1 · sesión nueva 3f9c1a2b                                    (stderr)
+personal-1 (4h 03m) ──[uso 94% ≥ umbral 90% (ventana session) · statusline]──→ handoff a work-2 (préstamo 1/6)
+▶ work-2 · reanudando 3f9c1a2b                                          (stderr)
+work-2 (1h 12m) ──[You've hit your session limit · transcript]──→ volviendo a personal-1 (vuelta a casa, no gasta préstamo: siguen 1/6)
+sesión devuelta a personal-1 como 7d0e44f1
+▶ personal-1 · reanudando 7d0e44f1                                      (stderr)
+personal-1 ──[termina]──→ ✅ exit 0
 ```
 
 **Cómo leer el contador.** Todo movimiento acaba en el mismo presupuesto, dicho de una sola manera: un movimiento de ida es `préstamo N/6` (este es el préstamo N de tus `max_hops`), y una vuelta a casa es `vuelta a casa, no gasta préstamo: siguen N/6`. El número *no* sube al volver — volver es cerrar un préstamo, no abrir uno nuevo (ver `max_hops` arriba) — así que la línea lo dice en voz alta en vez de dejarte adivinando por qué dos movimientos seguidos muestran `1/6`. A la vuelta a casa nunca se le llama *préstamo*, la haya causado lo que la haya causado (un límite en el perfil prestado o el temporizador `return_check`): es el mismo suceso, así que lleva las mismas palabras.
@@ -517,10 +517,10 @@ Códigos de salida: `0` ok · `1` error de uso/config · `2` fallo de E/S del ha
 entorno Cowork… y el Code tab. Puedes tener la de trabajo y la personal abiertas a la vez.
 
 ```bash
-ccp desktop open emco            # lanza la instancia del perfil 'emco'
-ccp desktop open                 # sin perfil: el que resuelva la carpeta actual
-ccp desktop list                 # instancias en disco y su tamaño
-ccp desktop open emco --dry-run  # imprime el plan sin lanzar ni tocar nada
+ccp desktop open work-1            # lanza la instancia del perfil 'work-1'
+ccp desktop open                   # sin perfil: el que resuelva la carpeta actual
+ccp desktop list                   # instancias en disco y su tamaño
+ccp desktop open work-1 --dry-run  # imprime el plan sin lanzar ni tocar nada
 ```
 
 Funciona **sin reinstalar el rc** (`ccp install` solo hace falta para el autocompletado).
@@ -595,7 +595,7 @@ ccp config editor "code -w"                  # editor a usar (fallback: $EDITOR)
 
 ```bash
 ccp config edit                     # abre ~/.config/ccp/ccp.yaml, y al cerrar lo relee y valida
-ccp config edit --profile personal-cc   # abre el overlay de ese perfil
+ccp config edit --profile personal-1   # abre el overlay de ese perfil
 ccp config edit --terminal          # fuerza el editor de terminal ($EDITOR / nano)
 ccp config gui-editor "code -w"     # fija el editor gráfico de una vez
 ```

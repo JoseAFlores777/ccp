@@ -380,7 +380,7 @@ footer{padding:48px 0; background:var(--bg-soft)}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
           Hoy
         </div>
-        <div class="cmp-b"><div class="line"><span class="g-prof">personal-cc</span> <span class="g-dim">·</span> <span class="g-lbl">5h</span> 2% <span class="g-dim">·</span> <span class="g-lbl">7d</span> 59%</div></div>
+        <div class="cmp-b"><div class="line"><span class="g-prof">personal-1</span> <span class="g-dim">·</span> <span class="g-lbl">5h</span> 2% <span class="g-dim">·</span> <span class="g-lbl">7d</span> 59%</div></div>
         <div class="cmp-note">Un porcentaje suelto. «59%» no responde la única pregunta que uno se hace al mirar la barra: <em>¿me va a cortar hoy, y cuándo recupero cuota?</em></div>
       </div>
       <div class="cmp">
@@ -388,7 +388,7 @@ footer{padding:48px 0; background:var(--bg-soft)}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
           Propuesto
         </div>
-        <div class="cmp-b"><div class="line"><span class="g-prof">personal-cc</span>  <span class="g-lbl">5h</span> <span class="g-ok">▏██░░░░░░░░▏</span> <span class="g-ok">2%</span> <span class="g-dim">·2h14m</span>  <span class="g-lbl">7d</span> <span class="g-warn">▏██████░░░░▏</span> <span class="g-warn">59%</span> <span class="g-dim">·3d</span></div></div>
+        <div class="cmp-b"><div class="line"><span class="g-prof">personal-1</span>  <span class="g-lbl">5h</span> <span class="g-ok">▏██░░░░░░░░▏</span> <span class="g-ok">2%</span> <span class="g-dim">·2h14m</span>  <span class="g-lbl">7d</span> <span class="g-warn">▏██████░░░░▏</span> <span class="g-warn">59%</span> <span class="g-dim">·3d</span></div></div>
         <div class="cmp-note">Medidor + cuenta atrás hasta el reset, con <strong>degradación por ancho</strong> en tres niveles para que nunca se trunque justo por el dato del reset.</div>
       </div>
     </div>
@@ -560,13 +560,13 @@ footer{padding:48px 0; background:var(--bg-soft)}
         <div class="term">
           <div class="term-h"><span class="tl"><i></i><i></i><i></i></span><span class="term-t">los tres niveles</span><button class="copy" type="button">copiar</button></div>
 <pre><span class="c"># ≥60 columnas — completo</span>
-personal-cc  5h ▏██░░░░░░░░▏ 2% ·2h14m  7d ▏██████░░░░▏ 59% ·3d
+personal-1  5h ▏██░░░░░░░░▏ 2% ·2h14m  7d ▏██████░░░░▏ 59% ·3d
 
 <span class="c"># 40–59 — medidor de 4 celdas</span>
-personal-cc · 5h ▏██░░▏2% ·2h14m · 7d ▏██▆░▏59% ·3d
+personal-1 · 5h ▏██░░▏2% ·2h14m · 7d ▏██▆░▏59% ·3d
 
 <span class="c"># &lt;40 — sin medidor, el reset sobrevive</span>
-personal-cc · 5h 2% ·2h · 7d 59% ·3d</pre>
+personal-1 · 5h 2% ·2h · 7d 59% ·3d</pre>
         </div>
         <p class="why" style="margin-top:16px">
           Cortes de color <strong>verde &lt;70% · ámbar 70–89% · rojo ≥90%</strong>: los mismos que el umbral
@@ -746,11 +746,11 @@ ccp auto chain <span class="k">set</span> &lt;a,b,c&gt;               <span clas
           <div class="term-h"><span class="tl"><i></i><i></i><i></i></span><span class="term-t">reporte explícito</span><button class="copy" type="button">copiar</button></div>
 <pre><span class="p">$</span> ccp auto chain add personal-deepseek
 
-<span class="p">✔</span> fallback   app-cc → emco-cc → personal-deepseek
-<span class="p">✔</span> allow_from personal-cc: +personal-deepseek
+<span class="p">✔</span> fallback   work-1 → work-2 → personal-deepseek
+<span class="p">✔</span> allow_from personal-1: +personal-deepseek
 
 cadena efectiva desde este repo:
-  app-cc → emco-cc → personal-deepseek</pre>
+  work-1 → work-2 → personal-deepseek</pre>
         </div>
       </div>
     </article>
@@ -770,8 +770,8 @@ cadena efectiva desde este repo:
 <pre><span class="p">$</span> ccp session
 
 Este repo no está configurado del todo:
-  <span class="o">·</span> regla    joseiz-poc → personal-cc   <span class="s">(crear)</span>
-  <span class="o">·</span> sensores personal-cc, app-cc          <span class="s">(instalar)</span>
+  <span class="o">·</span> regla    joseiz-poc → personal-1   <span class="s">(crear)</span>
+  <span class="o">·</span> sensores personal-1, work-2           <span class="s">(instalar)</span>
   <span class="o">·</span> política default                      <span class="p">(ok)</span>
 
 ¿Configurar ahora? [S/n]</pre>
@@ -1090,7 +1090,7 @@ go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run --time
           <div class="term-h"><span class="tl"><i></i><i></i><i></i></span><span class="term-t">manual · CCP_HOME temporal</span><button class="copy" type="button">copiar</button></div>
 <pre><span class="k">export</span> CCP_HOME=$(mktemp -d)
 ccp auto init
-ccp auto chain add emco-cc
+ccp auto chain add work-1
 ccp auto status
 
 COLUMNS=40 ccp _statusline &lt;/dev/null   <span class="c"># nivel medio</span>

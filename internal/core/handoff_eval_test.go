@@ -24,10 +24,10 @@ func TestHandoffEmitEvalEffect(t *testing.T) {
 
 			cwd := "/repo"
 			uuid := "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd"
-			srcDir := ProjectDir(home+"/profiles/personal-cc/cc-home", SlugForCwd(cwd))
+			srcDir := ProjectDir(home+"/profiles/personal-1/cc-home", SlugForCwd(cwd))
 			writeJSONL(t, srcDir, uuid, "T", time.Now())
 
-			emit, err := HandoffForward(home, "personal-cc", "emco-cc", cwd, uuid, true, false, false, time.Now())
+			emit, err := HandoffForward(home, "personal-1", "work-1", cwd, uuid, true, false, false, time.Now())
 			if err != nil {
 				t.Fatalf("HandoffForward: %v", err)
 			}
@@ -40,7 +40,7 @@ func TestHandoffEmitEvalEffect(t *testing.T) {
 			}
 
 			s := string(out)
-			if !strings.Contains(s, "emco-cc/cc-home") {
+			if !strings.Contains(s, "work-1/cc-home") {
 				t.Errorf("%s: CLAUDE_CONFIG_DIR no apunta al cc-home del destino:\n%s", sh, s)
 			}
 			if !strings.Contains(s, "RID="+uuid) {
@@ -65,7 +65,7 @@ func TestHandoffYoloEvalEffect(t *testing.T) {
 			seedHandoffEnv(t, home)
 			cwd := "/repo"
 			uuid := "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
-			srcDir := ProjectDir(home+"/profiles/personal-cc/cc-home", SlugForCwd(cwd))
+			srcDir := ProjectDir(home+"/profiles/personal-1/cc-home", SlugForCwd(cwd))
 			writeJSONL(t, srcDir, uuid, "T", time.Now())
 
 			for _, tc := range []struct {
@@ -76,7 +76,7 @@ func TestHandoffYoloEvalEffect(t *testing.T) {
 				{"con yolo", true, "YOLO=1"},
 				{"sin yolo", false, "YOLO="},
 			} {
-				emit, err := HandoffForward(home, "personal-cc", "emco-cc", cwd, uuid, false, tc.yolo, false, time.Now())
+				emit, err := HandoffForward(home, "personal-1", "work-1", cwd, uuid, false, tc.yolo, false, time.Now())
 				if err != nil {
 					t.Fatalf("%s: %v", tc.name, err)
 				}

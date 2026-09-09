@@ -24,8 +24,8 @@ func futureHandoffsHome(t *testing.T) string {
 		"- session: 99999999-0000-4000-8000-000000000001\n" +
 		"  slug: -work\n" +
 		"  cwd: /work\n" +
-		"  from: personal-cc\n" +
-		"  to: emco-cc\n" +
+		"  from: personal-1\n" +
+		"  to: work-1\n" +
 		"  since: \"2026-01-01T00:00:00Z\"\n"
 	if err := os.WriteFile(filepath.Join(home, "handoffs.yaml"), []byte(future), 0o644); err != nil {
 		t.Fatal(err)

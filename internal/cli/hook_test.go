@@ -23,7 +23,7 @@ func TestHookAvisaHandoffActivo(t *testing.T) {
 		Version: core.HandoffsVersion,
 		Active: []core.Marker{{
 			Session: "aaa", Slug: core.SlugForCwd(cwd), Cwd: cwd,
-			From: "personal-cc", To: "emco-cc", Since: "2026-07-25T00:00:00Z",
+			From: "personal-1", To: "work-1", Since: "2026-07-25T00:00:00Z",
 		}},
 	}); err != nil {
 		t.Fatal(err)
@@ -59,7 +59,7 @@ func TestHookHandoffDeOtroRepoNoAvisa(t *testing.T) {
 		Version: core.HandoffsVersion,
 		Active: []core.Marker{{
 			Session: "aaa", Slug: core.SlugForCwd("/repo/otro"), Cwd: "/repo/otro",
-			From: "personal-cc", To: "emco-cc", Since: "2026-07-25T00:00:00Z",
+			From: "personal-1", To: "work-1", Since: "2026-07-25T00:00:00Z",
 		}},
 	})
 	var out, errb bytes.Buffer
@@ -77,8 +77,8 @@ func TestHookAvisaVariosHandoffs(t *testing.T) {
 	_ = core.SaveHandoffs(home, &core.Handoffs{
 		Version: core.HandoffsVersion,
 		Active: []core.Marker{
-			{Session: "aaa", Slug: core.SlugForCwd(cwd), Cwd: cwd, From: "personal-cc", To: "emco-cc", Since: "2026-07-25T00:00:00Z"},
-			{Session: "bbb", Slug: core.SlugForCwd(cwd), Cwd: cwd, From: "personal-cc", To: "kimi", Since: "2026-07-25T01:00:00Z"},
+			{Session: "aaa", Slug: core.SlugForCwd(cwd), Cwd: cwd, From: "personal-1", To: "work-1", Since: "2026-07-25T00:00:00Z"},
+			{Session: "bbb", Slug: core.SlugForCwd(cwd), Cwd: cwd, From: "personal-1", To: "kimi", Since: "2026-07-25T01:00:00Z"},
 		},
 	})
 	var out, errb bytes.Buffer
@@ -100,7 +100,7 @@ func TestHookAvisoEsEvalSeguro(t *testing.T) {
 		Version: core.HandoffsVersion,
 		Active: []core.Marker{{
 			Session: "aaa", Slug: core.SlugForCwd(cwd), Cwd: cwd,
-			From: "personal-cc", To: "emco-cc", Since: "2026-07-25T00:00:00Z",
+			From: "personal-1", To: "work-1", Since: "2026-07-25T00:00:00Z",
 		}},
 	})
 	var out, errb bytes.Buffer

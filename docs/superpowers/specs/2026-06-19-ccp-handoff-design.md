@@ -87,14 +87,14 @@ active:                              # 0 o 1 entradas (regla "1 nivel v1")
   session: bbc1ed61-ada1-408f-...    # uuid copiado (mismo en origen y destino)
   slug: -Volumes-...-dsctl-v2        # proyecto (cwd → guiones)
   cwd: /Volumes/.../dsctl-v2         # ruta absoluta, para validar
-  from: personal-cc                  # perfil padre (de donde saliste)
-  to: emco-cc                        # perfil destino (tokens prestados)
+  from: personal-1                   # perfil padre (de donde saliste)
+  to: work-1                         # perfil destino (tokens prestados)
   title: "Refactor handoff en ccp"   # aiTitle al momento del forward (display)
   since: 2026-06-19T14:30:00Z
 archived:                            # historial (para `handoff list`)
   - session: 9c2e0d4f-...
-    from: personal-cc
-    to: emco-cc
+    from: personal-1
+    to: work-1
     returned_as: a1b2f0d3-...        # uuid nuevo creado en el back-sync
     since: 2026-06-18T10:00:00Z
     ended: 2026-06-18T15:20:00Z
@@ -205,18 +205,18 @@ El feature es **nuevo** (no está en el contrato bash congelado), pero la **shel
 ## 10 · Resumen del ciclo
 
 ```
-personal-cc (sin tokens)                    emco-cc (tokens frescos)
+personal-1 (sin tokens)                    work-1 (tokens frescos)
    bbc1ed61.jsonl                                │
-   │ ccp handoff → pick emco-cc → pick bbc1ed61  │
-   │ marcador active: personal-cc → emco-cc      │
+   │ ccp handoff → pick work-1 → pick bbc1ed61   │
+   │ marcador active: personal-1 → work-1        │
    ├──── copia bbc1ed61 (mismo uuid) ───────────►│ claude --resume bbc1ed61, +N msgs
    │                                              │
    │ ccp handoff end                              │
    │◄─── reescribe sessionId→a1b2, aiTitle ───────┤ (lee bbc1ed61 actualizado)
-   │     escribe a1b2.jsonl "[de emco-cc] ..."    │
+   │     escribe a1b2.jsonl "[de work-1] ..."     │
    bbc1ed61 intacto · a1b2 = contexto completo    │
    marcador → archived (returned_as a1b2)         │
-   claude --resume a1b2  (ya en personal-cc)      │
+   claude --resume a1b2  (ya en personal-1)       │
 ```
 
 ---

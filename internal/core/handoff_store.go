@@ -37,8 +37,8 @@ type Marker struct {
 	// Hops es el rastro de perfiles DESTINO por los que pasó la sesión, en orden
 	// (el primario es From y no aparece aquí). El encadenado muta el marcador en
 	// sitio en vez de apilar niveles, así que sin este rastro se perdería por
-	// completo la ruta real —el usuario vería `personal-cc → kimi` sin saber que
-	// de por medio se quemó emco-cc, que es justo el dato que explica el gasto.
+	// completo la ruta real —el usuario vería `personal-1 → kimi` sin saber que
+	// de por medio se quemó work-1, que es justo el dato que explica el gasto.
 	//
 	// Ambos campos son ADITIVOS: van con `omitempty` y HandoffsVersion sigue en 2
 	// a propósito, para que un ccp viejo lea el archivo sin romperse (los ignora)

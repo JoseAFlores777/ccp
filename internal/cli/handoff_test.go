@@ -28,7 +28,7 @@ func TestHandoffForwardShellOnly(t *testing.T) {
 	t.Setenv("CCP_HOME", home)
 	var out, errb bytes.Buffer
 	// `ccp handoff <perfil>` directo al binario (sin función shell) = shell-only.
-	code := Dispatch([]string{"handoff", "emco-cc"}, &out, &errb)
+	code := Dispatch([]string{"handoff", "work-1"}, &out, &errb)
 	if code != 1 {
 		t.Fatalf("exit = %d, want 1", code)
 	}
@@ -38,20 +38,20 @@ func TestHandoffEmitForward(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("CCP_HOME", home)
 	cfg := &core.Config{Version: core.SchemaVersion,
-		Profiles: map[string]core.Profile{"personal-cc": {Type: "official"}, "emco-cc": {Type: "official"}}}
+		Profiles: map[string]core.Profile{"personal-1": {Type: "official"}, "work-1": {Type: "official"}}}
 	if err := core.Save(home, cfg); err != nil {
 		t.Fatal(err)
 	}
 	cwd := "/repo"
 	slug := core.SlugForCwd(cwd)
 	uuid := "abababab-abab-4bab-8bab-abababababab"
-	dir := core.ProjectDir(home+"/profiles/personal-cc/cc-home", slug)
+	dir := core.ProjectDir(home+"/profiles/personal-1/cc-home", slug)
 	_ = writeJSONLForTest(t, dir, uuid) // helper local (ver Step 3)
 
-	t.Setenv("CCP_PROFILE", "personal-cc")
+	t.Setenv("CCP_PROFILE", "personal-1")
 	var out, errb bytes.Buffer
 	// _handoff <pwd> <to> --session <uuid>
-	code := Dispatch([]string{"_handoff", cwd, "emco-cc", "--session", uuid}, &out, &errb)
+	code := Dispatch([]string{"_handoff", cwd, "work-1", "--session", uuid}, &out, &errb)
 	if code != 0 {
 		t.Fatalf("exit = %d, stderr=%s", code, errb.String())
 	}
@@ -68,12 +68,12 @@ func TestParseHandoffFlags(t *testing.T) {
 		wantYol bool
 		wantMk  bool
 	}{
-		{[]string{"emco-cc"}, "emco-cc", "", false, true},
-		{[]string{"emco-cc", "--session", "abc"}, "emco-cc", "abc", false, true},
-		{[]string{"emco-cc", "--yolo"}, "emco-cc", "", true, true},
-		{[]string{"emco-cc", "--dangerously-skip-permissions"}, "emco-cc", "", true, true},
-		{[]string{"emco-cc", "--no-marker", "--yolo"}, "emco-cc", "", true, false},
-		{[]string{"--session", "abc", "emco-cc"}, "emco-cc", "abc", false, true},
+		{[]string{"work-1"}, "work-1", "", false, true},
+		{[]string{"work-1", "--session", "abc"}, "work-1", "abc", false, true},
+		{[]string{"work-1", "--yolo"}, "work-1", "", true, true},
+		{[]string{"work-1", "--dangerously-skip-permissions"}, "work-1", "", true, true},
+		{[]string{"work-1", "--no-marker", "--yolo"}, "work-1", "", true, false},
+		{[]string{"--session", "abc", "work-1"}, "work-1", "abc", false, true},
 	}
 	for _, c := range cases {
 		f, err := parseHandoffFlags(c.args)
@@ -87,19 +87,19 @@ func TestParseHandoffFlags(t *testing.T) {
 }
 
 func TestParseHandoffFlagsSessionSinValor(t *testing.T) {
-	if _, err := parseHandoffFlags([]string{"emco-cc", "--session"}); err == nil {
+	if _, err := parseHandoffFlags([]string{"work-1", "--session"}); err == nil {
 		t.Fatal("esperaba error: --session sin valor")
 	}
 }
 
 func TestParseHandoffFlagsDesconocido(t *testing.T) {
-	if _, err := parseHandoffFlags([]string{"emco-cc", "--nope"}); err == nil {
+	if _, err := parseHandoffFlags([]string{"work-1", "--nope"}); err == nil {
 		t.Fatal("esperaba error: flag desconocido")
 	}
 }
 
 func TestParseHandoffFlagsForce(t *testing.T) {
-	f, err := parseHandoffFlags([]string{"emco-cc", "--force"})
+	f, err := parseHandoffFlags([]string{"work-1", "--force"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestHandoffStatusPorCwd(t *testing.T) {
 		Version: core.HandoffsVersion,
 		Active: []core.Marker{{
 			Session: "aaaaaaaa-1111-4111-8111-111111111111", Slug: core.SlugForCwd(cwd), Cwd: cwd,
-			From: "personal-cc", To: "emco-cc", Since: "2026-07-25T00:00:00Z",
+			From: "personal-1", To: "work-1", Since: "2026-07-25T00:00:00Z",
 		}},
 	}); err != nil {
 		t.Fatal(err)
@@ -138,7 +138,7 @@ func TestHandoffStatusPorCwd(t *testing.T) {
 	if code := Dispatch([]string{"handoff", "status"}, &out, &errb); code != 0 {
 		t.Fatalf("con activo aquí esperaba exit 0, got %d (%s)", code, errb.String())
 	}
-	if !strings.Contains(out.String(), "aaaaaaaa") || !strings.Contains(out.String(), "emco-cc") {
+	if !strings.Contains(out.String(), "aaaaaaaa") || !strings.Contains(out.String(), "work-1") {
 		t.Fatalf("status no muestra el marcador: %q", out.String())
 	}
 
@@ -160,8 +160,8 @@ func TestHandoffStatusAllListaTodos(t *testing.T) {
 	_ = core.SaveHandoffs(home, &core.Handoffs{
 		Version: core.HandoffsVersion,
 		Active: []core.Marker{
-			{Session: "aaaaaaaa-1111-4111-8111-111111111111", Cwd: "/repo/uno", Slug: core.SlugForCwd("/repo/uno"), From: "personal-cc", To: "emco-cc", Since: "2026-07-25T00:00:00Z"},
-			{Session: "bbbbbbbb-2222-4222-8222-222222222222", Cwd: "/repo/dos", Slug: core.SlugForCwd("/repo/dos"), From: "personal-cc", To: "kimi", Since: "2026-07-25T01:00:00Z"},
+			{Session: "aaaaaaaa-1111-4111-8111-111111111111", Cwd: "/repo/uno", Slug: core.SlugForCwd("/repo/uno"), From: "personal-1", To: "work-1", Since: "2026-07-25T00:00:00Z"},
+			{Session: "bbbbbbbb-2222-4222-8222-222222222222", Cwd: "/repo/dos", Slug: core.SlugForCwd("/repo/dos"), From: "personal-1", To: "kimi", Since: "2026-07-25T01:00:00Z"},
 		},
 	})
 	var out, errb bytes.Buffer
@@ -180,10 +180,10 @@ func TestHandoffListMuestraActivosYArchivados(t *testing.T) {
 	_ = core.SaveHandoffs(home, &core.Handoffs{
 		Version: core.HandoffsVersion,
 		Active: []core.Marker{
-			{Session: "aaaaaaaa-1111-4111-8111-111111111111", Cwd: "/repo/uno", Slug: core.SlugForCwd("/repo/uno"), From: "personal-cc", To: "emco-cc", Since: "2026-07-25T00:00:00Z"},
+			{Session: "aaaaaaaa-1111-4111-8111-111111111111", Cwd: "/repo/uno", Slug: core.SlugForCwd("/repo/uno"), From: "personal-1", To: "work-1", Since: "2026-07-25T00:00:00Z"},
 		},
 		Archived: []core.ArchivedMarker{
-			{Session: "cccccccc-3333-4333-8333-333333333333", From: "personal-cc", To: "kimi", ReturnedAs: "dddddddd", Since: "2026-07-01T00:00:00Z", Ended: "2026-07-02T00:00:00Z"},
+			{Session: "cccccccc-3333-4333-8333-333333333333", From: "personal-1", To: "kimi", ReturnedAs: "dddddddd", Since: "2026-07-01T00:00:00Z", Ended: "2026-07-02T00:00:00Z"},
 		},
 	})
 	var out, errb bytes.Buffer
@@ -201,20 +201,20 @@ func TestHandoffResumeEmit(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("CCP_HOME", home)
 	cfg := &core.Config{Version: core.SchemaVersion,
-		Profiles: map[string]core.Profile{"personal-cc": {Type: "official"}, "emco-cc": {Type: "official"}}}
+		Profiles: map[string]core.Profile{"personal-1": {Type: "official"}, "work-1": {Type: "official"}}}
 	if err := core.Save(home, cfg); err != nil {
 		t.Fatal(err)
 	}
 	cwd := "/repo"
 	uuid := "eeeeeeee-4444-4444-8444-444444444444"
-	if err := writeJSONLForTest(t, core.ProjectDir(home+"/profiles/emco-cc/cc-home", core.SlugForCwd(cwd)), uuid); err != nil {
+	if err := writeJSONLForTest(t, core.ProjectDir(home+"/profiles/work-1/cc-home", core.SlugForCwd(cwd)), uuid); err != nil {
 		t.Fatal(err)
 	}
 	_ = core.SaveHandoffs(home, &core.Handoffs{
 		Version: core.HandoffsVersion,
 		Active: []core.Marker{{
 			Session: uuid, Slug: core.SlugForCwd(cwd), Cwd: cwd,
-			From: "personal-cc", To: "emco-cc", Since: "2026-07-25T00:00:00Z",
+			From: "personal-1", To: "work-1", Since: "2026-07-25T00:00:00Z",
 		}},
 	})
 	var out, errb bytes.Buffer
@@ -222,7 +222,7 @@ func TestHandoffResumeEmit(t *testing.T) {
 		t.Fatalf("exit = %d, stderr=%s", code, errb.String())
 	}
 	s := out.String()
-	if !strings.Contains(s, "emco-cc/cc-home") {
+	if !strings.Contains(s, "work-1/cc-home") {
 		t.Fatalf("resume debe emitir el env del destino: %q", s)
 	}
 	if !strings.Contains(s, "CCP_RESUME_ID="+uuid) || !strings.Contains(s, "CCP_RESUME_YOLO=1") {
@@ -239,20 +239,20 @@ func TestHandoffResumeUUIDPosicional(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("CCP_HOME", home)
 	cfg := &core.Config{Version: core.SchemaVersion,
-		Profiles: map[string]core.Profile{"personal-cc": {Type: "official"}, "emco-cc": {Type: "official"}}}
+		Profiles: map[string]core.Profile{"personal-1": {Type: "official"}, "work-1": {Type: "official"}}}
 	if err := core.Save(home, cfg); err != nil {
 		t.Fatal(err)
 	}
 	cwd := "/repo"
 	uuid := "ffffffff-5555-4555-8555-555555555555"
-	if err := writeJSONLForTest(t, core.ProjectDir(home+"/profiles/emco-cc/cc-home", core.SlugForCwd(cwd)), uuid); err != nil {
+	if err := writeJSONLForTest(t, core.ProjectDir(home+"/profiles/work-1/cc-home", core.SlugForCwd(cwd)), uuid); err != nil {
 		t.Fatal(err)
 	}
 	_ = core.SaveHandoffs(home, &core.Handoffs{
 		Version: core.HandoffsVersion,
 		Active: []core.Marker{{
 			Session: uuid, Slug: core.SlugForCwd(cwd), Cwd: cwd,
-			From: "personal-cc", To: "emco-cc", Since: "2026-07-25T00:00:00Z",
+			From: "personal-1", To: "work-1", Since: "2026-07-25T00:00:00Z",
 		}},
 	})
 	var out, errb bytes.Buffer
@@ -270,7 +270,7 @@ func TestHandoffEndAmbiguoSinTTYNoMuta(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("CCP_HOME", home)
 	cfg := &core.Config{Version: core.SchemaVersion,
-		Profiles: map[string]core.Profile{"personal-cc": {Type: "official"}, "emco-cc": {Type: "official"}}}
+		Profiles: map[string]core.Profile{"personal-1": {Type: "official"}, "work-1": {Type: "official"}}}
 	if err := core.Save(home, cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -278,8 +278,8 @@ func TestHandoffEndAmbiguoSinTTYNoMuta(t *testing.T) {
 	_ = core.SaveHandoffs(home, &core.Handoffs{
 		Version: core.HandoffsVersion,
 		Active: []core.Marker{
-			{Session: "aaaaaaaa-1111-4111-8111-111111111111", Slug: core.SlugForCwd(cwd), Cwd: cwd, From: "personal-cc", To: "emco-cc", Since: "2026-07-25T00:00:00Z"},
-			{Session: "bbbbbbbb-2222-4222-8222-222222222222", Slug: core.SlugForCwd(cwd), Cwd: cwd, From: "personal-cc", To: "emco-cc", Since: "2026-07-25T01:00:00Z"},
+			{Session: "aaaaaaaa-1111-4111-8111-111111111111", Slug: core.SlugForCwd(cwd), Cwd: cwd, From: "personal-1", To: "work-1", Since: "2026-07-25T00:00:00Z"},
+			{Session: "bbbbbbbb-2222-4222-8222-222222222222", Slug: core.SlugForCwd(cwd), Cwd: cwd, From: "personal-1", To: "work-1", Since: "2026-07-25T01:00:00Z"},
 		},
 	})
 	// Con controlling terminal el picker se abriría y bloquearía esperando una

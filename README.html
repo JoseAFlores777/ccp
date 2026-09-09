@@ -800,7 +800,7 @@ ccp handoff prune --keep 20   <span class="c"># default 50 · --keep 0 wipes the
           <p class="lead"><b>Preflight.</b> Every profile you want in the chain must be usable on its own, and this directory needs a path rule.</p>
           <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp doctor                    <span class="c"># logins, keys, shell function</span>
 ccp resolve .                 <span class="c"># ← this is your PRIMARY</span>
-ccp path set . personal-cc    <span class="c"># only if resolve printed "default"</span></pre></div>
+ccp path set . personal-1     <span class="c"># only if resolve printed "default"</span></pre></div>
           <p class="hint">The <b>primary</b> is whatever <code>ccp resolve $PWD</code> returns — the natural owner of the directory. Everything else in the chain is a <b>temporary loan</b>. If the primary is <code>default</code>, step 03 will show an empty chain (see the gotcha there).</p>
         </div></div>
 
@@ -813,13 +813,13 @@ ccp path set . personal-cc    <span class="c"># only if resolve printed "default
         <div class="step"><div class="num">02</div><div class="body">
           <p class="lead">Install the <b>sensors</b> in the profiles that will take part.</p>
           <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp auto install                  <span class="c"># every non-default profile</span>
-ccp auto install personal-cc app-cc   <span class="c"># or just these</span>
-ccp auto uninstall app-cc         <span class="c"># fully reversible</span></pre></div>
+ccp auto install personal-1 work-2   <span class="c"># or just these</span>
+ccp auto uninstall work-2         <span class="c"># fully reversible</span></pre></div>
           <details class="why"><summary>what does it write, exactly?</summary><div class="why-body">
             <p>The two in-process sensors can only be turned on from <code>cc-home/settings.json</code>, and that file is <b>generated</b> (global ⊕ overlay). So <code>auto install</code> adds the profile to <code>auto_handoff.hooks</code> and regenerates as global ⊕ overlay ⊕ <b>auto layer</b>:</p>
             <p><b>·</b> <code>hooks.StopFailure</code> → <code>ccp _limit-hook</code></p>
             <p><b>·</b> <code>statusLine</code> → <code>ccp _statusline -- &lt;your original statusLine&gt;</code> — yours is <b>wrapped</b>, not replaced: it still renders your status bar, ccp only samples the stdin it gets.</p>
-            <p>With <b>no</b> statusLine of your own, ccp paints a minimal one instead — the profile plus both usage windows, each with a gauge and a countdown to its reset: <code>emco-cc  5h ▏█░░░░░░░░░▏ 2% ·2h13m  7d ▏██████░░░░▏ 59% ·3d</code>. Both, because both are watched independently (the hop fires on whichever crosses <code>threshold</code> first) and a bare percentage wouldn't say whether you have hours or days left.</p>
+            <p>With <b>no</b> statusLine of your own, ccp paints a minimal one instead — the profile plus both usage windows, each with a gauge and a countdown to its reset: <code>work-1  5h ▏█░░░░░░░░░▏ 2% ·2h13m  7d ▏██████░░░░▏ 59% ·3d</code>. Both, because both are watched independently (the hop fires on whichever crosses <code>threshold</code> first) and a bare percentage wouldn't say whether you have hours or days left.</p>
             <p>The gauge is tinted green below 70%, amber from 70 to 89, and red at 90 and above — the red starts exactly at <code>threshold</code>'s default, so the bar and the engine never tell different stories. <code>NO_COLOR</code> drops the tint and the gauge still reads.</p>
             <p>Three things the bar deliberately won't say. A window <b>with no data</b> is omitted, not drawn as <code>0%</code>. A <code>resets_at</code> that has already passed prints <b>no countdown</b>: stale data must not claim your quota is back. And days round <b>up</b> — <code>·3d</code> with 2d23h left, never <code>·2d</code>, because the one thing a countdown must never do is promise the quota returns sooner than it will.</p>
             <p>The line sizes itself: ccp renders it at three levels of detail, measures each, and prints the widest one that fits. A long profile name costs gauge cells, not correctness — if nothing fits, you get the compact form uncut, because the first thing truncation would eat is the profile name.</p>
@@ -830,7 +830,7 @@ ccp auto uninstall app-cc         <span class="c"># fully reversible</span></pre
 
         <div class="step"><div class="num">03</div><div class="body">
           <p class="lead">Verify the <b>wiring</b> and the <b>resolved chain</b> — before anything long depends on it.</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp auto test --profile personal-cc   <span class="c"># synthetic hook payload → detection path</span>
+          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp auto test --profile personal-1   <span class="c"># synthetic hook payload → detection path</span>
 ccp auto status                       <span class="c"># policy, sensors, samples, cooldowns</span>
 ccp session --dry-run                 <span class="c"># the chain it WOULD use, and what was denied</span></pre></div>
           <p class="hint"><code>ccp auto status --json</code> emits <code>enabled</code>, <code>cwd</code>, <code>policy</code>, <code>primary</code>, <code>fallback</code>, <code>denied</code> and <code>sensors</code> (arrays are never <code>null</code>), plus <code>error</code> when the policy doesn't resolve — the JSON stays valid and the exit code is <code>1</code>.</p>
@@ -871,9 +871,9 @@ ccp session -p --policy overnight --yolo -- "refactor the parser"</pre></div>
       <p class="intro">The supervisor is a <b>pendulum, not a round-robin</b>: it swings out when the primary is exhausted and comes back the moment the primary's window reopens, even if fresh loans are still available. Working for hours in the wrong account is worse than waiting.</p>
       <figure>
         <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>the pendulum</span></div>
-<pre>personal-cc  ──[limit]──→  app-cc  ──[limit]──→  personal-deepseek
-                                      │
-                                      └──[primary's window reopened]──→ personal-cc</pre>
+<pre>personal-1  ──[limit]──→  work-2  ──[limit]──→  personal-deepseek
+                                     │
+                                     └──[primary's window reopened]──→ personal-1</pre>
       </figure>
       <p class="intro">The trip home is <b>not</b> a reverse handoff: it is <code>handoff end</code>, which back-syncs the conversation to the primary <b>as a new session with a new uuid</b> (non-destructive — the old transcript stays where it is). The supervisor prints that uuid: it's what you'd hand to <code>claude --resume</code> to continue by hand.</p>
 
@@ -892,27 +892,27 @@ ccp session -p --policy overnight --yolo -- "refactor the parser"</pre></div>
 
       <figure>
         <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>ccp session · stdout</span></div>
-<pre><span class="c"># primary = personal-cc (path rule for ~/Documents/Personal)</span>
-▶ personal-cc · new session 3f9c1a2b
-personal-cc (4h 03m) ──[uso 94% ≥ umbral 90% (ventana session) · statusline]──→ handoff a app-cc (préstamo 1/6)
-▶ app-cc · reanudando 3f9c1a2b
-app-cc (1h 12m) ──[You've hit your session limit · transcript]──→ volviendo a personal-cc (vuelta a casa, no gasta préstamo: siguen 1/6)
-sesión devuelta a personal-cc como 7d0e44f1
-▶ personal-cc · reanudando 7d0e44f1
-personal-cc ──[termina]──→ ✅ exit 0</pre>
+<pre><span class="c"># primary = personal-1 (path rule for ~/Documents/Personal)</span>
+▶ personal-1 · new session 3f9c1a2b
+personal-1 (4h 03m) ──[uso 94% ≥ umbral 90% (ventana session) · statusline]──→ handoff a work-2 (préstamo 1/6)
+▶ work-2 · reanudando 3f9c1a2b
+work-2 (1h 12m) ──[You've hit your session limit · transcript]──→ volviendo a personal-1 (vuelta a casa, no gasta préstamo: siguen 1/6)
+sesión devuelta a personal-1 como 7d0e44f1
+▶ personal-1 · reanudando 7d0e44f1
+personal-1 ──[termina]──→ ✅ exit 0</pre>
       </figure>
       <p class="hint" style="margin-top:0;"><b>Reading the counter.</b> An outbound move is <code>préstamo N/6</code> (loan N of your <code>max_hops</code>); a trip home is <code>vuelta a casa, no gasta préstamo: siguen N/6</code>. The number does not rise on the way home, and the line says so out loud rather than leaving you to wonder why two consecutive moves both show <code>1/6</code>. The trip home is never called a <i>préstamo</i>, whichever of the two things caused it.</p>
 
       <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:36px 0 4px;">The policy (<code>auto_handoff</code> in <code>ccp.yaml</code>)</h3>
       <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>auto_handoff:
   enabled: true              <span class="c"># master switch: false = ccp session refuses to run</span>
-  hooks: [personal-cc, app-cc]   <span class="c"># profiles with the sensor layer installed</span>
+  hooks: [personal-1, work-2]    <span class="c"># profiles with the sensor layer installed</span>
                                  <span class="c"># (managed by `ccp auto install/uninstall`)</span>
   policies:
     default:
       <span class="c"># Loans, in order of preference. The primary is IMPLICIT (ccp resolve $PWD)</span>
       <span class="c"># and is silently dropped if you list it here.</span>
-      fallback: [app-cc, personal-deepseek]
+      fallback: [work-2, personal-deepseek]
       threshold: 90          <span class="c"># % of the usage window that triggers a proactive hop</span>
       min_dwell: 20m         <span class="c"># min time before rotating (full only for the proactive sensor)</span>
       max_hops: 6            <span class="c"># hard cap on LOANS per run (coming home is free)</span>
@@ -923,7 +923,7 @@ personal-cc ──[termina]──→ ✅ exit 0</pre>
         fallback: 1h         <span class="c"># …or this fixed wait when there is no resets_at</span>
 
     overnight:               <span class="c"># `ccp session -p --policy overnight`</span>
-      fallback: [personal-cc, app-cc]
+      fallback: [personal-1, work-2]
       threshold: 85
       max_hops: 12
 
@@ -931,9 +931,9 @@ personal-cc ──[termina]──→ ✅ exit 0</pre>
       fallback: []           <span class="c"># no loans at all: if the primary dies, the run stops</span>
 
   allow_from:                <span class="c"># compliance gate</span>
-    emco-cc: [emco-cc]                                   <span class="c"># never rotates</span>
-    app-cc: [app-cc, personal-cc]
-    personal-cc: [personal-cc, app-cc, personal-deepseek]</pre></div>
+    work-1: [work-1]                                   <span class="c"># never rotates</span>
+    work-2: [work-2, personal-1]
+    personal-1: [personal-1, work-2, personal-deepseek]</pre></div>
 
       <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:36px 0 4px;">The <code>allow_from</code> gate</h3>
       <p class="intro">Rotating on its own, at 3am, with nobody watching, means a client's conversation could end up in a personal account — or in a third-party provider's API. Path rules are <b>geographic</b> (which folder belongs to whom), not a statement of trust, so the gate is separate and explicit.</p>
@@ -950,20 +950,20 @@ personal-cc ──[termina]──→ ✅ exit 0</pre>
       <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:36px 0 4px;">Editing the chain — add, reorder or remove a loan</h3>
       <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp auto chain                        <span class="c"># the EFFECTIVE chain for this directory</span>
 ccp auto chain add personal-deepseek  <span class="c"># append it, and authorise the loan</span>
-ccp auto chain add app-cc --at 1      <span class="c"># insert at a 1-based position</span>
-ccp auto chain mv app-cc 2            <span class="c"># reorder — the order IS the preference</span>
+ccp auto chain add work-2 --at 1      <span class="c"># insert at a 1-based position</span>
+ccp auto chain mv work-2 2            <span class="c"># reorder — the order IS the preference</span>
 ccp auto chain rm personal-deepseek   <span class="c"># take it out, and withdraw the authorisation</span>
-ccp auto chain set app-cc,emco-cc     <span class="c"># replace the whole chain</span></pre></div>
+ccp auto chain set work-1,work-2      <span class="c"># replace the whole chain</span></pre></div>
       <p class="intro">All of them take <code>--policy &lt;name&gt;</code> (default: <code>default</code>) and act on the primary of the <b>current directory</b>, which is the only one whose <code>allow_from</code> entry they may touch.</p>
       <p class="intro"><b><code>add</code> writes two keys, and that is the whole point.</b> Whoever types “add it to the chain” wants the profile to <i>be used</i>, and a <code>fallback</code> entry without its <code>allow_from</code> is never used — silently. Leaving the two keys apart in the CLI would just reproduce the trap the YAML already sets. But <code>allow_from</code> is a <b>compliance gate</b> and may be there on purpose, so the widening carries three hard limits: it touches <b>only</b> the current primary's entry, it prints <b>exactly what changed in each key separately</b> (<code>+name</code> authorises, <code>-name</code> withdraws), and <code>--no-allow</code> turns it off.</p>
       <p class="intro"><code>rm</code> — and the profiles that <code>set</code> drops — goes the other way and <b>withdraws</b> the authorisation, again from that one entry only. That is what makes <code>add</code> reversible: without it the gate could only ever grow, and undoing a mistaken <code>add</code> would mean hand-editing the YAML, which is exactly what these commands exist to avoid.</p>
       <figure>
         <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>ccp auto chain add personal-deepseek</span></div>
-<pre>[ok] fallback   app-cc → emco-cc → personal-deepseek
-[ok] allow_from personal-cc: +personal-deepseek
+<pre>[ok] fallback   work-1 → work-2 → personal-deepseek
+[ok] allow_from personal-1: +personal-deepseek
 
 effective chain from this repo:
-  app-cc → emco-cc → personal-deepseek</pre>
+  work-1 → work-2 → personal-deepseek</pre>
       </figure>
       <p class="hint">Every mutation closes by re-reading the effective chain <b>from disk</b>, so you see what the engine will see — including whatever <code>allow_from</code> is still blocking.</p>
       <table>
@@ -981,10 +981,10 @@ effective chain from this repo:
       <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>auto_handoff:
   policies:
     default:
-      <span class="c"># Order IS preference: app-cc first, the provider only as a last resort.</span>
-      fallback: [app-cc, personal-deepseek]
+      <span class="c"># Order IS preference: work-2 first, the provider only as a last resort.</span>
+      fallback: [work-2, personal-deepseek]
   allow_from:
-    personal-cc: [personal-cc, app-cc, personal-deepseek]   <span class="c"># ← the primary's entry</span></pre></div>
+    personal-1: [personal-1, work-2, personal-deepseek]   <span class="c"># ← the primary's entry</span></pre></div>
       <p class="hint">What the resolver does to <code>fallback</code>, in one pass: the <b>primary is implicit</b> and is dropped silently if you list it · duplicates are removed (they don't buy an extra loan) · <code>default</code> is a legitimate target (your normal <code>~/.claude</code> login) · the order you wrote is kept verbatim.</p>
 
       <div class="do">
@@ -996,14 +996,14 @@ ccp session --dry-run                <span class="c"># what the chain resolves t
         <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>ccp session --dry-run · chain OK</span></div>
 <pre>política: default
 primario: work (cwd /home/me/repo)
-cadena de préstamos: app-cc → deepseek
+cadena de préstamos: work-2 → deepseek
 umbral 90% · min_dwell 20m0s · max_hops 6 · return_check 10m0s · return_idle 1m30s · cooldown resets_at (respaldo 1h0m0s)</pre>
       </figure>
       <p class="intro">Edited <code>fallback</code> and forgot <code>allow_from</code>? <code>--dry-run</code> says so instead of silently doing nothing. This is the most common mistake by far:</p>
       <figure>
         <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>ccp session --dry-run · gate closed</span></div>
 <pre>cadena de préstamos: (vacía)
-denegados por allow_from: app-cc, deepseek</pre>
+denegados por allow_from: work-2, deepseek</pre>
       </figure>
       <p class="intro">And a name that <b>doesn't exist is a hard error, not a silent skip</b>. A typo — or a profile you removed — stops <code>ccp session</code> before it launches anything, with exit <code>1</code>:</p>
       <figure>
@@ -1045,13 +1045,13 @@ denegados por allow_from: app-cc, deepseek</pre>
 
       <div class="do">
         <p class="lead">Open a profile's window.</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop open emco</pre></div>
+        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop open work-1</pre></div>
         <p class="hint">With no name, <code>ccp desktop open</code> uses whichever profile the current directory resolves to — the same resolver as the prompt hook, so the window and the terminal never end up on different accounts.</p>
       </div>
 
       <div class="do">
         <p class="lead">See what it would do, without launching or touching anything.</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop open emco --dry-run</pre></div>
+        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop open work-1 --dry-run</pre></div>
         <p class="hint">Prints the plan and what it would convert in the <code>cc-home</code>. It is the recommended way to try the command on a profile you already use.</p>
       </div>
 
@@ -1089,7 +1089,7 @@ denegados por allow_from: app-cc, deepseek</pre>
       </div>
       <div class="do">
         <p class="lead">Delete an instance.</p>
-        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop rm emco --yes</pre></div>
+        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop rm work-1 --yes</pre></div>
         <div class="tip"><span class="lbl">Careful</span>It is a logout that takes that instance's session, tokens and MCP config with it. That is why it demands <code>--yes</code>.</div>
       </div>
 
@@ -1230,7 +1230,7 @@ ccp config editor nano     <span class="c"># o vim, code, etc.</span></pre></div
       <div class="do">
         <p class="lead">Edit the file and have <code>ccp</code> check it for you when you close the editor.</p>
         <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp config edit                        <span class="c"># abre ccp.yaml, y al cerrar lo relee y valida</span>
-ccp config edit --profile personal-cc  <span class="c"># abre el overlay de ese perfil</span>
+ccp config edit --profile personal-1   <span class="c"># abre el overlay de ese perfil</span>
 ccp config edit --terminal             <span class="c"># fuerza el editor de terminal</span>
 ccp config gui-editor "code -w"        <span class="c"># fija el editor gráfico</span></pre></div>
       </div>

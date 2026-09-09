@@ -6,7 +6,7 @@ Extiende la spec base [`2026-06-19-ccp-handoff-design.md`](2026-06-19-ccp-handof
 
 ## 01 · Problema
 
-v1 permite **un** handoff en vuelo: `HandoffForward` falla con «ya hay un handoff activo» y `handoffs.yaml` guarda `active` como un marcador único. En uso real hay varias sesiones prestadas a la vez — dsctl-v2 hacia `emco-cc`, ibc-tools hacia `kimi`, overtime de vuelta hacia `personal-cc`. Hoy eso obliga a cerrar uno para abrir otro, y cerrar el equivocado significa traer de vuelta contexto que no querías mover.
+v1 permite **un** handoff en vuelo: `HandoffForward` falla con «ya hay un handoff activo» y `handoffs.yaml` guarda `active` como un marcador único. En uso real hay varias sesiones prestadas a la vez — dsctl-v2 hacia `work-1`, ibc-tools hacia `kimi`, overtime de vuelta hacia `personal-1`. Hoy eso obliga a cerrar uno para abrir otro, y cerrar el equivocado significa traer de vuelta contexto que no querías mover.
 
 El feature resuelve dos cosas a la vez: **permitir N activos** y **que ninguna operación actúe sobre el handoff equivocado**.
 
@@ -24,7 +24,7 @@ El feature resuelve dos cosas a la vez: **permitir N activos** y **que ninguna o
 
 ### Non-goals
 
-- **No** cadena multi-nivel (`personal→emco→kimi` sobre la misma sesión): sigue bloqueada, con mensaje propio.
+- **No** cadena multi-nivel (`personal-1→work-1→kimi` sobre la misma sesión): sigue bloqueada, con mensaje propio.
 - **No** fan-out: una sesión no se presta a dos perfiles a la vez.
 - **No** tope duro de activos: solo aviso.
 - **No** persistir el modo skip-permissions en el marcador ni en `ccp.yaml`: se pide en cada lanzamiento.
@@ -40,21 +40,21 @@ active:
   - session: bbc1ed61-ada1-408f-...
     slug: -Volumes-...-dsctl-v2
     cwd: /Volumes/.../dsctl-v2
-    from: personal-cc
-    to: emco-cc
+    from: personal-1
+    to: work-1
     title: "Refactor handoff en ccp"
     since: 2026-07-25T14:30:00Z
   - session: 9c2e0d4f-...
     slug: -Volumes-...-ibc-tools
     cwd: /Volumes/.../ibc-tools
-    from: personal-cc
+    from: personal-1
     to: kimi
     title: "Himnos API"
     since: 2026-07-19T09:10:00Z
 archived:
   - session: 7f10c2ab-...
-    from: personal-cc
-    to: emco-cc
+    from: personal-1
+    to: work-1
     slug: -Volumes-...-overtime
     returned_as: a1b2f0d3-...
     since: 2026-07-18T10:00:00Z
@@ -216,9 +216,9 @@ El `eval` sigue en subshell ⇒ ni el env del destino ni `CCP_RESUME_YOLO` sobre
 ```
 ┌ ccp handoff ─────────────────────────────────────────────┐
 │ ACTIVOS (3)                        skip-permissions: off │
-│ ▸ dsctl-v2   personal-cc → emco-cc       2h   "Refactor…"│  ← este repo
-│   ibc-tools  personal-cc → kimi          6d   "Himnos…"  │
-│   overtime   emco-cc → personal-cc      20m   "Cierre…"  │
+│ ▸ dsctl-v2   personal-1 → work-1         2h   "Refactor…"│  ← este repo
+│   ibc-tools  personal-1 → kimi           6d   "Himnos…"  │
+│   overtime   work-1 → personal-1        20m   "Cierre…"  │
 │                                                          │
 │ enter reanudar · e terminar · n nuevo · y yolo · q salir │
 └──────────────────────────────────────────────────────────┘
@@ -237,7 +237,7 @@ El `eval` sigue en subshell ⇒ ni el env del destino ni `CCP_RESUME_YOLO` sobre
 `_hook <pwd>` añade, cuando hay ≥1 activo con `slug(pwd)`:
 
 ```
-echo "↳ ccp: handoff activo aquí — personal-cc → emco-cc (hace 2h); \`ccp handoff end\` para volver" >&2
+echo "↳ ccp: handoff activo aquí — personal-1 → work-1 (hace 2h); \`ccp handoff end\` para volver" >&2
 ```
 
 Va a stderr dentro del emit (core nunca escribe a `os.Stderr` directo, misma convención que los warnings de `HandoffEnd`). `_ccp_autocheck` ya cachea por `$PWD`, así que aparece una vez por `cd`, no en cada prompt. Con 2+ activos en el repo, una línea que dice cuántos y remite a `ccp handoff`.

@@ -42,10 +42,10 @@ func TestWriteReadRateLimitsRoundTrip(t *testing.T) {
 		FiveHour: Windowed{UsedPercentage: 93.2, ResetsAt: reset},
 		SevenDay: Windowed{UsedPercentage: 13, ResetsAt: reset},
 	}
-	if err := WriteRateLimits(home, "personal-cc", rl, now); err != nil {
+	if err := WriteRateLimits(home, "personal-1", rl, now); err != nil {
 		t.Fatalf("WriteRateLimits: %v", err)
 	}
-	got, sampled, ok := ReadRateLimits(home, "personal-cc")
+	got, sampled, ok := ReadRateLimits(home, "personal-1")
 	if !ok {
 		t.Fatal("ReadRateLimits ok=false tras escribir")
 	}
@@ -59,13 +59,13 @@ func TestWriteReadRateLimitsRoundTrip(t *testing.T) {
 		t.Fatalf("seven_day no sobrevivió el round-trip: %+v", got.SevenDay)
 	}
 	// Sobrescribir deja UNA sola muestra por perfil (es la «última lectura»).
-	if err := WriteRateLimits(home, "personal-cc", RateLimits{FiveHour: Windowed{UsedPercentage: 10, ResetsAt: reset}}, now.Add(time.Minute)); err != nil {
+	if err := WriteRateLimits(home, "personal-1", RateLimits{FiveHour: Windowed{UsedPercentage: 10, ResetsAt: reset}}, now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	if n := countFiles(t, filepath.Join(AutoStateDir(home), "rate-limits")); n != 1 {
 		t.Fatalf("archivos de muestra = %d, quería 1", n)
 	}
-	got, _, _ = ReadRateLimits(home, "personal-cc")
+	got, _, _ = ReadRateLimits(home, "personal-1")
 	if got.FiveHour.UsedPercentage != 10 {
 		t.Fatalf("la segunda escritura no pisó la primera: %+v", got.FiveHour)
 	}
@@ -180,7 +180,7 @@ func TestWriteSentinelNombresHostiles(t *testing.T) {
 
 func TestWriteSentinelSesionVacia(t *testing.T) {
 	home := t.TempDir()
-	err := WriteSentinel(home, Sentinel{Profile: "personal-cc", Session: "", At: time.Now()})
+	err := WriteSentinel(home, Sentinel{Profile: "personal-1", Session: "", At: time.Now()})
 	if err == nil {
 		t.Fatal("una sesión vacía debe rechazarse")
 	}
@@ -196,7 +196,7 @@ func TestReadSentinelsOrdenYSince(t *testing.T) {
 	offsets := []time.Duration{2 * time.Minute, 0, time.Minute}
 	for _, off := range offsets {
 		s := Sentinel{
-			Profile: "personal-cc",
+			Profile: "personal-1",
 			Session: "ses-1",
 			Event:   LimitEvent{Window: WindowWeekly, Source: "hook", Detail: off.String()},
 			At:      base.Add(off),
@@ -254,7 +254,7 @@ func TestWriteSentinelReclamaLasSeñalesViejas(t *testing.T) {
 	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
 
 	vieja := Sentinel{
-		Profile: "personal-cc", Session: "de-anteayer",
+		Profile: "personal-1", Session: "de-anteayer",
 		Event: LimitEvent{Window: WindowSession, Source: "hook"},
 		At:    now.Add(-48 * time.Hour),
 	}
@@ -266,7 +266,7 @@ func TestWriteSentinelReclamaLasSeñalesViejas(t *testing.T) {
 	}
 
 	nueva := Sentinel{
-		Profile: "personal-cc", Session: "de-ahora",
+		Profile: "personal-1", Session: "de-ahora",
 		Event: LimitEvent{Window: WindowSession, Source: "hook"},
 		At:    now,
 	}
@@ -302,7 +302,7 @@ func TestClearSentinels(t *testing.T) {
 	write := func(session string, off time.Duration) {
 		t.Helper()
 		if err := WriteSentinel(home, Sentinel{
-			Profile: "personal-cc",
+			Profile: "personal-1",
 			Session: session,
 			Event:   LimitEvent{Window: WindowSession, Source: "hook"},
 			At:      base.Add(off),
