@@ -10,7 +10,7 @@
 In your work repo, your company account; in your personal project, your own; in your experiments, DeepSeek.
 The switch happens on its own, just by `cd`-ing.
 
-![version](https://img.shields.io/badge/version-2.15.0-c96442)
+![version](https://img.shields.io/badge/version-2.15.1-c96442)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-c96442)
 ![shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-8a8378)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
@@ -111,7 +111,7 @@ Env knobs (all optional, all also valid from a clone):
 
 | Variable | Default | What it does |
 |---|---|---|
-| `CCP_RELEASE` | `latest` | Install a specific tag: `curl … \| CCP_RELEASE=v2.15.0 bash` |
+| `CCP_RELEASE` | `latest` | Install a specific tag: `curl … \| CCP_RELEASE=v2.15.1 bash` |
 | `CCP_BIN_DIR` | `~/.local/bin` | Where the binary lands |
 | `CCP_SRC_DIR` | `~/.config/ccp/src` | Where the source copy lands |
 | `CCP_NO_SOURCE` | `0` | `1` = binary only, no source copy (no `/ccp:` commands, no `ccp upgrade` source) |
@@ -320,7 +320,7 @@ auto_handoff:
       # and is silently dropped if you list it here.
       fallback: [app-cc, personal-deepseek]
       threshold: 90          # % of the usage window that triggers a proactive hop
-      min_dwell: 20m         # minimum time in a profile before rotating again
+      min_dwell: 20m         # min time before rotating (full only for the proactive sensor)
       max_hops: 6            # hard cap on LOANS per run (anti-loop backstop;
                              # coming home is free, see above)
       return_check: 10m      # how often to reconsider the primary while on loan
@@ -506,7 +506,7 @@ The trace (hops, the trip home, the cooldown table) goes to **stdout** because i
 
 Exit codes: `0` ok · `1` usage/config error · `2` handoff I/O failure · `75` every profile exhausted (retry later) · anything else is claude's own exit code, so `ccp session -p …` drops into a script where `claude -p …` used to be.
 
-**Some sharp edges worth knowing.** `--yolo` (`--dangerously-skip-permissions`) is effectively required for unattended runs, and it is never persisted — you ask for it every time. A hop is a `SIGTERM` at a turn boundary, so an interrupted tool call gets re-run by `--resume` and may not be idempotent. `Ctrl-C` (exit 130) never rotates: the loan is left open and told to you. And `min_dwell` is what stops three sensors reporting the same limit from burning three profiles in ten seconds.
+**Some sharp edges worth knowing.** `--yolo` (`--dangerously-skip-permissions`) is effectively required for unattended runs, and it is never persisted — you ask for it every time. A hop is a `SIGTERM` at a turn boundary, so an interrupted tool call gets re-run by `--resume` and may not be idempotent. `Ctrl-C` (exit 130) never rotates: the loan is left open and told to you. And `min_dwell` applies **in full only to the proactive sensor** — the one that warns before anything has failed. A reactive event means the turn already failed, so sitting out twenty minutes inside an account that is answering 429 would be pure harm: those rotate after a short 30s floor, which still keeps three profiles from burning in one minute. The trip home is the exception and honours the full value: nobody is in a hurry there.
 
 ---
 

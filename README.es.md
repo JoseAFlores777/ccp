@@ -10,7 +10,7 @@
 En tu repo de trabajo, tu cuenta de empresa; en tu proyecto personal, la tuya; en tus experimentos, DeepSeek.
 El cambio ocurre solo, con hacer `cd`.
 
-![version](https://img.shields.io/badge/version-2.15.0-c96442)
+![version](https://img.shields.io/badge/version-2.15.1-c96442)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-c96442)
 ![shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-8a8378)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
@@ -112,7 +112,7 @@ Perillas de entorno (todas opcionales, todas válidas también desde un clon):
 
 | Variable | Default | Qué hace |
 |---|---|---|
-| `CCP_RELEASE` | `latest` | Instala un tag concreto: `curl … \| CCP_RELEASE=v2.15.0 bash` |
+| `CCP_RELEASE` | `latest` | Instala un tag concreto: `curl … \| CCP_RELEASE=v2.15.1 bash` |
 | `CCP_BIN_DIR` | `~/.local/bin` | Dónde queda el binario |
 | `CCP_SRC_DIR` | `~/.config/ccp/src` | Dónde queda la copia del código |
 | `CCP_NO_SOURCE` | `0` | `1` = solo binario, sin copia del código (sin comandos `/ccp:`, sin fuente para `ccp upgrade`) |
@@ -321,7 +321,7 @@ auto_handoff:
       # y se descarta en silencio si lo listas aquí.
       fallback: [app-cc, personal-deepseek]
       threshold: 90          # % de la ventana de uso que dispara un salto proactivo
-      min_dwell: 20m         # tiempo mínimo en un perfil antes de volver a rotar
+      min_dwell: 20m         # tiempo mínimo antes de rotar (entero solo para el sensor proactivo)
       max_hops: 6            # tope duro de PRÉSTAMOS por corrida (backstop anti-bucle;
                              # volver a casa es gratis, ver arriba)
       return_check: 10m      # cada cuánto reconsiderar el primario estando prestado
@@ -507,7 +507,7 @@ La traza (saltos, vuelta a casa, tabla de cooldowns) va a **stdout** porque *es*
 
 Códigos de salida: `0` ok · `1` error de uso/config · `2` fallo de E/S del handoff · `75` todos los perfiles agotados (reintenta luego) · cualquier otro es el código del propio claude, así que `ccp session -p …` entra en un script donde antes iba `claude -p …`.
 
-**Algunos filos que conviene conocer.** `--yolo` (`--dangerously-skip-permissions`) es prácticamente obligatorio para corridas desatendidas, y nunca se persiste — se pide cada vez. Un salto es un `SIGTERM` en frontera de turno, así que una tool call interrumpida la re-ejecuta `--resume` y puede no ser idempotente. `Ctrl-C` (exit 130) nunca rota: el préstamo se deja abierto y se te dice. Y `min_dwell` es lo que evita que tres sensores reportando el mismo límite quemen tres perfiles en diez segundos.
+**Algunos filos que conviene conocer.** `--yolo` (`--dangerously-skip-permissions`) es prácticamente obligatorio para corridas desatendidas, y nunca se persiste — se pide cada vez. Un salto es un `SIGTERM` en frontera de turno, así que una tool call interrumpida la re-ejecuta `--resume` y puede no ser idempotente. `Ctrl-C` (exit 130) nunca rota: el préstamo se deja abierto y se te dice. Y `min_dwell` se aplica **entero solo al sensor proactivo** — el único que avisa antes de que nada haya fallado. Un evento reactivo significa que el turno ya falló, así que esperar veinte minutos dentro de una cuenta que responde 429 sería daño puro: esos rotan tras un piso corto de 30s, que sigue evitando que tres perfiles se quemen en un minuto. La vuelta a casa es la excepción y exige el valor completo: ahí nadie tiene prisa.
 
 ---
 

@@ -388,7 +388,7 @@
 <div class="app">
   <aside class="sidebar" id="sidebar">
     <div class="brand">ccp<span class="cur">_</span></div>
-    <p class="brand-sub">User guide · v2.15.0</p>
+    <p class="brand-sub">User guide · v2.15.1</p>
 
     <div class="side-actions">
       <a class="tbtn" href="https://github.com/JoseAFlores777/ccp" target="_blank" rel="noopener" aria-label="GitHub repository"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg> GitHub</a>
@@ -431,7 +431,7 @@
 
     <!-- ═══ INICIO ═══ -->
     <section class="view" id="view-inicio">
-      <p class="kicker"><span class="s">User guide</span><span class="t">v2.15.0 · Go CLI</span></p>
+      <p class="kicker"><span class="s">User guide</span><span class="t">v2.15.1 · Go CLI</span></p>
       <div class="hero-actions">
         <a class="tbtn" href="https://github.com/JoseAFlores777/ccp" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg> View on GitHub</a>
         <a class="tbtn" href="README.es.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z"/></svg> Español</a>
@@ -887,6 +887,8 @@ ccp session -p --policy overnight --yolo -- "refactor the parser"</pre></div>
 
       <div class="tip"><span class="lbl">The trip home waits for silence (<code>return_idle</code>, 90s)</span>This is the only move the supervisor makes for its own reasons: rotating on a limit kills a child that <i>cannot work any more</i> (its account answers 429), but coming home would kill one that works fine. With the defaults alone (<code>min_dwell: 20m</code> + <code>return_check: 10m</code>) any loan over twenty minutes would end the instant the primary's cooldown expired — while you are typing, mid-turn, or with a tool call in flight, and an interrupted tool call is re-run by <code>--resume</code> and may not be idempotent. So the transcript must not have been touched for <code>return_idle</code>. A transcript that does <b>not</b> exist is not idle (we know nothing, and killing out of ignorance is the thing being avoided); <code>return_idle: 0s</code> is the explicit opt-out. Missing a chance to come home is cheap; taking the terminal away mid-sentence is not.</div>
 
+      <div class="tip"><span class="lbl"><code>min_dwell</code> is not the same for every sensor</span>It applies <b>in full only to the proactive sensor</b> — the one that samples usage and warns <i>before</i> anything has failed. There, waiting is free and it stops a spike from burning the chain. A <b>reactive</b> event is the opposite situation: the turn already failed, the 429 is served, and you are looking at an error. Since the dwell clock starts when the run starts, the full value would keep you inside a dead account for up to twenty minutes with a fresh one right next to it. So reactive events (<code>transcript</code>, <code>stream-json</code>, <code>hook</code>) rotate after a short 30s floor, which still keeps three profiles from burning in one minute. An origin we cannot recognise falls on the <b>urgent</b> side on purpose: rotating a bit early beats holding you inside a limit. The trip home above is the exception and demands the full value.</div>
+
       <figure>
         <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>ccp session · stdout</span></div>
 <pre><span class="c"># primary = personal-cc (path rule for ~/Documents/Personal)</span>
@@ -911,7 +913,7 @@ personal-cc ──[termina]──→ ✅ exit 0</pre>
       <span class="c"># and is silently dropped if you list it here.</span>
       fallback: [app-cc, personal-deepseek]
       threshold: 90          <span class="c"># % of the usage window that triggers a proactive hop</span>
-      min_dwell: 20m         <span class="c"># minimum time in a profile before rotating again</span>
+      min_dwell: 20m         <span class="c"># min time before rotating (full only for the proactive sensor)</span>
       max_hops: 6            <span class="c"># hard cap on LOANS per run (coming home is free)</span>
       return_check: 10m      <span class="c"># how often to reconsider the primary while on loan</span>
       return_idle: 90s       <span class="c"># …and how long the session must have been SILENT</span>
