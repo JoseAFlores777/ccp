@@ -573,8 +573,9 @@
       <p class="sec-lede">Cinco pasos. Cópialos en orden.</p>
       <div class="steps">
         <div class="step"><div class="num">01</div><div class="body">
-          <p class="lead">Instala el <b>binario y las librerías</b>.</p>
-          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>./install.sh</pre></div>
+          <p class="lead">Instala el <b>binario</b>. Una línea, sin clonar nada.</p>
+          <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>curl -fsSL https://raw.githubusercontent.com/JoseAFlores777/ccp/main/install.sh | bash</pre></div>
+          <details class="why"><summary>¿qué hace esa línea?</summary><div class="why-body"><p>Descarga el binario prebuilt de tu OS/arch desde el GitHub Release y <b>verifica su sha256</b> contra el <code>checksums.txt</code> del release — si no cuadra, aborta. Después copia el repo en <code>~/.config/ccp/src</code> (clon superficial, o un tarball si no tienes git): de ahí salen los comandos <code>/ccp:</code> y eso es lo que <code>ccp upgrade</code> re-ejecuta luego.</p><p>¿Prefieres leerlo antes? <code>curl -fsSL …/install.sh -o install.sh</code>, lo lees, y luego <code>bash install.sh</code>. Desde un clon es el mismo script: <code>git clone https://github.com/JoseAFlores777/ccp.git &amp;&amp; cd ccp &amp;&amp; ./install.sh</code>.</p></div></details>
         </div></div>
         <div class="step"><div class="num">02</div><div class="body">
           <p class="lead"><code>~/.local/bin</code> en tu <b>PATH</b>. Solo si el paso 1 te advirtió, añade a <code>~/.zshrc</code> o <code>~/.bashrc</code>:</p>

@@ -17,6 +17,28 @@ jobs:
         run: shellcheck -S warning legacy/bin/ccp legacy/lib/paths.sh legacy/lib/profiles.sh legacy/lib/env.sh install.sh legacy/tests/run.sh || true
       - name: Syntax check
         run: bash -n legacy/bin/ccp && bash -n legacy/lib/paths.sh && bash -n legacy/lib/profiles.sh && bash -n legacy/lib/env.sh && bash -n install.sh
+      - name: Lint install.sh — variable sin llaves pegada a un no-ASCII
+        # `"$VAR…"` revienta SOLO cuando bash lee el script por stdin (o sea,
+        # `curl | bash`): se traga el primer byte del multibyte dentro del
+        # nombre y muere con "unbound variable". `bash -n` no lo ve.
+        run: |
+          if grep -nP '\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7F]' install.sh; then
+            echo "Usa \${VAR} en esas líneas."; exit 1
+          fi
+      - name: Smoke — instalación remota (curl | bash)
+        # Se ejecuta FUERA del checkout a propósito: es el único modo de probar
+        # el camino sin repo (bootstrap del código + comandos + install-source).
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cd "$tmp"
+          cat "$GITHUB_WORKSPACE/install.sh" | \
+            CCP_BIN_DIR="$tmp/bin" CCP_HOME="$tmp/home" \
+            CCP_CLAUDE_SRC="$tmp/claude" CCP_LIB_DIR="$tmp/nolib" bash
+          "$tmp/bin/ccp" --version
+          test -s "$tmp/home/install-source"
+          test -f "$tmp/home/src/install.sh"
+          test -f "$tmp/claude/commands/ccp/handoff.md"
       - name: Oracle test suite (legacy bash)
         run: bash legacy/tests/run.sh
 

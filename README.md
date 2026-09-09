@@ -70,13 +70,18 @@ No TTY, or prefer the terminal? Everything is in the CLI, with the same palette:
 
 ## Installation
 
-Just once:
+One line, nothing to clone:
 
 ```bash
-./install.sh          # 1. binario (descarga el release prebuilt y verifica sha256)
-ccp install           # 2. función de shell + hook automático
-source ~/.zshrc       # 3. recarga TU shell (o ~/.bashrc)
-ccp doctor            # 4. confirma que quedó bien
+curl -fsSL https://raw.githubusercontent.com/JoseAFlores777/ccp/main/install.sh | bash
+```
+
+Then, just once:
+
+```bash
+ccp install           # 2. shell function + automatic hook
+source ~/.zshrc       # 3. reload YOUR shell (or ~/.bashrc)
+ccp doctor            # 4. confirm it landed well
 ```
 
 If step 1 warns you that `~/.local/bin` is not on your PATH, add it to your rc:
@@ -85,9 +90,47 @@ If step 1 warns you that `~/.local/bin` is not on your PATH, add it to your rc:
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
+<details>
+<summary>What that one line actually does — and how to pin, redirect or read it first</summary>
+
+The installer **downloads the prebuilt binary** for your OS/arch (darwin/linux ×
+amd64/arm64) from the GitHub Release and **verifies its sha256** against the
+release's `checksums.txt`; a mismatch aborts the install. Because there is no
+checkout around it, it also fetches the repo into `~/.config/ccp/src`
+(`git clone --depth 1`, or a tarball if you have no git) — that copy is what the
+`/ccp:` slash commands are installed from and what `ccp upgrade` re-runs later.
+
+Prefer to read before you run, which is always the right instinct with `curl | bash`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/JoseAFlores777/ccp/main/install.sh -o install.sh
+less install.sh && bash install.sh
+```
+
+Env knobs (all optional, all also valid from a clone):
+
+| Variable | Default | What it does |
+|---|---|---|
+| `CCP_RELEASE` | `latest` | Install a specific tag: `curl … \| CCP_RELEASE=v2.14.0 bash` |
+| `CCP_BIN_DIR` | `~/.local/bin` | Where the binary lands |
+| `CCP_SRC_DIR` | `~/.config/ccp/src` | Where the source copy lands |
+| `CCP_NO_SOURCE` | `0` | `1` = binary only, no source copy (no `/ccp:` commands, no `ccp upgrade` source) |
+| `CCP_FROM_SOURCE` | `0` | `1` = build with `go build` instead of using the release (needs Go) |
+| `CCP_REPO` | `JoseAFlores777/ccp` | Install from a fork |
+
+From a clone it's the same script and the same result — the only difference is
+that `ccp upgrade` is then registered against **your** checkout:
+
+```bash
+git clone https://github.com/JoseAFlores777/ccp.git && cd ccp && ./install.sh
+```
+
+</details>
+
 ## Updating
 
-`install.sh` records which repo you installed from, so updating is a single command:
+`install.sh` records which source it installed from (`~/.config/ccp/src` with the
+one-liner, your checkout with a clone), so updating is a single command:
 
 ```bash
 ccp upgrade              # reinstall + resync profiles (profile sync)

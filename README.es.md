@@ -70,10 +70,15 @@ Pulsa `c` (o `:config`) para la **vista Config**, que toma el cuerpo en vez de a
 
 ## Instalación
 
-Una sola vez:
+Una línea, sin clonar nada:
 
 ```bash
-./install.sh          # 1. binario (descarga el release prebuilt y verifica sha256)
+curl -fsSL https://raw.githubusercontent.com/JoseAFlores777/ccp/main/install.sh | bash
+```
+
+Y después, una sola vez:
+
+```bash
 ccp install           # 2. función de shell + hook automático
 source ~/.zshrc       # 3. recarga TU shell (o ~/.bashrc)
 ccp doctor            # 4. confirma que quedó bien
@@ -85,9 +90,48 @@ Si el paso 1 te avisa que `~/.local/bin` no está en tu PATH, añádelo a tu rc:
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
+<details>
+<summary>Qué hace de verdad esa línea — y cómo fijar versión, cambiar rutas o leerla antes</summary>
+
+El instalador **descarga el binario prebuilt** de tu OS/arch (darwin/linux ×
+amd64/arm64) desde el GitHub Release y **verifica su sha256** contra el
+`checksums.txt` del release; si no cuadra, aborta. Como no hay checkout
+alrededor, además se trae el código a `~/.config/ccp/src`
+(`git clone --depth 1`, o un tarball si no tienes git) — esa copia es de donde
+salen los comandos `/ccp:` y lo que `ccp upgrade` re-ejecuta después.
+
+Si prefieres leerlo antes de correrlo, que es el instinto correcto con
+`curl | bash`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/JoseAFlores777/ccp/main/install.sh -o install.sh
+less install.sh && bash install.sh
+```
+
+Perillas de entorno (todas opcionales, todas válidas también desde un clon):
+
+| Variable | Default | Qué hace |
+|---|---|---|
+| `CCP_RELEASE` | `latest` | Instala un tag concreto: `curl … \| CCP_RELEASE=v2.14.0 bash` |
+| `CCP_BIN_DIR` | `~/.local/bin` | Dónde queda el binario |
+| `CCP_SRC_DIR` | `~/.config/ccp/src` | Dónde queda la copia del código |
+| `CCP_NO_SOURCE` | `0` | `1` = solo binario, sin copia del código (sin comandos `/ccp:`, sin fuente para `ccp upgrade`) |
+| `CCP_FROM_SOURCE` | `0` | `1` = compila con `go build` en vez de usar el release (necesita Go) |
+| `CCP_REPO` | `JoseAFlores777/ccp` | Instalar desde un fork |
+
+Desde un clon es el mismo script y el mismo resultado — la única diferencia es
+que `ccp upgrade` queda registrado contra **tu** checkout:
+
+```bash
+git clone https://github.com/JoseAFlores777/ccp.git && cd ccp && ./install.sh
+```
+
+</details>
+
 ## Actualizar
 
-`install.sh` registra de qué repo instalaste, así que actualizar es un comando:
+`install.sh` registra de qué fuente instalaste (`~/.config/ccp/src` con la línea
+única, tu checkout si clonaste), así que actualizar es un comando:
 
 ```bash
 ccp upgrade              # re-instala + re-sincroniza perfiles (profile sync)

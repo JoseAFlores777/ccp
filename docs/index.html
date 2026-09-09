@@ -194,7 +194,9 @@
     <figure class="codewrap">
       <div class="term-bar"><i></i><i class="y"></i><i class="g"></i><span>setup</span></div>
       <button class="copy" type="button"><span>copy</span></button>
-<pre>./install.sh                           <span class="c"># 1 · binary + libs</span>
+<pre><span class="c"># 1 · binary (prebuilt release, sha256-verified). Nothing to clone.</span>
+curl -fsSL https://raw.githubusercontent.com/JoseAFlores777/ccp/main/install.sh | bash
+
 export PATH="$HOME/.local/bin:$PATH"   <span class="c"># 2 · only if step 1 warned you</span>
 ccp install                            <span class="c"># 3 · shell function + cd hook</span>
 source ~/.zshrc                        <span class="c"># 4 · or ~/.bashrc — YOUR shell</span>

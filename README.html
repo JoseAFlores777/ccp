@@ -573,8 +573,9 @@
       <p class="sec-lede">Five steps. Copy them in order.</p>
       <div class="steps">
         <div class="step"><div class="num">01</div><div class="body">
-          <p class="lead">Install the <b>binary and the libraries</b>.</p>
-          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>./install.sh</pre></div>
+          <p class="lead">Install the <b>binary</b>. One line, nothing to clone.</p>
+          <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>curl -fsSL https://raw.githubusercontent.com/JoseAFlores777/ccp/main/install.sh | bash</pre></div>
+          <details class="why"><summary>what does that line do?</summary><div class="why-body"><p>It downloads the prebuilt binary for your OS/arch from the GitHub Release and <b>verifies its sha256</b> against the release's <code>checksums.txt</code> — a mismatch aborts. Then it copies the repo to <code>~/.config/ccp/src</code> (shallow clone, or a tarball if you have no git): that copy is where the <code>/ccp:</code> commands come from and what <code>ccp upgrade</code> re-runs later.</p><p>Want to read it first? <code>curl -fsSL …/install.sh -o install.sh</code>, read it, then <code>bash install.sh</code>. From a clone it is the same script: <code>git clone https://github.com/JoseAFlores777/ccp.git &amp;&amp; cd ccp &amp;&amp; ./install.sh</code>.</p></div></details>
         </div></div>
         <div class="step"><div class="num">02</div><div class="body">
           <p class="lead"><code>~/.local/bin</code> on your <b>PATH</b>. Only if step 1 warned you, add to <code>~/.zshrc</code> or <code>~/.bashrc</code>:</p>

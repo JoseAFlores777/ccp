@@ -1,5 +1,23 @@
 # Changelog
 
+## [Sin publicar] — instalar con una sola línea, sin clonar
+
+### Added
+
+- **`install.sh` corre en remoto**: `curl -fsSL https://raw.githubusercontent.com/JoseAFlores777/ccp/main/install.sh | bash`
+  instala sin que haya que clonar el repo antes. Es ahora la forma documentada de instalar
+  (README, README.html y la landing), y el clon sigue funcionando igual.
+  - Con `curl | bash` no hay `BASH_SOURCE`, así que el checkout se detecta por **contenido**
+    (`install.sh` + `cmd/ccp/main.go`), nunca por `$0` — que en una tubería es `bash` y haría que
+    el script tomara el cwd por repo y registrara una `install-source` mentirosa.
+  - Sin checkout alrededor, el script se trae uno a `$CCP_HOME/src` (`git clone --depth 1`, o
+    tarball de `codeload` si no hay git). No es un capricho: de ahí salen los comandos `/ccp:` y es
+    lo que `ccp upgrade` re-ejecuta después. Si ya existe y tiene cambios sin guardar, **no se toca**.
+  - Traerse el código **nunca es fatal**: si falla, el binario se instala igual (viene del release,
+    no del código) y el aviso dice qué se pierde — comandos `/ccp:` y fuente para `ccp upgrade`.
+  - Perillas nuevas: `CCP_SRC_DIR` (dónde queda esa copia) y `CCP_NO_SOURCE=1` (solo binario).
+  - El binario sigue saliendo del GitHub Release con **sha256 verificado**; nada de eso cambia.
+
 ## [2.14.0] — `ccp session` se configura solo, y la TUI edita la config
 
 ### Added
