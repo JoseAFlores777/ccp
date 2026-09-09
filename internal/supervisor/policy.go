@@ -210,17 +210,57 @@ func (c *Chain) Advance(target string, now time.Time) {
 	}
 }
 
-// DwellSatisfied reporta si se cumplió MinDwell en el perfil actual.
-//
-// Existe para amortiguar la ráfaga: statusLine, transcript y sentinel pueden
-// reportar el MISMO límite con segundos de diferencia. Sin permanencia mínima
-// esas tres señales se convertirían en tres saltos y la cadena se vaciaría de
-// golpe. El supervisor espera lo que falte antes de rotar.
-func (c *Chain) DwellSatisfied(now time.Time) bool {
-	if c.policy.MinDwell <= 0 {
+// reactiveDwellCap es el techo de permanencia que se exige cuando el límite ya
+// ocurrió. Ver DwellFor.
+const reactiveDwellCap = 30 * time.Second
+
+// DwellSatisfiedFor reporta si se cumplió `dwell` en el perfil actual.
+func (c *Chain) DwellSatisfiedFor(now time.Time, dwell time.Duration) bool {
+	if dwell <= 0 {
 		return true
 	}
-	return now.Sub(c.since) >= c.policy.MinDwell
+	return now.Sub(c.since) >= dwell
+}
+
+// DwellSatisfied reporta si se cumplió MinDwell entero en el perfil actual. Es
+// el criterio del regreso voluntario (decideReturn), donde nadie tiene prisa.
+func (c *Chain) DwellSatisfied(now time.Time) bool {
+	return c.DwellSatisfiedFor(now, c.policy.MinDwell)
+}
+
+// DwellFor devuelve la permanencia mínima exigible antes de rotar por un evento
+// de `source`, y es donde se separan las dos cosas que MinDwell mezclaba.
+//
+// La justificación clásica de MinDwell —amortiguar la ráfaga, porque statusLine,
+// transcript y sentinel pueden reportar el MISMO límite con segundos de
+// diferencia— ya no la sostiene él: dentro de un lanzamiento la deduplican
+// runner.fresh y, sobre todo, el `if limit != nil { continue }` del select, que
+// deja actuar solo al primer límite. Lo que MinDwell hace de verdad es un piso
+// de permanencia ENTRE lanzamientos, y eso sigue siendo útil: evita que tres
+// perfiles se quemen en un minuto.
+//
+// Pero aplicarlo entero a un evento REACTIVO es daño puro. Reactivo significa
+// que el turno ya falló: el 429 está servido, el usuario está mirando un error,
+// y `c.since` se siembra en NewChain, así que en el primer lanzamiento el piso
+// son los 20 minutos completos DESDE QUE ARRANCÓ LA CORRIDA. Veinte minutos
+// dentro de una cuenta que no responde, teniendo otra fresca al lado.
+//
+// Así que el dwell entero se reserva para el sensor PROACTIVO ("statusline"),
+// que es el único que avisa antes de que nada falle y por tanto el único que
+// puede permitirse esperar. Todo lo demás —"transcript", "stream-json", "hook",
+// y cualquier origen que no reconozcamos— cae al techo corto. El default es
+// deliberadamente el del caso urgente: el Source de un sentinel lo escribe el
+// hook a partir de un payload que viene de fuera, y ante un origen que no
+// sabemos leer preferimos rotar pronto de más que retener al usuario dentro de
+// un límite.
+func (c *Chain) DwellFor(source string) time.Duration {
+	if source == "statusline" {
+		return c.policy.MinDwell
+	}
+	if c.policy.MinDwell < reactiveDwellCap {
+		return c.policy.MinDwell
+	}
+	return reactiveDwellCap
 }
 
 // Hops es el número de PRÉSTAMOS consumidos (las vueltas a casa no cuentan).

@@ -482,7 +482,7 @@ func NewUsageWatcher(home, profile, ccHome string, threshold int, poll time.Dura
 		for {
 			rl, from, ok := sampleUsage(home, profile, ccHome, time.Now())
 			if ok {
-				if win, hit := rl.ExhaustedAt(threshold, time.Now()); hit {
+				if win, hit := rl.ExhaustedAt(threshold, time.Now()); hit && usageDatable(rl, win) {
 					if !fired[win] {
 						fired[win] = true
 						if !d.emit(usageEvent(rl, win, threshold, from)) {
@@ -547,6 +547,27 @@ func cachedUsageIsFresh(ccHome string, now time.Time) bool {
 	// descartarlo dejaría al sensor sin fuente por un desajuste de reloj.
 	age := now.Sub(st.ModTime())
 	return age <= cachedUsageTTL
+}
+
+// usageDatable exige que la ventana que disparó traiga `resets_at`. Es la única
+// regla que este sensor añade sobre ExhaustedAt, y va aquí y no allí a propósito.
+//
+// ExhaustedAt la comparten dos oficios. PINTANDO —la barra de estado, `ccp auto
+// status`— «95% sin fecha» es información legítima y esconderla sería peor.
+// DECIDIENDO no: sin `resets_at` el Chain no tiene ventana que esperar y aplica
+// el cooldown de respaldo, así que un `.claude.json` con `usedPercentage: 95` y
+// sin fecha —el defecto conocido de CC que documenta sampleUsage— destierra el
+// perfil una hora entera por una medida que quizá describa una ventana ya
+// cerrada. Y esa rotación es además la degradada: sin dato que fechar, tampoco
+// hay nada que confirme que el límite sigue vigente.
+//
+// El sensor reactivo no necesita este filtro: allí el 429 ya ocurrió.
+func usageDatable(rl core.RateLimits, win core.LimitWindow) bool {
+	w := rl.FiveHour
+	if win == core.WindowWeekly {
+		w = rl.SevenDay
+	}
+	return !w.ResetsAt.IsZero()
 }
 
 // usageEvent arma el evento del sensor proactivo.

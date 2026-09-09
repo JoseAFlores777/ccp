@@ -540,3 +540,51 @@ func TestChainAdvanceNoop(t *testing.T) {
 		t.Error("Advance no-op reinició el dwell")
 	}
 }
+
+// TestDwellForSeparaProactivoDeReactivo fija la asimetría de la permanencia
+// mínima, que es la única regla de política que distingue quién dio el aviso.
+//
+// El dwell entero solo tiene sentido cuando aún no ha fallado nada: el sensor
+// proactivo avisa ANTES del 429, así que esperar es gratis y evita quemar la
+// cadena por un pico. Un evento reactivo significa que el turno YA falló, y como
+// `since` se siembra en NewChain, aplicarle el dwell entero retiene al usuario
+// los 20 minutos completos desde el arranque de la corrida dentro de una cuenta
+// que devuelve 429, teniendo otra fresca al lado.
+//
+// El caso que más importa es el último: un origen que no reconocemos cae al lado
+// urgente, no al conservador. El Source de un sentinel lo escribe el hook desde
+// un payload externo, así que "no sé qué es esto" tiene que rotar pronto de más
+// antes que retener de más.
+func TestDwellForSeparaProactivoDeReactivo(t *testing.T) {
+	chainCon := func(minDwell string) *Chain {
+		eff := pol(t, core.AutoPolicy{Fallback: []string{"app"}, MinDwell: minDwell})
+		return NewChain(core.ResolvedChain{
+			Policy: eff, Primary: "personal", Fallback: []string{"app"},
+		}, 0, false, t0)
+	}
+	c := chainCon("20m")
+
+	if got := c.DwellFor("statusline"); got != 20*time.Minute {
+		t.Errorf("DwellFor(statusline) = %v, quería el MinDwell entero (20m)", got)
+	}
+	for _, src := range []string{"transcript", "stream-json", "hook", "", "vete-a-saber"} {
+		if got := c.DwellFor(src); got != reactiveDwellCap {
+			t.Errorf("DwellFor(%q) = %v, quería el techo corto %v", src, got, reactiveDwellCap)
+		}
+	}
+
+	// Con un MinDwell más corto que el techo manda el MinDwell: el techo acota,
+	// no impone un mínimo. Un usuario que pidió 5s no debe esperar 30.
+	corto := chainCon("5s")
+	if got := corto.DwellFor("transcript"); got != 5*time.Second {
+		t.Errorf("DwellFor con MinDwell 5s = %v, quería 5s", got)
+	}
+	// Y con MinDwell 0 (el default de los tests) no hay espera de ninguna clase.
+	cero := chainCon("0s")
+	if got := cero.DwellFor("transcript"); got != 0 {
+		t.Errorf("DwellFor con MinDwell 0 = %v, quería 0", got)
+	}
+	if !cero.DwellSatisfiedFor(t0, 0) {
+		t.Error("DwellSatisfiedFor con dwell 0 = false; quiero true")
+	}
+}
