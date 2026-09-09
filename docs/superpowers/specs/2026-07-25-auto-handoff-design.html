@@ -266,7 +266,7 @@ footer .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gre
     <pre class="mermaid">
 flowchart TB
     S(["🧑‍💻 ccp session -- claude"])
-    PRIMARY["🏠 Primario = ccp resolve $PWD<br/>ej: personal-cc"]
+    PRIMARY["🏠 Primario = ccp resolve $PWD<br/>ej: personal-1"]
     FALLBACK["📋 Leer fallback + política<br/>return_check + cooldowns"]
     L["🚀 Fork/Exec claude<br/>primario.env<br/>--session-id &lt;uuid&gt;"]
     M{"🔍 Monitorear<br/>3 sensores"}
@@ -448,7 +448,7 @@ flowchart LR
     <div class="decision">
       <div class="decision-col"><h5 class="chosen">✅ Elegido</h5><p><code>allow_from</code> explícito, default deny</p></div>
       <div class="decision-col"><h5 class="discarded">❌ Descartado</h5><p>Derivar del rules tree</p></div>
-      <div class="decision-col"><h5 class="why">💡 Por qué</h5><p>Reglas son geográficas (path→profile), no de confianza. EMCO→DeepSeek ya pasó manualmente 5×.</p></div>
+      <div class="decision-col"><h5 class="why">💡 Por qué</h5><p>Reglas son geográficas (path→profile), no de confianza. work-1→DeepSeek ya pasó manualmente 5×.</p></div>
     </div>
     <div class="decision">
       <div class="decision-col"><h5 class="chosen">✅ Elegido</h5><p>Lift no-chain con <code>--chain</code> para préstamos</p></div>
@@ -533,8 +533,8 @@ sequenceDiagram
 
     U->>S: ccp session -p --policy overnight -- claude -p "task"
     S->>S: Load auto_handoff.policies.overnight
-    S->>S: primario = resolver(Path) → personal-cc
-    S->>S: fallback = [app-cc, emco-cc]
+    S->>S: primario = resolver(Path) → personal-1
+    S->>S: fallback = [work-1, work-2]
     S->>C: fork/exec claude (personal-deepseek env)
     C->>API: POST /v1/messages
     API-->>C: stream (chunks)
@@ -546,11 +546,11 @@ sequenceDiagram
     C-->>S: stream-json: type=system, subtype=api_retry, error=rate_limit
     S->>C: SIGTERM
     C-->>S: exit 143
-    S->>Core: HandoffForward(home, personal-deepseek, personal-cc, cwd, uuid, ...)
+    S->>Core: HandoffForward(home, personal-deepseek, personal-1, cwd, uuid, ...)
     Core->>FS: flock + CopyTranscript + append marker
     Core-->>S: emit (env delta + CCP_RESUME_ID)
-    S->>C: fork/exec claude --resume uuid (personal-cc env)
-    C->>API: POST /v1/messages (personal-cc key)
+    S->>C: fork/exec claude --resume uuid (personal-1 env)
+    C->>API: POST /v1/messages (personal-1 key)
     Note over S,C: ... continúa con siguiente perfil hasta éxito o max_hops
     </pre>
   </div>
@@ -560,17 +560,17 @@ sequenceDiagram
     <pre class="mermaid">
 flowchart LR
     subgraph Policy["auto_handoff.policies.default"]
-        PRIMARY["🏠 primario = ccp resolve $PWD<br/>ej: personal-cc"]
-        FB["fallback: [app-cc, personal-deepseek]"]
+        PRIMARY["🏠 primario = ccp resolve $PWD<br/>ej: personal-1"]
+        FB["fallback: [work-2, personal-deepseek]"]
         TH["threshold: 90%"]
         DWELL["min_dwell: 20m"]
         RETCK["return_check: 10m"]
     end
     subgraph Gate["allow_from (compliance)"]
-        E["emco-cc → [emco-cc]"]
-        A["app-cc → [app-cc, personal-cc]"]
-        P["personal-cc → [personal-cc, app-cc, personal-deepseek]"]
-        D["personal-deepseek → [personal-deepseek, personal-cc]"]
+        E["work-1 → [work-1]"]
+        A["work-2 → [work-2, personal-1]"]
+        P["personal-1 → [personal-1, work-2, personal-deepseek]"]
+        D["personal-deepseek → [personal-deepseek, personal-1]"]
     end
     RES["Resolver: ¿a quién pedir prestado?"]
     OK["✅ handoff a fallback[i]"]
@@ -606,7 +606,7 @@ auto_handoff:
   policies:
     default:
       # Préstamos en orden. El primario es implícito (ccp resolve $PWD).
-      fallback: [app-cc, personal-deepseek]
+      fallback: [work-2, personal-deepseek]
       threshold: 90          # % de rate_limits para handoff proactivo
       min_dwell: 20m         # mínimo en cada perfil antes de rotar
       max_hops: 6            # máximo de préstamos antes de rendirse
@@ -619,7 +619,7 @@ auto_handoff:
 
     overnight:
       # primario implícito: el que ccp resolve devuelva para el path
-      fallback: [personal-cc, app-cc]
+      fallback: [personal-1, work-2]
       threshold: 85          # más conservador para unattended
       max_hops: 12
       return_check: 10m
@@ -631,10 +631,10 @@ auto_handoff:
       fallback: []            # sin préstamos. Solo primario.
 
   allow_from:                 # compliance gate: default deny
-    emco-cc: [emco-cc]        # solo a sí mismo (no rota)
-    app-cc: [app-cc, personal-cc]
-    personal-cc: [personal-cc, app-cc, personal-deepseek]
-    personal-deepseek: [personal-deepseek, personal-cc]
+    work-1: [work-1]        # solo a sí mismo (no rota)
+    work-2: [work-2, personal-1]
+    personal-1: [personal-1, work-2, personal-deepseek]
+    personal-deepseek: [personal-deepseek, personal-1]
   </div>
 </section>
 
@@ -721,7 +721,7 @@ auto_handoff:
         <tr><td><strong>UC-1</strong> Interactive refactor largo</td><td><code>ccp session</code> con TTY. statusLine → handoff proactivo</td><td><span class="tag tag-amber">Gated en experimento</span></td></tr>
         <tr><td><strong>UC-2</strong> Overnight headless batch</td><td><code>ccp session -p --policy overnight</code></td><td><span class="tag tag-green">✅ Listo en v1</span></td></tr>
         <tr><td><strong>UC-3</strong> Opus → Sonnet mismo perfil</td><td><code>per_profile.model</code> en chain</td><td>Feature separado</td></tr>
-        <tr><td><strong>UC-4</strong> Préstamos entre cuentas</td><td><code>fallback: [app-cc, personal-cc]</code>. Primario implícito</td><td><span class="tag tag-amber">Requiere lift no-chain</span></td></tr>
+        <tr><td><strong>UC-4</strong> Préstamos entre cuentas</td><td><code>fallback: [work-2, personal-1]</code>. Primario implícito</td><td><span class="tag tag-amber">Requiere lift no-chain</span></td></tr>
         <tr><td><strong>UC-5</strong> Oficial → DeepSeek</td><td>Último fallback. <code>--model</code> explícito</td><td><span class="tag tag-amber">Compatibilidad no verificada</span></td></tr>
         <tr><td><strong>UC-7</strong> Retorno al primario</td><td><code>return_check: 10m</code> verifica <code>resets_at</code>. Si expiró → volver</td><td><span class="tag tag-green">✅ Con cooldowns + resets_at</span></td></tr>
         <tr><td><strong>UC-9</strong> Cron/CI</td><td><code>ccp session -p</code> no necesita shell function</td><td><span class="tag tag-green">✅</span></td></tr>

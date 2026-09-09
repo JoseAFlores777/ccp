@@ -1,6 +1,6 @@
 if ! whence compdef >/dev/null 2>&1; then autoload -Uz compinit && compinit -C; fi
 _ccp() {
-  local -a top; top=(install uninstall upgrade key path profile instruct status config doctor menu completion resolve lang version help use default on off run handoff session auto)
+  local -a top; top=(install uninstall upgrade key path profile instruct status config doctor menu completion resolve lang version help use default on off run handoff session auto desktop)
   if (( CURRENT == 2 )); then compadd -- $top; return; fi
   case "${words[2]}" in
     profile) (( CURRENT == 3 )) && compadd -- add rm rename list show login config sync
@@ -17,6 +17,8 @@ _ccp() {
              (( CURRENT == 4 )) && [[ "${words[3]}" == chain ]] && compadd -- show add rm mv set help --policy
              (( CURRENT >= 5 )) && [[ "${words[3]}" == chain && "${words[4]}" =~ ^(add|rm|mv|set)$ ]] && compadd -- --policy --at --no-allow ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     session) compadd -- --dry-run --headless --policy --yolo --max-hops --no-return --setup --no-setup ;;
+    desktop) (( CURRENT == 3 )) && compadd -- open list path prepare rm default ${(f)"$(ccp profile list 2>/dev/null)"}
+             (( CURRENT == 4 )) && [[ "${words[3]}" =~ ^(open|path|prepare|rm)$ ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     key)     compadd -- ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     completion) compadd -- bash zsh ;;
   esac

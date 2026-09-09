@@ -1,12 +1,15 @@
 package tui
 
 import (
+	"io"
 	"strings"
 	"testing"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
 	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 // key arma la pulsación de una tecla imprimible para Update.
@@ -223,5 +226,34 @@ func TestPanelResto(t *testing.T) {
 	out, _ = base.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if fm := out.(panelModel); !fm.done || fm.result.Action != panelActionNone {
 		t.Errorf("esc debe salir sin acción: %+v", fm.result)
+	}
+}
+
+// TestPanelViewEmiteANSIConRendererDeColor fija que el estilo del panel LLEGA a
+// emitirse. No prueba el bonito: prueba que existe.
+//
+// El panel se pinta en /dev/tty, pero lipgloss decide si hay color midiendo el
+// renderer por defecto, que resuelve contra os.Stdout — y en la ruta real de
+// `ccp handoff` ese stdout es una tubería (la sustitución de comando de la
+// función de shell). El resultado era que el único estilo del panel no emitía un
+// solo byte de ANSI en producción mientras los tests, también sin tty, lo daban
+// por bueno. openTTY reapunta ahora el renderer al archivo de la tty; aquí se
+// simula esa condición forzando un renderer con color y exigiendo la secuencia
+// de escape. Sin la línea de openTTY este test es la única red: quien vuelva a
+// romperlo lo verá en rojo en vez de descubrirlo en su terminal.
+func TestPanelViewEmiteANSIConRendererDeColor(t *testing.T) {
+	prev := lipgloss.DefaultRenderer()
+	t.Cleanup(func() { lipgloss.SetDefaultRenderer(prev) })
+
+	r := lipgloss.NewRenderer(io.Discard)
+	r.SetColorProfile(termenv.TrueColor)
+	lipgloss.SetDefaultRenderer(r)
+
+	h := &core.Handoffs{Version: core.HandoffsVersion, Active: []core.Marker{
+		{Session: "aaa", Slug: core.SlugForCwd("/repo"), Cwd: "/repo", From: "p", To: "k", Since: "2026-07-25T00:00:00Z"},
+	}}
+	view := newPanelModel(h, "/repo", false, i18n.Es).View()
+	if !strings.Contains(view, "\x1b[") {
+		t.Fatalf("View() no emitió ninguna secuencia ANSI con un renderer de color:\n%q", view)
 	}
 }

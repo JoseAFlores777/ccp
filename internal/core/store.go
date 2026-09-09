@@ -137,6 +137,7 @@ func Load(home string) (*Config, error) {
 	// El inline map de goccy captura también las claves conocidas; las
 	// quitamos para que Extra solo contenga lo realmente desconocido.
 	stripKnownKeys(c.Extra)
+	stripAutoKnownKeys(c.AutoHandoff)
 	// 'default' es implícito: nunca debe vivir en el mapa.
 	delete(c.Profiles, "default")
 	return c, nil
@@ -163,6 +164,7 @@ func Save(home string, c *Config) error {
 		delete(c.Profiles, "default")
 	}
 	stripKnownKeys(c.Extra)
+	stripAutoKnownKeys(c.AutoHandoff)
 
 	var out []byte
 	var err error
@@ -220,5 +222,49 @@ func stripKnownKeys(m map[string]any) {
 	}
 	for k := range knownTopKeys {
 		delete(m, k)
+	}
+}
+
+// knownAutoKeys / knownPolicyKeys son el equivalente de knownTopKeys para los
+// dos catch-all de dentro de `auto_handoff` (ver auto.go). Hacen falta por el
+// mismo motivo: el `,inline` de goccy recoge TODAS las claves del nodo, también
+// las que el struct ya tiene tipadas, y dejarlas ahí las escribiría dos veces en
+// el siguiente Save.
+var knownAutoKeys = map[string]struct{}{
+	"enabled":    {},
+	"policies":   {},
+	"allow_from": {},
+	"hooks":      {},
+}
+
+var knownPolicyKeys = map[string]struct{}{
+	"fallback":     {},
+	"threshold":    {},
+	"min_dwell":    {},
+	"max_hops":     {},
+	"return_check": {},
+	"return_idle":  {},
+	"cooldown":     {},
+}
+
+// stripAutoKnownKeys limpia los catch-all del bloque auto_handoff y de cada una
+// de sus políticas. Se llama en los MISMOS dos puntos que stripKnownKeys (tras
+// cargar y antes de guardar); separarlo mantiene a store.go sin saber qué campos
+// tiene una política, que es cosa de auto.go.
+func stripAutoKnownKeys(a *AutoHandoff) {
+	if a == nil {
+		return
+	}
+	for k := range knownAutoKeys {
+		delete(a.Extra, k)
+	}
+	for name, p := range a.Policies {
+		if p.Extra == nil {
+			continue
+		}
+		for k := range knownPolicyKeys {
+			delete(p.Extra, k)
+		}
+		a.Policies[name] = p
 	}
 }

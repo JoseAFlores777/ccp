@@ -10,27 +10,27 @@ import (
 
 func TestHandoffProfileOptionsExcludesActive(t *testing.T) {
 	cfg := &core.Config{Profiles: map[string]core.Profile{
-		"personal-cc": {Type: "official"}, "emco-cc": {Type: "official"},
+		"personal-1": {Type: "official"}, "work-1": {Type: "official"},
 	}}
-	opts := HandoffProfileOptions(cfg, "personal-cc")
+	opts := HandoffProfileOptions(cfg, "personal-1")
 	for _, o := range opts {
-		if o == "personal-cc" {
+		if o == "personal-1" {
 			t.Fatal("el perfil activo no debe aparecer como destino")
 		}
 	}
-	if len(opts) != 1 || opts[0] != "emco-cc" {
-		t.Fatalf("opciones = %v, want [emco-cc]", opts)
+	if len(opts) != 1 || opts[0] != "work-1" {
+		t.Fatalf("opciones = %v, want [work-1]", opts)
 	}
 }
 
 func TestMarkerLabel(t *testing.T) {
 	m := core.Marker{
 		Session: "bbc1ed61-ada1-408f-0000-000000000000",
-		Cwd:     "/repo/uno", From: "personal-cc", To: "emco-cc",
+		Cwd:     "/repo/uno", From: "personal-1", To: "work-1",
 		Title: "Refactor handoff", Since: "2026-07-25T14:30:00Z",
 	}
 	got := markerLabel(m, i18n.Es)
-	for _, want := range []string{"personal-cc", "emco-cc", "bbc1ed61", "Refactor handoff"} {
+	for _, want := range []string{"personal-1", "work-1", "bbc1ed61", "Refactor handoff"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("label sin %q: %s", want, got)
 		}
@@ -51,12 +51,12 @@ func TestHandoffTitleBilingue(t *testing.T) {
 }
 
 func TestSessionLabelMarcaEnVuelo(t *testing.T) {
-	inFlight := map[string]string{"aaa": "emco-cc"}
+	inFlight := map[string]string{"aaa": "work-1"}
 	got := sessionLabel(core.SessionInfo{UUID: "aaa", Title: "T"}, inFlight, i18n.Es)
-	if !strings.Contains(got, "en vuelo → emco-cc") {
+	if !strings.Contains(got, "en vuelo → work-1") {
 		t.Errorf("la sesión prestada debe marcarse: %s", got)
 	}
-	if en := sessionLabel(core.SessionInfo{UUID: "aaa", Title: "T"}, inFlight, i18n.En); !strings.Contains(en, "in flight → emco-cc") {
+	if en := sessionLabel(core.SessionInfo{UUID: "aaa", Title: "T"}, inFlight, i18n.En); !strings.Contains(en, "in flight → work-1") {
 		t.Errorf("la marca debe traducirse: %s", en)
 	}
 	got2 := sessionLabel(core.SessionInfo{UUID: "bbb", Title: "T"}, inFlight, i18n.Es)
@@ -75,13 +75,13 @@ func TestSessionOptionsOfreceLasEnVueloMarcadas(t *testing.T) {
 		{UUID: "11111111-0000-0000-0000-000000000000", Title: "T-11"},
 		{UUID: "22222222-0000-0000-0000-000000000000", Title: "T-22"},
 	}
-	inFlight := map[string]string{"11111111-0000-0000-0000-000000000000": "emco-cc"}
+	inFlight := map[string]string{"11111111-0000-0000-0000-000000000000": "work-1"}
 
 	opts := sessionOptions(sess, inFlight, i18n.Es)
 	if len(opts) != len(sess) {
 		t.Fatalf("el picker debe ofrecer las %d sesiones (ofrece %d)", len(sess), len(opts))
 	}
-	if !strings.Contains(opts[0].Key, "en vuelo → emco-cc") {
+	if !strings.Contains(opts[0].Key, "en vuelo → work-1") {
 		t.Errorf("la sesión prestada debe aparecer marcada: %q", opts[0].Key)
 	}
 	if strings.Contains(opts[1].Key, "en vuelo") {
@@ -96,12 +96,12 @@ func TestSessionOptionsOfreceLasEnVueloMarcadas(t *testing.T) {
 // elegir una sesión marcada falla con un error que nombra el perfil que la
 // tiene y el remedio, en vez de dejar que el core la rechace más tarde.
 func TestCheckSessionFreeRechazaEnVuelo(t *testing.T) {
-	inFlight := map[string]string{"aaa": "emco-cc"}
+	inFlight := map[string]string{"aaa": "work-1"}
 	err := checkSessionFree("aaa", inFlight, i18n.Es)
 	if err == nil {
 		t.Fatal("una sesión en vuelo no debe poder elegirse")
 	}
-	for _, want := range []string{"emco-cc", "ccp handoff resume"} {
+	for _, want := range []string{"work-1", "ccp handoff resume"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("el error debe mencionar %q: %v", want, err)
 		}
@@ -116,10 +116,10 @@ func TestCheckSessionFreeRechazaEnVuelo(t *testing.T) {
 
 func TestInFlightSessions(t *testing.T) {
 	h := &core.Handoffs{Version: core.HandoffsVersion, Active: []core.Marker{
-		{Session: "aaa", To: "emco-cc"}, {Session: "bbb", To: "kimi"},
+		{Session: "aaa", To: "work-1"}, {Session: "bbb", To: "kimi"},
 	}}
 	got := inFlightSessions(h)
-	if got["aaa"] != "emco-cc" || got["bbb"] != "kimi" || len(got) != 2 {
+	if got["aaa"] != "work-1" || got["bbb"] != "kimi" || len(got) != 2 {
 		t.Fatalf("inFlightSessions = %v", got)
 	}
 }

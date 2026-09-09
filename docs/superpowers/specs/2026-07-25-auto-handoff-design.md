@@ -111,9 +111,9 @@ El perfil **primario** de un proyecto es el que `ccp resolve $PWD` devuelve — 
 El supervisor siempre intenta **volver al primario** apenas su cooldown expira, sin importar en qué eslabón de la cadena esté. No es un round-robin circular: es un péndulo que oscila hacia afuera y vuelve al origen.
 
 ```
-primario (personal-cc)
+primario (personal-1)
   │
-  ├──[agotado]──→ fallback[0] (app-cc)
+  ├──[agotado]──→ fallback[0] (work-2)
   │                    │
   │                    ├──[agotado]──→ fallback[1] (personal-deepseek)
   │                    │                    │
@@ -136,7 +136,7 @@ auto_handoff:
   policies:
     default:
       # Préstamos en orden. El primario es implícito (ccp resolve $PWD).
-      fallback: [app-cc, personal-deepseek]
+      fallback: [work-2, personal-deepseek]
       threshold: 90          # % de rate_limits para handoff proactivo
       min_dwell: 20m         # mínimo en cada perfil antes de rotar
       max_hops: 6            # máximo de préstamos antes de rendirse
@@ -149,7 +149,7 @@ auto_handoff:
         fallback: 1h         # si no hay resets_at (API-key), espera fija
 
     overnight:
-      fallback: [personal-cc, app-cc]
+      fallback: [personal-1, work-2]
       # primario implícito: personal-deepseek (el path /Prueba-deepseek tiene regla)
       threshold: 85
       max_hops: 12
@@ -159,17 +159,17 @@ auto_handoff:
         fallback: 2h
 
     trabajo:
-      fallback: []            # sin préstamos. Solo primario (emco-cc)
+      fallback: []            # sin préstamos. Solo primario (work-1)
       # Si el primario se agota → bloqueo, sin handoff automático
 
   allow_from:                 # compliance gate: default deny
-    emco-cc: [emco-cc]        # solo a sí mismo (no rota)
-    app-cc: [app-cc, personal-cc]
-    personal-cc: [personal-cc, app-cc, personal-deepseek]
-    personal-deepseek: [personal-deepseek, personal-cc]
+    work-1: [work-1]          # solo a sí mismo (no rota)
+    work-2: [work-2, personal-1]
+    personal-1: [personal-1, work-2, personal-deepseek]
+    personal-deepseek: [personal-deepseek, personal-1]
 ```
 
-**Compliance gate**: `allow_from` explícito. Default REFUSE para paths no matcheados. EMCO/Applaudo no rotan a personal/DeepSeek automáticamente. La historia ya muestra 5 handoffs manuales cruzando esta línea — automatizar sin gate la cruzaría a las 3am sin supervisión.
+**Compliance gate**: `allow_from` explícito. Default REFUSE para paths no matcheados. Los perfiles de trabajo (`work-1`, `work-2`) no rotan a personal/DeepSeek automáticamente. La historia ya muestra 5 handoffs manuales cruzando esta línea — automatizar sin gate la cruzaría a las 3am sin supervisión.
 
 ### Lógica de retorno al primario
 
@@ -201,21 +201,21 @@ auto_handoff:
 
 ```
 $ ccp session -- claude
-# primario = personal-cc (resuelto por reglas del path ~/Documents/Personal)
+# primario = personal-1 (resuelto por reglas del path ~/Documents/Personal)
 
-personal-cc (4h) ──[94%]──→ ⚠️ handoff a app-cc (préstamo 1/2)
-app-cc (2h)     ──[return_check: primario resets_at pasó ✅]──→ ⚠️ volviendo a personal-cc
-personal-cc     ──[continúa hasta terminar]──→ ✅ exit 0
+personal-1 (4h) ──[94%]──→ ⚠️ handoff a work-2 (préstamo 1/2)
+work-2 (2h)     ──[return_check: primario resets_at pasó ✅]──→ ⚠️ volviendo a personal-1
+personal-1      ──[continúa hasta terminar]──→ ✅ exit 0
 ```
 
 Si el primario no se libera rápido:
 
 ```
-personal-cc     ──[agotado]──→ app-cc
-app-cc          ──[agotado]──→ personal-deepseek
+personal-1      ──[agotado]──→ work-2
+work-2          ──[agotado]──→ personal-deepseek
 personal-deepseek ──[return_check cada 10min: primario sigue en cooldown...]
-personal-deepseek ──[return_check: primario resets_at pasó ✅]──→ ⚠️ volviendo a personal-cc
-personal-cc     ──[termina]──→ ✅ exit 0
+personal-deepseek ──[return_check: primario resets_at pasó ✅]──→ ⚠️ volviendo a personal-1
+personal-1      ──[termina]──→ ✅ exit 0
 ```
 
 ---
@@ -227,9 +227,9 @@ personal-cc     ──[termina]──→ ✅ exit 0
 | **UC-1** Interactive refactor largo | `ccp session` con TTY. statusLine monitorea % → handoff proactivo | ⚠️ Gated en experimento StopFailure-interactive (ver abajo) |
 | **UC-2** Overnight headless batch | `ccp session -p --policy overnight`. stream-json api_retry | ✅ Listo en v1 |
 | **UC-3** Opus agotado → Sonnet | `per_profile.model` en chain. Mismo perfil, `ANTHROPIC_MODEL=sonnet` | Feature separado, no usa handoff |
-| **UC-4** Round-robin 3 cuentas | `fallback: [app-cc, personal-cc]`. Primario implícito. Forward por hop | ⚠️ Invariante no-chain actual bloquea A→B→C misma sesión. Requiere lift |
+| **UC-4** Round-robin 3 cuentas | `fallback: [work-2, personal-1]`. Primario implícito. Forward por hop | ⚠️ Invariante no-chain actual bloquea A→B→C misma sesión. Requiere lift |
 | **UC-5** Oficial → DeepSeek | Último fallback. `--model` explícito. Advertencia cross-provider | ⚠️ Compatibilidad tool_use DeepSeek NO VERIFICADA |
-| **UC-6** Cost-policy: cheap first | `fallback: [personal-cc]`. Primario = deepseek. Escalar a Opus si difícil | Disparador es dificultad, no 429. Fuera de scope v1 |
+| **UC-6** Cost-policy: cheap first | `fallback: [personal-1]`. Primario = deepseek. Escalar a Opus si difícil | Disparador es dificultad, no 429. Fuera de scope v1 |
 | **UC-7** Retorno al primario | `return_check: 10m` verifica `resets_at` del primario cada 10 min. Si expiró **y** la sesión lleva `return_idle` en silencio → handoff de vuelta (mata y relanza el hijo) | ✅ Con cooldowns + resets_at del statusLine |
 | **UC-8** Múltiples handoffs vivos | v2 ya soporta N activos. Auto-markers self-cleaning | ✅ |
 | **UC-9** Cron/CI | `ccp session -p` no necesita shell function | ✅ |
@@ -567,8 +567,8 @@ encadenar con un humano al mando casi siempre es un error de operación.
 **C-2 · El encadenado NO crea un marcador nuevo: muta el que hay.** Si la sesión
 ya está prestada y el marcador apunta a `from`, `HandoffChain` actualiza ese
 marcador en sitio (`To = to`, `Hops += to`) y **conserva `From` y `Since`**. La
-cadena `personal-cc → app-cc → kimi` sigue siendo **un solo marcador**
-`personal-cc → kimi` cuyo `From` es el primario. Consecuencia: `ccp handoff end`
+cadena `personal-1 → work-2 → kimi` sigue siendo **un solo marcador**
+`personal-1 → kimi` cuyo `From` es el primario. Consecuencia: `ccp handoff end`
 devuelve la conversación a casa **en un paso**, sin deshacer N niveles, que es
 justo lo que hace falta a las 3am; y `Hops` conserva el rastro completo para que
 `handoff list` no pierda por dónde pasó. El **fan-out sigue prohibido**: si la

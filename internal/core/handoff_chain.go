@@ -18,7 +18,7 @@ import (
 // La forma de levantar la invariante sin reintroducir el problema que motivó
 // bloquearla es NO apilar niveles: el marcador se muta en sitio, conservando
 // `From` (el primario) y `Since` (cuándo empezó el préstamo). Así la cadena
-// personal-cc → emco-cc → kimi sigue siendo UN marcador `personal-cc → kimi`, y
+// personal-1 → work-1 → kimi sigue siendo UN marcador `personal-1 → kimi`, y
 // `handoff end` devuelve la conversación a casa en un solo paso a las 3am, que
 // es exactamente lo que se necesita cuando nadie está despierto para arreglarlo.
 //

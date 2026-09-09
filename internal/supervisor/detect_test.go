@@ -508,7 +508,14 @@ func TestUsageWatcherFallsBackToCachedUsage(t *testing.T) {
 	ccHome := t.TempDir()
 
 	// Sin muestra del statusLine, el respaldo es <ccHome>/.claude.json.
-	body := `{"cachedUsageUtilization":{"seven_day":{"utilization":97,"resets_at":"2026-08-01T00:00:00Z"}}}`
+	//
+	// El resets_at va RELATIVO a ahora, nunca una fecha literal: ExhaustedAt
+	// descarta las ventanas ya reseteadas, así que una constante absoluta deja de
+	// disparar el día que la alcanza el calendario y el test empieza a fallar sin
+	// que nadie haya tocado el código. Es lo que le pasó a este (y al de abajo)
+	// con un "2026-08-01" escrito a mano.
+	body := `{"cachedUsageUtilization":{"seven_day":{"utilization":97,"resets_at":"` +
+		time.Now().Add(48*time.Hour).UTC().Format(time.RFC3339) + `"}}}`
 	if err := os.WriteFile(filepath.Join(ccHome, ".claude.json"), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -535,7 +542,8 @@ func TestUsageWatcherStaleSampleFallsBack(t *testing.T) {
 	if err := core.WriteRateLimits(home, "work", stale, time.Now().Add(-2*usageSampleTTL)); err != nil {
 		t.Fatal(err)
 	}
-	body := `{"cachedUsageUtilization":{"seven_day":{"utilization":99,"resets_at":"2026-08-01T00:00:00Z"}}}`
+	body := `{"cachedUsageUtilization":{"seven_day":{"utilization":99,"resets_at":"` +
+		time.Now().Add(48*time.Hour).UTC().Format(time.RFC3339) + `"}}}`
 	if err := os.WriteFile(filepath.Join(ccHome, ".claude.json"), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -849,4 +857,41 @@ func TestNormalizePoll(t *testing.T) {
 			t.Errorf("normalizePoll(%v) = %v, quería %v", c.in, got, c.want)
 		}
 	}
+}
+
+// TestUsageWatcherNoDisparaSinResetsAt fija que el sensor PROACTIVO calla
+// cuando la ventana que superaría el umbral no trae `resets_at`.
+//
+// Es el caso que produce el defecto conocido de CC (un porcentaje sin fecha) y
+// el más caro de acertar mal: sin `resets_at` el Chain no tiene ventana que
+// esperar y aplica el cooldown de respaldo, o sea que destierra el perfil una
+// hora entera por una medida que puede describir una ventana ya cerrada. Y lo
+// hace de forma degradada, sin nada que confirme que el límite sigue vigente.
+//
+// El contraste importa: el MISMO porcentaje con fecha sí dispara. Lo que se
+// filtra es la ausencia de dato, no el nivel de uso.
+func TestUsageWatcherNoDisparaSinResetsAt(t *testing.T) {
+	home := t.TempDir()
+	ccHome := t.TempDir()
+
+	sinFecha := core.RateLimits{FiveHour: core.Windowed{UsedPercentage: 95}}
+	if err := core.WriteRateLimits(home, "work", sinFecha, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+
+	d := NewUsageWatcher(home, "work", ccHome, 90, testPoll)
+	expectNoEvent(t, d.Events(), 150*time.Millisecond)
+
+	// Con la MISMA cifra pero fechada, el sensor hace su trabajo.
+	conFecha := core.RateLimits{FiveHour: core.Windowed{
+		UsedPercentage: 95,
+		ResetsAt:       time.Now().Add(2 * time.Hour),
+	}}
+	if err := core.WriteRateLimits(home, "work", conFecha, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if ev := recvEvent(t, d.Events()); ev.Window != core.WindowSession {
+		t.Errorf("Window = %q, quería session", ev.Window)
+	}
+	_ = d.Close()
 }

@@ -11,14 +11,14 @@ import (
 )
 
 // seedE2E deja un CCP_HOME con 2 perfiles official y una sesión en cada repo,
-// dentro del cc-home de personal-cc. El home es un t.TempDir() que YA existe,
+// dentro del cc-home de personal-1. El home es un t.TempDir() que YA existe,
 // así que la auto-migración no dispara contra el ~/.config/dsctl real.
 func seedE2E(t *testing.T) (home, repoA, repoB, uuidA, uuidB string) {
 	t.Helper()
 	home = t.TempDir()
 	cfg := &core.Config{
 		Version:  core.SchemaVersion,
-		Profiles: map[string]core.Profile{"personal-cc": {Type: "official"}, "emco-cc": {Type: "official"}},
+		Profiles: map[string]core.Profile{"personal-1": {Type: "official"}, "work-1": {Type: "official"}},
 	}
 	if err := core.Save(home, cfg); err != nil {
 		t.Fatal(err)
@@ -26,7 +26,7 @@ func seedE2E(t *testing.T) (home, repoA, repoB, uuidA, uuidB string) {
 	repoA, repoB = "/repo/uno", "/repo/dos"
 	uuidA = "11111111-1111-4111-8111-111111111111"
 	uuidB = "22222222-2222-4222-8222-222222222222"
-	cc := filepath.Join(home, "profiles", "personal-cc", "cc-home")
+	cc := filepath.Join(home, "profiles", "personal-1", "cc-home")
 	for _, x := range []struct{ cwd, uuid string }{{repoA, uuidA}, {repoB, uuidB}} {
 		dir := core.ProjectDir(cc, core.SlugForCwd(x.cwd))
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -48,7 +48,7 @@ func seedE2E(t *testing.T) (home, repoA, repoB, uuidA, uuidB string) {
 func TestE2EDosHandoffsResumeYEndSelectivo(t *testing.T) {
 	home, repoA, repoB, uuidA, uuidB := seedE2E(t)
 	t.Setenv("CCP_HOME", home)
-	t.Setenv("CCP_PROFILE", "personal-cc")
+	t.Setenv("CCP_PROFILE", "personal-1")
 
 	run := func(args ...string) (string, string, int) {
 		var out, errb bytes.Buffer
@@ -57,7 +57,7 @@ func TestE2EDosHandoffsResumeYEndSelectivo(t *testing.T) {
 	}
 
 	// Forward A.
-	out, errs, code := run("_handoff", repoA, "emco-cc", "--session", uuidA)
+	out, errs, code := run("_handoff", repoA, "work-1", "--session", uuidA)
 	if code != 0 {
 		t.Fatalf("forward A falló: %s", errs)
 	}
@@ -66,7 +66,7 @@ func TestE2EDosHandoffsResumeYEndSelectivo(t *testing.T) {
 	}
 
 	// Forward B en otro repo: v2 lo permite (v1 bloqueaba el segundo activo).
-	if _, errs, code = run("_handoff", repoB, "emco-cc", "--session", uuidB); code != 0 {
+	if _, errs, code = run("_handoff", repoB, "work-1", "--session", uuidB); code != 0 {
 		t.Fatalf("forward B debía permitirse: %s", errs)
 	}
 	h, _ := core.LoadHandoffs(home)
@@ -79,7 +79,7 @@ func TestE2EDosHandoffsResumeYEndSelectivo(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("resume A falló: %s", errs)
 	}
-	if !strings.Contains(out, "CCP_RESUME_ID="+uuidA) || !strings.Contains(out, "emco-cc") {
+	if !strings.Contains(out, "CCP_RESUME_ID="+uuidA) || !strings.Contains(out, "work-1") {
 		t.Fatalf("resume A emitió mal: %s", out)
 	}
 	h, _ = core.LoadHandoffs(home)
@@ -100,7 +100,7 @@ func TestE2EDosHandoffsResumeYEndSelectivo(t *testing.T) {
 	}
 
 	// El back-sync dejó la sesión nueva en el origen (original + la de vuelta).
-	origen := core.ProjectDir(filepath.Join(home, "profiles", "personal-cc", "cc-home"), core.SlugForCwd(repoB))
+	origen := core.ProjectDir(filepath.Join(home, "profiles", "personal-1", "cc-home"), core.SlugForCwd(repoB))
 	entries, err := os.ReadDir(origen)
 	if err != nil {
 		t.Fatal(err)

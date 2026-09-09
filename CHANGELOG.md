@@ -1,5 +1,119 @@
 # Changelog
 
+## [Unreleased] — una instancia de Claude Desktop por perfil, con el Code tab aislado de verdad
+
+### Added
+
+- **`ccp desktop`**: una instancia aislada de Claude Desktop por perfil. Llega al binario por el
+  `*) command ccp "$@"` que el rc ya tiene, así que **funciona sin reinstalar el rc**; `ccp install`
+  solo hace falta para que autocomplete.
+  - `ccp desktop open [<perfil>]` (sin perfil, se resuelve por el cwd igual que el hook del prompt),
+    `list [--json]`, `path <perfil>`, `prepare <perfil>`, `rm <perfil> --yes`.
+  - El aislamiento son **dos** cosas, y la segunda es la que no se ve. `--user-data-dir` mueve la
+    identidad de la app (sesión, tokens, MCP, Cowork), pero **el Code tab de Desktop no lo lee**:
+    lee `process.env.CLAUDE_CONFIG_DIR` y cae a `~/.claude` si está vacío. Sin inyectar el entorno
+    del perfil al lanzar, dos ventanas con cuentas distintas comparten credenciales de CLI,
+    `projects/` e historial. `ccp desktop` emite las dos a la vez.
+  - Solo perfiles `official` y `default`. Un perfil de proveedor se rechaza con mensaje explícito:
+    Desktop no lee `ANTHROPIC_BASE_URL`, así que la ventana quedaría con el Code tab en DeepSeek y
+    la mitad de chat en Anthropic sin autenticar, sin forma de saber cuál estás mirando.
+  - `default` **no se reubica**: su instancia es la de siempre, en la ubicación estándar de la app.
+  - En el primer arranque de cada instancia se avisa de la carrera de `claude://` (los deep links
+    van a la instancia que registró el esquema de último, así que el login se hace de una en una).
+
+- **`MirrorForDesktop`**, que es lo que hace que lo anterior sea posible. Desktop valida el
+  «co-writable boundary» y **rechaza symlinks en cualquier componente no-hoja bajo el config root**,
+  y `seedCCHome` siembra exactamente eso (`cc-home/commands -> ~/.claude/commands`). No se cambia
+  `seedCCHome`: el oráculo bash afirma `[[ -L "$cch/plugins" ]]`, o sea que la forma con symlinks de
+  directorio **es** el contrato de `profile add`. La conversión es opt-in y por perfil.
+  - El espejo son directorios **reales** replicando el árbol global, con symlinks solo en los
+    archivos **hoja** — que la regla exime, porque recorre `c[0..len-2]`. Se conserva el compartido
+    en vivo con `~/.claude` sin dejar un symlink en posición no-hoja.
+  - `agents/` y `skills/` pasan a ser directorios reales del perfil aunque el global no los tenga:
+    es lo que permite tener **agentes distintos por perfil**.
+  - Una entrada que ya existe **nunca se pisa**, así que el re-espejado es idempotente y un archivo
+    propio del perfil gana sobre el global. Solo se podan enlaces colgados que apuntan **dentro** del
+    origen global; un symlink del usuario a otro sitio no es nuestro y se respeta.
+
+## [2.15.1] — la rotación deja de apagarse sola
+
+Tanda de correcciones sobre `ccp session`, el handoff y el conteo de límites. Ninguna
+toca el contrato congelado (parity gate), el esquema sigue en `version: 2` y no hay
+claves nuevas de configuración. Cinco de las seis venían de una auditoría del código;
+la sexta salió de que la rama estaba en rojo y nadie lo sabía.
+
+### Fixed
+
+- **Un `claude` que atrape `SIGTERM` y salga con 0 ya no apaga la rotación entera.**
+  El bucle decidía el desenlace por el código de salida del hijo **sin mirar quién lo
+  había matado**, y eso está bien para casi todo menos para el único código que
+  nuestro propio `SIGTERM` puede producir: el 0. Si `claude` instala un handler para
+  correr sus hooks `SessionEnd` —justo lo que los 10s de gracia existen para
+  concederle— y sale con 0 después de que lo matáramos por un límite, aquello se leía
+  como «fin feliz»: se cerraba el préstamo y se retornaba. La corrida terminaba sola
+  al primer límite, de madrugada y con el trabajo a medias, **sin un solo síntoma**.
+  - `Process.Terminate` devuelve ahora si la señal llegó a salir, y de ahí sale
+    `childOutcome.exited`. La carrera que el diseño original protegía sigue cubierta:
+    el hijo que imprime el límite y muere en el mismo instante se encuentra ya muerto,
+    así que vuelve a contar como salida propia.
+  - El caso de `Ctrl-C` (130) **sigue decidiéndose solo por el código**, y la asimetría
+    es deliberada: un 130 no puede salir de nuestro `SIGTERM`, pero un 0 sí.
+- **`min_dwell` ya no te retiene dentro de un 429.** Se aplicaba entero a los eventos
+  *reactivos*, o sea a los que llegan cuando el turno **ya falló**: con los defaults,
+  hasta 20 minutos mirando un error dentro de una cuenta que no responde, teniendo
+  otra fresca al lado. Y el reloj se siembra al arrancar la corrida, así que en el
+  primer lanzamiento era el piso completo.
+  - El dwell entero se reserva ahora para el sensor **proactivo** (`statusline`), que
+    es el único que avisa antes de que nada falle. Los reactivos —`transcript`,
+    `stream-json`, `hook`— caen a un techo de 30s, que conserva la protección real
+    (que tres perfiles no se quemen en un minuto) sin el castigo.
+  - Un origen desconocido cae al lado **urgente**: el `Source` de un sentinel lo
+    escribe el hook desde un payload externo, y ante la duda es mejor rotar pronto de
+    más que retener al usuario dentro de un límite.
+  - La vuelta a casa por `return_check` no cambia: sigue exigiendo el `min_dwell`
+    completo, porque ahí nadie tiene prisa.
+- **`handoff end` era imposible para siempre con una línea de más de 8 MB.** La
+  reescritura del transcript fijaba ese techo por línea, y una imagen pegada o un
+  `tool_result` grande lo pasa. El límite además era **asimétrico**: el camino de ida
+  no tenía ninguno, así que la sesión se podía prestar y no se podía devolver nunca,
+  con `discard` como única salida — o sea dejar la conversación viviendo solo en el
+  perfil prestado, justo el desenlace que el módulo entero existe para evitar. Ya no
+  hay techo.
+- **Los transcripts se escriben de forma atómica.** Eran el único dato irremplazable
+  de todo ccp y lo único que se escribía truncando el destino antes de tener el
+  contenido nuevo: un `Ctrl-C` a media escritura dejaba un `.jsonl` a medias **con el
+  uuid bueno**, que es peor que no tener nada porque `claude --resume` lo encuentra y
+  lo abre. Ahora van por temporal + rename, con nombre aleatorio (dos procesos pueden
+  escribir el mismo destino fuera del lock) y con un sufijo que **no** acaba en
+  `.jsonl`, para que el temporal no se cuele en el selector de sesiones.
+- **El bloque `auto_handoff` ya no pierde claves que no entiende.** `auto_handoff`
+  estaba protegido a nivel de clave, pero no por dentro: cualquier clave desconocida
+  dentro del bloque o de una política se perdía en el siguiente guardado — y «el
+  siguiente guardado» es cualquier `ccp rule set` o `ccp profile add`, no una
+  operación de auto. Instalar una versión anterior y tocar una regla te borraba parte
+  de la política sin decir nada. Es aditivo: `version` sigue en 2.
+- **El sensor proactivo ya no destierra un perfil por una señal sin fecha.** Un
+  `usedPercentage` alto sin `resets_at` —el defecto conocido de la caché de Claude
+  Code— disparaba la rotación, y sin ventana que esperar el destierro es el cooldown
+  de respaldo entero: una hora, por una medida que quizá describe una ventana ya
+  cerrada. Ahora el sensor exige la fecha antes de emitir. **Pintando no cambia
+  nada**: la barra de estado y `ccp auto status` siguen mostrando «95% sin fecha»,
+  porque ahí es información válida; la regla va donde se *decide*, no donde se enseña.
+- **Dos tests llevaban desde el 1 de agosto fallando sin que nadie lo viera.** Fijaban
+  un `resets_at` con una fecha literal (`2026-08-01`), y como las ventanas ya
+  reseteadas se descartan a propósito, el día que el calendario alcanzó la constante
+  dejaron de disparar. Ahora la fecha es relativa a `now`, con el porqué escrito al
+  lado para que no se repita.
+
+### Fixed (TUI)
+
+- **El estilo del panel de `ccp handoff` era código muerto.** El panel se pinta en
+  `/dev/tty`, pero lipgloss decide si hay color midiendo su renderer por defecto, que
+  mira `os.Stdout` — y en la ruta real ese stdout es la sustitución de comando de la
+  función de shell, o sea una tubería. Resultado: ni un byte de ANSI en producción,
+  mientras los tests (también sin tty) lo daban por bueno. Es el mismo fallo que el
+  CLI ya había diagnosticado y corregido en su día. `NO_COLOR` sigue mandando.
+
 ## [2.15.0] — instalar con una sola línea, y la TUI suelta la terminal al editar
 
 ### Added
@@ -110,8 +224,8 @@
 
 ### Added
 
-- La statusLine mínima pasa de `emco-cc · 5h 14% · 7d 31%` a un **medidor con
-  cuenta atrás**: `emco-cc  5h ▏█░░░░░░░░░▏ 2% ·2h13m  7d ▏██████░░░░▏ 59% ·3d`.
+- La statusLine mínima pasa de `work-1 · 5h 14% · 7d 31%` a un **medidor con
+  cuenta atrás**: `work-1  5h ▏█░░░░░░░░░▏ 2% ·2h13m  7d ▏██████░░░░▏ 59% ·3d`.
   El porcentaje solo decía cuánto llevas gastado; no respondía la pregunta que
   uno se hace al mirar la barra, que es **cuándo vuelve la cuota**.
   El medidor va verde por debajo del 70%, ámbar de 70 a 89 y rojo del 90 en
@@ -153,7 +267,7 @@
 ### Changed
 
 - La statusLine mínima que ccp pinta cuando **no** tienes una propia pasa de
-  `emco-cc · 31%` a `emco-cc · 5h 14% · 7d 31%`. Antes enseñaba solo el máximo
+  `work-1 · 31%` a `work-1 · 5h 14% · 7d 31%`. Antes enseñaba solo el máximo
   entre las dos ventanas, que es el número que decide (la más gastada corta
   primero) pero como porcentaje suelto era ambiguo: no dice si te quedan horas
   o días, y saltaba de una ventana a otra en cuanto la otra la adelantaba, sin

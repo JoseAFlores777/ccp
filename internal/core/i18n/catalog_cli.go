@@ -821,6 +821,14 @@ AUTO-HANDOFF                      rotates profile on its own when usage runs out
   ccp auto chain add|rm|mv|set      edit it (order = preference; add also authorises)
   --at N · --no-allow · --policy <name>   chain flags ('ccp auto chain help')
 
+DESKTOP                           one isolated Claude Desktop instance per profile
+  ccp desktop open [<profile>]      launch it (no profile: resolved from the cwd)
+  ccp desktop list [--json]         instances on disk and their size
+  ccp desktop prepare <profile>     make the cc-home acceptable to Desktop
+  ccp desktop path <profile>        print its --user-data-dir
+  ccp desktop rm <profile> --yes    delete the instance (destructive logout)
+  --app <path> · --dry-run · --no-mirror
+
 PROFILES
   ccp profile add <n> --official            create official account
   ccp profile add <n> --deepseek [opts]     create DeepSeek provider (--base-url --pro --flash --effort)
@@ -899,6 +907,14 @@ AUTO-HANDOFF                      rota de perfil solo cuando se acaba el uso
   ccp auto chain [show]             cadena de préstamos efectiva en este repo
   ccp auto chain add|rm|mv|set      la edita (orden = preferencia; add además autoriza)
   --at N · --no-allow · --policy <nombre>  banderas de la cadena ('ccp auto chain help')
+
+DESKTOP                           una instancia aislada de Claude Desktop por perfil
+  ccp desktop open [<perfil>]       la lanza (sin perfil: se resuelve por el cwd)
+  ccp desktop list [--json]         instancias en disco y su tamaño
+  ccp desktop prepare <perfil>      deja el cc-home en la forma que Desktop acepta
+  ccp desktop path <perfil>         imprime su --user-data-dir
+  ccp desktop rm <perfil> --yes     borra la instancia (logout destructivo)
+  --app <ruta> · --dry-run · --no-mirror
 
 PERFILES
   ccp profile add <n> --official            crea cuenta oficial

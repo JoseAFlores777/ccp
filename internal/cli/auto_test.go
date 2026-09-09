@@ -630,7 +630,7 @@ func TestStatusLineDegradaPorAncho(t *testing.T) {
 func TestStatusLineDegradaPorNombreDePerfil(t *testing.T) {
 	autoTestHome(t)
 	// 40 caracteres: con medidor completo la línea mediría 82 > 80.
-	const largo = "perfil-larguisimo-de-produccion-en-emco1"
+	const largo = "perfil-larguisimo-de-produccion-en-work1"
 	t.Setenv("CCP_PROFILE", largo)
 	t.Setenv("COLUMNS", "") // default 80, el caso real
 
@@ -669,7 +669,7 @@ func TestStatusBarCabeEnElAncho(t *testing.T) {
 			SevenDay: core.Windowed{UsedPercentage: 10, ResetsAt: now.Add(50 * time.Hour)},
 		},
 	}
-	perfiles := []string{"a", "work", "trabajo-emco-produccion", strings.Repeat("x", 60)}
+	perfiles := []string{"a", "work", "trabajo-de-produccion", strings.Repeat("x", 60)}
 	for _, cols := range []int{20, 30, 40, 50, 60, 80, 120} {
 		for nombreMuestra, rl := range muestras {
 			for _, perfil := range perfiles {

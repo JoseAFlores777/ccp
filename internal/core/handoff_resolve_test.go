@@ -12,8 +12,8 @@ func mk(session, cwd, from, to string) Marker {
 
 func TestResolveActiveByCwdUnico(t *testing.T) {
 	h := &Handoffs{Version: HandoffsVersion, Active: []Marker{
-		mk("aaa", "/repo/uno", "personal-cc", "emco-cc"),
-		mk("bbb", "/repo/dos", "personal-cc", "kimi"),
+		mk("aaa", "/repo/uno", "personal-1", "work-1"),
+		mk("bbb", "/repo/dos", "personal-1", "kimi"),
 	}}
 	idx, cands, err := ResolveActive(h, "/repo/uno", "")
 	if err != nil {
@@ -26,8 +26,8 @@ func TestResolveActiveByCwdUnico(t *testing.T) {
 
 func TestResolveActivePorSessionFlag(t *testing.T) {
 	h := &Handoffs{Version: HandoffsVersion, Active: []Marker{
-		mk("aaa", "/repo/uno", "personal-cc", "emco-cc"),
-		mk("bbb", "/repo/dos", "personal-cc", "kimi"),
+		mk("aaa", "/repo/uno", "personal-1", "work-1"),
+		mk("bbb", "/repo/dos", "personal-1", "kimi"),
 	}}
 	// El uuid gana aunque el cwd sea otro.
 	idx, _, err := ResolveActive(h, "/repo/uno", "bbb")
@@ -40,7 +40,7 @@ func TestResolveActivePorSessionFlag(t *testing.T) {
 }
 
 func TestResolveActiveSessionFlagDesconocida(t *testing.T) {
-	h := &Handoffs{Version: HandoffsVersion, Active: []Marker{mk("aaa", "/repo/uno", "personal-cc", "emco-cc")}}
+	h := &Handoffs{Version: HandoffsVersion, Active: []Marker{mk("aaa", "/repo/uno", "personal-1", "work-1")}}
 	_, _, err := ResolveActive(h, "/repo/uno", "zzz")
 	if err == nil {
 		t.Fatal("esperaba error con uuid desconocido")
@@ -51,7 +51,7 @@ func TestResolveActiveSessionFlagDesconocida(t *testing.T) {
 }
 
 func TestResolveActiveSinActivosEnEsteRepo(t *testing.T) {
-	h := &Handoffs{Version: HandoffsVersion, Active: []Marker{mk("aaa", "/repo/uno", "personal-cc", "emco-cc")}}
+	h := &Handoffs{Version: HandoffsVersion, Active: []Marker{mk("aaa", "/repo/uno", "personal-1", "work-1")}}
 	_, _, err := ResolveActive(h, "/otro/repo", "")
 	if err == nil {
 		t.Fatal("esperaba error: no hay activo para este cwd")
@@ -79,8 +79,8 @@ func TestResolveActiveSinActivos(t *testing.T) {
 
 func TestResolveActiveAmbiguo(t *testing.T) {
 	h := &Handoffs{Version: HandoffsVersion, Active: []Marker{
-		mk("aaa", "/repo/uno", "personal-cc", "emco-cc"),
-		mk("bbb", "/repo/uno", "personal-cc", "kimi"),
+		mk("aaa", "/repo/uno", "personal-1", "work-1"),
+		mk("bbb", "/repo/uno", "personal-1", "kimi"),
 	}}
 	idx, cands, err := ResolveActive(h, "/repo/uno", "")
 	if !errors.Is(err, ErrAmbiguousHandoff) {

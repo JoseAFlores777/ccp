@@ -159,7 +159,7 @@
 
 <header class="top">
   <span class="brand">ccp<span class="cur">_</span></span>
-  <span class="ver">v2.15.0</span>
+  <span class="ver">v2.15.1</span>
   <span class="spacer"></span>
   <div class="lang" role="group" aria-label="Language / Idioma">
     <button type="button" data-set="en" aria-pressed="true">EN</button>
@@ -229,6 +229,7 @@ ccp doctor                             <span class="c"># 5 · logins, keys, func
           <tr><td><span class="en">This account ran out mid-conversation</span><span class="es">Esta cuenta se acabó a media conversación</span></td><td><code>ccp handoff &lt;to&gt;</code> … <code>ccp handoff end</code></td><td><a class="ch" data-h="handoff" href="README.html#handoff">↗</a></td></tr>
           <tr><td><span class="en">Long / unattended run that must survive limits</span><span class="es">Corrida larga o desatendida que debe sobrevivir a los límites</span></td><td><code>ccp session</code> (<code>-p</code> headless)</td><td><a class="ch" data-h="auto" href="README.html#auto">↗</a></td></tr>
           <tr><td><span class="en">Add / reorder a profile in the rotation</span><span class="es">Añadir / reordenar un perfil en la rotación</span></td><td><code>ccp auto chain add &lt;n&gt;</code> · <code>ccp auto chain mv &lt;n&gt; &lt;pos&gt;</code></td><td><a class="ch" data-h="auto" href="README.html#auto">↗</a></td></tr>
+          <tr><td><span class="en">Open Claude Desktop on that account too</span><span class="es">Abrir Claude Desktop también en esa cuenta</span></td><td><code>ccp desktop open &lt;n&gt;</code></td><td><a class="ch" data-h="desktop" href="README.html#desktop">↗</a></td></tr>
           <tr><td><span class="en">Edit <code>ccp.yaml</code> without breaking it</span><span class="es">Editar <code>ccp.yaml</code> sin romperlo</span></td><td><code>ccp config edit</code> <span class="en">(re-reads and validates on close)</span><span class="es">(al cerrar lo relee y valida)</span></td><td><a class="ch" data-h="config" href="README.html#config">↗</a></td></tr>
           <tr><td><span class="en">Something is off</span><span class="es">Algo va mal</span></td><td><code>ccp doctor</code></td><td><a class="ch" data-h="trouble" href="README.html#trouble">↗</a></td></tr>
           <tr><td><span class="en">Move to the latest version</span><span class="es">Pasar a la última versión</span></td><td><code>ccp upgrade</code></td><td><a class="ch" data-h="update" href="README.html#update">↗</a></td></tr>
@@ -291,6 +292,7 @@ ccp session                   <span class="c"># 05 · run it (-p --yolo for cron
           <tr><td><code>profiles/&lt;n&gt;/api_key</code></td><td><span class="en">provider key, <code>chmod 600</code> — never in the YAML, the rc, or git</span><span class="es">key del proveedor, <code>chmod 600</code> — nunca en el YAML, el rc ni git</span></td></tr>
           <tr><td><code>profiles/&lt;n&gt;/cc-home/</code></td><td><span class="en">that profile's <code>CLAUDE_CONFIG_DIR</code> (generated: global ⊕ overlay)</span><span class="es">el <code>CLAUDE_CONFIG_DIR</code> de ese perfil (generado: global ⊕ overlay)</span></td></tr>
           <tr><td><code>profiles/&lt;n&gt;/overlay/</code></td><td><span class="en">the profile's own config — lowest precedence; a repo's <code>.claude/</code> still wins</span><span class="es">la config propia del perfil — la de menor precedencia; el <code>.claude/</code> del repo manda</span></td></tr>
+          <tr><td><code>profiles/&lt;n&gt;/desktop/</code></td><td><span class="en">that profile's Claude Desktop instance (<code>--user-data-dir</code>): session, tokens, MCP, Cowork</span><span class="es">la instancia de Claude Desktop de ese perfil (<code>--user-data-dir</code>): sesión, tokens, MCP, Cowork</span></td></tr>
           <tr><td><code>handoffs.yaml</code></td><td><span class="en">handoff markers: active + archived (<code>ccp handoff prune</code> trims it)</span><span class="es">marcadores de handoff: activos + archivados (<code>ccp handoff prune</code> los recorta)</span></td></tr>
           <tr><td><code>state/auto/</code></td><td><span class="en">sensor caches: usage samples and hook sentinels. Deleting them costs detection quality, never correctness</span><span class="es">cachés de sensores: muestras de uso y sentinels de hooks. Borrarlos cuesta calidad de detección, nunca corrección</span></td></tr>
         </tbody>

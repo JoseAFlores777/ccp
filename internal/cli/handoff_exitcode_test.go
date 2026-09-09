@@ -24,8 +24,8 @@ func handoffHomeConActivo(t *testing.T, cwd string) string {
 		"- session: 11111111-2222-4333-8444-555555555555\n"+
 		"  slug: %s\n"+
 		"  cwd: %s\n"+
-		"  from: personal-cc\n"+
-		"  to: emco-cc\n"+
+		"  from: personal-1\n"+
+		"  to: work-1\n"+
 		"  since: \"2026-01-01T00:00:00Z\"\n", slugOf(cwd), cwd)
 	if err := os.WriteFile(filepath.Join(home, "handoffs.yaml"), []byte(y), 0o644); err != nil {
 		t.Fatal(err)
@@ -108,10 +108,10 @@ func TestHandoffEmitNoEmiteEnvSiFalla(t *testing.T) {
 // las dos formas documentadas y el uuid se descartaba en silencio, abriendo el
 // picker de sesiones como si no se hubiera pasado.
 func TestHandoffRechazaPosicionalSobrante(t *testing.T) {
-	if _, err := parseHandoffFlags([]string{"emco-cc"}); err != nil {
+	if _, err := parseHandoffFlags([]string{"work-1"}); err != nil {
 		t.Fatalf("un solo posicional es válido: %v", err)
 	}
-	f, err := parseHandoffFlags([]string{"emco-cc", "11111111-2222-4333-8444-555555555555"})
+	f, err := parseHandoffFlags([]string{"work-1", "11111111-2222-4333-8444-555555555555"})
 	if err == nil {
 		t.Fatalf("dos posicionales deben fallar, got %+v", f)
 	}

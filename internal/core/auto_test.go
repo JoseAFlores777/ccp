@@ -2,6 +2,7 @@ package core
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -24,19 +25,19 @@ defaults:
   effort: high
   editor: nano
 profiles:
-  personal-cc:
+  personal-1:
     type: official
-  app-cc:
+  work-2:
     type: official
-  emco-cc:
+  work-1:
     type: official
   personal-deepseek:
     type: deepseek
 rules:
   - path: /work/personal
-    profile: personal-cc
-  - path: /work/emco
-    profile: emco-cc
+    profile: personal-1
+  - path: /work/beta
+    profile: work-1
 authored: []
 `
 
@@ -59,7 +60,7 @@ func TestAutoHandoffYAMLRoundTrip(t *testing.T) {
 		Enabled: true,
 		Policies: map[string]AutoPolicy{
 			"default": {
-				Fallback:    []string{"app-cc", "personal-deepseek"},
+				Fallback:    []string{"work-2", "personal-deepseek"},
 				Threshold:   85,
 				MinDwell:    "20m",
 				MaxHops:     6,
@@ -69,10 +70,10 @@ func TestAutoHandoffYAMLRoundTrip(t *testing.T) {
 			"trabajo": {Fallback: []string{}},
 		},
 		AllowFrom: map[string][]string{
-			"personal-cc": {"personal-cc", "app-cc"},
-			"emco-cc":     {"emco-cc"},
+			"personal-1": {"personal-1", "work-2"},
+			"work-1":     {"work-1"},
 		},
-		Hooks: []string{"personal-cc"},
+		Hooks: []string{"personal-1"},
 	}
 	if err := Save(home, cfg); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -100,7 +101,7 @@ func TestAutoHandoffYAMLRoundTrip(t *testing.T) {
 		t.Errorf("version = %d, want 2 (el bloque es aditivo)", got.Version)
 	}
 	pol := got.AutoHandoff.Policies["default"]
-	if len(pol.Fallback) != 2 || pol.Fallback[0] != "app-cc" || pol.Fallback[1] != "personal-deepseek" {
+	if len(pol.Fallback) != 2 || pol.Fallback[0] != "work-2" || pol.Fallback[1] != "personal-deepseek" {
 		t.Errorf("fallback = %v", pol.Fallback)
 	}
 	if pol.Threshold != 85 || pol.MinDwell != "20m" || pol.MaxHops != 6 || pol.ReturnCheck != "10m" {
@@ -112,10 +113,10 @@ func TestAutoHandoffYAMLRoundTrip(t *testing.T) {
 	if _, ok := got.AutoHandoff.Policies["trabajo"]; !ok {
 		t.Error("se perdió la política 'trabajo'")
 	}
-	if len(got.AutoHandoff.AllowFrom["personal-cc"]) != 2 {
+	if len(got.AutoHandoff.AllowFrom["personal-1"]) != 2 {
 		t.Errorf("allow_from = %v", got.AutoHandoff.AllowFrom)
 	}
-	if len(got.AutoHandoff.Hooks) != 1 || got.AutoHandoff.Hooks[0] != "personal-cc" {
+	if len(got.AutoHandoff.Hooks) != 1 || got.AutoHandoff.Hooks[0] != "personal-1" {
 		t.Errorf("hooks = %v", got.AutoHandoff.Hooks)
 	}
 	// Extra no debe duplicar la clave ya modelada.
@@ -288,14 +289,14 @@ func autoCfg(ah *AutoHandoff) *Config {
 	return &Config{
 		Version: 2,
 		Profiles: map[string]Profile{
-			"personal-cc":       {Type: "official"},
-			"app-cc":            {Type: "official"},
-			"emco-cc":           {Type: "official"},
+			"personal-1":        {Type: "official"},
+			"work-2":            {Type: "official"},
+			"work-1":            {Type: "official"},
 			"personal-deepseek": {Type: "deepseek"},
 		},
 		Rules: []Rule{
-			{Path: "/work/personal", Profile: "personal-cc"},
-			{Path: "/work/emco", Profile: "emco-cc"},
+			{Path: "/work/personal", Profile: "personal-1"},
+			{Path: "/work/beta", Profile: "work-1"},
 		},
 		AutoHandoff: ah,
 	}
@@ -303,7 +304,7 @@ func autoCfg(ah *AutoHandoff) *Config {
 
 func fullChainPolicies() map[string]AutoPolicy {
 	return map[string]AutoPolicy{
-		"default": {Fallback: []string{"personal-cc", "app-cc", "personal-deepseek"}},
+		"default": {Fallback: []string{"personal-1", "work-2", "personal-deepseek"}},
 	}
 }
 
@@ -340,7 +341,7 @@ func TestResolveAutoChain(t *testing.T) {
 		{
 			name: "perfil de fallback inexistente",
 			ah: &AutoHandoff{Enabled: true, Policies: map[string]AutoPolicy{
-				"default": {Fallback: []string{"app-cc", "fantasma"}},
+				"default": {Fallback: []string{"work-2", "fantasma"}},
 			}},
 			cwd:     "/work/personal/repo",
 			wantErr: []string{"fantasma", "no existe"},
@@ -348,7 +349,7 @@ func TestResolveAutoChain(t *testing.T) {
 		{
 			name: "duración inválida propaga desde Effective",
 			ah: &AutoHandoff{Enabled: true, Policies: map[string]AutoPolicy{
-				"default": {Fallback: []string{"app-cc"}, MinDwell: "20x"},
+				"default": {Fallback: []string{"work-2"}, MinDwell: "20x"},
 			}},
 			cwd:     "/work/personal/repo",
 			wantErr: []string{"min_dwell", "20x"},
@@ -357,66 +358,66 @@ func TestResolveAutoChain(t *testing.T) {
 			name:         "sin gate: allow_from ausente permite todo y filtra el primario",
 			ah:           &AutoHandoff{Enabled: true, Policies: fullChainPolicies()},
 			cwd:          "/work/personal/repo/sub",
-			wantPrimary:  "personal-cc",
-			wantFallback: []string{"app-cc", "personal-deepseek"},
+			wantPrimary:  "personal-1",
+			wantFallback: []string{"work-2", "personal-deepseek"},
 		},
 		{
 			name: "sin gate: allow_from vacío equivale a ausente",
 			ah: &AutoHandoff{Enabled: true, Policies: fullChainPolicies(),
 				AllowFrom: map[string][]string{}},
 			cwd:          "/work/personal/repo",
-			wantPrimary:  "personal-cc",
-			wantFallback: []string{"app-cc", "personal-deepseek"},
+			wantPrimary:  "personal-1",
+			wantFallback: []string{"work-2", "personal-deepseek"},
 		},
 		{
 			name: "gate con entrada: filtra los no listados a Denied",
 			ah: &AutoHandoff{Enabled: true, Policies: fullChainPolicies(),
 				AllowFrom: map[string][]string{
-					"personal-cc": {"personal-cc", "app-cc"},
-					"emco-cc":     {"emco-cc"},
+					"personal-1": {"personal-1", "work-2"},
+					"work-1":     {"work-1"},
 				}},
 			cwd:          "/work/personal/repo",
-			wantPrimary:  "personal-cc",
-			wantFallback: []string{"app-cc"},
+			wantPrimary:  "personal-1",
+			wantFallback: []string{"work-2"},
 			wantDenied:   []string{"personal-deepseek"},
 		},
 		{
 			name: "gate declarado sin entrada para el primario: deny total",
 			ah: &AutoHandoff{Enabled: true, Policies: fullChainPolicies(),
 				AllowFrom: map[string][]string{
-					"personal-cc": {"personal-cc", "app-cc"},
+					"personal-1": {"personal-1", "work-2"},
 				}},
-			cwd:          "/work/emco/cliente",
-			wantPrimary:  "emco-cc",
+			cwd:          "/work/beta/cliente",
+			wantPrimary:  "work-1",
 			wantFallback: nil,
-			wantDenied:   []string{"personal-cc", "app-cc", "personal-deepseek"},
+			wantDenied:   []string{"personal-1", "work-2", "personal-deepseek"},
 		},
 		{
 			name: "gate con entrada vacía: deny total explícito",
 			ah: &AutoHandoff{Enabled: true, Policies: fullChainPolicies(),
-				AllowFrom: map[string][]string{"emco-cc": {}}},
-			cwd:          "/work/emco/cliente",
-			wantPrimary:  "emco-cc",
+				AllowFrom: map[string][]string{"work-1": {}}},
+			cwd:          "/work/beta/cliente",
+			wantPrimary:  "work-1",
 			wantFallback: nil,
-			wantDenied:   []string{"personal-cc", "app-cc", "personal-deepseek"},
+			wantDenied:   []string{"personal-1", "work-2", "personal-deepseek"},
 		},
 		{
 			name: "primario listado en fallback se descarta en silencio (y dedup)",
 			ah: &AutoHandoff{Enabled: true, Policies: map[string]AutoPolicy{
-				"default": {Fallback: []string{"personal-cc", "app-cc", "app-cc", "personal-cc"}},
+				"default": {Fallback: []string{"personal-1", "work-2", "work-2", "personal-1"}},
 			}},
 			cwd:          "/work/personal",
-			wantPrimary:  "personal-cc",
-			wantFallback: []string{"app-cc"},
+			wantPrimary:  "personal-1",
+			wantFallback: []string{"work-2"},
 		},
 		{
 			name: "cwd sin regla: el primario es default y 'default' vale de destino",
 			ah: &AutoHandoff{Enabled: true, Policies: map[string]AutoPolicy{
-				"default": {Fallback: []string{"default", "app-cc"}},
+				"default": {Fallback: []string{"default", "work-2"}},
 			}},
 			cwd:          "/tmp/suelto",
 			wantPrimary:  "default",
-			wantFallback: []string{"app-cc"},
+			wantFallback: []string{"work-2"},
 		},
 	}
 
@@ -461,14 +462,14 @@ func TestResolveAutoChainLoadsFromHome(t *testing.T) {
   enabled: true
   policies:
     default:
-      fallback: [app-cc]
+      fallback: [work-2]
       min_dwell: 5m
 `)
 	rc, err := ResolveAutoChain(home, nil, "", "/work/personal/repo")
 	if err != nil {
 		t.Fatalf("ResolveAutoChain: %v", err)
 	}
-	if rc.Primary != "personal-cc" || !equalStrings(rc.Fallback, []string{"app-cc"}) {
+	if rc.Primary != "personal-1" || !equalStrings(rc.Fallback, []string{"work-2"}) {
 		t.Errorf("rc = %+v", rc)
 	}
 	if rc.Policy.MinDwell != 5*time.Minute {
@@ -511,7 +512,7 @@ func TestAutoInitSeedsAndIsIdempotent(t *testing.T) {
 	if !ok {
 		t.Fatal("falta la política 'default'")
 	}
-	if !equalStrings(pol.Fallback, []string{"app-cc", "emco-cc", "personal-cc", "personal-deepseek"}) {
+	if !equalStrings(pol.Fallback, []string{"personal-1", "personal-deepseek", "work-1", "work-2"}) {
 		t.Errorf("fallback sembrado = %v", pol.Fallback)
 	}
 	if pol.Threshold != DefaultAutoThreshold || pol.MinDwell != "20m0s" || pol.MaxHops != DefaultAutoMaxHops {
@@ -519,11 +520,11 @@ func TestAutoInitSeedsAndIsIdempotent(t *testing.T) {
 	}
 	// El gate arranca conservador: cada perfil se permite a sí mismo + los
 	// oficiales, nunca al de provider.
-	if !equalStrings(ah.AllowFrom["personal-cc"], []string{"personal-cc", "app-cc", "emco-cc"}) {
-		t.Errorf("allow_from[personal-cc] = %v", ah.AllowFrom["personal-cc"])
+	if !equalStrings(ah.AllowFrom["personal-1"], []string{"personal-1", "work-1", "work-2"}) {
+		t.Errorf("allow_from[personal-1] = %v", ah.AllowFrom["personal-1"])
 	}
 	if !equalStrings(ah.AllowFrom["personal-deepseek"],
-		[]string{"personal-deepseek", "app-cc", "emco-cc", "personal-cc"}) {
+		[]string{"personal-deepseek", "personal-1", "work-1", "work-2"}) {
 		t.Errorf("allow_from[personal-deepseek] = %v", ah.AllowFrom["personal-deepseek"])
 	}
 	for from, to := range ah.AllowFrom {
@@ -543,7 +544,7 @@ func TestAutoInitSeedsAndIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.AutoHandoff.Policies["default"] = AutoPolicy{Fallback: []string{"app-cc"}, Threshold: 42}
+	cfg.AutoHandoff.Policies["default"] = AutoPolicy{Fallback: []string{"work-2"}, Threshold: 42}
 	if err := Save(home, cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -599,5 +600,77 @@ func TestAutoInitSinPerfiles(t *testing.T) {
 	}
 	if rc.Primary != "default" || len(rc.Fallback) != 0 {
 		t.Errorf("rc = %+v", rc)
+	}
+}
+
+// TestAutoHandoffPreservaClavesDesconocidas fija que el bloque `auto_handoff`
+// sobrevive intacto a un binario que no entiende parte de su contenido.
+//
+// `auto_handoff` está en knownTopKeys, así que el catch-all de Config protege la
+// clave entera pero NO su interior: sin un inline propio en AutoHandoff y en
+// AutoPolicy, una clave nueva se perdía en el siguiente Save — y "el siguiente
+// Save" es cualquier `ccp rule set` o `ccp profile add`, no una operación de
+// auto. O sea: instalar una versión anterior y tocar una regla te borraba parte
+// de la política sin decir nada.
+//
+// El test escribe el yaml a mano porque es exactamente el caso real: el archivo
+// lo produjo un ccp más nuevo que el que lo está leyendo.
+func TestAutoHandoffPreservaClavesDesconocidas(t *testing.T) {
+	home := t.TempDir()
+	raw := `version: 2
+profiles:
+  work:
+    type: official
+auto_handoff:
+  enabled: true
+  futuro_del_bloque: hola
+  policies:
+    default:
+      fallback: [work]
+      threshold: 90
+      futuro_de_politica: 42
+`
+	if err := os.WriteFile(filepath.Join(home, "ccp.yaml"), []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := Load(home)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if c.AutoHandoff == nil {
+		t.Fatal("no se cargó auto_handoff")
+	}
+	if got := c.AutoHandoff.Extra["futuro_del_bloque"]; got != "hola" {
+		t.Errorf("Extra del bloque = %v, quería \"hola\" (todo: %v)", got, c.AutoHandoff.Extra)
+	}
+	pol := c.AutoHandoff.Policies["default"]
+	if _, ok := pol.Extra["futuro_de_politica"]; !ok {
+		t.Errorf("Extra de la política no tiene futuro_de_politica: %v", pol.Extra)
+	}
+	// Las claves CONOCIDAS no deben filtrarse al catch-all: si lo hicieran, se
+	// escribirían dos veces al guardar.
+	for _, k := range []string{"enabled", "policies", "fallback", "threshold"} {
+		if _, ok := c.AutoHandoff.Extra[k]; ok {
+			t.Errorf("Extra del bloque se quedó con la clave conocida %q", k)
+		}
+		if _, ok := pol.Extra[k]; ok {
+			t.Errorf("Extra de la política se quedó con la clave conocida %q", k)
+		}
+	}
+
+	// Un Save cualquiera (aquí, tras tocar algo ajeno al bloque) las conserva.
+	c.Lang = "en"
+	if err := Save(home, c); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	out, err := os.ReadFile(filepath.Join(home, "ccp.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"futuro_del_bloque", "futuro_de_politica"} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("el round-trip perdió %q:\n%s", want, out)
+		}
 	}
 }

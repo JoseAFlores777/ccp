@@ -209,18 +209,34 @@ func (p *Process) Wait() (int, error) {
 // La señal va al PID exacto, nunca a -PID: el hijo comparte process group con
 // nosotros, así que un envío al grupo mataría también al supervisor (y a la
 // shell del usuario en el peor caso).
-func (p *Process) Terminate(grace time.Duration) error {
+//
+// Devuelve `signaled`: si la señal LLEGÓ a salir, o sea si el hijo murió porque
+// nosotros lo matamos. Es false cuando ya estaba muerto al entrar (el select de
+// abajo) o cuando el Signal rebota con «process already finished», que es la
+// misma carrera vista un instante después. Ese bit es la única forma que tiene
+// el bucle de distinguir «terminó su trabajo» de «lo maté y atrapó la señal»:
+// un claude que instale un handler de SIGTERM para correr sus hooks SessionEnd
+// —justo lo que el `grace` de aquí existe para concederle— puede salir con 0
+// después de que lo hayamos matado, y por el código solo es indistinguible de
+// un fin feliz. Ver el switch de desenlaces en supervisor.go.
+func (p *Process) Terminate(grace time.Duration) (bool, error) {
 	select {
 	case <-p.done:
-		return nil // ya murió; nada que señalar
+		return false, nil // ya murió; nada que señalar
 	default:
 	}
 	if p.cmd.Process == nil {
-		return nil
+		return false, nil
 	}
 
-	if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil && !isProcessDone(err) {
-		return fmt.Errorf("no se pudo mandar SIGTERM a %d: %w", p.cmd.Process.Pid, err)
+	if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		if isProcessDone(err) {
+			// Murió solo entre el select de arriba y este Signal. Nadie lo mató:
+			// la ventana es de microsegundos pero el desenlace que decide es el
+			// opuesto, así que se reporta como lo que fue.
+			return false, nil
+		}
+		return false, fmt.Errorf("no se pudo mandar SIGTERM a %d: %w", p.cmd.Process.Pid, err)
 	}
 
 	if grace > 0 {
@@ -228,7 +244,7 @@ func (p *Process) Terminate(grace time.Duration) error {
 		defer t.Stop()
 		select {
 		case <-p.done:
-			return nil
+			return true, nil
 		case <-t.C:
 		}
 	}
@@ -236,10 +252,10 @@ func (p *Process) Terminate(grace time.Duration) error {
 	// Se acabó la cortesía. SIGKILL no se puede ignorar ni atrapar, así que a
 	// partir de aquí solo esperamos a que el kernel lo recoja.
 	if err := p.cmd.Process.Signal(syscall.SIGKILL); err != nil && !isProcessDone(err) {
-		return fmt.Errorf("no se pudo mandar SIGKILL a %d: %w", p.cmd.Process.Pid, err)
+		return true, fmt.Errorf("no se pudo mandar SIGKILL a %d: %w", p.cmd.Process.Pid, err)
 	}
 	<-p.done
-	return nil
+	return true, nil
 }
 
 // BuildArgs arma los args de claude: --session-id o --resume, -p +

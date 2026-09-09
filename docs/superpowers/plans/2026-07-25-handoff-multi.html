@@ -552,12 +552,12 @@ footer .status{
   participant SH as Función shell
   participant B as Binario ccp
   participant Y as handoffs.yaml
-  U-&gt;&gt;SH: ccp handoff emco-cc (en repo A)
-  SH-&gt;&gt;B: _handoff $PWD emco-cc
+  U-&gt;&gt;SH: ccp handoff work-1 (en repo A)
+  SH-&gt;&gt;B: _handoff $PWD work-1
   B-&gt;&gt;B: copia transcript A → cc-home destino
   B-&gt;&gt;Y: append marcador #1
-  B--&gt;&gt;SH: env(emco-cc) + CCP_RESUME_ID
-  SH-&gt;&gt;U: claude --resume (tokens de emco-cc)
+  B--&gt;&gt;SH: env(work-1) + CCP_RESUME_ID
+  SH-&gt;&gt;U: claude --resume (tokens de work-1)
   U-&gt;&gt;SH: ccp handoff kimi (en repo B)
   SH-&gt;&gt;B: _handoff $PWD kimi
   B-&gt;&gt;Y: append marcador #2 (permitido: otra sesión)
@@ -565,7 +565,7 @@ footer .status{
   U-&gt;&gt;SH: ccp handoff resume (de vuelta en repo A)
   SH-&gt;&gt;B: _handoff-resume $PWD
   B-&gt;&gt;Y: lee (no escribe)
-  B--&gt;&gt;SH: env(emco-cc) + uuid #1
+  B--&gt;&gt;SH: env(work-1) + uuid #1
   U-&gt;&gt;SH: ccp handoff end (en repo A)
   SH-&gt;&gt;B: _handoff-end $PWD
   B-&gt;&gt;B: reescribe sessionId → uuid nuevo
@@ -637,8 +637,8 @@ footer .status{
 ccp handoff
 
 <span class="c"># nuevo handoff (con o sin saltar prompts de permiso)</span>
-ccp handoff emco-cc
-ccp handoff emco-cc --session &lt;uuid&gt; --dangerously-skip-permissions
+ccp handoff work-1
+ccp handoff work-1 --session &lt;uuid&gt; --dangerously-skip-permissions
 
 <span class="c"># re-entrar a uno vivo, sin cerrarlo</span>
 ccp handoff resume

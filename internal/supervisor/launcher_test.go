@@ -327,8 +327,12 @@ func TestTerminateEscalaASIGKILL(t *testing.T) {
 
 	const grace = 60 * time.Millisecond
 	start := time.Now()
-	if err := p.Terminate(grace); err != nil {
+	signaled, err := p.Terminate(grace)
+	if err != nil {
 		t.Fatalf("Terminate: %v", err)
+	}
+	if !signaled {
+		t.Fatal("Terminate sobre un hijo VIVO devolvió signaled=false")
 	}
 	elapsed := time.Since(start)
 	if elapsed < grace {
@@ -367,8 +371,12 @@ func TestTerminateSIGTERMLimpio(t *testing.T) {
 	}
 	waitFor(t, func() bool { _, err := os.Stat(ready); return err == nil })
 
-	if err := p.Terminate(2 * time.Second); err != nil {
+	signaled, err := p.Terminate(2 * time.Second)
+	if err != nil {
 		t.Fatalf("Terminate: %v", err)
+	}
+	if !signaled {
+		t.Fatal("Terminate sobre un hijo VIVO devolvió signaled=false")
 	}
 	code, err := p.Wait()
 	if err != nil {
@@ -393,8 +401,14 @@ func TestTerminateTrasSalidaEsNoOp(t *testing.T) {
 	if code, err := p.Wait(); err != nil || code != 0 {
 		t.Fatalf("Wait = (%d, %v)", code, err)
 	}
-	if err := p.Terminate(time.Second); err != nil {
+	// signaled=false es el punto: el hijo murió SOLO, no lo matamos nosotros.
+	// De ese bit cuelga que el bucle lea su exit code como decisión suya.
+	signaled, err := p.Terminate(time.Second)
+	if err != nil {
 		t.Fatalf("Terminate tras salida: %v", err)
+	}
+	if signaled {
+		t.Fatal("Terminate sobre un hijo YA MUERTO devolvió signaled=true")
 	}
 }
 

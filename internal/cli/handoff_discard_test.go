@@ -21,7 +21,7 @@ import (
 func TestE2EDiscardDesbloqueaMarcadorHuerfano(t *testing.T) {
 	home, repoA, _, uuidA, _ := seedE2E(t)
 	t.Setenv("CCP_HOME", home)
-	t.Setenv("CCP_PROFILE", "personal-cc")
+	t.Setenv("CCP_PROFILE", "personal-1")
 	// currentDir() prioriza $PWD: así `ccp handoff discard` sin uuid resuelve por
 	// cwd igual que en la terminal del usuario.
 	t.Setenv("PWD", repoA)
@@ -33,22 +33,22 @@ func TestE2EDiscardDesbloqueaMarcadorHuerfano(t *testing.T) {
 		return out.String(), errb.String(), code
 	}
 
-	if _, errs, code := run("_handoff", repoA, "emco-cc", "--session", uuidA); code != 0 {
+	if _, errs, code := run("_handoff", repoA, "work-1", "--session", uuidA); code != 0 {
 		t.Fatalf("forward: %s", errs)
 	}
 
 	// Con el marcador vivo, la invariante de cadena bloquea re-prestar esa misma
 	// sesión desde el perfil destino.
-	t.Setenv("CCP_PROFILE", "emco-cc")
-	if _, errs, code := run("_handoff", repoA, "personal-cc", "--session", uuidA); code == 0 {
+	t.Setenv("CCP_PROFILE", "work-1")
+	if _, errs, code := run("_handoff", repoA, "personal-1", "--session", uuidA); code == 0 {
 		t.Fatal("con el marcador vivo, el forward inverso debe estar bloqueado")
 	} else if !strings.Contains(errs, "encadenado") {
 		t.Fatalf("esperaba el error de cadena: %s", errs)
 	}
-	t.Setenv("CCP_PROFILE", "personal-cc")
+	t.Setenv("CCP_PROFILE", "personal-1")
 
 	// El transcript del destino desaparece (limpieza de ~/.claude, rotación…).
-	dstDir := core.ProjectDir(filepath.Join(home, "profiles", "emco-cc", "cc-home"), core.SlugForCwd(repoA))
+	dstDir := core.ProjectDir(filepath.Join(home, "profiles", "work-1", "cc-home"), core.SlugForCwd(repoA))
 	if err := os.Remove(filepath.Join(dstDir, uuidA+".jsonl")); err != nil {
 		t.Fatal(err)
 	}
@@ -81,8 +81,8 @@ func TestE2EDiscardDesbloqueaMarcadorHuerfano(t *testing.T) {
 
 	// Con el marcador suelto, el repo vuelve a estar libre: el mismo uuid (que
 	// sigue en el origen) se puede prestar de nuevo.
-	t.Setenv("CCP_PROFILE", "personal-cc")
-	if _, errs, code := run("_handoff", repoA, "emco-cc", "--session", uuidA); code != 0 {
+	t.Setenv("CCP_PROFILE", "personal-1")
+	if _, errs, code := run("_handoff", repoA, "work-1", "--session", uuidA); code != 0 {
 		t.Fatalf("tras el discard el forward debe volver a funcionar: %s", errs)
 	}
 }
@@ -103,17 +103,17 @@ func TestHandoffDiscardSinActivos(t *testing.T) {
 func TestHandoffDiscardPorUUID(t *testing.T) {
 	home, repoA, repoB, uuidA, uuidB := seedE2E(t)
 	t.Setenv("CCP_HOME", home)
-	t.Setenv("CCP_PROFILE", "personal-cc")
+	t.Setenv("CCP_PROFILE", "personal-1")
 	t.Setenv("CCP_LANG", "es")
 	t.Setenv("PWD", repoA)
 
 	var out, errb bytes.Buffer
-	if code := Dispatch([]string{"_handoff", repoA, "emco-cc", "--session", uuidA}, &out, &errb); code != 0 {
+	if code := Dispatch([]string{"_handoff", repoA, "work-1", "--session", uuidA}, &out, &errb); code != 0 {
 		t.Fatalf("forward A: %s", errb.String())
 	}
 	out.Reset()
 	errb.Reset()
-	if code := Dispatch([]string{"_handoff", repoB, "emco-cc", "--session", uuidB}, &out, &errb); code != 0 {
+	if code := Dispatch([]string{"_handoff", repoB, "work-1", "--session", uuidB}, &out, &errb); code != 0 {
 		t.Fatalf("forward B: %s", errb.String())
 	}
 	out.Reset()
@@ -134,11 +134,11 @@ func TestHandoffDiscardPorUUID(t *testing.T) {
 func TestE2EForceResuelveColision(t *testing.T) {
 	home, repoA, _, uuidA, _ := seedE2E(t)
 	t.Setenv("CCP_HOME", home)
-	t.Setenv("CCP_PROFILE", "personal-cc")
+	t.Setenv("CCP_PROFILE", "personal-1")
 
 	// El destino ya tiene ese uuid con OTRO contenido (un forward previo que se
 	// quedó a medias, o la misma sesión reanudada allí).
-	dstDir := core.ProjectDir(filepath.Join(home, "profiles", "emco-cc", "cc-home"), core.SlugForCwd(repoA))
+	dstDir := core.ProjectDir(filepath.Join(home, "profiles", "work-1", "cc-home"), core.SlugForCwd(repoA))
 	if err := os.MkdirAll(dstDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestE2EForceResuelveColision(t *testing.T) {
 	}
 
 	var out, errb bytes.Buffer
-	code := Dispatch([]string{"_handoff", repoA, "emco-cc", "--session", uuidA}, &out, &errb)
+	code := Dispatch([]string{"_handoff", repoA, "work-1", "--session", uuidA}, &out, &errb)
 	if code == 0 {
 		t.Fatal("la colisión debía bloquear el forward")
 	}
@@ -158,11 +158,11 @@ func TestE2EForceResuelveColision(t *testing.T) {
 
 	out.Reset()
 	errb.Reset()
-	code = Dispatch([]string{"_handoff", repoA, "emco-cc", "--session", uuidA, "--force"}, &out, &errb)
+	code = Dispatch([]string{"_handoff", repoA, "work-1", "--session", uuidA, "--force"}, &out, &errb)
 	if code != 0 {
 		t.Fatalf("--force debía completar el forward: %s", errb.String())
 	}
-	src := filepath.Join(core.ProjectDir(filepath.Join(home, "profiles", "personal-cc", "cc-home"),
+	src := filepath.Join(core.ProjectDir(filepath.Join(home, "profiles", "personal-1", "cc-home"),
 		core.SlugForCwd(repoA)), uuidA+".jsonl")
 	want, err := os.ReadFile(src)
 	if err != nil {

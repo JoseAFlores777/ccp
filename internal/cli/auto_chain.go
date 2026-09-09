@@ -315,7 +315,7 @@ func chainSplitList(args []string) []string {
 }
 
 // chainPlus prefija cada nombre con '+' para que la línea de allow_from se lea
-// como el diff que es (`allow_from personal-cc: +personal-deepseek`).
+// como el diff que es (`allow_from personal-1: +personal-deepseek`).
 func chainPlus(list []string) string {
 	out := make([]string, 0, len(list))
 	for _, n := range list {

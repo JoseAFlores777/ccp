@@ -25,6 +25,19 @@ type AutoHandoff struct {
 	Policies  map[string]AutoPolicy `yaml:"policies,omitempty"`
 	AllowFrom map[string][]string   `yaml:"allow_from,omitempty"`
 	Hooks     []string              `yaml:"hooks,omitempty"` // perfiles con la capa de sensores instalada
+
+	// Extra es el catch-all del bloque, el mismo que Config tiene en su nivel
+	// superior y por la misma razón. `auto_handoff` está en knownTopKeys, así
+	// que el Extra de Config protege la CLAVE pero no su CONTENIDO: sin esto,
+	// una clave que este binario no conozca dentro del bloque se pierde en el
+	// siguiente Save, o sea en cualquier `ccp rule set` hecho con un ccp viejo.
+	//
+	// Hoy no hay ninguna, así que el daño es prospectivo — y justo por eso se
+	// paga ahora: es el prerrequisito de toda evolución del bloque (umbrales por
+	// ventana, park_wait, statusline_augment), y cada versión que sale sin él
+	// añade binarios sueltos que destruyen la configuración del que sí la tiene.
+	// `version` sigue en 2 a propósito: el arreglo es aditivo.
+	Extra map[string]any `yaml:",inline"`
 }
 
 // AutoPolicy es una política con nombre. Los campos numéricos/duración van como
@@ -39,6 +52,11 @@ type AutoPolicy struct {
 	ReturnCheck string       `yaml:"return_check,omitempty"`
 	ReturnIdle  string       `yaml:"return_idle,omitempty"`
 	Cooldown    AutoCooldown `yaml:"cooldown,omitempty"`
+
+	// Extra: catch-all por política, por la misma razón que el de AutoHandoff.
+	// Es el nivel donde más va a crecer el esquema (cada ajuste nuevo es una
+	// clave de política), así que es el que más falta hacía.
+	Extra map[string]any `yaml:",inline"`
 }
 
 // AutoCooldown describe cuánto esperar antes de reconsiderar un perfil agotado.
@@ -422,7 +440,7 @@ func newAutoHandoff(cfg *Config) *AutoHandoff {
 
 	allowFrom := make(map[string][]string, len(names))
 	for _, n := range names {
-		// El propio perfil primero: leer `emco-cc: [emco-cc, ...]` deja claro
+		// El propio perfil primero: leer `work-1: [work-1, ...]` deja claro
 		// que "no rotar" se escribe dejando solo a sí mismo.
 		entry := []string{n}
 		for _, o := range official {

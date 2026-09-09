@@ -56,8 +56,8 @@ func (r *runner) traceDwellWait(ev core.LimitEvent) {
 // traceMove es la línea principal de la traza: TODO movimiento de la
 // conversación pasa por aquí, lo dispare un límite o el temporizador de regreso.
 //
-//	personal-cc (4h 03m) ──[uso 94% ≥ umbral 90% · statusline]──→ handoff a app-cc (préstamo 1/6)
-//	app-cc (2h 00m) ──[return_check: personal-cc ya liberó su ventana]──→ volviendo a personal-cc (vuelta a casa, no gasta préstamo: siguen 1/6)
+//	personal-1 (4h 03m) ──[uso 94% ≥ umbral 90% · statusline]──→ handoff a work-2 (préstamo 1/6)
+//	work-2 (2h 00m) ──[return_check: personal-1 ya liberó su ventana]──→ volviendo a personal-1 (vuelta a casa, no gasta préstamo: siguen 1/6)
 //
 // Que las dos causas compartan formateador NO es ahorro de código: es lo que
 // impide que el mismo suceso se cuente con dos vocabularios. Antes había tres
