@@ -2,6 +2,7 @@ package core
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -599,5 +600,77 @@ func TestAutoInitSinPerfiles(t *testing.T) {
 	}
 	if rc.Primary != "default" || len(rc.Fallback) != 0 {
 		t.Errorf("rc = %+v", rc)
+	}
+}
+
+// TestAutoHandoffPreservaClavesDesconocidas fija que el bloque `auto_handoff`
+// sobrevive intacto a un binario que no entiende parte de su contenido.
+//
+// `auto_handoff` está en knownTopKeys, así que el catch-all de Config protege la
+// clave entera pero NO su interior: sin un inline propio en AutoHandoff y en
+// AutoPolicy, una clave nueva se perdía en el siguiente Save — y "el siguiente
+// Save" es cualquier `ccp rule set` o `ccp profile add`, no una operación de
+// auto. O sea: instalar una versión anterior y tocar una regla te borraba parte
+// de la política sin decir nada.
+//
+// El test escribe el yaml a mano porque es exactamente el caso real: el archivo
+// lo produjo un ccp más nuevo que el que lo está leyendo.
+func TestAutoHandoffPreservaClavesDesconocidas(t *testing.T) {
+	home := t.TempDir()
+	raw := `version: 2
+profiles:
+  work:
+    type: official
+auto_handoff:
+  enabled: true
+  futuro_del_bloque: hola
+  policies:
+    default:
+      fallback: [work]
+      threshold: 90
+      futuro_de_politica: 42
+`
+	if err := os.WriteFile(filepath.Join(home, "ccp.yaml"), []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := Load(home)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if c.AutoHandoff == nil {
+		t.Fatal("no se cargó auto_handoff")
+	}
+	if got := c.AutoHandoff.Extra["futuro_del_bloque"]; got != "hola" {
+		t.Errorf("Extra del bloque = %v, quería \"hola\" (todo: %v)", got, c.AutoHandoff.Extra)
+	}
+	pol := c.AutoHandoff.Policies["default"]
+	if _, ok := pol.Extra["futuro_de_politica"]; !ok {
+		t.Errorf("Extra de la política no tiene futuro_de_politica: %v", pol.Extra)
+	}
+	// Las claves CONOCIDAS no deben filtrarse al catch-all: si lo hicieran, se
+	// escribirían dos veces al guardar.
+	for _, k := range []string{"enabled", "policies", "fallback", "threshold"} {
+		if _, ok := c.AutoHandoff.Extra[k]; ok {
+			t.Errorf("Extra del bloque se quedó con la clave conocida %q", k)
+		}
+		if _, ok := pol.Extra[k]; ok {
+			t.Errorf("Extra de la política se quedó con la clave conocida %q", k)
+		}
+	}
+
+	// Un Save cualquiera (aquí, tras tocar algo ajeno al bloque) las conserva.
+	c.Lang = "en"
+	if err := Save(home, c); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	out, err := os.ReadFile(filepath.Join(home, "ccp.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"futuro_del_bloque", "futuro_de_politica"} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("el round-trip perdió %q:\n%s", want, out)
+		}
 	}
 }
