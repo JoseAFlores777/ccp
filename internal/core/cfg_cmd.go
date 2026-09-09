@@ -110,10 +110,20 @@ func ProfileConfig(home, name string, opts ProfileConfigOpts) error {
 	if launch == nil {
 		launch = launchEditor
 	}
+	// Un archivo por invocación, en serie, y no los dos de una: en macOS `nano`
+	// es un symlink a `pico`, que NO tiene buffers múltiples — abre el primer
+	// argumento y descarta el resto **sin decir nada**. Con los dos juntos, el
+	// settings.overlay.json (el que de verdad importa) era inalcanzable desde
+	// `ccp profile config` y desde la tecla 'e' de la TUI, y encima al cerrar se
+	// validaba y se regeneraba un archivo que el usuario nunca llegó a ver.
+	// Llamar una vez por archivo se comporta igual en todos los editores.
+	editor := ResolveEditor(home)
 	instr := cfgInstrFile(home, name)
 	settings := cfgSettingsFile(home, name)
-	if err := launch(ResolveEditor(home), instr, settings); err != nil {
-		return fmt.Errorf("el editor falló: %w", err)
+	for _, f := range []string{instr, settings} {
+		if err := launch(editor, f); err != nil {
+			return fmt.Errorf("el editor falló: %w", err)
+		}
 	}
 
 	if opts.NoPostEdit {

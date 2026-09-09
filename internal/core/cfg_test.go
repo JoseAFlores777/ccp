@@ -376,17 +376,24 @@ func TestProfileConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var openedFiles []string
+	// Cada invocación del editor lleva UN archivo: en macOS `nano` es `pico`, que
+	// abre el primer argumento y descarta el resto sin avisar, así que pasarle
+	// los dos juntos dejaba el settings.overlay.json inalcanzable.
+	var calls [][]string
 	launch := func(_ string, files ...string) error {
-		openedFiles = files
+		calls = append(calls, files)
 		// Simula que el usuario escribe un overlay válido.
 		return os.WriteFile(cfgSettingsFile(home, "work"), []byte(`{"env":{"K":"V"}}`), 0o644)
 	}
 	if err := ProfileConfig(home, "work", ProfileConfigOpts{Launch: launch}); err != nil {
 		t.Fatalf("ProfileConfig: %v", err)
 	}
-	if len(openedFiles) != 2 {
-		t.Fatalf("debe abrir 2 archivos (instr+settings), abrió %d: %v", len(openedFiles), openedFiles)
+	quiero := [][]string{
+		{cfgInstrFile(home, "work")},
+		{cfgSettingsFile(home, "work")},
+	}
+	if !reflect.DeepEqual(calls, quiero) {
+		t.Fatalf("el editor tiene que abrirse una vez por archivo (instr, luego settings); abrió %v", calls)
 	}
 	// Regeneró el merge con el overlay editado.
 	sj, _ := os.ReadFile(filepath.Join(ccHomePath(home, "work"), "settings.json"))
