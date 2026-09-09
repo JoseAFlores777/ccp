@@ -895,56 +895,41 @@ func (m *model) finishConfigEdit(msg configEditDoneMsg) (tea.Model, tea.Cmd) {
 
 // --- vista ---
 
-// viewConfig pinta las cinco secciones apiladas: la enfocada con sus filas y su
-// línea de teclas, las demás resumidas en una línea. Enseñar solo el resumen de
-// las que no tienen el foco es lo que mantiene la pantalla dentro de una
-// terminal normal (el dashboard no tiene viewport ni scroll).
-func (m *model) viewConfig() string {
-	var b strings.Builder
-	b.WriteString(styleBrand.Render("ccp") + styleSub.Render("  "+i18n.T(m.lang, "tui.config.eyebrow")) + "\n\n")
-	for _, sec := range configSections {
-		b.WriteString(m.viewConfigSection(sec) + "\n")
-	}
-	if m.statusMsg != "" {
-		st := styleOK
-		if m.statusErr {
-			st = styleErr
-		}
-		b.WriteString("\n" + st.Render(m.statusMsg) + "\n")
-	}
-	b.WriteString("\n" + styleDim.Render(i18n.T(m.lang, "tui.config.footer")))
-	return b.String()
-}
-
-func (m *model) viewConfigSection(sec configSection) string {
+// configPanel describe UNA sección como caja. Sin foco solo lleva su resumen
+// (CollapseWhenUnfocused: true, a diferencia del dashboard); con foco, sus
+// filas y su línea de teclas — cada fila sigue truncando y estilizando sus
+// propios segmentos, igual que configRowLine hacía hasta ahora.
+func (m *model) configPanel(sec configSection) panelSpec {
 	focused := m.cfgSec == sec
-	title := i18n.T(m.lang, configTitleKey(sec))
+	p := panelSpec{
+		Title:                 i18n.T(m.lang, configTitleKey(sec)),
+		Summary:               m.configSummary(sec),
+		Empty:                 i18n.T(m.lang, "tui.config.empty"),
+		Focused:               focused,
+		Cursor:                -1,
+		MaxRows:               12,
+		CollapseWhenUnfocused: true,
+	}
 	if !focused {
-		return m.boxFocused(false, title, "", styleDim.Render(m.configSummary(sec)))
+		return p
 	}
-
-	var lines []string
-	if note := m.configNote(sec); note != "" {
-		lines = append(lines, styleDim.Render(note))
+	p.Hint = i18n.T(m.lang, configHintKey(sec))
+	p.Cursor = m.cfgRow
+	for i, r := range m.configRowsFor(sec) {
+		p.Rows = append(p.Rows, rowSpec{Text: m.configRowText(i == m.cfgRow, r)})
 	}
-	rows := m.configRowsFor(sec)
-	if len(rows) == 0 {
-		lines = append(lines, styleDim.Render(i18n.T(m.lang, "tui.config.empty")))
-	}
-	for i, r := range rows {
-		lines = append(lines, m.configRowLine(i, r))
-	}
-	return m.boxFocused(true, title, i18n.T(m.lang, configHintKey(sec)), strings.Join(lines, "\n"))
+	return p
 }
 
-// configRowLine pinta una fila: cursor, etiqueta alineada, marca ✓/✗ para las
-// binarias y el valor truncado al ancho disponible (nunca wrap, como el resto de
-// la TUI).
-func (m *model) configRowLine(i int, r configRow) string {
+// configRowText es configRowLine (config_view.go:943-960) menos el prefijo de
+// cursor: recibe `sel` ya resuelto para elegir el color del label, y el resto
+// —alineación a labelW=16, la marca ✓/✗ coloreada, el truncado del valor— es
+// idéntico, en el mismo orden (plano -> estilo) que ya tenía.
+func (m *model) configRowText(sel bool, r configRow) string {
 	const labelW = 16
-	cur, st := "  ", styleVal
-	if i == m.cfgRow {
-		cur, st = styleFocused.Render("▸ "), styleSelected
+	st := styleVal
+	if sel {
+		st = styleSelected
 	}
 	mark := ""
 	if r.toggle {
@@ -957,8 +942,28 @@ func (m *model) configRowLine(i int, r configRow) string {
 	if valW < 12 {
 		valW = 12
 	}
-	return cur + st.Render(padRight(truncRight(r.label, labelW), labelW+1)) +
+	return st.Render(padRight(truncRight(r.label, labelW), labelW+1)) +
 		mark + styleVal.Render(truncRight(r.value, valW))
+}
+
+// viewConfig pinta las cinco secciones apiladas: la enfocada con sus filas y su
+// línea de teclas, las demás resumidas en una línea. Enseñar solo el resumen de
+// las que no tienen el foco es lo que mantiene la pantalla dentro de una
+// terminal normal (el dashboard no tiene viewport ni scroll).
+func (m *model) viewConfig() string {
+	v := viewSpec{
+		Header:    styleBrand.Render("ccp") + styleSub.Render("  "+i18n.T(m.lang, "tui.config.eyebrow")),
+		Status:    m.statusMsg,
+		StatusErr: m.statusErr,
+		Footer:    i18n.T(m.lang, "tui.config.footer"),
+	}
+	for _, sec := range configSections {
+		v.Panels = append(v.Panels, m.configPanel(sec))
+	}
+	if note := m.configNote(m.cfgSec); note != "" {
+		v.Extra = styleDim.Render(note)
+	}
+	return m.renderView(v)
 }
 
 // configSummary es la línea de las secciones sin foco: el dato que se querría

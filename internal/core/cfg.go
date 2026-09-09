@@ -34,6 +34,14 @@ func cfgSettingsFile(home, name string) string {
 	return filepath.Join(cfgOverlayDir(home, name), "settings.overlay.json")
 }
 
+// ProfileSettingsFile expone la ruta del settings.overlay.json de un perfil a
+// los front-ends (la vista de perfil la usa para sembrar overlays en tests y
+// para saber qué archivo abre 'e' sobre la caja Env/Efectivo).
+func ProfileSettingsFile(home, name string) string { return cfgSettingsFile(home, name) }
+
+// ProfileInstrFile expone la ruta del CLAUDE.md del overlay a los front-ends.
+func ProfileInstrFile(home, name string) string { return cfgInstrFile(home, name) }
+
 // MergeJSON fusiona base ⊕ overlay y devuelve el JSON resultante (indentado a 2
 // espacios, con newline final). Replica la semántica de jq `. * $x`:
 //   - dos objetos se fusionan recursivamente clave a clave;

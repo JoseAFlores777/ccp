@@ -41,6 +41,7 @@ const (
 	modeForm
 	modeCommand
 	modeConfig
+	modeProfile
 )
 
 // model es el modelo raíz de bubbletea. Mantiene el Config en memoria (recargado
@@ -66,6 +67,15 @@ type model struct {
 	// vista Config (modeConfig): sección enfocada y fila dentro de ella.
 	cfgSec configSection
 	cfgRow int
+
+	// vista de perfil (modeProfile): el perfil mirado, su Effective ya
+	// calculado, la caja enfocada, la fila y el grupo desplegado de Efectivo.
+	profName  string
+	profEff   core.Effective
+	profPanel profilePanel
+	profRow   int
+	profGroup core.EffKind // grupo desplegado en Efectivo
+	profOpen  bool         // Efectivo desplegada
 
 	// formulario embebido + su callback de aplicación.
 	cur action
@@ -165,6 +175,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateCommand(msg)
 	case modeConfig:
 		return m.updateConfig(msg)
+	case modeProfile:
+		return m.updateProfileView(msg)
 	default:
 		return m.updateDashboard(msg)
 	}
@@ -207,6 +219,9 @@ func (m *model) exitForm() {
 	}
 	m.cur = action{}
 	m.reload()
+	if m.mode == modeProfile {
+		m.reloadProfileEff()
+	}
 	m.estComputed = false // forzar recómputo del panel Estado
 }
 

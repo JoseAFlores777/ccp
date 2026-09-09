@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
@@ -373,6 +374,131 @@ func formBackupRestore(home string, lang i18n.Lang) action {
 		}
 		return i18n.T(lang, "tui.form.restore_done",
 			rep.SnapshotDir, len(rep.Created), len(rep.Overwritten), len(rep.Skipped), rep.RulesAdded), nil
+	}
+	return action{form: form, apply: apply}
+}
+
+// formAddRuleToProfile añade una regla al bloque gestionado del CLAUDE.md del
+// overlay del perfil. Usa InstructRuleAdd sobre el archivo directamente: así no
+// pasa por InstructCtx, que trabaja sobre el perfil ACTIVO de la terminal y no
+// sobre el que se está mirando.
+func formAddRuleToProfile(home, name string, lang i18n.Lang) action {
+	var text string
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title(i18n.T(lang, "tui.form.rule_text")).
+				Value(&text).
+				Validate(func(s string) error {
+					if strings.TrimSpace(s) == "" {
+						return fmt.Errorf("%s", i18n.T(lang, "tui.form.rule_text_empty"))
+					}
+					return nil
+				}),
+		),
+	)
+	apply := func() (string, error) {
+		if err := core.CfgInitOverlay(home, name); err != nil {
+			return "", err
+		}
+		file := core.ProfileInstrFile(home, name)
+		added, err := core.InstructRuleAdd(file, text)
+		if err != nil {
+			return "", err
+		}
+		if !added {
+			return i18n.T(lang, "tui.form.rule_dup"), nil
+		}
+		src, err := core.ClaudeSrc()
+		if err != nil {
+			return "", err
+		}
+		if err := core.CfgRegenerate(home, name, src); err != nil {
+			return "", err
+		}
+		return i18n.T(lang, "tui.form.rule_added_profile", name), nil
+	}
+	return action{form: form, apply: apply}
+}
+
+// formSetOverlayEnv fija una variable del overlay. Con key != "" viene de
+// `enter` sobre una fila y el nombre no se puede cambiar; con key == "" es un
+// alta y se piden los dos campos.
+func formSetOverlayEnv(home, name, key, val string, lang i18n.Lang) action {
+	k, v := key, val
+	fields := []huh.Field{}
+	if key == "" {
+		fields = append(fields, huh.NewInput().
+			Title(i18n.T(lang, "tui.form.env_key")).
+			Value(&k).
+			Validate(func(s string) error {
+				if strings.TrimSpace(s) == "" {
+					return fmt.Errorf("%s", i18n.T(lang, "tui.form.env_key_empty"))
+				}
+				return nil
+			}))
+	}
+	// TitleFunc, NO Title: huh.Input.Title es ESTÁTICO — se evalúa UNA vez, al
+	// construir el form (field_input.go del módulo huh@v1.0.0 pinneado en
+	// go.mod: "The Title is static for dynamic Title use TitleFunc"). Con
+	// key=="" (alta), `k` todavía está vacío en el momento en que se
+	// construye este segundo campo — Title(i18n.T(..., k)) horneaba
+	// literalmente "Valor de " para siempre, sin importar lo que el usuario
+	// tecleara después en el primer campo. TitleFunc sí se re-evalúa cuando
+	// cambia el binding que se le pasa (&k).
+	fields = append(fields, huh.NewInput().
+		TitleFunc(func() string { return i18n.T(lang, "tui.form.env_val", k) }, &k).
+		Value(&v))
+	form := huh.NewForm(huh.NewGroup(fields...))
+	apply := func() (string, error) {
+		if err := core.OverlayEnvSet(home, name, k, v); err != nil {
+			return "", err
+		}
+		return i18n.T(lang, "tui.form.env_saved", k, name), nil
+	}
+	return action{form: form, apply: apply}
+}
+
+// formAddHookToProfile añade un hook al perfil MIRADO — arma su propio
+// InstructCtx con ActiveProfile = name en vez de usar el de la terminal
+// (CCP_PROFILE), que sería el perfil equivocado. Mismo formato que `ccp
+// instruct add profile hook '<id>={json}'` (internal/core/instruct_cmd.go:86-
+// 108): el id es solo la referencia que queda en el manifiesto, el evento de
+// verdad vive DENTRO del JSON (p. ej. {"hooks":{"PostToolUse":[{"matcher":"",
+// "hooks":[{"type":"command","command":"..."}]}]}}). InstructAdd YA regenera
+// el cc-home internamente para scope "profile" (instruct_cmd.go:102-107); no
+// hay que llamar a CfgRegenerate aparte.
+func formAddHookToProfile(home, src, name string, lang i18n.Lang) action {
+	var id, snippet string
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title(i18n.T(lang, "tui.form.hook_id")).
+				Value(&id).
+				Validate(func(s string) error {
+					if strings.TrimSpace(s) == "" {
+						return fmt.Errorf("%s", i18n.T(lang, "tui.form.hook_id_empty"))
+					}
+					return nil
+				}),
+			huh.NewInput().
+				Title(i18n.T(lang, "tui.form.hook_json")).
+				Value(&snippet).
+				Validate(func(s string) error {
+					if core.CfgValidateBytes([]byte(s)) != nil {
+						return fmt.Errorf("%s", i18n.T(lang, "tui.form.hook_json_invalid"))
+					}
+					return nil
+				}),
+		),
+	)
+	apply := func() (string, error) {
+		ctx := core.InstructCtx{Home: home, Src: src, ActiveProfile: name}
+		res, err := core.InstructAdd(ctx, "profile", "hook", id+"="+snippet)
+		if err != nil {
+			return "", err
+		}
+		return i18n.T(lang, "tui.form.hook_added", res.Name, name), nil
 	}
 	return action{form: form, apply: apply}
 }

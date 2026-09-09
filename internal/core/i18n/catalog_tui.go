@@ -61,8 +61,8 @@ var catalogTUI = map[string]map[Lang]string{
 		Es: "Perfiles",
 	},
 	"tui.profiles.hint": {
-		En: "a:add d:delete r:rename s:key e:overlay l:login enter:detail",
-		Es: "a:añadir d:borrar r:renombrar s:key e:overlay l:login enter:detalle",
+		En: "a:add d:delete r:rename s:key e:view l:login enter:detail",
+		Es: "a:añadir d:borrar r:renombrar s:key e:vista l:login enter:detalle",
 	},
 	"tui.form.rename_profile_title": {
 		En: "New name for '%s'",
@@ -617,5 +617,177 @@ var catalogTUI = map[string]map[Lang]string{
 	"tui.config.edit_no_validate": {
 		En: "'%s' does not wait: nothing was revalidated (save and come back).",
 		Es: "'%s' no espera: no se revalidó nada (guarda y vuelve).",
+	},
+
+	// --- shell.go: ventana de filas ---
+	"tui.shell.more_up": {
+		En: "↑ %d more",
+		Es: "↑ %d más",
+	},
+	"tui.shell.more_down": {
+		En: "↓ %d more",
+		Es: "↓ %d más",
+	},
+
+	// --- profile_view.go: la vista de perfil (modeProfile) ---
+	"tui.profview.eyebrow": {
+		En: "profile %s",
+		Es: "perfil %s",
+	},
+	"tui.profview.instructions": {
+		En: "Instructions",
+		Es: "Instrucciones",
+	},
+	"tui.profview.instructions_hint": {
+		En: "a:add d:delete e:edit file",
+		Es: "a:añadir d:borrar e:editar archivo",
+	},
+	"tui.profview.instructions_empty": {
+		En: "(no instructions of its own — 'a' to add)",
+		Es: "(sin instrucciones propias — 'a' para añadir)",
+	},
+	"tui.profview.instructions_sum": {
+		En: "%d entries",
+		Es: "%d entradas",
+	},
+	"tui.profview.env": {
+		En: "Env",
+		Es: "Env",
+	},
+	"tui.profview.env_hint": {
+		En: "a:add enter:edit d:delete e:edit file",
+		Es: "a:añadir enter:editar d:borrar e:editar archivo",
+	},
+	"tui.profview.env_empty": {
+		En: "(no variables — 'a' to add)",
+		Es: "(sin variables — 'a' para añadir)",
+	},
+	"tui.profview.env_sum": {
+		En: "%d variables",
+		Es: "%d variables",
+	},
+	"tui.profview.effective": {
+		En: "Effective",
+		Es: "Efectivo",
+	},
+	"tui.profview.effective_hint": {
+		En: "enter:expand a:add hook",
+		Es: "enter:desplegar a:añadir hook",
+	},
+	"tui.profview.effective_sum": {
+		En: "permissions · hooks · plugins · sensors",
+		Es: "permisos · hooks · plugins · sensores",
+	},
+	"tui.profview.permissions": {
+		En: "Permissions",
+		Es: "Permisos",
+	},
+	"tui.profview.hooks": {
+		En: "Hooks",
+		Es: "Hooks",
+	},
+	"tui.profview.plugins": {
+		En: "Plugins",
+		Es: "Plugins",
+	},
+	"tui.profview.sensors": {
+		En: "Sensors",
+		Es: "Sensores",
+	},
+	"tui.profview.footer": {
+		En: "tab: panel · j/k: navigate · e: edit file · esc: back · q: quit",
+		Es: "tab: panel · j/k: navegar · e: editar archivo · esc: volver · q: salir",
+	},
+	"tui.profview.origin_global": {
+		En: "global",
+		Es: "global",
+	},
+	"tui.profview.origin_overlay": {
+		En: "overlay",
+		Es: "overlay",
+	},
+	"tui.profview.origin_auto": {
+		En: "auto",
+		Es: "auto",
+	},
+	"tui.profview.no_file": {
+		En: "this box has no editable file: sensors live in auto_handoff.hooks (press 'c')",
+		Es: "esta caja no tiene archivo editable: los sensores viven en auto_handoff.hooks (pulsa 'c')",
+	},
+	"tui.profview.no_delete": {
+		En: "hooks live in arrays with no stable id: ccp only removes them from its manifest, not from the JSON — edit the file with 'e'",
+		Es: "los hooks viven en arrays sin id estable: ccp solo los saca de su manifiesto, no del JSON — edita el archivo con 'e'",
+	},
+	"tui.profview.global_row": {
+		// Genérico a propósito: la misma clave la usan la fila global de
+		// Instrucciones (~/.claude/CLAUDE.md) Y una fila OriginGlobal de Env
+		// (~/.claude/settings.json) — las dos son "tu config global, no el
+		// overlay de este perfil", solo cambia el archivo.
+		En: "that is your global config, not this profile's overlay",
+		Es: "eso es tu config global, no el overlay de este perfil",
+	},
+	"tui.profview.no_overlay_default": {
+		En: "'default' = your GLOBAL config; edit it directly, it has no overlay",
+		Es: "'default' = tu config GLOBAL; edítala directamente, no tiene overlay",
+	},
+	"tui.form.hook_id": {
+		En: "Hook id (for the manifest, not the event name)",
+		Es: "Id del hook (para el manifiesto, no el nombre del evento)",
+	},
+	"tui.form.hook_id_empty": {
+		En: "write an id",
+		Es: "escribe un id",
+	},
+	"tui.form.hook_json": {
+		En: `JSON fragment, e.g. {"hooks":{"PostToolUse":[{"matcher":"","hooks":[{"type":"command","command":"..."}]}]}}`,
+		Es: `Fragmento JSON, p. ej. {"hooks":{"PostToolUse":[{"matcher":"","hooks":[{"type":"command","command":"..."}]}]}}`,
+	},
+	"tui.form.hook_json_invalid": {
+		En: "invalid JSON",
+		Es: "JSON inválido",
+	},
+	"tui.form.hook_added": {
+		En: "Hook '%s' added to '%s' (cc-home regenerated).",
+		Es: "Hook '%s' añadido a '%s' (cc-home regenerado).",
+	},
+	"tui.profview.rule_removed": {
+		En: "Rule removed from the overlay.",
+		Es: "Regla borrada del overlay.",
+	},
+	"tui.profview.env_removed": {
+		En: "Variable '%s' removed.",
+		Es: "Variable '%s' borrada.",
+	},
+	"tui.form.rule_text": {
+		En: "Instruction for this profile",
+		Es: "Instrucción para este perfil",
+	},
+	"tui.form.rule_text_empty": {
+		En: "write the instruction",
+		Es: "escribe la instrucción",
+	},
+	"tui.form.rule_added_profile": {
+		En: "Instruction added to '%s' (cc-home regenerated).",
+		Es: "Instrucción añadida a '%s' (cc-home regenerado).",
+	},
+	"tui.form.rule_dup": {
+		En: "That instruction was already in this profile (not duplicated).",
+		Es: "Esa instrucción ya estaba en este perfil (no se duplica).",
+	},
+	"tui.form.env_key": {
+		En: "Variable name",
+		Es: "Nombre de la variable",
+	},
+	"tui.form.env_key_empty": {
+		En: "write the variable name",
+		Es: "escribe el nombre de la variable",
+	},
+	"tui.form.env_val": {
+		En: "Value for %s",
+		Es: "Valor de %s",
+	},
+	"tui.form.env_saved": {
+		En: "%s saved in the overlay of '%s' (cc-home regenerated).",
+		Es: "%s guardada en el overlay de '%s' (cc-home regenerado).",
 	},
 }

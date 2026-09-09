@@ -444,6 +444,32 @@ func TestProfileConfigUnknown(t *testing.T) {
 	}
 }
 
+func TestProfileConfigConFileAbreSoloEse(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+	if err := ProfileAddOfficial(home, "work"); err != nil {
+		t.Fatal(err)
+	}
+	var calls [][]string
+	launch := func(_ string, files ...string) error {
+		calls = append(calls, files)
+		return nil
+	}
+	only := cfgSettingsFile(home, "work")
+	if err := ProfileConfig(home, "work", ProfileConfigOpts{Launch: launch, File: only}); err != nil {
+		t.Fatalf("ProfileConfig: %v", err)
+	}
+	if len(calls) != 1 || len(calls[0]) != 1 || calls[0][0] != only {
+		t.Fatalf("con File solo se abre ese archivo: %v", calls)
+	}
+
+	// Y una ruta que no es de este perfil se rechaza.
+	err := ProfileConfig(home, "work", ProfileConfigOpts{Launch: launch, File: "/etc/passwd"})
+	if err == nil {
+		t.Fatal("una ruta ajena tiene que rechazarse")
+	}
+}
+
 // TestResolveEditor verifica la precedencia defaults -> $EDITOR -> nano.
 func TestResolveEditor(t *testing.T) {
 	home := t.TempDir()

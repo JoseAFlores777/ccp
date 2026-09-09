@@ -102,6 +102,26 @@ Runs `claude` as a child, watches for a usage limit, hands the session off and r
 
 `internal/cli` is dispatch + text/JSON formatting only. `internal/tui` is a bubbletea+huh app (3 panels: Profiles | Rules | Status) launched when `ccp` runs with **no args and a TTY**; with no TTY it falls to the CLI (never blocks scripting). The TUI only calls `internal/core` — every action has a CLI equivalent. **Anything drawn on `/dev/tty` must repoint lipgloss's default renderer at that file** (`openTTY` does it): the default renderer probes `os.Stdout`, and on the real `ccp handoff` path that stdout is the shell function's command substitution — a pipe — so termenv resolves "no colour" and every style silently becomes dead code that still tests green (tests have no tty either). `NO_COLOR` keeps working; termenv reads it from the environment.
 
+`internal/tui/shell.go` es el **único** sitio que pinta chrome: cabecera, cajas,
+cursor, ventana, línea de estado y pie. Una vista construye un `viewSpec` (unos
+`panelSpec` con sus `rowSpec`) y llama a `renderView`; alinear columnas sigue
+siendo de la vista, pero el `▸`, el recorte y la caja no. Antes había tres
+renderizadores a mano repitiendo la idea, que es el mismo bug que `traceMove`
+evita en el supervisor. `panelSpec.MaxRows` es lo que permite pintar un
+`permissions.allow` de 200 entradas sin viewport: una ventana alrededor del
+cursor con marcas `↑ N más` / `↓ N más`.
+
+`e` sobre un perfil abre la **vista de perfil** (`modeProfile`,
+`profile_view.go`): tres cajas —Instrucciones · Env · Efectivo— sobre
+`core.ProfileEffective`, que devuelve la procedencia como dato (`OriginGlobal` /
+`OriginOverlay` / `OriginAuto`, más `Shadowed` cuando otra capa traía la misma
+clave). Se edita lo que `core` ya sabe escribir: reglas por `InstructRuleAdd/Rm`,
+variables por `OverlayEnvSet/Del`, hooks por `InstructAdd` (con el `ActiveProfile`
+del `InstructCtx` fijado al perfil MIRADO, no al de la terminal). Los hooks se
+añaden pero **no** se borran — viven en arrays sin id estable— y la tecla lo dice
+en vez de fingir. El CLI no cambia: `ccp profile config <perfil>` sigue abriendo
+el editor.
+
 ### Config & state locations (`~/.config/ccp`)
 
 - **`ccp.yaml`** — the single source of truth (replaces `profiles.tsv` + `rules.tsv` + `config` + per-profile `meta` + global/profile `authored.tsv`). Schema `version: 2`. `default` is implicit (never serialized). No inheritance: deepseek profiles store their 4 fields explicitly; `defaults` only seeds new ones.

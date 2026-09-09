@@ -129,9 +129,9 @@ func (m *model) keyProfiles(key string) (tea.Model, tea.Cmd) {
 			}
 			return m.start(formSetKey(m.home, name, m.lang))
 		}
-	case "e": // editar config (abre $EDITOR)
+	case "e": // vista del perfil
 		if name := m.selectedProfile(); name != "" {
-			return m.editConfig(name)
+			return m.openProfileView(name)
 		}
 	case "l": // login (official)
 		if name := m.selectedProfile(); name != "" {
@@ -205,6 +205,7 @@ func (m *model) start(a action) (tea.Model, tea.Cmd) {
 type profileEditExec struct {
 	home string
 	name string
+	file string // "" = los dos overlays; si no, solo ese
 
 	err error
 
@@ -221,7 +222,10 @@ func (c *profileEditExec) SetStderr(w io.Writer) { c.errw = w }
 // lo trataría como terminal rota y saltaría la restauración), sino un resultado
 // que el dashboard reporta en su línea de estado. Se guarda en c.err.
 func (c *profileEditExec) Run() error {
-	c.err = core.ProfileConfig(c.home, c.name, core.ProfileConfigOpts{Launch: c.launch})
+	c.err = core.ProfileConfig(c.home, c.name, core.ProfileConfigOpts{
+		Launch: c.launch,
+		File:   c.file,
+	})
 	return nil
 }
 
@@ -261,6 +265,9 @@ func (m *model) editConfig(name string) (tea.Model, tea.Cmd) {
 // y regeneró el cc-home.
 func (m *model) finishProfileEdit(msg profileEditDoneMsg) (tea.Model, tea.Cmd) {
 	m.reload()
+	if m.mode == modeProfile {
+		m.reloadProfileEff()
+	}
 	m.estComputed = false
 	switch {
 	case msg.err != nil:
@@ -326,6 +333,8 @@ func (m *model) View() string {
 		return m.viewForm()
 	case modeConfig:
 		return m.viewConfig()
+	case modeProfile:
+		return m.viewProfile()
 	default:
 		return m.viewDashboard()
 	}
@@ -385,12 +394,6 @@ func padRight(s string, w int) string {
 		return s + strings.Repeat(" ", n)
 	}
 	return s
-}
-
-// box envuelve el cuerpo de un panel en una caja redondeada con título; el foco
-// tiñe el borde y el título de terracota.
-func (m *model) box(p panel, title, hint, body string) string {
-	return m.boxFocused(m.focus == p, title, hint, body)
 }
 
 // boxFocused es la misma caja sin acoplarla a los tres paneles del dashboard:
@@ -523,66 +526,72 @@ func logoBanner(lang i18n.Lang) string {
 // viewDashboard pinta el header con el logo, los 3 paneles en cajas, la barra de
 // comandos (si activa), la línea de estado y el footer de teclas.
 func (m *model) viewDashboard() string {
-	var b strings.Builder
-
-	b.WriteString(logoBanner(m.lang) + "\n\n")
-
-	b.WriteString(m.viewProfiles() + "\n")
-	b.WriteString(m.viewRules() + "\n")
-	b.WriteString(m.viewStatus() + "\n")
-
-	if m.mode == modeCommand {
-		b.WriteString("\n" + styleFocused.Render(": "+m.cmdInput+"▏") + "\n")
-		matches := cmdMatches(m.cmdInput)
-		if len(matches) == 0 {
-			matches = cmdList
-		}
-		sug := make([]string, len(matches))
-		for i, c := range matches {
-			sug[i] = styleSelected.Render(c)
-		}
-		b.WriteString("  " + strings.Join(sug, styleDim.Render(" · ")) +
-			styleDim.Render(i18n.T(m.lang, "tui.cmd.hint")) + "\n")
+	v := viewSpec{
+		Header:    logoBanner(m.lang),
+		Panels:    []panelSpec{m.profilesPanel(), m.rulesPanel(), m.statusPanel()},
+		Status:    m.statusMsg,
+		StatusErr: m.statusErr,
+		Footer:    i18n.T(m.lang, "tui.footer.keys"),
 	}
-
-	if m.statusMsg != "" {
-		st := styleOK
-		if m.statusErr {
-			st = styleErr
-		}
-		b.WriteString("\n" + st.Render(m.statusMsg) + "\n")
-	}
-
-	b.WriteString("\n" + styleDim.Render(i18n.T(m.lang, "tui.footer.keys")))
-	return b.String()
-}
-
-func (m *model) viewProfiles() string {
-	title := i18n.T(m.lang, "tui.profiles.title")
-	hint := i18n.T(m.lang, "tui.profiles.hint")
-	if len(m.profiles) == 0 {
-		return m.box(panelProfiles, title, hint,
-			styleDim.Render(i18n.T(m.lang, "tui.profiles.empty")))
-	}
-	rows := make([]string, 0, len(m.profiles))
-	for i, name := range m.profiles {
-		rows = append(rows, m.profileRow(i, name))
-	}
-	body := strings.Join(rows, "\n")
+	// Los dos pueden darse a la vez hoy (':' no apaga showDetail, solo 'tab' lo
+	// hace), así que se concatenan en vez de que uno pise al otro.
+	var extras []string
 	if m.showDetail {
 		if detail, err := core.ProfileShow(m.home, m.selectedProfile()); err == nil {
-			body += "\n" + styleDim.Render(strings.TrimRight(indent(detail), "\n"))
+			extras = append(extras, styleDim.Render(strings.TrimRight(indent(detail), "\n")))
 		}
 	}
-	return m.box(panelProfiles, title, hint, body)
+	if m.mode == modeCommand {
+		extras = append(extras, m.commandBar())
+	}
+	v.Extra = strings.Join(extras, "\n")
+	return m.renderView(v)
 }
 
-// profileRow pinta una fila de perfil: cursor, nombre, badge de tipo y salud.
-func (m *model) profileRow(i int, name string) string {
-	sel := i == m.profIdx && m.focus == panelProfiles
-	cur, nameSt := "  ", styleVal
+// commandBar es el bloque de la barra ':' que hoy vive inline en viewDashboard
+// (dashboard.go:534-546), movido tal cual — SIN el '\n' inicial ni el final:
+// esos los pone renderView alrededor de Extra.
+func (m *model) commandBar() string {
+	line := styleFocused.Render(": " + m.cmdInput + "▏")
+	matches := cmdMatches(m.cmdInput)
+	if len(matches) == 0 {
+		matches = cmdList
+	}
+	sug := make([]string, len(matches))
+	for i, c := range matches {
+		sug[i] = styleSelected.Render(c)
+	}
+	suggestions := "  " + strings.Join(sug, styleDim.Render(" · ")) +
+		styleDim.Render(i18n.T(m.lang, "tui.cmd.hint"))
+	return line + "\n" + suggestions
+}
+
+// profilesPanel describe la caja Perfiles. Es profileRow (dashboard.go:588) de
+// siempre, solo que construye un panelSpec en vez de un string: cada fila
+// sigue truncando y estilizando sus propios segmentos, exactamente en el mismo
+// orden (plano -> estilo) que ya tenía.
+func (m *model) profilesPanel() panelSpec {
+	focused := m.focus == panelProfiles
+	p := panelSpec{
+		Title:   i18n.T(m.lang, "tui.profiles.title"),
+		Hint:    i18n.T(m.lang, "tui.profiles.hint"),
+		Empty:   i18n.T(m.lang, "tui.profiles.empty"),
+		Focused: focused,
+		Cursor:  m.profIdx,
+	}
+	for i, name := range m.profiles {
+		p.Rows = append(p.Rows, rowSpec{Text: m.profileRowText(i == m.profIdx && focused, name)})
+	}
+	return p
+}
+
+// profileRowText es profileRow (dashboard.go:588-604) menos el prefijo de
+// cursor: recibe `sel` ya resuelto (índice Y foco del panel, como antes) para
+// elegir el color del nombre, y el resto es idéntico.
+func (m *model) profileRowText(sel bool, name string) string {
+	nameSt := styleVal
 	if sel {
-		cur, nameSt = styleFocused.Render("▸ "), styleSelected
+		nameSt = styleSelected
 	}
 	t := m.profileType(name)
 	nameSeg := nameSt.Render(padRight(truncRight(name, 20), 21))
@@ -602,20 +611,31 @@ func (m *model) profileRow(i int, name string) string {
 			health = styleCross.Render(i18n.T(m.lang, "tui.profiles.health_no_key"))
 		}
 	}
-	return cur + nameSeg + badgeSeg + health
+	return nameSeg + badgeSeg + health
 }
 
-func (m *model) viewRules() string {
-	title := i18n.T(m.lang, "tui.rules.title")
-	hint := i18n.T(m.lang, "tui.rules.hint")
-	if m.cfg == nil || len(m.cfg.Rules) == 0 {
-		return m.box(panelRules, title, hint, styleDim.Render(i18n.T(m.lang, "tui.rules.empty")))
+// rulesPanel es viewRules (dashboard.go:607-645) reescrito igual: el cómputo
+// de anchos (profW/pathW) es idéntico, solo que ahora construye rowSpec en vez
+// de una tira ya unida.
+func (m *model) rulesPanel() panelSpec {
+	focused := m.focus == panelRules
+	p := panelSpec{
+		Title:   i18n.T(m.lang, "tui.rules.title"),
+		Hint:    i18n.T(m.lang, "tui.rules.hint"),
+		Empty:   i18n.T(m.lang, "tui.rules.empty"),
+		Focused: focused,
+		Cursor:  m.ruleIdx,
 	}
-	// columna de perfil = el nombre más largo; columna de ruta = la ruta más
-	// larga, ambas acotadas al ancho disponible (sin huecos enormes).
-	disp := make([]string, len(m.cfg.Rules))
+	var rules []core.Rule
+	if m.cfg != nil {
+		rules = m.cfg.Rules
+	}
+	if len(rules) == 0 {
+		return p
+	}
+	disp := make([]string, len(rules))
 	profW, maxPath := 7, 0
-	for i, r := range m.cfg.Rules {
+	for i, r := range rules {
 		disp[i] = tildeHome(r.Path)
 		if n := utf8.RuneCountInString(r.Profile); n > profW {
 			profW = n
@@ -627,7 +647,7 @@ func (m *model) viewRules() string {
 	if profW > 18 {
 		profW = 18
 	}
-	availPath := m.innerWidth() - profW - 5 // "▸ " + " → "
+	availPath := m.innerWidth() - profW - 5
 	pathW := maxPath
 	if pathW > availPath {
 		pathW = availPath
@@ -635,23 +655,26 @@ func (m *model) viewRules() string {
 	if pathW < 14 {
 		pathW = 14
 	}
-	rows := make([]string, 0, len(m.cfg.Rules))
-	for i, r := range m.cfg.Rules {
-		sel := i == m.ruleIdx && m.focus == panelRules
-		cur, pathSt := "  ", styleVal
+	for i, r := range rules {
+		sel := i == m.ruleIdx && focused
+		pathSt := styleVal
 		if sel {
-			cur, pathSt = styleFocused.Render("▸ "), styleSelected
+			pathSt = styleSelected
 		}
-		p := padRight(truncLeft(disp[i], pathW), pathW)
+		path := padRight(truncLeft(disp[i], pathW), pathW)
 		prof := typeStyle(m.profileType(r.Profile)).Render(truncRight(r.Profile, profW))
-		rows = append(rows, cur+pathSt.Render(p)+styleDim.Render(" → ")+prof)
+		p.Rows = append(p.Rows, rowSpec{Text: pathSt.Render(path) + styleDim.Render(" → ") + prof})
 	}
-	return m.box(panelRules, title, hint, strings.Join(rows, "\n"))
+	return p
 }
 
-func (m *model) viewStatus() string {
+// statusPanel es viewStatus (dashboard.go:649-677) reescrito igual: cuatro
+// líneas kv fijas, sin concepto de fila seleccionable — de ahí `Cursor: -1`
+// (ver el aviso sobre el cero de Go en panelSpec.Cursor, Tarea 2). Sin esto el
+// shell marcaría con "▸" la primera fila por accidente.
+func (m *model) statusPanel() panelSpec {
 	if !m.estComputed {
-		m.refreshEstado() // cómputo perezoso la primera vez
+		m.refreshEstado()
 	}
 	e := m.est
 	const labelW = 25
@@ -668,13 +691,18 @@ func (m *model) viewStatus() string {
 	}
 	profLine := styleFocused.Render(truncRight(e.Profile, valW-len(e.ProfileType)-4)) +
 		styleDim.Render(" ("+e.ProfileType+")")
-	body := strings.Join([]string{
-		kv(i18n.T(m.lang, "tui.status.active"), styleFocused.Render(truncRight(e.Active, valW))),
-		kv(i18n.T(m.lang, "tui.status.cwd_rule"), profLine),
-		kv(i18n.T(m.lang, "tui.status.cwd"), styleVal.Render(truncLeft(tildeHome(e.Cwd), valW))),
-		kv(i18n.T(m.lang, "tui.status.repo"), repo),
-	}, "\n")
-	return m.box(panelStatus, i18n.T(m.lang, "tui.status.title"), i18n.T(m.lang, "tui.status.hint"), body)
+	return panelSpec{
+		Title:   i18n.T(m.lang, "tui.status.title"),
+		Hint:    i18n.T(m.lang, "tui.status.hint"),
+		Focused: m.focus == panelStatus,
+		Cursor:  -1,
+		Rows: []rowSpec{
+			{Text: kv(i18n.T(m.lang, "tui.status.active"), styleFocused.Render(truncRight(e.Active, valW)))},
+			{Text: kv(i18n.T(m.lang, "tui.status.cwd_rule"), profLine)},
+			{Text: kv(i18n.T(m.lang, "tui.status.cwd"), styleVal.Render(truncLeft(tildeHome(e.Cwd), valW)))},
+			{Text: kv(i18n.T(m.lang, "tui.status.repo"), repo)},
+		},
+	}
 }
 
 // indent sangra cada línea de s con dos espacios (para el bloque de detalle).

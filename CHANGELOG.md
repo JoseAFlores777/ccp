@@ -35,6 +35,26 @@
     propio del perfil gana sobre el global. Solo se podan enlaces colgados que apuntan **dentro** del
     origen global; un symlink del usuario a otro sitio no es nuestro y se respeta.
 
+- **Vista de perfil** (`e` sobre un perfil). Tres cajas con el chrome del
+  dashboard —Instrucciones · Env · Efectivo— que responden lo que hasta ahora no
+  respondía nada: qué configuración aplica ese perfil y **de qué capa sale cada
+  cosa** (global, overlay, o la capa de sensores del auto-handoff). Se editan las
+  reglas y las variables de entorno desde ahí; los hooks se añaden pero no se
+  borran, y la tecla lo explica en vez de fingir que puede.
+- **`core.ProfileEffective`**: la procedencia como dato, recorriendo las mismas
+  tres capas y en el mismo orden que `cfgMergeSettings`.
+- **`core.OverlayEnvSet` / `OverlayEnvDel`**: escritura de variables en el
+  overlay, con el invariante de `ProfileConfig` — si el resultado no valida, el
+  último overlay bueno no se toca.
+
+### Changed
+
+- **Un solo sitio pinta la TUI.** `internal/tui/shell.go` pasa a ser el único
+  que dibuja cabecera, cajas, cursor, ventana, estado y pie; el dashboard y la
+  vista Config se pasaron a él. De paso trae ventana alrededor del cursor, que
+  tapa un agujero que la vista Config ya tenía: una lista larga se salía de la
+  pantalla sin avisar.
+
 ## [2.15.1] — la rotación deja de apagarse sola
 
 Tanda de correcciones sobre `ccp session`, el handoff y el conteo de límites. Ninguna

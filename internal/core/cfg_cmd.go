@@ -25,6 +25,10 @@ func claudeSrc() (string, error) {
 	return hd + "/.claude", nil
 }
 
+// ClaudeSrc expone la fuente global (CCP_CLAUDE_SRC o ~/.claude) a los
+// front-ends, que la necesitan para ProfileEffective.
+func ClaudeSrc() (string, error) { return claudeSrc() }
+
 // ResolveEditor replica _resolve_editor del bash: defaults.editor (de ccp.yaml)
 // -> $EDITOR -> nano. Devuelve la línea de comando completa como string (puede
 // llevar flags, p.ej. "code --wait"); el caller la tokeniza.
@@ -69,6 +73,12 @@ type ProfileConfigOpts struct {
 	// usuario guardara después no lo miraba nadie. Con esta bandera el llamador se
 	// limita a abrir los archivos y a mandar al usuario a `ccp profile sync`.
 	NoPostEdit bool
+
+	// File acota la edición a UN archivo del overlay (ruta absoluta, tiene que
+	// ser el de instrucciones o el de settings de ESTE perfil). Vacío = los dos.
+	// Lo usa la vista de perfil, donde 'e' edita la caja enfocada y abrir el
+	// otro archivo sería abrir algo que el usuario no estaba mirando.
+	File string
 }
 
 // ProfileConfig abre los archivos overlay (instrucciones + settings) del perfil
@@ -120,7 +130,14 @@ func ProfileConfig(home, name string, opts ProfileConfigOpts) error {
 	editor := ResolveEditor(home)
 	instr := cfgInstrFile(home, name)
 	settings := cfgSettingsFile(home, name)
-	for _, f := range []string{instr, settings} {
+	files := []string{instr, settings}
+	if opts.File != "" {
+		if opts.File != instr && opts.File != settings {
+			return fmt.Errorf("%q no es un overlay de %q", opts.File, name)
+		}
+		files = []string{opts.File}
+	}
+	for _, f := range files {
 		if err := launch(editor, f); err != nil {
 			return fmt.Errorf("el editor falló: %w", err)
 		}
