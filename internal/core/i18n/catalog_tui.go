@@ -61,8 +61,8 @@ var catalogTUI = map[string]map[Lang]string{
 		Es: "Perfiles",
 	},
 	"tui.profiles.hint": {
-		En: "a:add d:delete r:rename s:key e:config l:login enter:detail",
-		Es: "a:añadir d:borrar r:renombrar s:key e:config l:login enter:detalle",
+		En: "a:add d:delete r:rename s:key e:overlay l:login enter:detail",
+		Es: "a:añadir d:borrar r:renombrar s:key e:overlay l:login enter:detalle",
 	},
 	"tui.form.rename_profile_title": {
 		En: "New name for '%s'",

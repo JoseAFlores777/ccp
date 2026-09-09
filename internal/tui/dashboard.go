@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"unicode/utf8"
 
@@ -24,13 +26,9 @@ func (m *model) updateDashboard(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.reload()
 		m.estComputed = false
 		return m, nil
-	case editDoneMsg:
-		// El editor cedió la terminal; reentramos al alt-screen y propagamos.
-		dm, _ := msg.msg.(cmdDoneMsg)
-		m.setStatus(dm.ok, dm.err)
-		m.reload()
-		m.estComputed = false
-		return m, tea.EnterAltScreen
+	case profileEditDoneMsg:
+		// tea.Exec ya restauró la terminal y el alt-screen; solo reportamos.
+		return m.finishProfileEdit(msg)
 	case tea.KeyMsg:
 		return m.handleDashboardKey(msg)
 	}
@@ -191,30 +189,89 @@ func (m *model) start(a action) (tea.Model, tea.Cmd) {
 	return m, m.cur.form.Init()
 }
 
-// editConfig abre el editor sobre los overlays del perfil (vía core). Suspende
-// la TUI con tea.ExecProcess para que el editor tome la terminal, y regresa al
-// dashboard al terminar.
-func (m *model) editConfig(name string) (tea.Model, tea.Cmd) {
-	done := func(err error) tea.Msg {
-		if err != nil {
-			return cmdDoneMsg{err: err}
-		}
-		return cmdDoneMsg{ok: i18n.T(m.lang, "tui.profiles.config_regen", name)}
-	}
-	// core.ProfileConfig lanza el editor él mismo; lo envolvemos en un
-	// ExecProcess "noop" para ceder la terminal no es trivial porque el core
-	// usa exec.Command directo. En su lugar, salimos del alt-screen alrededor.
-	return m, tea.Sequence(
-		tea.ExitAltScreen,
-		func() tea.Msg {
-			err := core.ProfileConfig(m.home, name, core.ProfileConfigOpts{})
-			return editDoneMsg{msg: done(err)}
-		},
-	)
+// profileEditExec adapta core.ProfileConfig a la interfaz tea.ExecCommand.
+//
+// Por qué tea.Exec y no tea.Sequence(tea.ExitAltScreen, …), que es lo que había
+// aquí: ExitAltScreen saca la pantalla alternativa pero NO cede la terminal —el
+// renderer de bubbletea sigue vivo repintando el dashboard y su lector sigue
+// comiéndose stdin—, así que el nano que lanza el core arrancaba debajo del
+// dashboard y el usuario solo veía un parpadeo. tea.Exec es la primitiva
+// soportada para soltar y recuperar la tty (libera y restaura termios y
+// alt-screen alrededor de Run), y a diferencia de tea.ExecProcess admite un
+// Run() propio — que es lo que permite llamar a core.ProfileConfig TAL CUAL,
+// con su migración legacy, su siembra del overlay y su validación +
+// regeneración al cerrar, en vez de reimplementarlas aquí. Es el mismo
+// adaptador que configEditExec (config_view.go) para la vista Config.
+type profileEditExec struct {
+	home string
+	name string
+
+	err error
+
+	in   io.Reader
+	out  io.Writer
+	errw io.Writer
 }
 
-// editDoneMsg reentra al alt-screen tras editar y propaga el resultado.
-type editDoneMsg struct{ msg tea.Msg }
+func (c *profileEditExec) SetStdin(r io.Reader)  { c.in = r }
+func (c *profileEditExec) SetStdout(w io.Writer) { c.out = w }
+func (c *profileEditExec) SetStderr(w io.Writer) { c.errw = w }
+
+// Run devuelve SIEMPRE nil: el fallo del editor no es un fallo de bubbletea (que
+// lo trataría como terminal rota y saltaría la restauración), sino un resultado
+// que el dashboard reporta en su línea de estado. Se guarda en c.err.
+func (c *profileEditExec) Run() error {
+	c.err = core.ProfileConfig(c.home, c.name, core.ProfileConfigOpts{Launch: c.launch})
+	return nil
+}
+
+// launch conecta el editor al stdio que bubbletea acaba de liberar, en vez de al
+// del proceso (core.LaunchEditor usa os.Stdin/os.Stdout directamente).
+func (c *profileEditExec) launch(editorLine string, files ...string) error {
+	fields := strings.Fields(editorLine)
+	if len(fields) == 0 {
+		fields = []string{"nano"}
+	}
+	args := make([]string, 0, len(fields)-1+len(files))
+	args = append(args, fields[1:]...)
+	args = append(args, files...)
+	cmd := exec.Command(fields[0], args...)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = c.in, c.out, c.errw
+	return cmd.Run()
+}
+
+// profileEditDoneMsg lo emite tea.Exec al volver del editor del perfil.
+type profileEditDoneMsg struct {
+	ex  *profileEditExec
+	err error
+}
+
+// editConfig abre el editor sobre los overlays del perfil (vía core), cediendo
+// la terminal con tea.Exec y recuperándola al salir del editor.
+func (m *model) editConfig(name string) (tea.Model, tea.Cmd) {
+	ex := &profileEditExec{home: m.home, name: name}
+	return m, tea.Exec(ex, func(err error) tea.Msg {
+		return profileEditDoneMsg{ex: ex, err: err}
+	})
+}
+
+// finishProfileEdit recarga el Config editado y reporta el resultado. El editor
+// del panel Perfiles es siempre de terminal (core.ResolveEditor), o sea que
+// bloquea: cuando vuelve, core.ProfileConfig ya validó el settings.overlay.json
+// y regeneró el cc-home.
+func (m *model) finishProfileEdit(msg profileEditDoneMsg) (tea.Model, tea.Cmd) {
+	m.reload()
+	m.estComputed = false
+	switch {
+	case msg.err != nil:
+		m.setStatus("", wrapErr(m.lang, "tui.config.edit_failed", msg.err))
+	case msg.ex.err != nil:
+		m.setStatus("", wrapErr(m.lang, "tui.config.edit_failed", msg.ex.err))
+	default:
+		m.setStatus(i18n.T(m.lang, "tui.profiles.config_regen", msg.ex.name), nil)
+	}
+	return m, nil
+}
 
 // login lanza el login interactivo de la cuenta official con su CLAUDE_CONFIG_DIR
 // apuntando al cc-home del perfil (espeja `ccp profile login`).
