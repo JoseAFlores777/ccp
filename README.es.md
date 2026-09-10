@@ -549,6 +549,37 @@ esas entradas en directorios **reales** cuyos archivos son symlinks al global:
 
 Si añades archivos nuevos al global, vuelve a espejarlos con `ccp desktop prepare <perfil>`.
 
+### Un lanzador por perfil: nombre e icono de color propios en el Dock
+
+`ccp desktop open` aísla la *cuenta*, pero todas las ventanas siguen siendo el mismo `Claude.app`: el Dock,
+Cmd-Tab y Spotlight enseñan N iconos «Claude» idénticos. `ccp desktop app` lo arregla con un **lanzador**
+por perfil en `~/Applications`:
+
+```bash
+ccp desktop app                              # un lanzador por perfil official, colores asignados solos
+ccp desktop app work-1 --color purple        # o elige: blue green purple pink teal yellow red gray orange #rrggbb
+ccp desktop app work-1 --label "Claude Work" # el nombre que se ve (es también el nombre del .app)
+ccp desktop open work-1                      # desde ahora lanza a través del lanzador (--plain lo salta)
+ccp desktop app rm work-1                    # quita el lanzador; la instancia y su sesión se quedan
+```
+
+`Claude (work-1).app` sale en Spotlight y Launchpad, se puede fijar en el Dock, y abre la instancia del
+perfil con el icono de Claude tintado de ese color y su propio nombre en el Dock, Cmd-Tab y la barra de
+menús. Un clic hace exactamente lo que `ccp desktop open work-1`: el lanzador *es* `ccp`, que pone
+`--user-data-dir` y `CLAUDE_CONFIG_DIR` y le cede el proceso a Claude.
+
+**La sesión se conserva.** El lanzador no es una copia retocada de la app —eso pierde la cuenta en el
+primer arranque, porque el Keychain (donde Claude guarda la clave de su sesión) deja de fiarse del proceso.
+Dentro del lanzador hay un espejo del `Claude.app` real hecho de hard links: byte a byte el original, sin
+disco extra (aunque `du` lo cuente), y el Keychain sigue fiándose.
+
+**Las actualizaciones siguen llegando.** El espejo fija la versión con la que se construyó, así que una
+actualización de `Claude.app` nunca rompe un lanzador: sigue corriendo la versión anterior hasta su siguiente
+arranque, en el que `ccp` ve la versión nueva y reconstruye el espejo (un segundo). Un lanzador nunca se
+actualiza a sí mismo —Claude lo hace, como siempre, desde la instancia normal— y todos los lanzadores lo
+siguen. Igual tras `ccp upgrade`: los lanzadores llevan el binario dentro y en su siguiente arranque enlazan
+el nuevo.
+
 ### Límites
 
 - Solo perfiles **`official`** y **`default`**. Claude Desktop no lee `ANTHROPIC_BASE_URL`, así que un
@@ -560,6 +591,11 @@ Si añades archivos nuevos al global, vuelve a espejarlos con `ccp desktop prepa
   de último, así que con varias ventanas abiertas el login puede aterrizar en la equivocada. `ccp` te
   lo recuerda en el primer arranque de cada instancia.
 - `ccp desktop rm <perfil> --yes` borra la instancia: es un logout que se lleva sesión, tokens y MCP.
+- **Los lanzadores son solo macOS**: son bundles de app en `~/Applications` (`CCP_DESKTOP_APPS_DIR` los
+  mueve). Un lanzador nunca reclama `claude://`, así que el callback del login siempre llega a la app
+  normal: inicia sesión en un perfil **nuevo** con `ccp desktop open <perfil> --plain` y las demás ventanas
+  cerradas, y luego usa el lanzador. Los permisos de privacidad de macOS (archivos, pantalla, micrófono…)
+  se conceden por app, así que un lanzador puede pedirlos otra vez.
 
 ## Backup y restore
 
@@ -734,6 +770,7 @@ Con comandos: `ccp config show` · `ccp config set <clave> <valor>` · `ccp conf
 | Montar el auto-handoff | `ccp auto init` y luego `ccp auto install` |
 | Política / sensores del auto-handoff | `ccp auto status [--json]` |
 | Abrir Claude Desktop con un perfil | `ccp desktop open [<n>]` |
+| Dar a cada instancia de Desktop nombre e icono de color propios | `ccp desktop app [<n>]` |
 | Estado / diagnóstico | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
 | Actualizar | `ccp upgrade` |

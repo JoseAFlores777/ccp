@@ -17,8 +17,8 @@ _ccp() {
              [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" == "chain" ]] && COMPREPLY=( $(compgen -W "show add rm mv set help --policy" -- "$cur") )
              [[ $COMP_CWORD -ge 4 && "${COMP_WORDS[2]}" == "chain" && "${COMP_WORDS[3]}" =~ ^(add|rm|mv|set)$ ]] && COMPREPLY=( $(compgen -W "--policy --at --no-allow $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
     session) COMPREPLY=( $(compgen -W "--dry-run --headless --policy --yolo --max-hops --no-return --setup --no-setup" -- "$cur") ) ;;
-    desktop) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "open list path prepare rm default $(ccp profile list 2>/dev/null)" -- "$cur") )
-             [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" =~ ^(open|path|prepare|rm)$ ]] && COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
+    desktop) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "open app list path prepare rm default $(ccp profile list 2>/dev/null)" -- "$cur") )
+             [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" =~ ^(open|app|path|prepare|rm)$ ]] && COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
     key)     COMPREPLY=( $(compgen -W "$(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
     completion) COMPREPLY=( $(compgen -W "bash zsh" -- "$cur") ) ;;
   esac

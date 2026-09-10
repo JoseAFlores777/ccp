@@ -17,8 +17,8 @@ _ccp() {
              (( CURRENT == 4 )) && [[ "${words[3]}" == chain ]] && compadd -- show add rm mv set help --policy
              (( CURRENT >= 5 )) && [[ "${words[3]}" == chain && "${words[4]}" =~ ^(add|rm|mv|set)$ ]] && compadd -- --policy --at --no-allow ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     session) compadd -- --dry-run --headless --policy --yolo --max-hops --no-return --setup --no-setup ;;
-    desktop) (( CURRENT == 3 )) && compadd -- open list path prepare rm default ${(f)"$(ccp profile list 2>/dev/null)"}
-             (( CURRENT == 4 )) && [[ "${words[3]}" =~ ^(open|path|prepare|rm)$ ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
+    desktop) (( CURRENT == 3 )) && compadd -- open app list path prepare rm default ${(f)"$(ccp profile list 2>/dev/null)"}
+             (( CURRENT == 4 )) && [[ "${words[3]}" =~ ^(open|app|path|prepare|rm)$ ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     key)     compadd -- ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     completion) compadd -- bash zsh ;;
   esac

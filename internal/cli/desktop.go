@@ -23,6 +23,12 @@ import (
 //
 // El reparto binario/core es el de siempre: core decide (PlanDesktop es puro),
 // aquí se ejecuta y se da formato.
+//
+// `ccp desktop app` añade el lanzador con nombre e icono propios
+// (core/desktop_app.go). Cuando existe, `ccp desktop open` lanza A TRAVÉS de él
+// —es el propio lanzador quien pone el entorno y el --user-data-dir— para que
+// la ventana salga en el Dock con su identidad; `--plain` recupera el
+// lanzamiento directo de Claude.app.
 
 // dispatchDesktop maneja `ccp desktop <sub>`.
 func dispatchDesktop(args []string, stdout, stderr io.Writer) int {
@@ -38,6 +44,8 @@ func dispatchDesktop(args []string, stdout, stderr io.Writer) int {
 	switch sub {
 	case "open":
 		return desktopOpen(rest, stdout, stderr)
+	case "app":
+		return dispatchDesktopApp(rest, stdout, stderr)
 	case "list", "ls":
 		return desktopList(rest, stdout, stderr)
 	case "path":
@@ -62,11 +70,23 @@ func dispatchDesktop(args []string, stdout, stderr io.Writer) int {
 	}
 }
 
+// desktopHost es el DesktopHost real (el de producción); los tests inyectan
+// CCP_DESKTOP_APP para no depender de que haya un Claude.app instalado.
+func desktopHost(appHint string) core.DesktopHost {
+	return core.DesktopHost{
+		GOOS:     runtime.GOOS,
+		LookPath: exec.LookPath,
+		Stat:     os.Stat,
+		AppHint:  desktopAppHint(appHint),
+	}
+}
+
 // --- ccp desktop open ---
 
 func desktopOpen(args []string, stdout, stderr io.Writer) int {
 	var name, appHint string
-	dryRun, noMirror := false, false
+	dryRun, noMirror, plain := false, false, false
+	var extra []string
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -74,6 +94,8 @@ func desktopOpen(args []string, stdout, stderr io.Writer) int {
 			dryRun = true
 		case "--no-mirror":
 			noMirror = true
+		case "--plain":
+			plain = true
 		case "--app":
 			if i+1 >= len(args) {
 				fmt.Fprintln(stderr, i18n.T(currentLang(), "cli.desktop.app_needs_value"))
@@ -81,6 +103,9 @@ func desktopOpen(args []string, stdout, stderr io.Writer) int {
 			}
 			i++
 			appHint = args[i]
+		case "--":
+			extra = append(extra, args[i+1:]...)
+			i = len(args)
 		default:
 			if strings.HasPrefix(args[i], "-") {
 				fmt.Fprintln(stderr, i18n.T(currentLang(), "cli.desktop.unknown_flag", args[i]))
@@ -146,16 +171,26 @@ func desktopOpen(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	host := core.DesktopHost{
-		GOOS:     runtime.GOOS,
-		LookPath: exec.LookPath,
-		Stat:     os.Stat,
-		AppHint:  desktopAppHint(appHint),
-	}
-	plan, err := core.PlanDesktop(host, home, name, cfg)
+	plan, err := core.PlanDesktop(desktopHost(appHint), home, name, cfg)
 	if err != nil {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
+	}
+
+	// Con lanzador, se lanza a través de él: es lo que pone la ventana en el
+	// Dock con su nombre y su color. El lanzador calcula por sí mismo el
+	// entorno y el user-data-dir, así que aquí no van ni --env ni --args.
+	if !plain && name != "default" {
+		if app := desktopFindApp(name); app != nil {
+			return desktopOpenViaApp(app, plan, extra, dryRun, home, cfg, lang, stdout, stderr)
+		}
+	}
+
+	if len(extra) > 0 {
+		if runtime.GOOS == "darwin" && plan.DataDir == "" {
+			plan.Args = append(plan.Args, "--args")
+		}
+		plan.Args = append(plan.Args, extra...)
 	}
 
 	if dryRun {
@@ -189,6 +224,82 @@ func desktopOpen(args []string, stdout, stderr io.Writer) int {
 		// links claude:// van a la instancia que registró el esquema de último,
 		// así que un login con otras ventanas abiertas puede aterrizar en la
 		// equivocada. Repetirlo en cada lanzamiento sería ruido.
+		fmt.Fprintln(stdout, warnLine(stdout, i18n.T(lang, "cli.desktop.fresh_login")))
+	}
+	return 0
+}
+
+// desktopFindApp devuelve el lanzador del perfil, o nil si no hay (o si no se
+// puede saber: un ~/Applications ilegible no debe impedir el lanzamiento
+// directo de siempre).
+func desktopFindApp(name string) *core.DesktopApp {
+	appsDir, err := core.DesktopAppsDir()
+	if err != nil {
+		return nil
+	}
+	app, err := core.FindDesktopApp(appsDir, name)
+	if err != nil {
+		return nil
+	}
+	return app
+}
+
+// desktopOpenViaApp lanza por LaunchServices el lanzador del perfil,
+// refrescándolo antes si Claude.app cambió de versión.
+func desktopOpenViaApp(app *core.DesktopApp, plan core.DesktopPlan, extra []string, dryRun bool,
+	home string, cfg *core.Config, lang i18n.Lang, stdout, stderr io.Writer) int {
+	if reason, stale := core.DesktopAppStale(app, plan.App); stale {
+		switch {
+		case desktopInstanceRunning(plan.DataDir):
+			fmt.Fprintln(stdout, warnLine(stdout, i18n.T(lang, "cli.desktop.app.running_stale", app.Manifest.Profile, reason)))
+		case dryRun:
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.desktop.app.would_refresh", app.Path, reason))
+		default:
+			ccpBin, berr := desktopCCPBin()
+			if berr != nil {
+				fmt.Fprintf(stderr, "[error] %v\n", berr)
+				return 1
+			}
+			res, rerr := core.BuildDesktopApp(core.DesktopAppOptions{
+				Home: home, Profile: app.Manifest.Profile, Cfg: cfg,
+				AppsDir: filepath.Dir(app.Path), SourceApp: plan.App,
+				CCPBin: ccpBin, Generator: core.Version,
+			})
+			if rerr != nil {
+				fmt.Fprintln(stderr, warnLine(stderr, i18n.T(lang, "cli.desktop.app.refresh_failed", reason, rerr)))
+			} else {
+				app = res.App
+				fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.desktop.app.refreshed", app.Path, reason)))
+			}
+		}
+	}
+
+	bin, args := core.DesktopAppOpenCommand(app, extra)
+	if dryRun {
+		fmt.Fprintf(stdout, "%s %s\n", bin, strings.Join(args, " "))
+		fmt.Fprintln(stdout, mute(stdout, i18n.T(lang, "cli.desktop.app.dry_run_note")))
+		return 0
+	}
+	if plan.DataDir != "" {
+		if err := os.MkdirAll(plan.DataDir, 0o700); err != nil {
+			fmt.Fprintf(stderr, "[error] %v\n", err)
+			return 1
+		}
+	}
+	cmd := exec.Command(bin, args...)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = nil, nil, nil
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", fmt.Errorf("no se pudo lanzar %s: %w", app.Path, err))
+		return 1
+	}
+	fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.desktop.app.launched", app.Manifest.Profile, app.Manifest.Label)))
+	fmt.Fprintln(stdout, mute(stdout, "  "+app.Path))
+	for _, v := range plan.Env {
+		if v.Name == "CLAUDE_CONFIG_DIR" {
+			fmt.Fprintln(stdout, mute(stdout, "  Code tab → "+v.Value))
+		}
+	}
+	if plan.Fresh {
 		fmt.Fprintln(stdout, warnLine(stdout, i18n.T(lang, "cli.desktop.fresh_login")))
 	}
 	return 0
@@ -240,6 +351,214 @@ func launchDesktop(plan core.DesktopPlan) error {
 	return cmd.Process.Release()
 }
 
+// --- ccp desktop app ---
+
+// dispatchDesktopApp maneja `ccp desktop app …`: crear/refrescar lanzadores,
+// borrarlos, listarlos.
+func dispatchDesktopApp(args []string, stdout, stderr io.Writer) int {
+	if len(args) > 0 {
+		switch args[0] {
+		case "rm":
+			return desktopAppRm(args[1:], stdout, stderr)
+		case "list", "ls":
+			return desktopList(args[1:], stdout, stderr)
+		case "help", "--help", "-h":
+			fmt.Fprintln(stdout, i18n.T(currentLang(), "cli.desktop.app.usage"))
+			return 0
+		}
+	}
+
+	var names []string
+	var color, label, appHint string
+	force, dryRun := false, false
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--force":
+			force = true
+		case "--dry-run":
+			dryRun = true
+		case "--color", "--label", "--app":
+			if i+1 >= len(args) {
+				fmt.Fprintln(stderr, i18n.T(currentLang(), "cli.desktop.app.flag_needs_value", args[i]))
+				return 1
+			}
+			flag := args[i]
+			i++
+			switch flag {
+			case "--color":
+				color = args[i]
+			case "--label":
+				label = args[i]
+			case "--app":
+				appHint = args[i]
+			}
+		default:
+			if strings.HasPrefix(args[i], "-") {
+				fmt.Fprintln(stderr, i18n.T(currentLang(), "cli.desktop.unknown_flag", args[i]))
+				return 1
+			}
+			names = append(names, args[i])
+		}
+	}
+
+	home := resolveHome()
+	cfg, err := loadCfg(home)
+	if err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", err)
+		return 1
+	}
+	lang := i18n.Resolve(cfg.Lang)
+
+	// El lanzador es un bundle de macOS: fuera de ahí solo tiene sentido con
+	// un directorio explícito (que es como lo ejercita el CI).
+	if runtime.GOOS != "darwin" && os.Getenv("CCP_DESKTOP_APPS_DIR") == "" {
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.desktop.app.only_macos"))
+		return 1
+	}
+	if color != "" {
+		if _, cerr := core.ParseDesktopColor(color); cerr != nil {
+			fmt.Fprintf(stderr, "[error] %v\n", cerr)
+			return 1
+		}
+	}
+	if label != "" && len(names) != 1 {
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.desktop.app.label_one_profile"))
+		return 1
+	}
+
+	if len(names) == 0 {
+		all, lerr := core.ProfileList(home)
+		if lerr != nil {
+			fmt.Fprintf(stderr, "[error] %v\n", lerr)
+			return 1
+		}
+		for _, n := range all {
+			if core.DesktopEligible(cfg, n) == nil {
+				names = append(names, n)
+			}
+		}
+		if len(names) == 0 {
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.desktop.app.no_profiles"))
+			return 0
+		}
+	}
+
+	appsDir, err := core.DesktopAppsDir()
+	if err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", err)
+		return 1
+	}
+	ccpBin, err := desktopCCPBin()
+	if err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", err)
+		return 1
+	}
+
+	exit := 0
+	for _, name := range names {
+		if name == "default" {
+			fmt.Fprintln(stderr, i18n.T(lang, "cli.desktop.app.no_default"))
+			exit = 1
+			continue
+		}
+		if eerr := core.DesktopEligible(cfg, name); eerr != nil {
+			fmt.Fprintf(stderr, "[error] %v\n", eerr)
+			exit = 1
+			continue
+		}
+		plan, perr := core.PlanDesktop(desktopHost(appHint), home, name, cfg)
+		if perr != nil {
+			fmt.Fprintf(stderr, "[error] %v\n", perr)
+			exit = 1
+			continue
+		}
+
+		if dryRun {
+			existing, _ := core.FindDesktopApp(appsDir, name)
+			target := filepath.Join(appsDir, core.DefaultDesktopLabel(name)+".app")
+			shown := color
+			if existing != nil {
+				target = existing.Path
+				if shown == "" {
+					shown = existing.Manifest.Color
+				}
+			}
+			if label != "" {
+				target = filepath.Join(appsDir, strings.TrimSuffix(label, ".app")+".app")
+			}
+			if shown == "" {
+				shown = "auto"
+			}
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.desktop.app.would_build", name, target, shown, plan.App))
+			if existing != nil {
+				if reason, stale := core.DesktopAppStale(existing, plan.App); stale {
+					fmt.Fprintln(stdout, mute(stdout, "  "+i18n.T(lang, "cli.desktop.app.stale_reason", reason)))
+				}
+			}
+			continue
+		}
+
+		res, berr := core.BuildDesktopApp(core.DesktopAppOptions{
+			Home: home, Profile: name, Cfg: cfg, AppsDir: appsDir,
+			SourceApp: plan.App, Label: label, Color: color,
+			CCPBin: ccpBin, Generator: core.Version, Force: force,
+		})
+		if berr != nil {
+			fmt.Fprintf(stderr, "[error] %v\n", berr)
+			exit = 1
+			continue
+		}
+		key := "cli.desktop.app." + res.Reason
+		if res.Reason == "refreshed" {
+			key = "cli.desktop.app.refreshed_build"
+		}
+		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, key, name, res.App.Path, res.App.Manifest.Color)))
+	}
+	if !dryRun && exit == 0 {
+		fmt.Fprintln(stdout, mute(stdout, i18n.T(lang, "cli.desktop.app.hint")))
+	}
+	return exit
+}
+
+// desktopAppRm borra el lanzador de un perfil. No pide --yes: es estado
+// derivado que `ccp desktop app` reconstruye; la instancia (sesión, tokens)
+// vive en el user-data-dir y no se toca.
+func desktopAppRm(args []string, stdout, stderr io.Writer) int {
+	var name string
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			fmt.Fprintln(stderr, i18n.T(currentLang(), "cli.desktop.unknown_flag", a))
+			return 1
+		}
+		name = a
+	}
+	if name == "" {
+		fmt.Fprintln(stderr, i18n.T(currentLang(), "cli.desktop.app.usage_rm"))
+		return 1
+	}
+	lang := currentLang()
+	appsDir, err := core.DesktopAppsDir()
+	if err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", err)
+		return 1
+	}
+	app, err := core.FindDesktopApp(appsDir, name)
+	if err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", err)
+		return 1
+	}
+	if app == nil {
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.desktop.app.none", name))
+		return 1
+	}
+	if err := core.RemoveDesktopApp(appsDir, app); err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", err)
+		return 1
+	}
+	fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.desktop.app.removed", name, app.Path)))
+	return 0
+}
+
 // --- ccp desktop list ---
 
 func desktopList(args []string, stdout, stderr io.Writer) int {
@@ -267,6 +586,14 @@ func desktopList(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
 	}
+	apps := map[string]*core.DesktopApp{}
+	if appsDir, derr := core.DesktopAppsDir(); derr == nil {
+		if found, lerr := core.ListDesktopApps(appsDir); lerr == nil {
+			for _, a := range found {
+				apps[a.Manifest.Profile] = a
+			}
+		}
+	}
 
 	if asJSON {
 		type row struct {
@@ -274,12 +601,18 @@ func desktopList(args []string, stdout, stderr io.Writer) int {
 			DataDir string `json:"data_dir"`
 			Exists  bool   `json:"exists"`
 			Bytes   int64  `json:"bytes"`
+			App     string `json:"app"`
+			Color   string `json:"color"`
 		}
 		// Slice inicializado, nunca nil: el contrato de las superficies --json
 		// de ccp es que las listas son siempre arrays, jamás null.
 		rows := make([]row, 0, len(list))
 		for _, i := range list {
-			rows = append(rows, row{i.Profile, i.DataDir, i.Exists, i.Bytes})
+			r := row{Profile: i.Profile, DataDir: i.DataDir, Exists: i.Exists, Bytes: i.Bytes}
+			if a := apps[i.Profile]; a != nil {
+				r.App, r.Color = a.Path, a.Manifest.Color
+			}
+			rows = append(rows, r)
 		}
 		b, _ := json.MarshalIndent(rows, "", "  ")
 		fmt.Fprintln(stdout, string(b))
@@ -298,6 +631,10 @@ func desktopList(args []string, stdout, stderr io.Writer) int {
 		default:
 			fmt.Fprintf(stdout, "  %-16s %s\n", i.Profile,
 				mute(stdout, i18n.T(lang, "cli.desktop.not_created")))
+		}
+		if a := apps[i.Profile]; a != nil {
+			fmt.Fprintf(stdout, "  %-16s %s\n", "",
+				mute(stdout, i18n.T(lang, "cli.desktop.list_app", a.Path, a.Manifest.Color)))
 		}
 	}
 	return 0
@@ -386,6 +723,7 @@ func desktopPrepare(args []string, stdout, stderr io.Writer) int {
 // desktopRm borra el user-data-dir de un perfil. Exige --yes porque esto es un
 // logout destructivo: se lleva la sesión, los tokens y el claude_desktop_config
 // (MCP) de esa instancia, y nada de eso se recupera sin volver a configurarlo.
+// El lanzador, si lo hay, se va con la instancia: sin ella no tiene qué abrir.
 func desktopRm(args []string, stdout, stderr io.Writer) int {
 	var name string
 	confirmed := false
@@ -441,5 +779,15 @@ func desktopRm(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.desktop.removed", name)))
+
+	if app := desktopFindApp(name); app != nil {
+		if appsDir, derr := core.DesktopAppsDir(); derr == nil {
+			if rerr := core.RemoveDesktopApp(appsDir, app); rerr != nil {
+				fmt.Fprintln(stderr, warnLine(stderr, rerr.Error()))
+			} else {
+				fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.desktop.app.removed", name, app.Path)))
+			}
+		}
+	}
 	return 0
 }

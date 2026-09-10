@@ -549,6 +549,36 @@ those entries into **real** directories whose files are symlinks to the global o
 
 When you add new files to the global config, re-mirror with `ccp desktop prepare <profile>`.
 
+### A launcher per profile: its own name and icon colour in the Dock
+
+`ccp desktop open` isolates the *account*, but every window is still the same `Claude.app`: the Dock,
+Cmd-Tab and Spotlight show N identical "Claude" icons. `ccp desktop app` fixes that with a **launcher**
+per profile in `~/Applications`:
+
+```bash
+ccp desktop app                              # one launcher per official profile, colours assigned automatically
+ccp desktop app work-1 --color purple        # or pick: blue green purple pink teal yellow red gray orange #rrggbb
+ccp desktop app work-1 --label "Claude Work" # the name shown (it is also the .app's file name)
+ccp desktop open work-1                      # from now on it launches through the launcher (--plain skips it)
+ccp desktop app rm work-1                    # remove the launcher; the instance and its session stay
+```
+
+`Claude (work-1).app` shows up in Spotlight and Launchpad, can be kept in the Dock, and opens the profile's
+instance with the Claude icon tinted in that colour and its own name in the Dock, Cmd-Tab and the menu bar.
+A click on it does exactly what `ccp desktop open work-1` does: the launcher *is* `ccp`, which sets
+`--user-data-dir` and `CLAUDE_CONFIG_DIR` and then hands the process over to Claude.
+
+**Your session is kept.** The launcher is not a modified copy of the app — that loses the account on the
+first launch, because the Keychain (where Claude keeps the key to its session) stops trusting the process.
+Inside the launcher there is a mirror of the real `Claude.app` made of hard links: byte-for-byte the original,
+no extra disk (`du` will still count it), and the Keychain keeps trusting it.
+
+**Updates keep flowing.** The mirror pins the version it was built from, so a `Claude.app` update never
+breaks a launcher: it keeps running the previous version until its next launch, when `ccp` notices the new
+version and rebuilds the mirror (about a second). A launcher never self-updates — Claude does, as always,
+from the normal instance — and every launcher follows. Same after `ccp upgrade`: the launchers embed the
+binary, and they re-link the new one on their next launch.
+
 ### Limits
 
 - **`official`** and **`default`** profiles only. Claude Desktop does not read `ANTHROPIC_BASE_URL`, so
@@ -561,6 +591,11 @@ When you add new files to the global config, re-mirror with `ccp desktop prepare
   first launch.
 - `ccp desktop rm <profile> --yes` deletes the instance: it is a logout that takes session, tokens and
   MCP config with it.
+- **Launchers are macOS only**: they are app bundles in `~/Applications` (`CCP_DESKTOP_APPS_DIR` moves
+  them). A launcher never claims `claude://`, so the login callback always reaches the normal app: sign in
+  to a **new** profile with `ccp desktop open <profile> --plain` and the other windows closed, then use the
+  launcher. macOS privacy permissions (files, screen, microphone…) are granted per app, so a launcher may
+  ask once more.
 
 ## Backup and restore
 
@@ -735,6 +770,7 @@ With commands: `ccp config show` · `ccp config set <clave> <valor>` · `ccp con
 | Set up auto-handoff | `ccp auto init` then `ccp auto install` |
 | Auto-handoff policy / sensors | `ccp auto status [--json]` |
 | Open Claude Desktop with a profile | `ccp desktop open [<n>]` |
+| Give each Desktop instance its own name and icon colour | `ccp desktop app [<n>]` |
 | Status / diagnostics | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
 | Update | `ccp upgrade` |

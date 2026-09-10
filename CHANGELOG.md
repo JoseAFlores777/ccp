@@ -1,6 +1,51 @@
 # Changelog
 
-## [Unreleased] — una instancia de Claude Desktop por perfil, con el Code tab aislado de verdad
+## [Unreleased] — lanzadores de Claude Desktop con identidad propia, y la vista de perfil en la TUI
+
+### Added
+
+- **`ccp desktop app`**: un lanzador por perfil en `~/Applications` (`Claude (<perfil>).app`) con nombre
+  propio y el icono de Claude tintado de un color (paleta o `#rrggbb`, asignado solo si no se elige). Sale
+  en Spotlight y Launchpad, se fija en el Dock, y abre la instancia del perfil con esa identidad en el Dock,
+  Cmd-Tab y la barra de menús. `ccp desktop open` lanza a través de él cuando existe (`--plain` lo salta);
+  `ccp desktop app rm` lo quita; `ccp desktop list` lo enseña (`--json` gana `app` y `color`).
+  - **La sesión se conserva.** No es una copia retocada de la app: dentro hay un espejo prístino de
+    `Claude.app` hecho de hard links (byte a byte el original, sin disco extra) y el ejecutable es el
+    propio `ccp`, que pone `--user-data-dir` y `CLAUDE_CONFIG_DIR` y hace exec del stub del espejo a través
+    de un symlink de la capa externa. Con eso LaunchServices identifica el proceso con el lanzador (nombre,
+    icono, bundle id propio) mientras el Keychain lo valida contra el bundle prístino —una copia con el
+    `Info.plist` tocado, o cuyo ejecutable en marcha no es su `CFBundleExecutable`, pierde la cuenta con
+    `errSecAuthFailed`.
+  - **Las actualizaciones siguen llegando.** Los hard links fijan la versión con la que se construyó el
+    espejo, así que actualizar `Claude.app` no rompe nada: en el siguiente arranque (Dock o `ccp desktop
+    open`) `ccp` ve el `CFBundleVersion` nuevo y reconstruye el espejo; también tras `ccp upgrade`. El
+    lanzador nunca se actualiza a sí mismo (su bundle id no es el de Claude, así que Squirrel no encuentra
+    qué instalar).
+  - Nunca reclama `claude://`: los deep links y el callback del login siguen yendo a la app normal.
+  - El ejecutable del lanzador es un hard link (o copia) del binario, no un symlink ni un script: a un
+    symlink LaunchServices no lo lanza y a un script lo lanza bajo Rosetta, donde Chromium no arranca.
+- Completion de `desktop` con `app`; `ccp install` la refresca.
+- **Vista de perfil** (`e` sobre un perfil). Tres cajas con el chrome del
+  dashboard —Instrucciones · Env · Efectivo— que responden lo que hasta ahora no
+  respondía nada: qué configuración aplica ese perfil y **de qué capa sale cada
+  cosa** (global, overlay, o la capa de sensores del auto-handoff). Se editan las
+  reglas y las variables de entorno desde ahí; los hooks se añaden pero no se
+  borran, y la tecla lo explica en vez de fingir que puede.
+- **`core.ProfileEffective`**: la procedencia como dato, recorriendo las mismas
+  tres capas y en el mismo orden que `cfgMergeSettings`.
+- **`core.OverlayEnvSet` / `OverlayEnvDel`**: escritura de variables en el
+  overlay, con el invariante de `ProfileConfig` — si el resultado no valida, el
+  último overlay bueno no se toca.
+
+### Changed
+
+- **Un solo sitio pinta la TUI.** `internal/tui/shell.go` pasa a ser el único
+  que dibuja cabecera, cajas, cursor, ventana, estado y pie; el dashboard y la
+  vista Config se pasaron a él. De paso trae ventana alrededor del cursor, que
+  tapa un agujero que la vista Config ya tenía: una lista larga se salía de la
+  pantalla sin avisar.
+
+## [2.16.0] — una instancia de Claude Desktop por perfil, con el Code tab aislado de verdad
 
 ### Added
 
@@ -34,26 +79,6 @@
   - Una entrada que ya existe **nunca se pisa**, así que el re-espejado es idempotente y un archivo
     propio del perfil gana sobre el global. Solo se podan enlaces colgados que apuntan **dentro** del
     origen global; un symlink del usuario a otro sitio no es nuestro y se respeta.
-
-- **Vista de perfil** (`e` sobre un perfil). Tres cajas con el chrome del
-  dashboard —Instrucciones · Env · Efectivo— que responden lo que hasta ahora no
-  respondía nada: qué configuración aplica ese perfil y **de qué capa sale cada
-  cosa** (global, overlay, o la capa de sensores del auto-handoff). Se editan las
-  reglas y las variables de entorno desde ahí; los hooks se añaden pero no se
-  borran, y la tecla lo explica en vez de fingir que puede.
-- **`core.ProfileEffective`**: la procedencia como dato, recorriendo las mismas
-  tres capas y en el mismo orden que `cfgMergeSettings`.
-- **`core.OverlayEnvSet` / `OverlayEnvDel`**: escritura de variables en el
-  overlay, con el invariante de `ProfileConfig` — si el resultado no valida, el
-  último overlay bueno no se toca.
-
-### Changed
-
-- **Un solo sitio pinta la TUI.** `internal/tui/shell.go` pasa a ser el único
-  que dibuja cabecera, cajas, cursor, ventana, estado y pie; el dashboard y la
-  vista Config se pasaron a él. De paso trae ventana alrededor del cursor, que
-  tapa un agujero que la vista Config ya tenía: una lista larga se salía de la
-  pantalla sin avisar.
 
 ## [2.15.1] — la rotación deja de apagarse sola
 

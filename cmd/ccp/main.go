@@ -17,6 +17,13 @@ import (
 )
 
 func main() {
+	// Antes que nada: si LaunchServices nos invocó como el ejecutable de un
+	// lanzador `Claude (<perfil>).app`, esto no es una sesión de ccp sino el
+	// arranque de Claude Desktop con ese perfil (ver internal/cli/desktop_launcher.go).
+	if app, ok := cli.DesktopLauncherApp(); ok {
+		os.Exit(cli.RunDesktopLauncher(app, os.Args[1:]))
+	}
+
 	args := os.Args[1:]
 	if len(args) == 0 && isInteractive() {
 		if err := tui.Run(); err != nil {

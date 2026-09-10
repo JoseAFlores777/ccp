@@ -1081,11 +1081,21 @@ denegados por allow_from: work-2, deepseek</pre>
         <p>When you add new files to the global config, re-mirror with <code>ccp desktop prepare &lt;profile&gt;</code>.</p>
       </div></details>
 
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">A launcher per profile: its own name and icon colour</h3>
+      <p class="intro">Every instance is still the same <code>Claude.app</code>, so the Dock, Cmd-Tab and Spotlight show identical «Claude» icons. <code>ccp desktop app</code> builds a launcher per profile in <code>~/Applications</code> — <code>Claude (work-1).app</code> — with its own name and the Claude icon tinted in a colour of its own.</p>
+      <div class="do">
+        <p class="lead">Build the launchers.</p>
+        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop app</pre></div>
+        <p class="hint">One per official profile, colours assigned automatically. <code>ccp desktop app work-1 --color purple</code> picks one (blue, green, purple, pink, teal, yellow, red, gray, orange or <code>#rrggbb</code>) and <code>--label</code> changes the name. From then on <code>ccp desktop open work-1</code> — and a click on the launcher in Spotlight or the Dock — opens that profile's instance under that identity; <code>--plain</code> launches <code>Claude.app</code> directly, as before. <code>ccp desktop app rm work-1</code> removes the launcher; the instance and its session stay.</p>
+      </div>
+      <div class="tip"><span class="lbl">Your session is kept</span>The launcher is not a modified copy of the app — that loses the account, because the Keychain stops trusting the process. Inside it there is a mirror of the real <code>Claude.app</code> made of hard links, byte-for-byte the original and with no extra disk, and the launcher is <code>ccp</code> itself: it sets <code>--user-data-dir</code> and <code>CLAUDE_CONFIG_DIR</code> and hands the process over to Claude.</div>
+      <div class="tip"><span class="lbl">Updates keep flowing</span>The mirror pins the version it was built from, so an update of <code>Claude.app</code> never breaks a launcher: at its next launch <code>ccp</code> sees the new version and rebuilds it. Claude updates itself from the normal instance, as always, and every launcher follows — the same after <code>ccp upgrade</code>.</div>
+
       <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Managing instances</h3>
       <div class="do">
         <p class="lead">See which ones exist and how much they take.</p>
         <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop list</pre></div>
-        <p class="hint"><code>--json</code> returns <code>profile</code>, <code>data_dir</code>, <code>exists</code> and <code>bytes</code>; always an array, with <code>default</code> first.</p>
+        <p class="hint"><code>--json</code> returns <code>profile</code>, <code>data_dir</code>, <code>exists</code>, <code>bytes</code>, <code>app</code> and <code>color</code>; always an array, with <code>default</code> first.</p>
       </div>
       <div class="do">
         <p class="lead">Delete an instance.</p>
@@ -1101,6 +1111,7 @@ denegados por allow_from: work-2, deepseek</pre>
           <tr><td><code>default</code> is never relocated</td><td>Its instance is your usual login, in the usual place. Giving it its own directory would move the session you already have.</td></tr>
           <tr><td>~190 MB per instance</td><td>Each one downloads its own copy of the embedded Claude Code, plus the Cowork environment if you use it.</td></tr>
           <tr><td>Sign in one at a time</td><td><code>claude://</code> links go to whichever instance registered the scheme last; with several windows open a login can land on the wrong one. <code>ccp</code> reminds you on each instance's first launch.</td></tr>
+          <tr><td>Launchers are macOS only</td><td>They are app bundles in <code>~/Applications</code> (<code>CCP_DESKTOP_APPS_DIR</code> moves them). A launcher never claims <code>claude://</code>, so the login callback always reaches the normal app: sign in to a <b>new</b> profile with <code>ccp desktop open &lt;profile&gt; --plain</code> and the other windows closed, then use the launcher. macOS privacy permissions are granted per app, so a launcher may ask once more.</td></tr>
         </tbody>
       </table>
     </section>

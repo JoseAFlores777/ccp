@@ -1076,11 +1076,21 @@ denegados por allow_from: work-2, deepseek</pre>
         <p>Si añades archivos nuevos al global, vuelve a espejarlos con <code>ccp desktop prepare &lt;perfil&gt;</code>.</p>
       </div></details>
 
+      <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Un lanzador por perfil: nombre e icono de color propios</h3>
+      <p class="intro">Todas las instancias siguen siendo el mismo <code>Claude.app</code>, así que el Dock, Cmd-Tab y Spotlight enseñan iconos «Claude» idénticos. <code>ccp desktop app</code> construye un lanzador por perfil en <code>~/Applications</code> —<code>Claude (work-1).app</code>— con nombre propio y el icono de Claude tintado de un color propio.</p>
+      <div class="do">
+        <p class="lead">Construir los lanzadores.</p>
+        <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop app</pre></div>
+        <p class="hint">Uno por perfil official, colores asignados solos. <code>ccp desktop app work-1 --color purple</code> elige uno (blue, green, purple, pink, teal, yellow, red, gray, orange o <code>#rrggbb</code>) y <code>--label</code> cambia el nombre. Desde entonces <code>ccp desktop open work-1</code> —y un clic en el lanzador desde Spotlight o el Dock— abre la instancia de ese perfil con esa identidad; <code>--plain</code> lanza <code>Claude.app</code> directamente, como antes. <code>ccp desktop app rm work-1</code> quita el lanzador; la instancia y su sesión se quedan.</p>
+      </div>
+      <div class="tip"><span class="lbl">La sesión se conserva</span>El lanzador no es una copia retocada de la app —eso pierde la cuenta, porque el Keychain deja de fiarse del proceso. Dentro hay un espejo del <code>Claude.app</code> real hecho de hard links, byte a byte el original y sin disco extra, y el lanzador es el propio <code>ccp</code>: pone <code>--user-data-dir</code> y <code>CLAUDE_CONFIG_DIR</code> y le cede el proceso a Claude.</div>
+      <div class="tip"><span class="lbl">Las actualizaciones siguen llegando</span>El espejo fija la versión con la que se construyó, así que actualizar <code>Claude.app</code> nunca rompe un lanzador: en su siguiente arranque <code>ccp</code> ve la versión nueva y lo reconstruye. Claude se actualiza desde la instancia normal, como siempre, y todos los lanzadores lo siguen —igual tras <code>ccp upgrade</code>.</div>
+
       <h3 style="font-family:'Zilla Slab',serif;font-weight:600;font-size:22px;color:var(--ink);margin:30px 0 4px;">Gestionar las instancias</h3>
       <div class="do">
         <p class="lead">Ver cuáles existen y cuánto ocupan.</p>
         <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop list</pre></div>
-        <p class="hint"><code>--json</code> devuelve <code>profile</code>, <code>data_dir</code>, <code>exists</code> y <code>bytes</code>; siempre un array, con <code>default</code> de primero.</p>
+        <p class="hint"><code>--json</code> devuelve <code>profile</code>, <code>data_dir</code>, <code>exists</code>, <code>bytes</code>, <code>app</code> y <code>color</code>; siempre un array, con <code>default</code> de primero.</p>
       </div>
       <div class="do">
         <p class="lead">Borrar una instancia.</p>
@@ -1096,6 +1106,7 @@ denegados por allow_from: work-2, deepseek</pre>
           <tr><td><code>default</code> no se reubica</td><td>Su instancia es tu login de siempre, donde siempre. Darle un directorio propio movería la sesión que ya tienes.</td></tr>
           <tr><td>~190 MB por instancia</td><td>Cada una se baja su copia del Claude Code embebido, más el entorno de Cowork si lo usas.</td></tr>
           <tr><td>Inicia sesión de una en una</td><td>Los enlaces <code>claude://</code> van a la instancia que registró el esquema de último; con varias ventanas abiertas el login puede aterrizar en la equivocada. <code>ccp</code> te lo recuerda en el primer arranque de cada una.</td></tr>
+          <tr><td>Los lanzadores son solo macOS</td><td>Son bundles de app en <code>~/Applications</code> (<code>CCP_DESKTOP_APPS_DIR</code> los mueve). Un lanzador nunca reclama <code>claude://</code>, así que el callback del login siempre llega a la app normal: inicia sesión en un perfil <b>nuevo</b> con <code>ccp desktop open &lt;perfil&gt; --plain</code> y las demás ventanas cerradas, y luego usa el lanzador. Los permisos de privacidad de macOS se conceden por app, así que un lanzador puede pedirlos otra vez.</td></tr>
         </tbody>
       </table>
     </section>

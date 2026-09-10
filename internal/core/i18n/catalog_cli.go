@@ -823,6 +823,8 @@ AUTO-HANDOFF                      rotates profile on its own when usage runs out
 
 DESKTOP                           one isolated Claude Desktop instance per profile
   ccp desktop open [<profile>]      launch it (no profile: resolved from the cwd)
+  ccp desktop app [<profile>…]      build "Claude (<profile>).app": own name and icon colour in the Dock
+  ccp desktop app rm <profile>      delete that launcher (the instance stays)
   ccp desktop list [--json]         instances on disk and their size
   ccp desktop prepare <profile>     make the cc-home acceptable to Desktop
   ccp desktop path <profile>        print its --user-data-dir
@@ -910,6 +912,8 @@ AUTO-HANDOFF                      rota de perfil solo cuando se acaba el uso
 
 DESKTOP                           una instancia aislada de Claude Desktop por perfil
   ccp desktop open [<perfil>]       la lanza (sin perfil: se resuelve por el cwd)
+  ccp desktop app [<perfil>…]       crea «Claude (<perfil>).app»: nombre e icono de color propios en el Dock
+  ccp desktop app rm <perfil>       borra ese lanzador (la instancia se queda)
   ccp desktop list [--json]         instancias en disco y su tamaño
   ccp desktop prepare <perfil>      deja el cc-home en la forma que Desktop acepta
   ccp desktop path <perfil>         imprime su --user-data-dir
