@@ -54,6 +54,8 @@ Run `ccp` with no arguments (with a TTY) and you get the **interactive dashboard
 
 Press `c` (or `:config`) for the **Config view**, which takes over the body rather than adding a fourth panel — at 80 columns the three existing ones are already tight. Five sections: Defaults, Auto-handoff, Chain (reorder with `J`/`K`), allow_from, and Sensors. `e` opens the whole config in your graphical editor. The view never reimplements a rule: editing the chain from here goes through the same `core` functions as `ccp auto chain`, gate included.
 
+Press `e` on a profile for its **profile view**: what configuration actually applies to it, and which layer each value comes from (global, overlay, or the auto-handoff sensor layer). Three boxes — Instructions, Env, and Effective (permissions, hooks, plugins, sensors, folded to their counts; `enter` expands one). `a`/`d` edit rules and variables through the same `core` functions the CLI uses; hooks are added the same way but can't be deleted from here — they live in arrays with no stable id, so the key explains why instead of pretending. `e` inside the view opens just that box's own file in your editor.
+
 No TTY, or prefer the terminal? Everything is in the CLI, with the same palette:
 
 <div align="center">
@@ -646,7 +648,8 @@ ccp lang es           # cambia a español y lo persiste en ccp.yaml
 | `a` | Add |
 | `d` | Delete |
 | `s` | Set key (DeepSeek) |
-| `e` | Edit config |
+| `e` | Open profile view |
+| `e` | Edit focused box's file (profile view) |
 | `l` | Login (official) |
 | `L` | Toggle language (EN/ES) |
 | `:` | Command bar |

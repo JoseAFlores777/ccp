@@ -54,6 +54,8 @@ Corre `ccp` sin argumentos (con TTY) y obtienes el **dashboard interactivo** de 
 
 Pulsa `c` (o `:config`) para la **vista Config**, que toma el cuerpo en vez de añadir un cuarto panel — a 80 columnas los tres actuales ya van justos. Cinco secciones: Defaults, Auto-handoff, Cadena (reordena con `J`/`K`), allow_from y Sensores. `e` abre la config entera en tu editor gráfico. La vista no reimplementa ninguna regla: editar la cadena desde ahí pasa por las mismas funciones de `core` que `ccp auto chain`, gate incluido.
 
+Pulsa `e` sobre un perfil para su **vista de perfil**: qué configuración aplica de verdad, y de qué capa sale cada valor (global, overlay, o la capa de sensores del auto-handoff). Tres cajas — Instrucciones, Env y Efectivo (permisos, hooks, plugins, sensores, plegados a sus conteos; `enter` despliega uno). `a`/`d` editan reglas y variables por las mismas funciones de `core` que usa el CLI; los hooks se añaden igual pero no se pueden borrar desde acá — viven en arrays sin id estable, así que la tecla explica por qué en vez de fingir. `e` dentro de la vista abre solo el archivo de esa caja en tu editor.
+
 ¿Sin TTY o prefieres la terminal? Todo está en el CLI, con la misma paleta:
 
 <div align="center">
@@ -645,7 +647,8 @@ ccp lang es           # cambia a español y lo persiste en ccp.yaml
 | `a` | Añadir |
 | `d` | Borrar |
 | `s` | Guardar key (DeepSeek) |
-| `e` | Editar config |
+| `e` | Abrir vista de perfil |
+| `e` | Editar archivo de la caja enfocada (vista de perfil) |
 | `l` | Iniciar sesión (oficial) |
 | `L` | Cambiar idioma (EN/ES) |
 | `:` | Barra de comandos |
