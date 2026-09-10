@@ -10,7 +10,7 @@
 En tu repo de trabajo, tu cuenta de empresa; en tu proyecto personal, la tuya; en tus experimentos, DeepSeek.
 El cambio ocurre solo, con hacer `cd`.
 
-![version](https://img.shields.io/badge/version-2.15.1-c96442)
+![version](https://img.shields.io/badge/version-2.17.0-c96442)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-c96442)
 ![shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-8a8378)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
@@ -114,7 +114,7 @@ Perillas de entorno (todas opcionales, todas válidas también desde un clon):
 
 | Variable | Default | Qué hace |
 |---|---|---|
-| `CCP_RELEASE` | `latest` | Instala un tag concreto: `curl … \| CCP_RELEASE=v2.15.1 bash` |
+| `CCP_RELEASE` | `latest` | Instala un tag concreto: `curl … \| CCP_RELEASE=v2.17.0 bash` |
 | `CCP_BIN_DIR` | `~/.local/bin` | Dónde queda el binario |
 | `CCP_SRC_DIR` | `~/.config/ccp/src` | Dónde queda la copia del código |
 | `CCP_NO_SOURCE` | `0` | `1` = solo binario, sin copia del código (sin comandos `/ccp:`, sin fuente para `ccp upgrade`) |

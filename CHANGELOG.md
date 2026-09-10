@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — lanzadores de Claude Desktop con identidad propia, y la vista de perfil en la TUI
+## [2.17.0] — lanzadores de Claude Desktop con identidad propia, y la vista de perfil en la TUI
 
 ### Added
 
