@@ -43,10 +43,9 @@ func desktopProcesses() []core.DesktopProc {
 
 // desktopForeignInstance: ¿hay un Claude vivo que no sea el de este perfil? Es
 // lo que decide si `open` necesita `-n` para no activar la ventana equivocada.
-func desktopForeignInstance(profile, dataDir string) bool {
+func desktopForeignInstance(app, dataDir string) bool {
 	if runtime.GOOS != "darwin" {
 		return false
 	}
-	_ = profile
-	return core.DesktopForeignInstance(desktopProcesses(), dataDir)
+	return core.DesktopForeignInstance(desktopProcesses(), dataDir, app)
 }

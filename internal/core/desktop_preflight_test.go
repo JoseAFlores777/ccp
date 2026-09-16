@@ -200,19 +200,32 @@ func TestDesktopPreflightIgnoraDefault(t *testing.T) {
 	}
 }
 
+// Ajena es solo quien corre el MISMO bundle que vamos a lanzar con otro data
+// dir. Una instancia de lanzador tiene id propio y no estorba: contarla obligaba
+// a `-n` y entonces `desktop open default` abría una segunda ventana sobre el
+// data dir real del usuario — el fallo original, por la puerta de atrás.
 func TestDesktopForeignInstance(t *testing.T) {
-	procs := ParseDesktopProcs(psSano)
-	// Desde el punto de vista de default (data dir vacío), la ventana de a-cc
-	// es ajena: está ocupando el bundle id y `open -a` activaría esa.
-	if !DesktopForeignInstance(procs, "") {
-		t.Error("la ventana de un perfil es ajena para default")
+	const app = "/Applications/Claude.app"
+
+	// Una instancia lanzada por su lanzador NO ocupa la identidad de Claude.app.
+	if DesktopForeignInstance(ParseDesktopProcs(psSano), "", app) {
+		t.Error("la ventana de un lanzador tiene id propio: no obliga a -n")
 	}
-	// Y para a-cc, la ventana de default también lo es.
-	if !DesktopForeignInstance(procs, "/h/profiles/a-cc/desktop") {
-		t.Error("la ventana de default es ajena para a-cc")
+
+	// El proceso patológico sí: es literalmente Claude.app con otro data dir.
+	if !DesktopForeignInstance(ParseDesktopProcs(psPatologico), "", app) {
+		t.Error("Claude.app corriendo con el data dir de un perfil SÍ ocupa la identidad")
 	}
-	if DesktopForeignInstance(nil, "") {
+	// Pero no lo es para su propio data dir.
+	if DesktopForeignInstance(ParseDesktopProcs(psPatologico), "/h/profiles/a-cc/desktop", app) {
+		t.Error("no es ajena respecto de su propio data dir")
+	}
+
+	if DesktopForeignInstance(nil, "", app) {
 		t.Error("sin procesos no hay instancia ajena")
+	}
+	if DesktopForeignInstance(ParseDesktopProcs(psPatologico), "", "") {
+		t.Error("sin app que lanzar no se puede afirmar nada")
 	}
 }
 

@@ -303,12 +303,29 @@ func desktopExecBelongsTo(exe, app string) bool {
 	return false
 }
 
-// DesktopForeignInstance responde la pregunta que decide el `-n`: ¿hay un
-// Claude vivo que no sea el de este perfil? Con el bundle id secuestrado, un
-// `open -a` sin `-n` activaría esa ventana en vez de abrir la pedida.
-func DesktopForeignInstance(procs []DesktopProc, dataDir string) bool {
+// DesktopForeignInstance responde la pregunta que decide el `-n`: ¿hay alguien
+// ocupando la identidad de la app que estamos a punto de abrir?
+//
+// La pregunta NO es «¿hay otro Claude vivo?». Una instancia lanzada por su
+// lanzador tiene bundle id propio y no estorba: contarla obligaba a `-n` y
+// entonces `desktop open default` abría una SEGUNDA ventana sobre el data dir
+// real del usuario — el fallo que este trabajo existe para evitar, reintroducido
+// por la puerta de atrás.
+//
+// Ocupa la identidad quien corre el ejecutable de ESA misma app (app) con otro
+// data dir: es el proceso patológico `/Applications/Claude.app --user-data-dir=
+// <perfil>`, que comparte bundle id con la app principal por construcción. Solo
+// ahí hace falta forzar una instancia nueva.
+func DesktopForeignInstance(procs []DesktopProc, dataDir, app string) bool {
+	if app == "" {
+		return false
+	}
+	prefix := filepath.Clean(app) + string(filepath.Separator)
 	for _, p := range DesktopMainProcs(procs) {
-		if p.DataDir != dataDir {
+		if p.DataDir == dataDir {
+			continue
+		}
+		if strings.HasPrefix(filepath.Clean(p.Exec)+string(filepath.Separator), prefix) {
 			return true
 		}
 	}

@@ -169,6 +169,11 @@ func PlanDesktop(h DesktopHost, home, name string, cfg *Config) (DesktopPlan, er
 	return plan, nil
 }
 
+// ResolveDesktopApp expone la resolución de la app para quien necesita saber
+// QUÉ bundle se va a lanzar antes de llamar a PlanDesktop (p. ej. para
+// preguntar si alguien está ocupando su identidad).
+func ResolveDesktopApp(h DesktopHost) (string, error) { return resolveDesktopApp(h) }
+
 // resolveDesktopApp busca la app. Un hint explícito gana siempre y NO se
 // valida contra la lista: si el usuario dice dónde está su copia, el trabajo de
 // ccp es creerle, no discutir.

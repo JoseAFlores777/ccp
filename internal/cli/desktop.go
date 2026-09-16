@@ -93,9 +93,13 @@ func desktopHost(appHint string) core.DesktopHost {
 // sistema: ¿hay ya un Claude vivo que NO sea el de este perfil? Con el bundle id
 // secuestrado por una instancia de perfil, un `open -a` sin `-n` activaría esa
 // ventana en vez de abrir la que se pide.
-func desktopHostFor(appHint, profile, dataDir string) core.DesktopHost {
+func desktopHostFor(appHint, dataDir string) core.DesktopHost {
 	h := desktopHost(appHint)
-	h.ForeignInstance = desktopForeignInstance(profile, dataDir)
+	// Qué app se va a lanzar hay que resolverlo antes de preguntar quién le
+	// está ocupando la identidad: solo estorba quien corre ESE mismo bundle.
+	if app, err := core.ResolveDesktopApp(h); err == nil {
+		h.ForeignInstance = desktopForeignInstance(app, dataDir)
+	}
 	return h
 }
 
@@ -195,7 +199,7 @@ func desktopOpen(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	plan, err := core.PlanDesktop(desktopHostFor(appHint, name, core.DesktopDataDir(home, name)), home, name, cfg)
+	plan, err := core.PlanDesktop(desktopHostFor(appHint, core.DesktopDataDir(home, name)), home, name, cfg)
 	if err != nil {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
