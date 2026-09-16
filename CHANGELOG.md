@@ -1,5 +1,67 @@
 # Changelog
 
+## [2.18.0] — una instancia de perfil ya no puede suplantar ni actualizar a tu Claude
+
+Esta versión sale de un incidente real (2026-09-15). Un usuario con tres perfiles pasó una tarde creyendo
+que había perdido 40 sesiones de trabajo. No había perdido nada: estaba mirando una instancia vacía mientras
+otra ocupaba la identidad de su Claude principal, que durante horas no pudo abrir. Dos de las tres cosas que
+fallaron estaban documentadas aquí y en el [ADR 0008](docs/adr/0008-desktop-launcher-two-layer-bundle.md)
+como imposibles. Ver el [ADR 0009](docs/adr/0009-desktop-identity-is-not-durable.md).
+
+### Fixed
+
+- **Una instancia de perfil ya no puede actualizar tu `/Applications/Claude.app`.** Podía, y lo hizo: el log
+  de ShipIt registra una instancia de perfil moviendo la app del usuario de 1.52386.3 a 2.110.0 desde una
+  ventana abierta para otra cuenta. Lo que 2.17.0 afirmaba —«el lanzador nunca se actualiza a sí mismo (su
+  bundle id no es el de Claude…)»— **era falso**: SQRLUpdater compara contra
+  `NSRunningApplication.currentApplication.bundleIdentifier`, y ese id es el de Claude en cuanto el proceso
+  corre desde el espejo. Toda instancia distinta de `default` arranca ahora con `DISABLE_UPDATE_CHECK=1`.
+  `default` queda exento a propósito: esa instancia **es** tu Claude, y apagarle las actualizaciones sería
+  secuestrártelo.
+- **`ccp desktop open` sin perfil ya no abre una segunda ventana sobre tu data dir real.** El `-n` era
+  incondicional, y como `default` no tiene data dir propio, ponía dos procesos Chromium sobre
+  `~/Library/Application Support/Claude`. Ahora se fuerza instancia nueva solo cuando alguien está ocupando
+  la identidad del bundle que se va a abrir — que es, justamente, cuando hace falta para poder llegar a tu
+  Claude.
+- **El aislamiento deja de depender de desde qué terminal lanzaste.** `open` hereda el entorno de quien lo
+  invoca y `--env` solo sobrescribe lo que nombra: lanzar un perfil *official* desde una terminal con un
+  perfil deepseek activo metía su `ANTHROPIC_BASE_URL` viva en la ventana, con el Code tab hablando con otro
+  proveedor bajo la cuenta de Anthropic. El entorno del hijo se fija entero.
+- **El lanzador se reconstruye también cuando el espejo se queda huérfano.** ShipIt no parchea el bundle: lo
+  reemplaza entero con un `move`, así que los hard links quedan apuntando a la versión vieja aunque el número
+  de versión no cambie, y el lanzador retenía una copia completa de Claude en disco sin decirlo.
+- **`ccp desktop app` ya no falla cuando la reconstrucción iba a ser un no-op**, y `ccp desktop app rm`
+  acepta el `--force` que su propio mensaje sugería. Las rutas que borran o reconstruyen un bundle con su
+  ventana abierta ahora están todas cubiertas, no dos de cinco.
+- Un clic en el icono del Dock ya no dispara la migración de configuración: no es el usuario pidiendo que se
+  le reescriba `~/.config`.
+
+### Added
+
+- **`ccp desktop doctor [<perfil>] [--json]`** — lo que aquel día hubo que averiguar a mano con `lsappinfo`,
+  `ps`, `codesign` y `du`. Dice qué ventanas hay vivas, si alguna corre bajo la identidad del Claude
+  principal, si alguna escribe su historial de Code en el `~/.claude` global, si el espejo de un lanzador se
+  quedó atrás y —lo que de verdad importaba— si un data dir guarda sesiones de más de una cuenta:
+  **no se ha borrado nada**, las sesiones se indexan por cuenta y vuelven al entrar con ella.
+  - **Diagnostica; nunca repara.** Borrar lanzadores o reconstruir bundles desde un diagnóstico lo
+    convertiría en una segunda fuente de pérdida.
+  - **Una sonda que no se puede ejecutar produce `unknown`, jamás `ok`.** Un doctor que dice «todo bien»
+    porque no pudo mirar convierte una duda en una falsa certeza.
+  - `--json` emite siempre un array, con `code`, `severity`, `profile` y `detail`. Sale 1 solo si hay algo
+    roto *ahora*: un espejo desfasado o una sonda ausente no hacen fallar un script.
+- **`ccp desktop open --force`**: salida de emergencia del preflight nuevo, que por defecto se niega a abrir
+  una segunda ventana sobre un data dir que ya tiene una.
+
+### Changed
+
+- **`ccp desktop open` construye el lanzador del perfil si no existe**, en vez de caer al lanzamiento
+  directo. Sin lanzador la ventana corre desde `/Applications/Claude.app` y macOS no puede distinguirla de
+  tu Claude: es exactamente lo que provocó el incidente. Con `--plain` sigues pudiendo pedir el camino
+  directo, y ahora se te dice lo que implica.
+- La documentación corrige lo que quedó desmentido: el ADR 0008 lleva una nota de enmienda, y `CLAUDE.md`,
+  los cuatro README y la spec de diseño ya no afirman que una actualización nunca rompe un lanzador ni que
+  una instancia no puede actualizarse a sí misma.
+
 ## [2.17.0] — lanzadores de Claude Desktop con identidad propia, y la vista de perfil en la TUI
 
 ### Added

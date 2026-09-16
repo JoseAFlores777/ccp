@@ -576,17 +576,28 @@ perfil con el icono de Claude tintado de ese color y su propio nombre en el Dock
 menús. Un clic hace exactamente lo que `ccp desktop open work-1`: el lanzador *es* `ccp`, que pone
 `--user-data-dir` y `CLAUDE_CONFIG_DIR` y le cede el proceso a Claude.
 
+Rara vez necesitas ejecutar `ccp desktop app` a mano: si un perfil no tiene lanzador, `ccp desktop open` lo
+construye antes de lanzar. No es cosmética. Sin lanzador, la ventana corre desde el propio
+`/Applications/Claude.app`, así que macOS no puede distinguirla de tu Claude principal: el Dock, Cmd-Tab,
+`open -a` y los enlaces `claude://` tratan las dos como la misma app, y abrir Claude te trae la ventana que
+le parezca.
+
 **La sesión se conserva.** El lanzador no es una copia retocada de la app —eso pierde la cuenta en el
 primer arranque, porque el Keychain (donde Claude guarda la clave de su sesión) deja de fiarse del proceso.
 Dentro del lanzador hay un espejo del `Claude.app` real hecho de hard links: byte a byte el original, sin
 disco extra (aunque `du` lo cuente), y el Keychain sigue fiándose.
 
 **Las actualizaciones siguen llegando.** El espejo fija la versión con la que se construyó, así que una
-actualización de `Claude.app` nunca rompe un lanzador: sigue corriendo la versión anterior hasta su siguiente
-arranque, en el que `ccp` ve la versión nueva y reconstruye el espejo (un segundo). Un lanzador nunca se
-actualiza a sí mismo —Claude lo hace, como siempre, desde la instancia normal— y todos los lanzadores lo
-siguen. Igual tras `ccp upgrade`: los lanzadores llevan el binario dentro y en su siguiente arranque enlazan
-el nuevo.
+actualización de `Claude.app` deja al lanzador corriendo la versión anterior hasta su siguiente arranque, en
+el que `ccp` se da cuenta —por versión *y* por inodo, porque el updater no parchea el bundle: lo reemplaza
+entero— y reconstruye el espejo (un segundo). Igual tras `ccp upgrade`: los lanzadores llevan el binario
+dentro y en su siguiente arranque enlazan el nuevo.
+
+**Una instancia de perfil no puede actualizar tu Claude.** Podía, y lo hizo una vez: una instancia actualizó
+el `/Applications/Claude.app` de un usuario desde una ventana abierta para otra cuenta. Ahora toda instancia
+distinta de `default` arranca con su updater apagado, y `ccp desktop doctor` comprueba que la barrera siga
+puesta en vez de darla por hecha. `default` queda exento a propósito: esa instancia **es** tu Claude, y
+apagarle las actualizaciones sería secuestrártelo — las actualizaciones te llegan por ahí, como siempre.
 
 ### Límites
 
@@ -598,6 +609,11 @@ el nuevo.
 - **Inicia sesión de una en una**: los enlaces `claude://` van a la instancia que registró el esquema
   de último, así que con varias ventanas abiertas el login puede aterrizar en la equivocada. `ccp` te
   lo recuerda en el primer arranque de cada instancia.
+- **La identidad de una ventana puede colapsar.** macOS identifica un proceso por la ruta con la que se
+  ejecutó, y Claude se re-ejecuta por su ruta *resuelta* al reiniciarse: tras un relanzamiento, la ventana
+  puede volver llevando la identidad de tu Claude principal. Mientras eso dure, abrir Claude desde el Dock
+  activa *esa* ventana en vez de la tuya. `ccp desktop doctor` te dice cuándo ha pasado, y
+  `open -n -a /Applications/Claude.app` te devuelve la tuya al momento.
 - `ccp desktop rm <perfil> --yes` borra la instancia: es un logout que se lleva sesión, tokens y MCP.
 - **Los lanzadores son solo macOS**: son bundles de app en `~/Applications` (`CCP_DESKTOP_APPS_DIR` los
   mueve). Un lanzador nunca reclama `claude://`, así que el callback del login siempre llega a la app

@@ -2,6 +2,12 @@
 
 Fecha: 2026-09-09 · Estado: implementado (`ccp desktop app`) · ADR: [0008](../../adr/0008-desktop-launcher-two-layer-bundle.md)
 
+> **Enmienda (2026-09-16).** La fila de ShipIt de la tabla de abajo —«con id propio, la instancia lanzada no
+> puede actualizarse a sí misma»— resultó falsa: el 2026-09-15 una instancia de perfil actualizó el
+> `/Applications/Claude.app` del usuario. La identidad del lanzador es real pero **no duradera**, y con ella
+> se cae ese emparejamiento. Ver [ADR 0009](../../adr/0009-desktop-identity-is-not-durable.md). El resto del
+> diseño sigue vigente; este documento se conserva como lo que se sabía aquel día.
+
 ## Problema
 
 `ccp desktop open <perfil>` abre instancias aisladas de Claude Desktop (cuenta + Code tab), pero

@@ -38,3 +38,18 @@ A profile-private directory used as `CLAUDE_CONFIG_DIR`. Every non-`default` pro
 **Backup**:
 A portable, restorable snapshot of ccp's state. Two tiers by what they carry: a *config backup* (profiles, path rules, defaults, overlays — no secrets, safe to share/version) and a *full backup* (config **plus** secrets: provider api_keys and official-profile login credentials). Re-seedable, machine-local symlinks are never captured; they are rebuilt on restore. Distinct from the *pre-restore snapshot* and *pre-migration backup*, which are automatic safety copies ccp takes before a restore or a format migration so the prior state stays recoverable.
 _Avoid_: export (use only as the verb that writes a backup), dump.
+
+**Desktop instance**:
+One isolated Claude Desktop for a profile: its own `--user-data-dir` (account, tokens, MCP, Cowork) **and** its own `CLAUDE_CONFIG_DIR` (the Code tab). Both halves or neither — a window with one and not the other wears one profile's identity while writing another's history, which is the failure mode the whole design exists to prevent. `default`'s instance is the user's normal Claude, in its normal location; it is never relocated.
+_Avoid_: window (a UI thing; an instance can have several), copy of Claude (nothing is copied).
+
+**Launcher**:
+`~/Applications/Claude (<profile>).app`: the bundle that gives a Desktop instance its own name and icon colour in the Dock, Cmd-Tab and Spotlight. Two layers — an outer one carrying the identity (patched `Info.plist`, own bundle id, the ccp binary as its executable) and an inner *mirror*. Derived state: it is regenerated whole and can be deleted without losing anything. Distinct from the **instance**, which holds the account and survives `ccp desktop app rm`.
+_Avoid_: alias, shortcut (it is a real app bundle that executes ccp, not a pointer).
+
+**Mirror** (of Claude.app):
+`<launcher>/Contents/ccp/Claude`: a pristine copy of `/Applications/Claude.app` made of real directories and hard-linked files — byte-identical to the signed original, which is what keeps the Keychain trusting the process and therefore keeps the session. Costs no extra disk while the links hold; an update that replaces the source bundle orphans them, which `DesktopAppStale` detects by inode. Distinct from `MirrorForDesktop`, which mirrors a profile's **cc-home**, not the app.
+
+**Bundle identity**:
+Which app macOS believes a running process belongs to — the bundle id LaunchServices registers, and therefore what the Dock shows, what `open -a` activates and where a `claude://` link lands. A launcher's instance normally registers its own; it can *collapse* onto Claude's after a relaunch, and from then on opening Claude activates that window instead of the user's. Not something ccp can guarantee (see [ADR 0009](docs/adr/0009-desktop-identity-is-not-durable.md)), only detect.
+_Avoid_: name, icon (those are consequences of the identity, not the identity).

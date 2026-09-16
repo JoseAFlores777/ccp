@@ -576,16 +576,27 @@ instance with the Claude icon tinted in that colour and its own name in the Dock
 A click on it does exactly what `ccp desktop open work-1` does: the launcher *is* `ccp`, which sets
 `--user-data-dir` and `CLAUDE_CONFIG_DIR` and then hands the process over to Claude.
 
+You rarely need to run `ccp desktop app` by hand: if a profile has no launcher, `ccp desktop open` builds one
+before launching. That is not cosmetic. Without a launcher the window runs from `/Applications/Claude.app`
+itself, so macOS cannot tell it apart from your main Claude: the Dock, Cmd-Tab, `open -a` and `claude://`
+links treat both as the same app, and opening Claude brings up whichever window it feels like.
+
 **Your session is kept.** The launcher is not a modified copy of the app — that loses the account on the
 first launch, because the Keychain (where Claude keeps the key to its session) stops trusting the process.
 Inside the launcher there is a mirror of the real `Claude.app` made of hard links: byte-for-byte the original,
 no extra disk (`du` will still count it), and the Keychain keeps trusting it.
 
-**Updates keep flowing.** The mirror pins the version it was built from, so a `Claude.app` update never
-breaks a launcher: it keeps running the previous version until its next launch, when `ccp` notices the new
-version and rebuilds the mirror (about a second). A launcher never self-updates — Claude does, as always,
-from the normal instance — and every launcher follows. Same after `ccp upgrade`: the launchers embed the
-binary, and they re-link the new one on their next launch.
+**Updates keep flowing.** The mirror pins the version it was built from, so a `Claude.app` update leaves a
+launcher running the previous version until its next launch, when `ccp` notices — by version *and* by inode,
+because the updater replaces the bundle wholesale instead of patching it — and rebuilds the mirror (about a
+second). Same after `ccp upgrade`: the launchers embed the binary and re-link the new one on their next
+launch.
+
+**A profile instance can never update your Claude.** It could, and once did: an instance updated a user's
+`/Applications/Claude.app` from a window opened for a different account. Every instance other than `default`
+now starts with its updater switched off, and `ccp desktop doctor` checks the guard is actually there rather
+than assuming it. `default` is exempt on purpose: that instance **is** your Claude, and muting its updates
+would be hijacking it — updates reach you through it, as always.
 
 ### Limits
 
@@ -602,8 +613,14 @@ binary, and they re-link the new one on their next launch.
 - **Launchers are macOS only**: they are app bundles in `~/Applications` (`CCP_DESKTOP_APPS_DIR` moves
   them). A launcher never claims `claude://`, so the login callback always reaches the normal app: sign in
   to a **new** profile with `ccp desktop open <profile> --plain` and the other windows closed, then use the
-  launcher. macOS privacy permissions (files, screen, microphone…) are granted per app, so a launcher may
-  ask once more.
+  launcher. That is the one flow where `--plain` is the right answer, and `ccp` will still warn you that the
+  window is indistinguishable from your main Claude — which is true, and is why you close the others.
+  macOS privacy permissions (files, screen, microphone…) are granted per app, so a launcher may ask once more.
+- **A window's identity can collapse.** macOS identifies a running process by the path it was executed
+  through, and Claude re-executes itself by its *resolved* path when it restarts — so after a relaunch the
+  window may come back wearing your main Claude's identity. While that lasts, opening Claude from the Dock
+  activates *that* window instead of yours. `ccp desktop doctor` tells you when it has happened;
+  `open -n -a /Applications/Claude.app` gets you back to yours right away.
 
 ## Backup and restore
 

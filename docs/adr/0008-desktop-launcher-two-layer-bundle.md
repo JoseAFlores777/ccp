@@ -4,7 +4,20 @@ Fecha: 2026-09-09
 
 ## Estado
 
-Aceptada
+Aceptada · **enmendada por [0009](0009-desktop-identity-is-not-durable.md)** (2026-09-16).
+
+La decisión se mantiene —el bundle de dos capas sigue siendo la forma correcta—, pero dos de los hechos de
+abajo quedaron desmentidos por un incidente real, y se leen mal sin esta nota:
+
+- **Hecho 1** (identidad por la ruta sin resolver): cierto, pero **no duradero**. Vale mientras el proceso sea
+  el que el kernel ejecutó a través de `Claude-run`; `process.execPath` de Electron pasa por `realpath()`, así
+  que cualquier re-exec o `app.relaunch()` reencarna el proceso en el espejo, con el id de Claude, y no vuelve.
+- **Hecho 6** y el párrafo de «Actualizaciones» (la instancia no puede actualizarse a sí misma): **falso como
+  garantía**. SQRLUpdater compara contra `NSRunningApplication.currentApplication.bundleIdentifier`, que tras
+  ese colapso es el id real. El 2026-09-15 una instancia de perfil actualizó el `/Applications/Claude.app` del
+  usuario. De ahí la barrera `DISABLE_UPDATE_CHECK` del 0009.
+
+Los hechos 2, 3, 4 y 5 siguen en pie sin matices.
 
 ## Contexto
 
