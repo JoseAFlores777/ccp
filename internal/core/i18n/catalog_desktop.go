@@ -11,7 +11,7 @@ var catalogDesktop = map[string]map[Lang]string{
 	"cli.desktop.usage": {
 		En: `Usage: ccp desktop <subcommand>
 
-  open [<profile>] [--app <path>] [--dry-run] [--no-mirror] [--plain] [-- <claude args>]
+  open [<profile>] [--app <path>] [--dry-run] [--no-mirror] [--plain] [--force] [-- <claude args>]
                           launch an isolated Claude Desktop instance
                           (no profile: resolved from the current directory;
                           through the profile's launcher when it has one, --plain skips it)
@@ -22,10 +22,12 @@ var catalogDesktop = map[string]map[Lang]string{
   list [--json]           instances on disk, their size and their launcher
   path <profile>          print the instance's --user-data-dir
   prepare <profile>       make the profile's cc-home acceptable to Desktop
+  doctor [<profile>] [--json]
+                          audit launchers, instances and their identity (diagnoses, never repairs)
   rm <profile> --yes      delete the instance (destructive logout) and its launcher`,
 		Es: `Uso: ccp desktop <subcomando>
 
-  open [<perfil>] [--app <ruta>] [--dry-run] [--no-mirror] [--plain] [-- <args de claude>]
+  open [<perfil>] [--app <ruta>] [--dry-run] [--no-mirror] [--plain] [--force] [-- <args de claude>]
                           lanza una instancia aislada de Claude Desktop
                           (sin perfil: se resuelve por el directorio actual;
                           a través del lanzador del perfil si lo tiene, --plain lo salta)
@@ -36,6 +38,8 @@ var catalogDesktop = map[string]map[Lang]string{
   list [--json]           instancias en disco, su tamaño y su lanzador
   path <perfil>           imprime el --user-data-dir de la instancia
   prepare <perfil>        deja el cc-home del perfil en la forma que Desktop acepta
+  doctor [<perfil>] [--json]
+                          audita lanzadores, instancias e identidad (diagnostica, nunca repara)
   rm <perfil> --yes       borra la instancia (logout destructivo) y su lanzador`,
 	},
 	"cli.desktop.unknown_sub": {
@@ -213,5 +217,106 @@ perfil official. El lanzador sigue solo las actualizaciones de Claude.app.`,
 	"cli.desktop.app.launched": {
 		En: "Claude Desktop launched with profile '%s' as \"%s\".",
 		Es: "Claude Desktop lanzado con el perfil '%s' como «%s».",
+	},
+
+	// --- identidad de instancia (ver desktop_preflight.go) ---
+	//
+	// Estas frases describen estados que el usuario NO puede deducir mirando la
+	// pantalla: dos ventanas de Claude se ven igual, aunque una esté escribiendo
+	// el historial de otra cuenta. Por eso dicen siempre las tres cosas: qué
+	// pasa, qué consecuencia tiene y qué tecla resuelve.
+	"cli.desktop.open.building_launcher": {
+		En: "Building the launcher for '%s' first: without it the window would run from /Applications/Claude.app and macOS could not tell it apart from your main Claude.",
+		Es: "Primero construyo el lanzador de «%s»: sin él la ventana correría desde /Applications/Claude.app y macOS no podría distinguirla de tu Claude principal.",
+	},
+	"cli.desktop.plain_no_isolation": {
+		En: "'%s' is being launched through /Applications/Claude.app itself, so macOS cannot tell it apart from your main Claude: the Dock, Cmd-Tab, 'open -a' and claude:// links treat both windows as the same app. Run 'ccp desktop app %[1]s' to give it its own icon and identity.",
+		Es: "«%s» se está lanzando a través de /Applications/Claude.app, así que macOS no puede distinguirla de tu Claude principal: el Dock, Cmd-Tab, «open -a» y los enlaces claude:// tratan las dos ventanas como la misma app. Ejecuta «ccp desktop app %[1]s» para darle icono e identidad propios.",
+	},
+	"cli.desktop.open.instance_running": {
+		En: "'%s' already has a window open on this data dir. A second one puts two Chromium processes on the same profile and can corrupt its sessions. Bring the existing one to the front, or pass --force.",
+		Es: "«%s» ya tiene una ventana abierta sobre este data dir. Una segunda pone dos procesos Chromium sobre el mismo perfil y puede corromper sus sesiones. Trae al frente la que ya existe, o pasa --force.",
+	},
+	"cli.desktop.preflight.foreign_exec": {
+		En: "The '%s' window running right now was not started by its launcher (it runs from %s). macOS is showing it under Claude's own identity, so 'open -a Claude' activates THIS window instead of your main Claude. Close it and reopen it from its icon; to get your main Claude back right now: open -n -a /Applications/Claude.app",
+		Es: "La ventana de «%s» que corre ahora no la arrancó su lanzador (se ejecuta desde %s). macOS la está mostrando con la identidad del Claude normal, así que «open -a Claude» activa ESTA ventana en vez de tu Claude principal. Ciérrala y vuelve a abrirla desde su icono; para recuperar tu Claude principal ahora mismo: open -n -a /Applications/Claude.app",
+	},
+	"cli.desktop.preflight.no_config_dir": {
+		En: "The '%s' window is writing its Code tab history into the GLOBAL ~/.claude, not into the profile. Anything you do in it ends up mixed with your other accounts. Close that window and reopen it from its launcher.",
+		Es: "La ventana de «%s» está escribiendo el historial de su pestaña Code en el ~/.claude GLOBAL, no en el perfil. Todo lo que hagas ahí acaba mezclado con tus otras cuentas. Cierra esa ventana y vuelve a abrirla desde su lanzador.",
+	},
+	"cli.desktop.preflight.wrong_config_dir": {
+		En: "The '%s' window has its Code tab pointing at another profile's config (%s). Its window and its history belong to different accounts. Close it and reopen it from its launcher.",
+		Es: "La ventana de «%s» tiene la pestaña Code apuntando a la config de otro perfil (%s). Su ventana y su historial son de cuentas distintas. Ciérrala y vuelve a abrirla desde su lanzador.",
+	},
+	"cli.desktop.preflight.updater_on": {
+		En: "The '%s' window is running without the updater guard, so it can update your main /Applications/Claude.app on its own. Close it and reopen it from its launcher.",
+		Es: "La ventana de «%s» corre sin la barrera del updater, así que puede actualizar por su cuenta tu /Applications/Claude.app. Ciérrala y vuelve a abrirla desde su lanzador.",
+	},
+	"cli.desktop.instance_busy": {
+		En: "'%s' has a window open right now. Rebuilding or deleting its launcher pulls the mirror out from under a live Chromium: close the window first (or pass --force).",
+		Es: "«%s» tiene una ventana abierta ahora mismo. Reconstruir o borrar su lanzador le quita el espejo de debajo a un Chromium vivo: cierra la ventana primero (o pasa --force).",
+	},
+	"cli.desktop.preflight.forced": {
+		En: "--force: launching anyway.",
+		Es: "--force: se lanza de todos modos.",
+	},
+
+	// --- ccp desktop doctor ---
+	//
+	// Cada texto termina en qué hacer. El hallazgo más importante de todos
+	// (multi_account) existe para decir una cosa concreta que el 2026-09-15
+	// nadie dijo a tiempo: NO has perdido las sesiones.
+	"cli.desktop.doctor.usage": {
+		En: "Usage: ccp desktop doctor [<profile>] [--json]   — audit launchers, instances and their identity",
+		Es: "Uso: ccp desktop doctor [<perfil>] [--json]   — audita lanzadores, instancias y su identidad",
+	},
+	"cli.desktop.doctor.clean": {
+		En: "No problems found in the launchers and instances of Claude Desktop.",
+		Es: "Sin problemas en los lanzadores e instancias de Claude Desktop.",
+	},
+	"cli.desktop.doctor.f.instance_foreign_exec": {
+		En: "'%s': its window was not started by its launcher (it runs from %s). macOS shows it under Claude's own identity, so 'open -a Claude' activates THAT window instead of your main Claude. Close it and reopen it from its icon.",
+		Es: "«%s»: su ventana no la arrancó su lanzador (se ejecuta desde %s). macOS la muestra con la identidad del Claude normal, así que «open -a Claude» activa ESA ventana en vez de tu Claude principal. Ciérrala y vuelve a abrirla desde su icono.",
+	},
+	"cli.desktop.doctor.f.instance_no_config_dir": {
+		En: "'%s': its window writes the Code tab history into the GLOBAL ~/.claude instead of the profile — mixing it with your other accounts. Close it and reopen it from its launcher.%.0s",
+		Es: "«%s»: su ventana escribe el historial de la pestaña Code en el ~/.claude GLOBAL en vez de en el perfil — mezclándolo con tus otras cuentas. Ciérrala y vuelve a abrirla desde su lanzador.%.0s",
+	},
+	"cli.desktop.doctor.f.instance_wrong_config_dir": {
+		En: "'%s': its window has the Code tab pointing at another profile's config (%s). Window and history belong to different accounts.",
+		Es: "«%s»: su ventana tiene la pestaña Code apuntando a la config de otro perfil (%s). Ventana e historial son de cuentas distintas.",
+	},
+	"cli.desktop.doctor.f.instance_updater_on": {
+		En: "'%s': its window runs without the updater guard, so it can update your main /Applications/Claude.app on its own. Reopen it from its launcher.%.0s",
+		Es: "«%s»: su ventana corre sin la barrera del updater, así que puede actualizar por su cuenta tu /Applications/Claude.app. Vuelve a abrirla desde su lanzador.%.0s",
+	},
+	"cli.desktop.doctor.f.launcher_mirror_stale": {
+		En: "'%s': the launcher still carries an older Claude than the installed one (%s). It keeps working; close its window and open it again and ccp rebuilds it.",
+		Es: "«%s»: el lanzador lleva un Claude más viejo que el instalado (%s). Sigue funcionando; cierra su ventana y vuelve a abrirla y ccp lo reconstruye.",
+	},
+	"cli.desktop.doctor.f.launcher_mirror_orphan": {
+		En: "'%s': the launcher's mirror no longer shares files with the installed Claude.app, so it is holding a full private copy on disk (%s). Rebuild it with 'ccp desktop app %[1]s --force' when its window is closed.",
+		Es: "«%s»: el espejo del lanzador ya no comparte ficheros con la Claude.app instalada, así que retiene una copia entera en disco (%s). Reconstrúyelo con «ccp desktop app %[1]s --force» con su ventana cerrada.",
+	},
+	"cli.desktop.doctor.f.launcher_profile_gone": {
+		En: "'%s': there is a launcher for a profile that no longer works (%s). Remove it with 'ccp desktop app rm %[1]s'.",
+		Es: "«%s»: hay un lanzador para un perfil que ya no sirve (%s). Bórralo con «ccp desktop app rm %[1]s».",
+	},
+	"cli.desktop.doctor.f.launcher_identity_collapsed": {
+		En: "'%s': macOS has its window registered as '%s' instead of the launcher's own id. While it is open, opening Claude from the Dock activates THIS window. Close it and reopen it from its icon; to get your main Claude back right now: open -n -a /Applications/Claude.app",
+		Es: "«%s»: macOS tiene su ventana registrada como «%s» en vez de con el id propio del lanzador. Mientras esté abierta, abrir Claude desde el Dock activa ESTA ventana. Ciérrala y vuelve a abrirla desde su icono; para recuperar tu Claude principal ahora mismo: open -n -a /Applications/Claude.app",
+	},
+	"cli.desktop.doctor.f.instance_multi_account": {
+		En: "'%s': this instance holds Code sessions from more than one account (%s). NOTHING has been deleted: sessions are indexed per account, so the ones you don't see come back when you sign in with that account again.",
+		Es: "«%s»: esta instancia guarda sesiones de Code de más de una cuenta (%s). NO se ha borrado nada: las sesiones se indexan por cuenta, así que las que no ves reaparecen al volver a entrar con esa cuenta.",
+	},
+	"cli.desktop.doctor.f.probe_unavailable.global": {
+		En: "%.0sCould not check everything on this machine (%s is unavailable). Reported as unknown, not as fine.",
+		Es: "%.0sNo se ha podido comprobar todo en esta máquina (%s no está disponible). Se reporta como desconocido, no como correcto.",
+	},
+	"cli.desktop.doctor.f.probe_unavailable": {
+		En: "'%s': could not check everything on this machine (%s is unavailable). Reported as unknown, not as fine.",
+		Es: "«%s»: no se ha podido comprobar todo en esta máquina (%s no está disponible). Se reporta como desconocido, no como correcto.",
 	},
 }

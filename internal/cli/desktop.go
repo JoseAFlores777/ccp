@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -54,6 +55,12 @@ func dispatchDesktop(args []string, stdout, stderr io.Writer) int {
 		return desktopPrepare(rest, stdout, stderr)
 	case "rm":
 		return desktopRm(rest, stdout, stderr)
+	case "doctor":
+		// El `case` explícito es obligatorio: el `default:` de abajo trata
+		// cualquier token sin guion como nombre de perfil para `open`, así que
+		// sin esto `ccp desktop doctor` moriría con «no existe el perfil
+		// "doctor"» — un error que no dice nada del comando tecleado.
+		return desktopDoctor(rest, stdout, stderr)
 	case "", "help", "--help", "-h":
 		fmt.Fprintln(stdout, i18n.T(currentLang(), "cli.desktop.usage"))
 		return 0
@@ -78,14 +85,25 @@ func desktopHost(appHint string) core.DesktopHost {
 		LookPath: exec.LookPath,
 		Stat:     os.Stat,
 		AppHint:  desktopAppHint(appHint),
+		Environ:  os.Environ(),
 	}
+}
+
+// desktopHostFor es desktopHost más la única pregunta que necesita sondear el
+// sistema: ¿hay ya un Claude vivo que NO sea el de este perfil? Con el bundle id
+// secuestrado por una instancia de perfil, un `open -a` sin `-n` activaría esa
+// ventana en vez de abrir la que se pide.
+func desktopHostFor(appHint, profile, dataDir string) core.DesktopHost {
+	h := desktopHost(appHint)
+	h.ForeignInstance = desktopForeignInstance(profile, dataDir)
+	return h
 }
 
 // --- ccp desktop open ---
 
 func desktopOpen(args []string, stdout, stderr io.Writer) int {
 	var name, appHint string
-	dryRun, noMirror, plain := false, false, false
+	dryRun, noMirror, plain, force := false, false, false, false
 	var extra []string
 
 	for i := 0; i < len(args); i++ {
@@ -96,6 +114,12 @@ func desktopOpen(args []string, stdout, stderr io.Writer) int {
 			noMirror = true
 		case "--plain":
 			plain = true
+		case "--force":
+			// Salida de emergencia del preflight: abrir igual aunque haya una
+			// ventana viva sobre este data dir. El aviso se imprime de todos
+			// modos, porque lo que advierte (dos Chromium sobre el mismo
+			// perfil) sigue siendo cierto.
+			force = true
 		case "--app":
 			if i+1 >= len(args) {
 				fmt.Fprintln(stderr, i18n.T(currentLang(), "cli.desktop.app_needs_value"))
@@ -171,19 +195,56 @@ func desktopOpen(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	plan, err := core.PlanDesktop(desktopHost(appHint), home, name, cfg)
+	plan, err := core.PlanDesktop(desktopHostFor(appHint, name, core.DesktopDataDir(home, name)), home, name, cfg)
 	if err != nil {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
 		return 1
 	}
 
+	// Qué ventanas hay ya sobre este data dir, y si son las que deberían. Dos
+	// procesos Chromium sobre el mismo perfil se corrompen las sesiones, y una
+	// ventana que no arrancó por su lanzador está corriendo bajo la identidad
+	// del Claude normal: en los dos casos abrir otra encima empeora las cosas.
+	app := desktopFindApp(name)
+	if !dryRun && runtime.GOOS == "darwin" {
+		launcherPath := ""
+		if app != nil {
+			launcherPath = app.Path
+		}
+		ccHome, _ := core.CCHome(home, name)
+		issues := core.DesktopPreflight(core.DesktopPreflightInput{
+			Profile: name, DataDir: plan.DataDir, CCHome: ccHome,
+			LauncherPath: launcherPath, Procs: desktopProcesses(),
+		})
+		if stop := reportDesktopIssues(issues, name, force, lang, stdout, stderr); stop {
+			return 1
+		}
+	}
+
 	// Con lanzador, se lanza a través de él: es lo que pone la ventana en el
 	// Dock con su nombre y su color. El lanzador calcula por sí mismo el
 	// entorno y el user-data-dir, así que aquí no van ni --env ni --args.
-	if !plain && name != "default" {
-		if app := desktopFindApp(name); app != nil {
+	//
+	// Y si no lo tiene, se construye ahora en vez de caer al camino directo: sin
+	// lanzador la ventana corre desde /Applications/Claude.app, que es el mismo
+	// bundle (y el mismo bundle id) que el Claude principal del usuario. Eso no
+	// es un detalle estético —es lo que dejó al usuario sin poder abrir su
+	// Claude el 2026-09-15—, así que el camino por defecto deja de producirlo.
+	if !plain && name != "default" && desktopAppsSupported() {
+		if app == nil && !dryRun {
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.desktop.open.building_launcher", name))
+			if built := desktopBuildFor(name, appHint, home, cfg, stderr); built != nil {
+				app = built
+			}
+		}
+		if app != nil {
 			return desktopOpenViaApp(app, plan, extra, dryRun, home, cfg, lang, stdout, stderr)
 		}
+		// Sin lanzador (no se pudo construir): se sigue, pero diciendo la
+		// verdad sobre lo que el usuario va a obtener.
+		fmt.Fprintln(stderr, warnLine(stderr, i18n.T(lang, "cli.desktop.plain_no_isolation", name)))
+	} else if plain && name != "default" {
+		fmt.Fprintln(stderr, warnLine(stderr, i18n.T(lang, "cli.desktop.plain_no_isolation", name)))
 	}
 
 	if len(extra) > 0 {
@@ -227,6 +288,83 @@ func desktopOpen(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, warnLine(stdout, i18n.T(lang, "cli.desktop.fresh_login")))
 	}
 	return 0
+}
+
+// reportDesktopIssues cuenta lo que encontró el preflight y dice si hay que
+// parar. Para cada problema fatal el usuario recibe una frase que explica qué
+// pasa y qué hacer, porque son estados que él no puede deducir mirando la
+// pantalla: dos ventanas de Claude se ven exactamente igual.
+//
+// Devuelve true si hay que abortar. `--force` deja pasar todo salvo nada: es la
+// salida de emergencia para quien sabe lo que hace, y el aviso se imprime igual.
+func reportDesktopIssues(issues []core.DesktopIssue, name string, force bool,
+	lang i18n.Lang, stdout, stderr io.Writer) bool {
+	stop := false
+	for _, is := range issues {
+		var msg string
+		switch is.Code {
+		case core.DesktopIssueForeignExec:
+			msg = i18n.T(lang, "cli.desktop.preflight.foreign_exec", name, is.Detail)
+		case core.DesktopIssueNoConfigDir:
+			msg = i18n.T(lang, "cli.desktop.preflight.no_config_dir", name)
+		case core.DesktopIssueWrongConfigDir:
+			msg = i18n.T(lang, "cli.desktop.preflight.wrong_config_dir", name, is.Detail)
+		case core.DesktopIssueAlreadyRunning:
+			msg = i18n.T(lang, "cli.desktop.open.instance_running", name)
+		case core.DesktopIssueUpdaterOn:
+			msg = i18n.T(lang, "cli.desktop.preflight.updater_on", name)
+		default:
+			continue
+		}
+		fmt.Fprintln(stderr, warnLine(stderr, msg))
+		if is.Fatal || is.Code == core.DesktopIssueAlreadyRunning {
+			stop = true
+		}
+	}
+	if stop && force {
+		fmt.Fprintln(stderr, mute(stderr, i18n.T(lang, "cli.desktop.preflight.forced")))
+		return false
+	}
+	return stop
+}
+
+// desktopBuildFor construye el lanzador de un perfil con los valores por
+// defecto (color automático, etiqueta por defecto). Best-effort: si no se puede,
+// devuelve nil y quien llama sigue por el camino directo avisando.
+func desktopBuildFor(name, appHint, home string, cfg *core.Config, stderr io.Writer) *core.DesktopApp {
+	appsDir, err := core.DesktopAppsDir()
+	if err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", err)
+		return nil
+	}
+	plan, err := core.PlanDesktop(desktopHost(appHint), home, name, cfg)
+	if err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", err)
+		return nil
+	}
+	ccpBin, err := desktopCCPBin()
+	if err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", err)
+		return nil
+	}
+	res, err := core.BuildDesktopApp(core.DesktopAppOptions{
+		Home: home, Profile: name, Cfg: cfg, AppsDir: appsDir,
+		SourceApp: plan.App, CCPBin: ccpBin, Generator: core.Version,
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", err)
+		return nil
+	}
+	return res.App
+}
+
+// desktopAppsSupported dice si en esta máquina tiene sentido crear lanzadores.
+// Son bundles de macOS; fuera de ahí solo con un directorio explícito, que es
+// como los ejercita el CI. Sin esta guarda, `desktop open <perfil>` en Linux
+// intentaba construir un .app en cada lanzamiento y escupía un error y un aviso
+// que no le decían nada al usuario.
+func desktopAppsSupported() bool {
+	return runtime.GOOS == "darwin" || os.Getenv("CCP_DESKTOP_APPS_DIR") != ""
 }
 
 // desktopFindApp devuelve el lanzador del perfil, o nil si no hay (o si no se
@@ -325,14 +463,17 @@ func desktopAppHint(flag string) string {
 func launchDesktop(plan core.DesktopPlan) error {
 	cmd := exec.Command(plan.Bin, plan.Args...)
 
-	if runtime.GOOS != "darwin" {
-		// El entorno solo hay que construirlo donde no lo llevan los args:
-		// en darwin el delta viaja en los `--env` de open.
-		env := os.Environ()
-		for _, v := range plan.Env {
-			env = append(env, v.Name+"="+v.Value)
-		}
-		cmd.Env = env
+	// El entorno se fija SIEMPRE, darwin incluido, y esto no es redundante con
+	// los `--env` de open: `open` hereda el entorno de quien lo invoca y
+	// `--env` solo SOBRESCRIBE las variables que nombra. Medido: con
+	// ANTHROPIC_BASE_URL exportada en la terminal (perfil deepseek activo), un
+	// `ccp desktop open <official>` la metía viva en la instancia — el Code tab
+	// hablando con otro proveedor mientras la ventana lleva la cuenta de
+	// Anthropic. CleanEnv parte de EnvForChild, que quita TODAS las gestionadas
+	// antes de poner las del perfil, así que el aislamiento deja de depender de
+	// desde dónde se lanzó.
+	if len(plan.CleanEnv) > 0 {
+		cmd.Env = plan.CleanEnv
 	}
 
 	cmd.Stdin = nil
@@ -411,7 +552,7 @@ func dispatchDesktopApp(args []string, stdout, stderr io.Writer) int {
 
 	// El lanzador es un bundle de macOS: fuera de ahí solo tiene sentido con
 	// un directorio explícito (que es como lo ejercita el CI).
-	if runtime.GOOS != "darwin" && os.Getenv("CCP_DESKTOP_APPS_DIR") == "" {
+	if !desktopAppsSupported() {
 		fmt.Fprintln(stderr, i18n.T(lang, "cli.desktop.app.only_macos"))
 		return 1
 	}
@@ -498,11 +639,30 @@ func dispatchDesktopApp(args []string, stdout, stderr io.Writer) int {
 			continue
 		}
 
+		// Reconstruir es rename(bundle→viejo) + RemoveAll(viejo): con la
+		// ventana abierta se le quita el espejo de debajo a un Chromium vivo.
+		// Sin perfiles esto itera TODOS los oficiales, así que un refresco de
+		// rutina podía demoler varias ventanas a la vez.
+		//
+		// La guarda va DENTRO de BuildDesktopApp (Guard), que la llama solo si
+		// de verdad va a escribir: preguntarla aquí hacía fallar un refresco que
+		// iba a ser un no-op, y bastaba tener la ventana abierta.
+		dataDir := core.DesktopDataDir(home, name)
 		res, berr := core.BuildDesktopApp(core.DesktopAppOptions{
 			Home: home, Profile: name, Cfg: cfg, AppsDir: appsDir,
 			SourceApp: plan.App, Label: label, Color: color,
 			CCPBin: ccpBin, Generator: core.Version, Force: force,
+			Guard: func() error {
+				if desktopGuardInstance(dataDir, name, force, lang, stderr) {
+					return errDesktopInstanceBusy
+				}
+				return nil
+			},
 		})
+		if errors.Is(berr, errDesktopInstanceBusy) {
+			exit = 1
+			continue // la guarda ya explicó por qué
+		}
 		if berr != nil {
 			fmt.Fprintf(stderr, "[error] %v\n", berr)
 			exit = 1
@@ -525,7 +685,15 @@ func dispatchDesktopApp(args []string, stdout, stderr io.Writer) int {
 // vive en el user-data-dir y no se toca.
 func desktopAppRm(args []string, stdout, stderr io.Writer) int {
 	var name string
+	force := false
 	for _, a := range args {
+		if a == "--force" {
+			// El mensaje de la guarda dice «o pasa --force»: sin esto la frase
+			// mandaba al usuario a una opción que el parser rechazaba, dejándolo
+			// sin salida salvo cerrar la ventana.
+			force = true
+			continue
+		}
 		if strings.HasPrefix(a, "-") {
 			fmt.Fprintln(stderr, i18n.T(currentLang(), "cli.desktop.unknown_flag", a))
 			return 1
@@ -549,6 +717,11 @@ func desktopAppRm(args []string, stdout, stderr io.Writer) int {
 	}
 	if app == nil {
 		fmt.Fprintln(stderr, i18n.T(lang, "cli.desktop.app.none", name))
+		return 1
+	}
+	// Borrar el bundle con su ventana abierta le arranca a Chromium archivos
+	// que tiene mapeados por ruta: el espejo vive DENTRO del bundle.
+	if desktopGuardInstance(core.DesktopDataDir(resolveHome(), name), name, force, lang, stderr) {
 		return 1
 	}
 	if err := core.RemoveDesktopApp(appsDir, app); err != nil {

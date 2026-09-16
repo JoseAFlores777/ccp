@@ -437,6 +437,12 @@ func TestIsDesktopLauncherYPlan(t *testing.T) {
 	if !strings.Contains(env, "PATH=/usr/bin") {
 		t.Error("el resto del entorno se hereda")
 	}
+	// El espejo lleva Squirrel dentro: si su updater llegara a instalar, el
+	// target sería el propio espejo y el ElectronAsarIntegrity del plist externo
+	// dejaría de cuadrar, rompiendo el lanzador para siempre.
+	if !strings.Contains(env, DesktopDisableUpdateVar+"=1") {
+		t.Errorf("el lanzador debe arrancar con el updater apagado:\n%s", env)
+	}
 
 	bin, args := DesktopAppOpenCommand(res.App, []string{"--x"})
 	if bin != "open" || strings.Join(args, " ") != "-a "+res.App.Path+" --args --x" {

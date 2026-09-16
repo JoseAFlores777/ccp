@@ -523,7 +523,15 @@ ccp desktop open work-1            # lanza la instancia del perfil 'work-1'
 ccp desktop open                   # sin perfil: el que resuelva la carpeta actual
 ccp desktop list                   # instancias en disco y su tamaño
 ccp desktop open work-1 --dry-run  # imprime el plan sin lanzar ni tocar nada
+ccp desktop doctor                 # audita lanzadores, instancias e identidad
 ```
+
+Si alguna vez una ventana aparece vacía, o abrir Claude desde el Dock te trae la que no es, ejecuta
+`ccp desktop doctor` antes de dar nada por perdido. Te dice qué ventanas hay vivas, si alguna corre con
+la identidad del Claude principal, si alguna está escribiendo su historial de Code en el `~/.claude`
+global y —la más importante— si un data dir guarda sesiones de más de una cuenta. Las sesiones se
+indexan por cuenta: las que no ves **no** se han borrado, reaparecen al volver a entrar con esa cuenta.
+Diagnostica; nunca repara.
 
 Funciona **sin reinstalar el rc** (`ccp install` solo hace falta para el autocompletado).
 

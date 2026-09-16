@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 	"github.com/mattn/go-isatty"
 )
 
@@ -63,7 +66,9 @@ func RunDesktopLauncher(appPath string, args []string) int {
 	if home == "" {
 		home = resolveHome()
 	}
-	cfg, err := loadCfg(home)
+	// SIN migrar: ver loadCfgNoMigrate. Un clic en el icono del Dock no es el
+	// usuario pidiendo que se le reescriba la configuración.
+	cfg, err := loadCfgNoMigrate(home)
 	if err != nil {
 		return desktopLauncherFail("no se pudo cargar la config de ccp", err)
 	}
@@ -174,20 +179,36 @@ func desktopInstanceRunning(dataDir string) bool {
 	if dataDir == "" {
 		return false
 	}
-	out, err := exec.Command("ps", "-axo", "command").Output()
-	if err != nil {
-		return false
-	}
-	needle := "--user-data-dir=" + dataDir
-	for _, line := range strings.Split(string(out), "\n") {
-		i := strings.Index(line, needle)
-		if i < 0 {
-			continue
-		}
-		rest := line[i+len(needle):]
-		if rest == "" || rest[0] == ' ' {
+	for _, p := range desktopProcesses() {
+		if p.DataDir == dataDir {
 			return true
 		}
 	}
 	return false
+}
+
+// errDesktopInstanceBusy señala que la guarda paró una escritura. Es un
+// centinela, no un mensaje: quien lo produce ya ha impreso la explicación.
+var errDesktopInstanceBusy = errors.New("la instancia está en marcha")
+
+// desktopGuardInstance es la guarda de las operaciones DESTRUCTIVAS sobre un
+// lanzador o una instancia: reconstruirlo (rename + RemoveAll del bundle
+// anterior) o borrarlo (RemoveAll) con su ventana abierta le arranca a Chromium
+// los archivos que tiene mapeados por ruta. Devuelve true si hay que abortar, y
+// ya ha impreso por qué.
+//
+// Hasta ahora solo dos de las cinco rutas que destruyen tenían esta
+// comprobación; `ccp desktop app --force` sin perfiles itera TODOS los
+// oficiales, así que un refresco de rutina podía demoler varias ventanas vivas
+// a la vez.
+func desktopGuardInstance(dataDir, name string, force bool, lang i18n.Lang, stderr io.Writer) bool {
+	if !desktopInstanceRunning(dataDir) {
+		return false
+	}
+	fmt.Fprintln(stderr, warnLine(stderr, i18n.T(lang, "cli.desktop.instance_busy", name)))
+	if force {
+		fmt.Fprintln(stderr, mute(stderr, i18n.T(lang, "cli.desktop.preflight.forced")))
+		return false
+	}
+	return true
 }

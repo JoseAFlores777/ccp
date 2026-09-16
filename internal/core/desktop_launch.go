@@ -23,6 +23,15 @@ type DesktopPlan struct {
 	Args    []string
 	Env     []EnvVar // delta del perfil (lo que aísla el Code tab)
 	Fresh   bool     // el data dir aún no existe: primer arranque
+
+	// CleanEnv es el entorno COMPLETO del hijo, con las gestionadas del
+	// llamante ya quitadas. `--env` de `open` no basta: sobrescribe lo que
+	// nombra y deja vivo lo demás, así que sin esto el aislamiento dependía de
+	// qué perfil tuviera activo la terminal desde la que se lanzó.
+	CleanEnv []string
+	// NewInstance dice si se pidió una instancia nueva (`-n`). Es información
+	// para quien informa al usuario, no un parámetro.
+	NewInstance bool
 }
 
 // DesktopHost son las dependencias externas de PlanDesktop, inyectables.
@@ -31,6 +40,16 @@ type DesktopHost struct {
 	LookPath func(string) (string, error)
 	Stat     func(string) (os.FileInfo, error)
 	AppHint  string // ruta explícita (--app, CCP_DESKTOP_APP o config)
+
+	// Environ es el entorno del proceso que lanza (os.Environ()). Entra como
+	// dato para que PlanDesktop siga siendo pura y para que un test pueda
+	// afirmar «con esto heredado, el hijo recibe exactamente esto otro».
+	Environ []string
+	// ForeignInstance: hay un proceso de Claude vivo que NO es el de este
+	// perfil y que está ocupando el bundle id de la app (el estado colapsado).
+	// Lo averigua quien tiene sondas —el CLI, con `ps`—; aquí solo se usa para
+	// decidir el `-n`. Ver la nota del switch de darwin.
+	ForeignInstance bool
 }
 
 // macOSDefaultApps son las ubicaciones donde vive Claude.app, en orden.
@@ -75,20 +94,58 @@ func PlanDesktop(h DesktopHost, home, name string, cfg *Config) (DesktopPlan, er
 		plan.Env = append(plan.Env, v)
 	}
 
+	// Y las barreras de la instancia: hoy, apagar el updater para que esta
+	// ventana no pueda actualizar el Claude.app del usuario. Ver desktop_env.go
+	// — el 2026-09-15 esto ocurrió de verdad por este camino. Nunca en default.
+	plan.Env = append(plan.Env, desktopGuardEnv(name)...)
+
 	app, err := resolveDesktopApp(h)
 	if err != nil {
 		return DesktopPlan{}, err
 	}
 	plan.App = app
 
+	// El entorno COMPLETO del hijo, no solo el delta. `open` hereda el entorno
+	// de quien lo invoca y `--env` solo SOBRESCRIBE lo que nombra: una
+	// ANTHROPIC_BASE_URL viva en la terminal (perfil deepseek activo) entraba
+	// intacta en una instancia official, mandando los prompts del Code tab a
+	// otro proveedor con el historial de la cuenta de Anthropic. EnvForChild
+	// quita TODAS las gestionadas antes de poner las del perfil, que es la
+	// única forma de que el aislamiento no dependa de desde dónde se lanzó.
+	//
+	// Las barreras se quitan SIEMPRE de lo heredado antes de volver a ponerlas
+	// donde tocan: DISABLE_UPDATE_CHECK no es una var gestionada por ccp, así
+	// que EnvForChild no la limpia, y una terminal que la tuviera exportada se
+	// la colaría a `default` — o sea, al Claude del usuario, al que
+	// deliberadamente NO se le apagan las actualizaciones.
+	plan.CleanEnv = desktopStripGuards(EnvForChild(h.Environ, home, name, cfg))
+	for _, v := range desktopGuardEnv(name) {
+		plan.CleanEnv = append(plan.CleanEnv, v.Name+"="+v.Value)
+	}
+
 	switch h.GOOS {
 	case "darwin":
-		// `open -n` en vez de ejecutar Contents/MacOS/Claude directo: pasa por
+		// `open` en vez de ejecutar Contents/MacOS/Claude directo: pasa por
 		// LaunchServices, así que la ventana no queda colgando del proceso de
 		// la terminal y sobrevive a cerrarla. El `--env` de open es lo que
 		// mete el delta en el entorno del proceso Desktop.
+		//
+		// El `-n` (instancia nueva) NO es incondicional, y esa es la
+		// corrección: `default` no tiene data dir propio, así que un `-n` ahí
+		// abría un SEGUNDO proceso Chromium sobre ~/Library/Application
+		// Support/Claude —el data dir real del usuario, con dos procesos
+		// escribiendo el mismo perfil— en vez de traer al frente la ventana que
+		// ya existe. Con una excepción que vale su peso: si una instancia de
+		// perfil está ocupando el bundle id de Claude (el proceso colapsado),
+		// `open -a` activaría ESA ventana y el usuario se quedaría sin poder
+		// abrir su Claude principal. Ahí sí hace falta forzar una nueva.
 		plan.Bin = "open"
-		plan.Args = []string{"-n", "-a", app}
+		plan.Args = nil
+		if plan.DataDir != "" || h.ForeignInstance {
+			plan.NewInstance = true
+			plan.Args = append(plan.Args, "-n")
+		}
+		plan.Args = append(plan.Args, "-a", app)
 		for _, v := range plan.Env {
 			plan.Args = append(plan.Args, "--env", v.Name+"="+v.Value)
 		}

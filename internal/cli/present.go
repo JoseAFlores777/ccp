@@ -180,6 +180,17 @@ func warnLine(w io.Writer, msg string) string {
 	return "[warn] " + msg
 }
 
+// errLine es el tercer nivel que la cabecera de arriba ya prometía: algo que
+// está roto AHORA, no un aviso. Lo estrenó `ccp desktop doctor`, donde la
+// diferencia entre «tu espejo está desfasado» y «esta ventana está usando la
+// identidad de tu Claude principal» es la diferencia entre leer y actuar.
+func errLine(w io.Writer, msg string) string {
+	if useColor(w) {
+		return "\x1b[31m✖\x1b[0m " + msg
+	}
+	return "[error] " + msg
+}
+
 // statusLine elige ok/warn según el booleano del chequeo.
 func statusLine(w io.Writer, ok bool, msg string) string {
 	if ok {

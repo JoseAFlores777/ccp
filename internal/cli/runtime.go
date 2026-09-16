@@ -45,6 +45,19 @@ func loadCfg(home string) (*core.Config, error) {
 	return core.Load(home)
 }
 
+// loadCfgNoMigrate lee la config SIN disparar la migración encadenada. Es el
+// mismo criterio que ya se aplica a `_statusline`: hay invocaciones que no son
+// el usuario pidiendo algo, y migrar su configuración (con su backup, y con
+// stdout apuntando a /dev/null) no es lo que pidió.
+//
+// El modo lanzador es exactamente ese caso: un clic en el icono del Dock
+// disparaba dsctl→ccp(TSV)→ccp.yaml a ciegas. Si hay algo que migrar, lo hará
+// el siguiente `ccp` de verdad en una terminal, donde el usuario puede leer qué
+// pasó.
+func loadCfgNoMigrate(home string) (*core.Config, error) {
+	return core.Load(home)
+}
+
 // gitRepoRoot replica `git rev-parse --show-toplevel` con cwd en dir. Devuelve
 // "" si no hay git o el dir no está en un repo (igual que el oráculo bash, que
 // descarta el stderr y deja la variable vacía).

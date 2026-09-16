@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -47,7 +48,13 @@ import (
 //   - LaunchServices/Dock identifican el proceso por el bundle más interno que
 //     contiene su ejecutable SEGÚN LA RUTA CON LA QUE SE HIZO EXEC (sin resolver
 //     symlinks): `…/Contents/MacOS/Claude-run` está en la capa externa, así que
-//     el nombre, el icono y el bundle id son los del lanzador.
+//     el nombre, el icono y el bundle id son los del lanzador. Esa identidad es
+//     real pero NO es duradera: vale mientras el proceso sea el que el kernel
+//     ejecutó a través de ese symlink, y cualquier re-exec por `process.execPath`
+//     (que Electron resuelve con realpath) lo reencarna en el espejo, con el id
+//     de Claude. Desde ahí `open -a Claude` activa esta ventana en vez de la del
+//     usuario. No hay palanca para recuperarlo (ver CLAUDE.md), así que ccp lo
+//     DETECTA (`ccp desktop doctor`) en vez de darlo por hecho.
 //   - Security.framework (Keychain, TCC) valida el proceso por su ruta REAL
 //     (proc_pidpath resuelve el symlink): `Contents/ccp/Claude/Contents/MacOS/
 //     Claude`, dentro de un bundle idéntico al original —mismo Info.plist, mismo
@@ -70,10 +77,15 @@ import (
 // construyó el espejo, así que cuando Claude.app se actualiza el lanzador
 // sigue funcionando (con la versión vieja) hasta que ccp lo reconstruye —cosa
 // que el propio modo lanzador hace en el siguiente arranque al ver que
-// CFBundleVersion cambió (DesktopAppStale). La instancia lanzada no puede
-// actualizarse a sí misma: Squirrel busca en la descarga un bundle con el id
-// de la app en marcha (el del lanzador, que es propio) y no lo encuentra.
-// Quien actualiza es la instancia normal de Claude.app, como siempre.
+// CFBundleVersion cambió, o que el espejo dejó de compartir inodos con la
+// fuente (DesktopAppStale).
+//
+// La instancia lanzada SÍ puede actualizar, y lo hizo: el 2026-09-15 una
+// instancia de perfil movió /Applications/Claude.app de 1.52386.3 a 2.110.0.
+// Aquí se afirmaba lo contrario y era falso: SQRLUpdater compara contra
+// NSRunningApplication.currentApplication.bundleIdentifier, que tras cualquier
+// re-exec por ruta real es el id de Claude, no el del lanzador. Por eso toda
+// instancia de perfil arranca ahora con DISABLE_UPDATE_CHECK=1 (desktop_env.go).
 
 const (
 	desktopAppManifestName = "ccp-desktop.json"
@@ -214,6 +226,11 @@ type DesktopAppOptions struct {
 	Generator string // versión de ccp, informativo
 	Force     bool   // reconstruir aunque parezca al día
 	Now       func() time.Time
+	// Guard se llama justo antes de la PRIMERA escritura, y solo entonces: es
+	// donde el CLI comprueba que la instancia no esté viva. Preguntarlo antes
+	// convertía en error un refresco que iba a ser un no-op. Si devuelve error,
+	// no se ha tocado nada.
+	Guard func() error
 }
 
 // DesktopAppResult dice qué pasó.
@@ -303,6 +320,16 @@ func BuildDesktopApp(o DesktopAppOptions) (*DesktopAppResult, error) {
 	if !o.Force && existing != nil && existing.Path == target && desktopManifestSame(existing.Manifest, m) {
 		if _, stale := DesktopAppStale(existing, o.SourceApp); !stale {
 			return &DesktopAppResult{App: existing, Changed: false, Reason: "unchanged"}, nil
+		}
+	}
+
+	// A partir de aquí SÍ se escribe, así que aquí es donde se pregunta si se
+	// puede. Preguntarlo antes —en el CLI, antes de saber si hay algo que
+	// hacer— convertía un refresco que iba a ser un no-op en un error para
+	// cualquiera que tuviera su ventana abierta.
+	if o.Guard != nil {
+		if err := o.Guard(); err != nil {
+			return nil, err
 		}
 	}
 
@@ -627,6 +654,25 @@ func DesktopAppStale(app *DesktopApp, sourceApp string) (string, bool) {
 	if !fileExists(nestedExe) {
 		return "falta el espejo de la app", true
 	}
+	// Segunda señal, independiente de la versión: ¿el espejo sigue compartiendo
+	// inodo con la fuente? ShipIt no parchea el bundle, lo REEMPLAZA entero con
+	// un move, así que los hard links del espejo quedan apuntando a los inodos
+	// del Claude viejo. Sin esta comprobación, una reinstalación de la MISMA
+	// versión deja el espejo huérfano para siempre —reteniendo una copia
+	// completa en disco— y la única señal que había (la cadena de versión) no
+	// se entera de nada.
+	if mi, merr := os.Stat(nestedExe); merr == nil {
+		if si, serr := os.Stat(filepath.Join(sourceApp, "Contents", "MacOS", src.exeName)); serr == nil {
+			// Solo cuenta si los dos están en el MISMO dispositivo: si no,
+			// hardlinkTree cayó a copia por construcción (volúmenes distintos no
+			// admiten hard links) y no hay nada que reconstruir — sin esta
+			// condición el lanzador se declararía obsoleto para siempre y se
+			// reconstruiría en cada arranque.
+			if sameDevice(mi, si) && !os.SameFile(mi, si) {
+				return "el espejo ya no comparte archivos con " + sourceApp, true
+			}
+		}
+	}
 	if !fileExists(filepath.Join(app.Path, "Contents", "MacOS", desktopAppExecName)) {
 		return "falta el ejecutable del lanzador", true
 	}
@@ -640,6 +686,17 @@ func DesktopAppStale(app *DesktopApp, sourceApp string) (string, bool) {
 		return "falta el icono", true
 	}
 	return "", false
+}
+
+// sameDevice dice si dos archivos viven en el mismo dispositivo. Sin eso no se
+// puede distinguir «los hard links se rompieron» de «aquí nunca pudo haberlos».
+func sameDevice(a, b os.FileInfo) bool {
+	sa, oka := a.Sys().(*syscall.Stat_t)
+	sb, okb := b.Sys().(*syscall.Stat_t)
+	if !oka || !okb {
+		return true // sin dato, se mantiene el criterio anterior
+	}
+	return sa.Dev == sb.Dev
 }
 
 // RemoveDesktopApp borra un lanzador. Solo borra lo que es nuestro (tiene
@@ -725,6 +782,17 @@ func PlanDesktopLauncher(app *DesktopApp, home string, cfg *Config, args, enviro
 			continue
 		}
 		env = append(env, kv)
+	}
+	// La misma barrera que en `desktop open`, y aquí importa más: el espejo
+	// lleva Squirrel.framework y su ShipIt hard-linkeados dentro (hardlinkTree
+	// no excluye nada) y el updater se inicializa en CADA arranque. Si llegara a
+	// instalar, su targetBundleURL sería el ESPEJO, lo que invalidaría el
+	// ElectronAsarIntegrity del plist externo y rompería este lanzador para
+	// siempre. El valor es "1", así que el filtro de gestionadas vacías de
+	// arriba no lo toca.
+	env = desktopStripGuards(env)
+	for _, v := range desktopGuardEnv(profile) {
+		env = append(env, v.Name+"="+v.Value)
 	}
 	bin := filepath.Join(app.Path, "Contents", "MacOS", desktopAppRunName)
 	dataDir := DesktopDataDir(home, profile)

@@ -275,3 +275,65 @@ func TestDesktopAppRechazaDefaultYColorInvalido(t *testing.T) {
 		t.Errorf("el error debería enseñar la paleta: %s", errb.String())
 	}
 }
+
+// --- lo que el incidente del 2026-09-15 dejó sin cubrir -----------------
+//
+// Los tres tests de abajo son la red del camino que CAUSÓ el daño (lanzar a
+// través de /Applications/Claude.app, indistinguible del Claude del usuario) y
+// del comando que lo habría diagnosticado.
+
+// Sin lanzador, `desktop open` debe construirlo en vez de caer al camino
+// directo: es lo que evita que la ventana salga con la identidad del Claude
+// principal.
+func TestDesktopOpenConstruyeElLanzadorSiFalta(t *testing.T) {
+	_, appsDir := homeConLanzadores(t)
+	t.Setenv("PATH", fakeOpenDir(t)+":"+os.Getenv("PATH"))
+
+	var out, errb bytes.Buffer
+	if code := Dispatch([]string{"desktop", "open", "work"}, &out, &errb); code != 0 {
+		t.Fatalf("exit = %d: %s", code, errb.String())
+	}
+	if _, err := os.Stat(filepath.Join(appsDir, "Claude (work).app", "Contents", "ccp-desktop.json")); err != nil {
+		t.Fatalf("debería haber construido el lanzador: %v\nout=%s err=%s", err, out.String(), errb.String())
+	}
+}
+
+// Con --plain el usuario pide explícitamente el camino directo, pero tiene que
+// enterarse de lo que eso significa.
+func TestDesktopOpenPlainAvisaDeLaColision(t *testing.T) {
+	homeConLanzadores(t)
+	t.Setenv("PATH", fakeOpenDir(t)+":"+os.Getenv("PATH"))
+
+	var out, errb bytes.Buffer
+	Dispatch([]string{"desktop", "open", "work", "--plain"}, &out, &errb)
+	if !strings.Contains(errb.String(), "/Applications/Claude.app") {
+		t.Errorf("--plain debe decir que la ventana será indistinguible del Claude principal: %s", errb.String())
+	}
+}
+
+// `doctor` necesita su propio case en el dispatch: sin él, el default lo trata
+// como nombre de perfil y muere con «no existe el perfil "doctor"».
+func TestDesktopDoctorTieneDispatchPropio(t *testing.T) {
+	homeConLanzadores(t)
+
+	var out, errb bytes.Buffer
+	code := Dispatch([]string{"desktop", "doctor", "--json"}, &out, &errb)
+	if strings.Contains(errb.String(), "doctor") && strings.Contains(errb.String(), "perfil") {
+		t.Fatalf("lo trató como perfil: %s", errb.String())
+	}
+	var findings []map[string]any
+	if err := json.Unmarshal(out.Bytes(), &findings); err != nil {
+		t.Fatalf("--json debe emitir un array válido (exit %d): %v\n%s", code, err, out.String())
+	}
+}
+
+// fakeOpenDir pone un `open` de mentira en el PATH: los tests no abren ventanas.
+func fakeOpenDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	script := filepath.Join(dir, "open")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}

@@ -1098,6 +1098,11 @@ denegados por allow_from: work-2, deepseek</pre>
         <p class="hint"><code>--json</code> returns <code>profile</code>, <code>data_dir</code>, <code>exists</code>, <code>bytes</code>, <code>app</code> and <code>color</code>; always an array, with <code>default</code> first.</p>
       </div>
       <div class="do">
+        <p class="lead">Audit launchers, instances and their identity.</p>
+        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop doctor</pre></div>
+        <p class="hint">If a window shows up empty, or opening Claude from the Dock brings up the wrong one, run this before assuming anything was lost. It reports which windows are alive, whether one is running under the main Claude&#8217;s identity, whether any is writing its Code history into the global <code>~/.claude</code>, and whether a data dir holds sessions from more than one account &#8212; those are <strong>not</strong> deleted, they come back when you sign in with that account again. <code>--json</code> always returns an array. It diagnoses; it never repairs.</p>
+      </div>
+      <div class="do">
         <p class="lead">Delete an instance.</p>
         <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop rm work-1 --yes</pre></div>
         <div class="tip"><span class="lbl">Careful</span>It is a logout that takes that instance's session, tokens and MCP config with it. That is why it demands <code>--yes</code>.</div>

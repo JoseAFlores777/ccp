@@ -1093,6 +1093,11 @@ denegados por allow_from: work-2, deepseek</pre>
         <p class="hint"><code>--json</code> devuelve <code>profile</code>, <code>data_dir</code>, <code>exists</code>, <code>bytes</code>, <code>app</code> y <code>color</code>; siempre un array, con <code>default</code> de primero.</p>
       </div>
       <div class="do">
+        <p class="lead">Audita lanzadores, instancias e identidad.</p>
+        <div class="code"><button class="copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop doctor</pre></div>
+        <p class="hint">Si una ventana aparece vac&iacute;a, o abrir Claude desde el Dock te trae la que no es, ejec&uacute;talo antes de dar nada por perdido. Dice qu&eacute; ventanas hay vivas, si alguna corre con la identidad del Claude principal, si alguna escribe su historial de Code en el <code>~/.claude</code> global y si un data dir guarda sesiones de m&aacute;s de una cuenta &#8212; esas <strong>no</strong> se han borrado, reaparecen al volver a entrar con esa cuenta. <code>--json</code> devuelve siempre un array. Diagnostica; nunca repara.</p>
+      </div>
+      <div class="do">
         <p class="lead">Borrar una instancia.</p>
         <div class="code"><button class="copy" aria-label="Copiar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>copy</span></button><pre>ccp desktop rm work-1 --yes</pre></div>
         <div class="tip"><span class="lbl">Cuidado</span>Es un logout que se lleva la sesión, los tokens y la config MCP de esa instancia. Por eso exige <code>--yes</code>.</div>
