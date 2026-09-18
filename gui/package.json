@@ -1,0 +1,31 @@
+{
+  "name": "ccp-gui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:sandbox": "CCP_SANDBOX=\"$PWD/.sandbox\" vite",
+    "app:sandbox": "CCP_SANDBOX=\"$PWD/.sandbox\" tauri dev --config '{\"build\":{\"beforeDevCommand\":null}}'",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b",
+    "tauri": "tauri",
+    "sandbox": "bash scripts/sandbox.sh",
+    "sidecar": "bash scripts/build-sidecar.sh"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-dialog": "^2.7.3",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/node": "^26.6.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0"
+  }
+}

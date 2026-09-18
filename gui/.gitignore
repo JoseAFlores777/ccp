@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.sandbox/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/binaries/ccp-*
+*.tsbuildinfo

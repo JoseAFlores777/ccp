@@ -108,6 +108,10 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 	// reinstalar el rc para usarlo (solo para que autocomplete).
 	case "desktop":
 		return dispatchDesktop(rest, stdout, stderr)
+	// `serve` es la API para la interfaz gráfica (gui/): JSON por stdio sobre el
+	// mismo motor. Tampoco toca el entorno del shell padre.
+	case "serve":
+		return cmdServe(rest, stdout, stderr)
 	case "status":
 		return cmdStatus(rest, stdout, stderr)
 	case "path":

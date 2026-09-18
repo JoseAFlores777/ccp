@@ -62,6 +62,8 @@ Pulsa `e` sobre un perfil para su **vista de perfil**: qué configuración aplic
 <img src="docs/screenshots/cli-help.png" alt="ccp help — CLI coloreado" width="620">
 </div>
 
+¿Prefieres una ventana? También hay una **app de escritorio** (`gui/`, Tauri, beta): las mismas cuentas, carpetas, conversaciones, rotación y ventanas de Desktop, más un **mapa de cuentas** donde los respaldos se conectan arrastrando flechas y nada se escribe hasta revisar y aplicar. Usa el motor que ya tienes (`ccp serve --stdio`), enseña el comando equivalente de cada pantalla y abre una Terminal para lo que solo puede hacerse en una terminal (un `/login`, un handoff, una sesión supervisada). Cómo compilarla y desarrollarla: [gui/README.md](gui/README.md).
+
 ---
 
 ## Antes de empezar

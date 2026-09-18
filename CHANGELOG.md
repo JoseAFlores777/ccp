@@ -4,6 +4,17 @@
 
 ### Added
 
+- **App de escritorio (`gui/`, Tauri + React)** — todo ccp desde una ventana: qué cuenta usa cada carpeta,
+  el uso que le queda a cada una, las reglas con un probador, las conversaciones de todas las cuentas (de
+  terminal y de Desktop) y un asistente para moverlas, los préstamos, la rotación y un **mapa de cuentas**
+  donde los respaldos se conectan arrastrando y nada se escribe hasta revisar y aplicar, las ventanas de
+  Desktop, el diagnóstico, la memoria de Claude, los ajustes y las copias de seguridad. Cada pantalla enseña
+  su comando equivalente, y lo que solo puede ocurrir en una terminal (un `/login`, un préstamo, una sesión
+  supervisada) se abre en Terminal con el comando puesto en vez de fingirse. Ver [gui/README.md](gui/README.md).
+- **`ccp serve --stdio`** — el motor de ccp como API: JSON por stdin/stdout, una petición y una respuesta
+  por línea. Es lo que usa la app de escritorio, y reutiliza los mismos comandos del CLI en vez de
+  reimplementarlos. Las lecturas van en paralelo y las escrituras en serie.
+
 - **`ccp desktop copy <uuid|título> <perfil>`** — lleva una conversación de la pestaña Code a la ventana de
   Desktop de otro perfil: la copia al cc-home del destino y le pide a esa ventana que la importe, para que
   salga en su barra lateral con el mismo título. Ver el [ADR 0010](docs/adr/0010-desktop-session-copy-via-import-link.md).
