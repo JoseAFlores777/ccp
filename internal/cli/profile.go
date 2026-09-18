@@ -66,6 +66,9 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 		if os.Getenv("CCP_PROFILE") == old {
 			fmt.Fprintln(stdout, i18n.T(lang, "cli.profile.rename_active_hint", old, nuevo))
 		}
+		if hint := renameLauncherHint(lang, old, nuevo); hint != "" {
+			fmt.Fprintln(stdout, hint)
+		}
 		return 0
 	case "list", "ls", "":
 		names, err := core.ProfileList(home)
@@ -140,6 +143,35 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.sub_help"))
 		return 1
 	}
+}
+
+// renameLauncherHint es el aviso de `profile rename` cuando el perfil viejo
+// tenía lanzador de Desktop. El manifiesto del lanzador nombra el perfil, así
+// que tras el rename ya no abre (su perfil no existe), y core no lo toca a
+// propósito: rehacerlo es de `ccp desktop app`, que antes comprueba que su
+// ventana esté cerrada. El aviso trae los dos comandos listos para pegar, con
+// el color del lanzador viejo y, si tenía un nombre propio, también ese nombre.
+//
+// "" si no hay lanzador o no se pudo mirar: el rename ya está hecho y un aviso
+// no puede convertirlo en un error.
+func renameLauncherHint(lang i18n.Lang, old, nuevo string) string {
+	appsDir, err := core.DesktopAppsDir()
+	if err != nil {
+		return ""
+	}
+	app, err := core.FindDesktopApp(appsDir, old)
+	if err != nil || app == nil {
+		return ""
+	}
+	rebuild := "ccp desktop app " + core.ShellQuote(nuevo)
+	if c := app.Manifest.Color; c != "" {
+		rebuild += " --color " + core.ShellQuote(c)
+	}
+	if l := app.Manifest.Label; l != "" && l != core.DefaultDesktopLabel(old) {
+		rebuild += " --label " + core.ShellQuote(l)
+	}
+	return i18n.T(lang, "cli.profile.rename_launcher_hint",
+		old, app.Path, "ccp desktop app rm "+core.ShellQuote(old), rebuild)
 }
 
 // profileAdd implementa `ccp profile add <nombre> --official|--deepseek [opts]`.

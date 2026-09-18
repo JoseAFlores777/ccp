@@ -2,17 +2,26 @@ package core
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"regexp"
+	"slices"
+	"strings"
+
+	yaml "github.com/goccy/go-yaml"
 )
 
 // profile_rename.go — renombrar un perfil. El nombre no es solo una etiqueta:
 // es la clave de `profiles` en ccp.yaml, el valor al que apunta cada regla, el
-// nombre del directorio que guarda la api_key y el login (cc-home), y el
-// `from`/`to` de cada marcador de handoff. Cambiarlo a mano en uno solo deja el
-// estado incoherente de una forma silenciosa: una regla huérfana no falla,
-// resuelve a `default`, así que el usuario descubre el problema cuando Claude
-// Code arranca con la cuenta equivocada.
+// nombre del directorio que guarda la api_key y el login (cc-home), el
+// `from`/`to` de cada marcador de handoff y cada mención en `auto_handoff`
+// (cadenas, allow_from y hooks). Cambiarlo a mano en uno solo deja el estado
+// incoherente de una forma silenciosa: una regla huérfana no falla, resuelve a
+// `default`, así que el usuario descubre el problema cuando Claude Code arranca
+// con la cuenta equivocada. En `auto_handoff` es igual de mudo: la cuenta deja
+// de usarse como préstamo, el gate allow_from ya no la reconoce ni como primario
+// ni como destino, y sus sensores desaparecen en la siguiente regeneración del
+// cc-home.
 
 // profileNameRe es el conjunto de nombres aceptados al renombrar: el nombre se
 // usa como componente de ruta (<home>/profiles/<name>), así que un `/` o un
@@ -27,21 +36,25 @@ func validProfileName(name string) bool {
 }
 
 // ProfileRename renombra un perfil moviendo TODO su estado: el directorio
-// (api_key + cc-home + overlay), la entrada de ccp.yaml, las reglas que lo
-// apuntan, los artefactos authored de scope profile y los marcadores de
-// handoffs.yaml (activos e históricos). Termina regenerando el overlay, porque
-// el CLAUDE.md del cc-home contiene la ruta absoluta —con el nombre viejo— del
-// overlay del perfil.
+// (api_key + cc-home + overlay + datos de Desktop), la entrada de ccp.yaml, las
+// reglas que lo apuntan, los artefactos authored de scope profile, sus
+// menciones en `auto_handoff` y los marcadores de handoffs.yaml (activos e
+// históricos). Termina regenerando el overlay, porque el CLAUDE.md del cc-home
+// contiene la ruta absoluta —con el nombre viejo— del overlay del perfil.
 //
 // Orden y rollback: primero mueve el directorio (la operación que más razones
 // tiene para fallar: permisos, disco, un resto de un rename anterior) con el
 // config todavía íntegro; si después no puede persistir ccp.yaml, devuelve el
 // directorio a su sitio. Un ccp.yaml que nombra un perfil sin directorio es el
 // peor estado posible: el login y la key siguen en disco pero ccp ya no los
-// encuentra.
+// encuentra. Todo ccp.yaml cambia en UN solo Save, así que no hay estado
+// intermedio con las reglas renombradas y la cadena de rotación sin renombrar.
 //
 // Lo que NO puede arreglar: una terminal viva que exportó CCP_PROFILE=<viejo>.
-// Eso lo resuelve el usuario con `ccp use <nuevo>`; el CLI lo recuerda.
+// Eso lo resuelve el usuario con `ccp use <nuevo>`; el CLI lo recuerda. Tampoco
+// toca el lanzador de Desktop (~/Applications/Claude (<viejo>).app): su
+// manifiesto nombra el perfil viejo, pero rehacerlo es cosa de `ccp desktop
+// app`, que sabe comprobar antes que su ventana no esté abierta; el CLI avisa.
 func ProfileRename(home, oldName, newName string) error {
 	if oldName == "" || oldName == "default" {
 		return fmt.Errorf("no se puede renombrar el perfil reservado %q", oldName)
@@ -56,12 +69,21 @@ func ProfileRename(home, oldName, newName string) error {
 	if err != nil {
 		return err
 	}
-	p, exists := c.Profiles[oldName]
-	if !exists {
+	if _, exists := c.Profiles[oldName]; !exists {
 		return fmt.Errorf("no existe el perfil %q", oldName)
 	}
 	if _, taken := c.Profiles[newName]; taken {
 		return fmt.Errorf("el perfil %q ya existe", newName)
+	}
+	// Un nombre destino que auto_handoff ya menciona es un resto, casi siempre
+	// de un perfil borrado (`profile rm` no limpia el bloque). Renombrar encima
+	// se lo regalaría al perfil renombrado: entraría en cadenas en las que no
+	// estaba y heredaría un allow_from ajeno, así que un gate que hoy le deniega
+	// préstamos se abriría sin que nadie lo decidiera. Mismo criterio que con el
+	// directorio suelto de abajo: se respeta y se pide limpiarlo antes.
+	if where := autoHandoffMentions(c.AutoHandoff, newName); len(where) > 0 {
+		return fmt.Errorf("auto_handoff ya menciona %q (%s), seguramente restos de un perfil borrado: quita esas menciones de ccp.yaml antes de renombrar o el perfil renombrado las heredaría",
+			newName, strings.Join(where, ", "))
 	}
 	oldDir, newDir := profileDirPath(home, oldName), profileDirPath(home, newName)
 	// Un directorio suelto con el nombre destino (p. ej. un perfil borrado del
@@ -85,19 +107,7 @@ func ProfileRename(home, oldName, newName string) error {
 		}
 	}
 
-	delete(c.Profiles, oldName)
-	c.Profiles[newName] = p
-	for i, r := range c.Rules {
-		if r.Profile == oldName {
-			c.Rules[i].Profile = newName
-		}
-	}
-	for i, a := range c.Authored {
-		if a.Scope == "profile" && a.Profile == oldName {
-			c.Authored[i].Profile = newName
-		}
-	}
-	if err := Save(home, c); err != nil {
+	if err := Save(home, renamedConfig(c, oldName, newName)); err != nil {
 		revertirDir()
 		return err
 	}
@@ -105,19 +115,8 @@ func ProfileRename(home, oldName, newName string) error {
 	if err := renameInHandoffs(home, oldName, newName); err != nil {
 		// Deshacer el config también: dejarlo renombrado con los marcadores
 		// apuntando al nombre viejo rompería `handoff end` (buscaría un perfil
-		// que ya no existe) sin decir por qué.
-		c.Profiles[oldName] = p
-		delete(c.Profiles, newName)
-		for i, r := range c.Rules {
-			if r.Profile == newName {
-				c.Rules[i].Profile = oldName
-			}
-		}
-		for i, a := range c.Authored {
-			if a.Scope == "profile" && a.Profile == newName {
-				c.Authored[i].Profile = oldName
-			}
-		}
+		// que ya no existe) sin decir por qué. renamedConfig no tocó c, así que
+		// deshacer es guardarlo tal como se leyó.
 		if serr := Save(home, c); serr != nil {
 			revertirDir()
 			return fmt.Errorf("%w (además falló revertir ccp.yaml: %v)", err, serr)
@@ -135,6 +134,169 @@ func ProfileRename(home, oldName, newName string) error {
 		}
 	}
 	return nil
+}
+
+// renamedConfig devuelve una COPIA de c con oldName cambiado por newName en
+// todo ccp.yaml: la clave de `profiles`, las reglas, los authored de scope
+// profile, el bloque `auto_handoff` y los comentarios que colgaban de las
+// claves renombradas.
+//
+// Que c quede intacto es lo que hace exacto el rollback: deshacer es volver a
+// guardar c. Invertir el cambio a mano (newName → oldName) no sabría distinguir
+// lo que se renombró de lo que ya se llamaba newName, como una regla huérfana
+// de un perfil borrado con ese nombre.
+//
+// Solo se copia lo que cambia. El resto (Extra, Defaults, los Extra del bloque
+// auto) se comparte con c: lo único que Save les hace es quitar claves
+// conocidas, y eso ya lo hizo Load.
+func renamedConfig(c *Config, oldName, newName string) *Config {
+	n := *c
+	n.Profiles = make(map[string]Profile, len(c.Profiles))
+	for name, p := range c.Profiles {
+		if name == oldName {
+			name = newName
+		}
+		n.Profiles[name] = p
+	}
+	n.Rules = slices.Clone(c.Rules)
+	for i, r := range n.Rules {
+		if r.Profile == oldName {
+			n.Rules[i].Profile = newName
+		}
+	}
+	n.Authored = slices.Clone(c.Authored)
+	for i, a := range n.Authored {
+		if a.Scope == "profile" && a.Profile == oldName {
+			n.Authored[i].Profile = newName
+		}
+	}
+	n.AutoHandoff = renamedAutoHandoff(c.AutoHandoff, oldName, newName)
+	n.comments = renamedComments(c.comments, [][2]string{
+		{commentPath("profiles", oldName), commentPath("profiles", newName)},
+		{commentPath("auto_handoff", "allow_from", oldName), commentPath("auto_handoff", "allow_from", newName)},
+	})
+	return &n
+}
+
+// renamedAutoHandoff es la parte de renamedConfig que toca `auto_handoff`: el
+// fallback de cada política, las claves y las listas de allow_from, y hooks.
+// Los nombres de política no se tocan: no son perfiles.
+//
+// No deduplica. ProfileRename ya rechazó un newName que el bloque mencionara,
+// así que cambiar un nombre por otro no puede crear un duplicado que no
+// estuviera ya, y uno que el usuario escribiera a mano se respeta tal cual.
+func renamedAutoHandoff(a *AutoHandoff, oldName, newName string) *AutoHandoff {
+	if a == nil {
+		return nil
+	}
+	n := *a
+	if a.Policies != nil {
+		n.Policies = make(map[string]AutoPolicy, len(a.Policies))
+		for name, pol := range a.Policies {
+			pol.Fallback = renamedList(pol.Fallback, oldName, newName)
+			n.Policies[name] = pol
+		}
+	}
+	if a.AllowFrom != nil {
+		n.AllowFrom = make(map[string][]string, len(a.AllowFrom))
+		for primary, allowed := range a.AllowFrom {
+			if primary == oldName {
+				primary = newName
+			}
+			n.AllowFrom[primary] = renamedList(allowed, oldName, newName)
+		}
+	}
+	n.Hooks = renamedList(a.Hooks, oldName, newName)
+	return &n
+}
+
+// autoHandoffMentions dice dónde nombra `auto_handoff` a name, como rutas del
+// yaml y en orden estable (va a un mensaje de error).
+//
+// Compara igual que los lectores del bloque, que es lo que decide si una
+// mención cuenta: los valores de las listas recortando espacios (Effective,
+// ResolveAutoChain, AutoHooksEnabled) y las claves de allow_from tal cual
+// (AutoGateFor). renamedAutoHandoff usa las mismas reglas, así que renombra
+// exactamente lo que aquí se detecta.
+func autoHandoffMentions(a *AutoHandoff, name string) []string {
+	if a == nil {
+		return nil
+	}
+	var where []string
+	for _, pol := range slices.Sorted(maps.Keys(a.Policies)) {
+		if listMentions(a.Policies[pol].Fallback, name) {
+			where = append(where, "policies."+pol+".fallback")
+		}
+	}
+	for _, primary := range slices.Sorted(maps.Keys(a.AllowFrom)) {
+		if primary == name || listMentions(a.AllowFrom[primary], name) {
+			where = append(where, "allow_from."+primary)
+		}
+	}
+	if listMentions(a.Hooks, name) {
+		where = append(where, "hooks")
+	}
+	return where
+}
+
+func listMentions(list []string, name string) bool {
+	return slices.ContainsFunc(list, func(s string) bool { return strings.TrimSpace(s) == name })
+}
+
+// renamedList devuelve una copia de list con oldName cambiado por newName.
+func renamedList(list []string, oldName, newName string) []string {
+	out := slices.Clone(list)
+	for i, s := range out {
+		if strings.TrimSpace(s) == oldName {
+			out[i] = newName
+		}
+	}
+	return out
+}
+
+// commentPath es la ruta con la que goccy indexa un comentario de ccp.yaml: la
+// misma que produce CommentToMap al cargar, comillas incluidas cuando la clave
+// lleva un punto.
+func commentPath(keys ...string) string {
+	b := (&yaml.PathBuilder{}).Root()
+	for _, k := range keys {
+		b = b.Child(k)
+	}
+	return b.Build().String()
+}
+
+// renamedComments devuelve una copia de cm con los comentarios de cada clave
+// renombrada, y de todo lo que cuelga de ella, movidos a su ruta nueva.
+//
+// Sin esto Save los descarta en silencio: goccy recoloca cada comentario por su
+// ruta y la vieja ya no existe. Pesa sobre todo en allow_from, que es donde uno
+// deja escrito por qué un cliente no presta a cierta cuenta. Los comentarios de
+// los elementos de lista (reglas, fallback, hooks) no necesitan nada: el
+// elemento se renombra en su sitio y su ruta, que es su índice, no cambia.
+//
+// Es un extra, así que nunca puede hacer fallar el rename: una ruta nueva que
+// goccy no supiera leer rompería el Save entero (WithComment la parsea), y en
+// ese caso el comentario se pierde como se perdía antes.
+func renamedComments(cm yaml.CommentMap, moves [][2]string) yaml.CommentMap {
+	if len(cm) == 0 {
+		return cm
+	}
+	out := make(yaml.CommentMap, len(cm))
+	for path, comments := range cm {
+		for _, mv := range moves {
+			from, to := mv[0], mv[1]
+			if path != from && !strings.HasPrefix(path, from+".") && !strings.HasPrefix(path, from+"[") {
+				continue
+			}
+			moved := to + strings.TrimPrefix(path, from)
+			if _, err := yaml.PathString(moved); err == nil {
+				path = moved
+			}
+			break
+		}
+		out[path] = comments
+	}
+	return out
 }
 
 // renameInHandoffs reescribe from/to en los marcadores activos y archivados.

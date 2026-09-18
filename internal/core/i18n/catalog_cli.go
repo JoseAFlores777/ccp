@@ -116,12 +116,17 @@ var catalogCLI = map[string]map[Lang]string{
 		Es: "Uso: ccp profile rename <viejo> <nuevo>",
 	},
 	"cli.profile.renamed": {
-		En: "Profile renamed: %s → %s (rules, handoff markers and config moved with it)",
-		Es: "Perfil renombrado: %s → %s (reglas, marcadores de handoff y config se movieron con él)",
+		En: "Profile renamed: %s → %s (rules, rotation chains, handoff markers and config moved with it)",
+		Es: "Perfil renombrado: %s → %s (reglas, cadenas de rotación, marcadores de handoff y config se movieron con él)",
 	},
 	"cli.profile.rename_active_hint": {
 		En: "  This terminal still has %s active: run 'ccp use %s' (other open terminals too).",
 		Es: "  Esta terminal aún tiene %s activo: corre 'ccp use %s' (y en las demás terminales abiertas).",
+	},
+	// %s: perfil viejo, ruta del .app, `ccp desktop app rm …`, `ccp desktop app …`.
+	"cli.profile.rename_launcher_hint": {
+		En: "  Its Desktop launcher still points to '%s' and won't open anymore (%s).\n  Replace it with its window closed: %s && %s",
+		Es: "  Su lanzador de Desktop sigue apuntando a '%s' y ya no abre (%s).\n  Sustitúyelo con su ventana cerrada: %s && %s",
 	},
 	"cli.profile.usage_show": {
 		En: "Usage: ccp profile show <name>",

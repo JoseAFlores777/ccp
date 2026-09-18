@@ -152,7 +152,7 @@ export function renameModal(app: Ctx, p: Profile): ModalSpec {
     warns: [
       t('Se mueven su carpeta de perfil, sus reglas de carpeta y sus préstamos.'),
       t('Las terminales abiertas siguen con el nombre viejo hasta un ccp use.'),
-      ...(p.in_chain ? [t('Las cadenas de rotación y los permisos que la nombran no se renombran: habrá que volver a añadirla.')] : []),
+      ...(p.in_chain ? [t('Las cadenas de rotación, el mapa de permisos y la lista de sensores que la nombran pasan al nombre nuevo.')] : []),
       ...(p.desktop.launcher ? [t('Su lanzador de Desktop queda con el nombre viejo: quítalo y créalo de nuevo.')] : []),
       ...(p.desktop.running ? [t('Su ventana de Desktop está abierta: ciérrala antes de renombrar.')] : []),
     ],
