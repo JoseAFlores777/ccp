@@ -202,12 +202,23 @@ var errDesktopInstanceBusy = errors.New("la instancia está en marcha")
 // oficiales, así que un refresco de rutina podía demoler varias ventanas vivas
 // a la vez.
 func desktopGuardInstance(dataDir, name string, force bool, lang i18n.Lang, stderr io.Writer) bool {
+	return desktopGuard(dataDir, force, stderr,
+		i18n.T(lang, "cli.desktop.instance_busy", name),
+		i18n.T(lang, "cli.desktop.preflight.forced"))
+}
+
+// desktopGuard es la comprobación de desktopGuardInstance sin su texto. La usa
+// también lo que no toca el lanzador pero sí algo que la ventana tiene abierto
+// por ruta —`ccp profile rename` mueve su data dir y su cc-home—: la guarda es
+// la misma y solo cambia cómo se explica. busy dice por qué se para; forced,
+// qué pasa cuando --force se la salta.
+func desktopGuard(dataDir string, force bool, stderr io.Writer, busy, forced string) bool {
 	if !desktopInstanceRunning(dataDir) {
 		return false
 	}
-	fmt.Fprintln(stderr, warnLine(stderr, i18n.T(lang, "cli.desktop.instance_busy", name)))
+	fmt.Fprintln(stderr, warnLine(stderr, busy))
 	if force {
-		fmt.Fprintln(stderr, mute(stderr, i18n.T(lang, "cli.desktop.preflight.forced")))
+		fmt.Fprintln(stderr, mute(stderr, forced))
 		return false
 	}
 	return true

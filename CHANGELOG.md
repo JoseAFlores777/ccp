@@ -34,6 +34,11 @@
 
 ### Fixed
 
+- **`ccp profile rename` ya no mueve un perfil con su ventana de Claude Desktop abierta.** El directorio que
+  se mueve lleva dentro el data dir de esa ventana y el cc-home de su pestaña Code, y la app en marcha sigue
+  escribiendo por ruta con el nombre viejo: podía recrear un `profiles/<viejo>/…` a medias y dejar el estado
+  del perfil partido en dos. Ahora se niega (salida 1) hasta que cierres esa ventana; `--force` se salta la
+  comprobación, como en `ccp desktop app rm`.
 - **`ccp profile rename` renombra también el perfil dentro de `auto_handoff`**: el `fallback` de cada
   política, las claves y las listas de `allow_from` y `hooks`, en la misma escritura de `ccp.yaml` que las
   reglas. Antes se quedaban con el nombre viejo, así que la cuenta renombrada dejaba de usarse como préstamo

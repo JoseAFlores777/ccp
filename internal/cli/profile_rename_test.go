@@ -7,16 +7,43 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/JoseAFlores777/ccp/internal/core"
 )
 
 // profile_rename_test.go — la cara CLI de `ccp profile rename`. El core ya
-// prueba que el estado se mueve entero; aquí interesa el dispatch, el uso, y
-// el aviso de CCP_PROFILE: el binario corre en un proceso hijo, así que no
-// puede reexportar nada en la terminal del usuario y esa terminal se queda con
-// un perfil activo que ya no existe.
+// prueba que el estado se mueve entero; aquí interesa el dispatch, el uso, el
+// aviso de CCP_PROFILE —el binario corre en un proceso hijo, así que no puede
+// reexportar nada en la terminal del usuario y esa terminal se queda con un
+// perfil activo que ya no existe— y la guarda de Desktop: el directorio que se
+// mueve es también el de la ventana del perfil.
 
+// stubDesktopProcs fija la tabla de procesos que ve la guarda de Desktop. Sin
+// él, el rename ejecutaría `ps` de verdad y el test dependería de lo que corra
+// en la máquina (y de que el CI tenga `ps`) en vez del estado que declara.
+func stubDesktopProcs(t *testing.T, procs ...core.DesktopProc) {
+	t.Helper()
+	old := desktopProcesses
+	t.Cleanup(func() { desktopProcesses = old })
+	desktopProcesses = func() []core.DesktopProc { return procs }
+}
+
+// ventanaDe es la instancia sana de un perfil tal como la lista `ps`: el
+// Claude-run de su lanzador con su --user-data-dir.
+func ventanaDe(home, name string) core.DesktopProc {
+	return core.DesktopProc{
+		PID:     4242,
+		Exec:    "/Users/u/Applications/Claude (" + name + ").app/Contents/MacOS/Claude-run",
+		DataDir: core.DesktopDataDir(home, name),
+	}
+}
+
+// seedCLIProfile deja un home con el perfil «viejo» y ninguna ventana de
+// Desktop abierta; el test que la quiera abierta vuelve a llamar a
+// stubDesktopProcs.
 func seedCLIProfile(t *testing.T) string {
 	t.Helper()
+	stubDesktopProcs(t)
 	home := t.TempDir()
 	// El rename busca el lanzador de Desktop del perfil: sin esto miraría el
 	// ~/Applications de verdad.
@@ -175,5 +202,125 @@ func TestProfileRenameEnCompletionYHelp(t *testing.T) {
 		if !strings.Contains(o.String(), "rename") {
 			t.Errorf("la completion %s no ofrece rename", sh)
 		}
+	}
+}
+
+// seedCLIProfileConDesktop es seedCLIProfile con el entorno de un rename real y
+// el data dir de Desktop de «viejo» en disco, como lo deja una ventana que ya
+// corrió: es lo que viaja con el directorio y lo que la guarda protege.
+func seedCLIProfileConDesktop(t *testing.T) string {
+	t.Helper()
+	home := seedCLIProfile(t)
+	t.Setenv("CCP_HOME", home)
+	t.Setenv("CCP_LANG", "es")
+	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+	t.Setenv("CCP_PROFILE", "")
+	if err := os.MkdirAll(core.DesktopDataDir(home, "viejo"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return home
+}
+
+// Con la ventana del perfil abierta el rename no mueve nada: ni el directorio,
+// que contiene el data dir que esa ventana tiene abierto, ni el config.
+func TestProfileRenameCLIRechazaConVentanaAbierta(t *testing.T) {
+	home := seedCLIProfileConDesktop(t)
+	stubDesktopProcs(t, ventanaDe(home, "viejo"))
+
+	var out, errb bytes.Buffer
+	if code := Dispatch([]string{"profile", "rename", "viejo", "nuevo"}, &out, &errb); code != 1 {
+		t.Fatalf("esperaba exit 1 con la ventana abierta, got %d (stdout %q)", code, out.String())
+	}
+	if !strings.Contains(errb.String(), "'viejo' tiene su ventana de Claude Desktop abierta") ||
+		!strings.Contains(errb.String(), "--force") {
+		t.Errorf("el rechazo tiene que decir qué ventana y cómo saltárselo: %q", errb.String())
+	}
+	if out.Len() != 0 {
+		t.Errorf("no debe confirmar nada: %q", out.String())
+	}
+	for _, sub := range []string{"cc-home", "desktop"} {
+		if _, err := os.Stat(filepath.Join(home, "profiles", "viejo", sub)); err != nil {
+			t.Errorf("profiles/viejo/%s tenía que quedarse donde estaba: %v", sub, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(home, "profiles", "nuevo")); !os.IsNotExist(err) {
+		t.Errorf("no debe existir profiles/nuevo: %v", err)
+	}
+	cfg, err := core.Load(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := cfg.Profiles["viejo"]; !ok || len(cfg.Rules) != 1 || cfg.Rules[0].Profile != "viejo" {
+		t.Errorf("ccp.yaml no debe cambiar: profiles=%v rules=%+v", cfg.Profiles, cfg.Rules)
+	}
+}
+
+// --force se salta la guarda como en `desktop app rm`, vaya donde vaya y
+// también con el alias, pero sin callarse: el aviso sale igual.
+func TestProfileRenameCLIForceConVentanaAbierta(t *testing.T) {
+	for _, args := range [][]string{
+		{"profile", "rename", "viejo", "nuevo", "--force"},
+		{"profile", "mv", "--force", "viejo", "nuevo"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			home := seedCLIProfileConDesktop(t)
+			stubDesktopProcs(t, ventanaDe(home, "viejo"))
+
+			var out, errb bytes.Buffer
+			if code := Dispatch(args, &out, &errb); code != 0 {
+				t.Fatalf("exit %d: %s", code, errb.String())
+			}
+			if !strings.Contains(errb.String(), "ventana de Claude Desktop abierta") ||
+				!strings.Contains(errb.String(), "--force: se renombra de todos modos") {
+				t.Errorf("con --force el aviso sale igual: %q", errb.String())
+			}
+			if !strings.Contains(out.String(), "Perfil renombrado") {
+				t.Errorf("esperaba la confirmación: %q", out.String())
+			}
+			if _, err := os.Stat(core.DesktopDataDir(home, "nuevo")); err != nil {
+				t.Errorf("el data dir de Desktop tenía que viajar con el perfil: %v", err)
+			}
+			if _, err := os.Stat(filepath.Join(home, "profiles", "viejo")); !os.IsNotExist(err) {
+				t.Errorf("profiles/viejo tenía que desaparecer: %v", err)
+			}
+		})
+	}
+}
+
+// La guarda mira la ventana del perfil que se renombra, no «alguna ventana»:
+// con tu Claude y la de otro perfil abiertas, el rename sigue adelante.
+func TestProfileRenameCLISinVentanaDelPerfilProcede(t *testing.T) {
+	home := seedCLIProfileConDesktop(t)
+	stubDesktopProcs(t,
+		core.DesktopProc{PID: 100, Exec: "/Applications/Claude.app/Contents/MacOS/Claude"},
+		ventanaDe(home, "otro"),
+	)
+
+	var out, errb bytes.Buffer
+	if code := Dispatch([]string{"profile", "rename", "viejo", "nuevo"}, &out, &errb); code != 0 {
+		t.Fatalf("exit %d: %s", code, errb.String())
+	}
+	if errb.Len() != 0 {
+		t.Errorf("sin la ventana del perfil no hay nada que avisar: %q", errb.String())
+	}
+	if _, err := os.Stat(core.DesktopDataDir(home, "nuevo")); err != nil {
+		t.Errorf("el perfil no se movió: %v", err)
+	}
+}
+
+// Un flag mal escrito se rechaza en vez de tomarse por un tercer nombre y
+// perderse en silencio.
+func TestProfileRenameCLIFlagDesconocido(t *testing.T) {
+	home := seedCLIProfileConDesktop(t)
+
+	var out, errb bytes.Buffer
+	if code := Dispatch([]string{"profile", "rename", "viejo", "nuevo", "--forse"}, &out, &errb); code != 1 {
+		t.Fatalf("esperaba exit 1, got %d", code)
+	}
+	if !strings.Contains(errb.String(), "opción desconocida: --forse") {
+		t.Errorf("esperaba el flag desconocido: %q", errb.String())
+	}
+	if _, err := os.Stat(filepath.Join(home, "profiles", "viejo", "cc-home")); err != nil {
+		t.Errorf("no debe moverse nada: %v", err)
 	}
 }

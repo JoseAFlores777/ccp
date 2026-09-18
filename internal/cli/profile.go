@@ -13,7 +13,7 @@ import (
 	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
-// profile.go cablea `ccp profile <add|login|rm|list|show|config|sync>` sobre
+// profile.go cablea `ccp profile <add|login|rm|rename|list|show|config|sync>` sobre
 // internal/core. Espeja cmd_profile del oráculo bash; la TUI llama a las mismas
 // funciones de core.
 
@@ -50,26 +50,7 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.profile.removed", rest[0])))
 		return 0
 	case "rename", "mv":
-		if len(rest) < 2 {
-			fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.usage_rename"))
-			return 1
-		}
-		old, nuevo := rest[0], rest[1]
-		if err := core.ProfileRename(home, old, nuevo); err != nil {
-			fmt.Fprintf(stderr, "[error] %v\n", err)
-			return 1
-		}
-		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.profile.renamed", old, nuevo)))
-		// El binario corre en un proceso hijo: no puede reexportar CCP_PROFILE
-		// en la terminal del usuario. Si esta terminal tenía el perfil viejo
-		// activo, su env quedó apuntando a un nombre que ya no existe.
-		if os.Getenv("CCP_PROFILE") == old {
-			fmt.Fprintln(stdout, i18n.T(lang, "cli.profile.rename_active_hint", old, nuevo))
-		}
-		if hint := renameLauncherHint(lang, old, nuevo); hint != "" {
-			fmt.Fprintln(stdout, hint)
-		}
-		return 0
+		return profileRename(home, rest, stdout, stderr)
 	case "list", "ls", "":
 		names, err := core.ProfileList(home)
 		if err != nil {
@@ -143,6 +124,57 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.sub_help"))
 		return 1
 	}
+}
+
+// profileRename implementa `ccp profile rename <viejo> <nuevo> [--force]`.
+//
+// El directorio que core mueve lleva dentro el user-data-dir de la ventana de
+// Desktop del perfil y el cc-home de su pestaña Code. Con esa ventana abierta,
+// la app sigue escribiendo por ruta con el nombre viejo: recrea un
+// profiles/<viejo>/… a medias y el estado del perfil queda partido en dos. Por
+// eso se niega mientras corra, con la misma guarda que `desktop app rm` y el
+// mismo --force para saltársela. La guarda vive aquí y no en core.ProfileRename
+// porque core no ejecuta sondas de procesos.
+func profileRename(home string, args []string, stdout, stderr io.Writer) int {
+	lang := currentLang()
+	var names []string
+	force := false
+	for _, a := range args {
+		switch {
+		case a == "--force":
+			force = true
+		case strings.HasPrefix(a, "-"):
+			fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.unknown_opt", a))
+			return 1
+		default:
+			names = append(names, a)
+		}
+	}
+	if len(names) < 2 {
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.usage_rename"))
+		return 1
+	}
+	old, nuevo := names[0], names[1]
+	if desktopGuard(core.DesktopDataDir(home, old), force, stderr,
+		i18n.T(lang, "cli.profile.rename_desktop_open", old),
+		i18n.T(lang, "cli.profile.rename_forced", old)) {
+		return 1
+	}
+	if err := core.ProfileRename(home, old, nuevo); err != nil {
+		fmt.Fprintf(stderr, "[error] %v\n", err)
+		return 1
+	}
+	fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.profile.renamed", old, nuevo)))
+	// El binario corre en un proceso hijo: no puede reexportar CCP_PROFILE
+	// en la terminal del usuario. Si esta terminal tenía el perfil viejo
+	// activo, su env quedó apuntando a un nombre que ya no existe.
+	if os.Getenv("CCP_PROFILE") == old {
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.profile.rename_active_hint", old, nuevo))
+	}
+	if hint := renameLauncherHint(lang, old, nuevo); hint != "" {
+		fmt.Fprintln(stdout, hint)
+	}
+	return 0
 }
 
 // renameLauncherHint es el aviso de `profile rename` cuando el perfil viejo
