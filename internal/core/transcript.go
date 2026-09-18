@@ -167,6 +167,13 @@ func readAITitle(path string) string {
 // haría pisarse. El patrón "ccp-*.tmp" no acaba en .jsonl a propósito: si
 // acabara, ListSessions ofrecería el temporal en el picker de sesiones.
 func writeTranscriptAtomic(path string, data []byte) error {
+	return writeFileAtomic(path, data, 0o644)
+}
+
+// writeFileAtomic es writeTranscriptAtomic con los permisos elegidos por quien
+// llama: la copia entre instancias de Desktop (desktop_sessions.go) deja la
+// conversación en 0600, como la escribe el propio Claude Code.
+func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("no se pudo crear %s: %w", dir, err)
@@ -185,7 +192,7 @@ func writeTranscriptAtomic(path string, data []byte) error {
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("no se pudo cerrar %s: %w", tmpName, err)
 	}
-	if err := os.Chmod(tmpName, 0o644); err != nil {
+	if err := os.Chmod(tmpName, perm); err != nil {
 		return fmt.Errorf("no se pudo ajustar permisos de %s: %w", tmpName, err)
 	}
 	if err := os.Rename(tmpName, path); err != nil {

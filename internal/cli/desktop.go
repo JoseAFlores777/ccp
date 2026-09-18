@@ -55,6 +55,12 @@ func dispatchDesktop(args []string, stdout, stderr io.Writer) int {
 		return desktopPrepare(rest, stdout, stderr)
 	case "rm":
 		return desktopRm(rest, stdout, stderr)
+	case "sessions":
+		// Igual que doctor: sin el case, el default de abajo lo tomaría por un
+		// nombre de perfil y abriría (o intentaría abrir) una ventana.
+		return desktopSessions(rest, stdout, stderr)
+	case "copy":
+		return desktopCopy(rest, stdout, stderr)
 	case "doctor":
 		// El `case` explícito es obligatorio: el `default:` de abajo trata
 		// cualquier token sin guion como nombre de perfil para `open`, así que

@@ -1,5 +1,26 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **`ccp desktop copy <uuid|título> <perfil>`** — lleva una conversación de la pestaña Code a la ventana de
+  Desktop de otro perfil: la copia al cc-home del destino y le pide a esa ventana que la importe, para que
+  salga en su barra lateral con el mismo título. Ver el [ADR 0010](docs/adr/0010-desktop-session-copy-via-import-link.md).
+  - **La importación la hace Desktop**, con su propio enlace `claude://resume?session=<uuid>` mandado con
+    `open -a` a esa ventana concreta. ccp lee el índice de Desktop pero no lo escribe nunca, y no da la
+    importación por hecha hasta verla en él.
+  - **Nunca pisa una conversación**: si el destino siguió por su cuenta, no se toca; si las dos siguieron
+    por separado, no se escribe nada; una copia vieja se pone al día solo con esa ventana cerrada.
+  - **El enlace solo va a donde debe**: se comprueba antes con `ps` y `lsappinfo` que la ventana destino
+    tenga su propia identidad, y si no se puede comprobar no se manda.
+  - El título viaja con la copia aunque se pusiera al principio de una sesión larga (Desktop solo lo busca en
+    los últimos 256 KB), y la carpeta de subagentes y workflows también.
+  - `--from <perfil>`, `--dry-run`, `--no-open`. Funciona también con una sesión del CLI, por su uuid.
+- **`ccp desktop sessions [<perfil>] [--archived] [--json]`** — las sesiones de la pestaña Code de cada
+  ventana, con el título de su barra lateral, la carpeta y el uuid. `--json` emite siempre un array con
+  `profile`, `uuid`, `title`, `cwd`, `last_activity`, `archived` y `transcript`.
+
 ## [2.18.0] — una instancia de perfil ya no puede suplantar ni actualizar a tu Claude
 
 Esta versión sale de un incidente real (2026-09-15). Un usuario con tres perfiles pasó una tarde creyendo

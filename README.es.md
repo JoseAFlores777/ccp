@@ -599,6 +599,60 @@ distinta de `default` arranca con su updater apagado, y `ccp desktop doctor` com
 puesta en vez de darla por hecha. `default` queda exento a propósito: esa instancia **es** tu Claude, y
 apagarle las actualizaciones sería secuestrártelo — las actualizaciones te llegan por ahí, como siempre.
 
+### Llevar una conversación a la ventana de otro perfil
+
+Cada ventana tiene sus propias sesiones de la pestaña Code, así que una conversación empezada con una cuenta
+no aparece en la ventana de otro perfil. `ccp desktop copy` la lleva: copia la conversación al perfil
+destino y le pide a esa ventana que la importe, para que salga en su barra lateral con el mismo título y
+sigas donde lo dejaste.
+
+```bash
+ccp desktop sessions                                # las sesiones de todas las ventanas: uuid, título, carpeta
+ccp desktop sessions trabajo-1                      # solo las de ese perfil (todas)
+ccp desktop copy "validador de tipo de cuota" default   # por título, o un trozo…
+ccp desktop copy 37b541db trabajo-1                 # …o por uuid, o sus primeros caracteres
+ccp desktop copy 37b541db trabajo-1 --from personal-1   # cuando la misma sesión vive en dos ventanas
+ccp desktop copy 37b541db trabajo-1 --dry-run       # dice lo que haría, sin tocar nada
+ccp desktop copy 37b541db trabajo-1 --no-open       # solo copia (luego la sigues en la terminal)
+```
+
+Qué hace:
+
+1. **Encuentra la sesión.** Los títulos salen del índice de cada ventana: los mismos que ves en su barra
+   lateral. Sin `--from` busca en todas las ventanas menos la del destino; si el nombre casa con más de una
+   sesión, las lista (con su uuid completo) y se para.
+2. **Copia la conversación**: el transcript de Claude Code (`<cc-home>/projects/<carpeta>/<uuid>.jsonl`) y la
+   carpeta de al lado con los archivos de subagentes y workflows, al perfil destino, en la misma carpeta y con
+   el mismo uuid. La copia es un archivo propio y privado (`0600`). El original no se toca nunca.
+3. **Le pide a la ventana destino que la importe**, con el enlace de la propia Claude Desktop,
+   `claude://resume?session=<uuid>`, mandado a *esa* ventana (a su lanzador; a tu Claude si es `default`).
+   `ccp` no escribe nunca a mano el índice de Desktop: espera a que Desktop añada la sesión y solo entonces
+   dice que está hecho. Si la ventana estaba cerrada, el enlace la abre.
+
+Las reglas que la hacen segura:
+
+- **Nunca pisa una conversación.** Si el destino ya tiene la sesión y seguiste trabajando allí, no se toca.
+  Si el destino tiene una copia anterior que nadie continuó —la vuelta de un préstamo—, se pone al día, pero
+  no con esa ventana abierta y la sesión en su barra lateral: podría tener cargada la versión vieja y
+  bifurcaría la conversación, así que `ccp` te pide cerrarla antes. Si las dos siguieron por separado, no se
+  escribe nada.
+- **El enlace solo va a donde debe.** Antes de mandarlo, `ccp` comprueba con `ps` y `lsappinfo` que la
+  ventana destino conserva su propia identidad. Un perfil sin lanzador (su ventana corre como tu Claude
+  principal) o una ventana con la identidad colapsada (ver *Límites*) recibe la copia pero no el enlace, y se
+  te dice por qué y qué hacer. Si no puede comprobarlo, no lo manda.
+- **El título viaja con ella.** Desktop solo lee el título de los últimos 256 KB de la conversación; en una
+  larga que se tituló al principio, `ccp` añade el título al final de la copia.
+- **Es idempotente.** Repetirlo no duplica nada: a una ventana que ya lista la sesión no se le pide que la
+  vuelva a importar.
+- Solo se copian sesiones con transcript local (las remotas no), y solo a ventanas `official` o `default`.
+  También sirve con una sesión del CLI: pásale su uuid completo. La importación es solo para macOS; en otros
+  sistemas tienes la copia y el comando para seguirla en la terminal.
+
+La original sigue en la ventana de origen. Sigue en un solo sitio: si escribes en las dos, se separan, y a
+partir de ahí ninguna copia conserva las dos. Código de salida: `0` si la sesión queda en la barra lateral
+del destino (o, con `--no-open`, copiada); `1` en cualquier otro caso, incluido «copiada pero sin
+importar», que siempre viene con lo que hay que hacer.
+
 ### Límites
 
 - Solo perfiles **`official`** y **`default`**. Claude Desktop no lee `ANTHROPIC_BASE_URL`, así que un
@@ -795,6 +849,8 @@ Con comandos: `ccp config show` · `ccp config set <clave> <valor>` · `ccp conf
 | Política / sensores del auto-handoff | `ccp auto status [--json]` |
 | Abrir Claude Desktop con un perfil | `ccp desktop open [<n>]` |
 | Dar a cada instancia de Desktop nombre e icono de color propios | `ccp desktop app [<n>]` |
+| Ver las sesiones de la pestaña Code de cada ventana de Desktop | `ccp desktop sessions [<n>]` |
+| Llevar una conversación a la ventana de Desktop de otro perfil | `ccp desktop copy <uuid\|título> <n>` |
 | Estado / diagnóstico | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
 | Actualizar | `ccp upgrade` |

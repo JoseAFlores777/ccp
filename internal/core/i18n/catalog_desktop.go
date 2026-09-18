@@ -24,6 +24,11 @@ var catalogDesktop = map[string]map[Lang]string{
   prepare <profile>       make the profile's cc-home acceptable to Desktop
   doctor [<profile>] [--json]
                           audit launchers, instances and their identity (diagnoses, never repairs)
+  sessions [<profile>] [--archived] [--json]
+                          Code-tab sessions of each window: uuid, title, folder
+  copy <uuid|title> <profile> [--from <profile>] [--no-open] [--dry-run]
+                          copy a Code-tab session to another profile's window and
+                          import it there (it shows up in that window's sidebar)
   rm <profile> --yes      delete the instance (destructive logout) and its launcher`,
 		Es: `Uso: ccp desktop <subcomando>
 
@@ -40,6 +45,11 @@ var catalogDesktop = map[string]map[Lang]string{
   prepare <perfil>        deja el cc-home del perfil en la forma que Desktop acepta
   doctor [<perfil>] [--json]
                           audita lanzadores, instancias e identidad (diagnostica, nunca repara)
+  sessions [<perfil>] [--archived] [--json]
+                          sesiones de la pestaña Code de cada ventana: uuid, título, carpeta
+  copy <uuid|título> <perfil> [--from <perfil>] [--no-open] [--dry-run]
+                          copia una sesión de la pestaña Code a la ventana de otro perfil
+                          y la importa allí (sale en su barra lateral)
   rm <perfil> --yes       borra la instancia (logout destructivo) y su lanzador`,
 	},
 	"cli.desktop.unknown_sub": {
@@ -318,5 +328,193 @@ perfil official. El lanzador sigue solo las actualizaciones de Claude.app.`,
 	"cli.desktop.doctor.f.probe_unavailable": {
 		En: "'%s': could not check everything on this machine (%s is unavailable). Reported as unknown, not as fine.",
 		Es: "«%s»: no se ha podido comprobar todo en esta máquina (%s no está disponible). Se reporta como desconocido, no como correcto.",
+	},
+
+	// --- ccp desktop sessions ---
+	"cli.desktop.sessions.extra_arg": {
+		En: "unexpected argument: %s (sessions takes at most one profile)",
+		Es: "argumento sobrante: %s (sessions acepta como mucho un perfil)",
+	},
+	"cli.desktop.sessions.none": {
+		En: "No Code-tab sessions with a local transcript.",
+		Es: "No hay sesiones de la pestaña Code con transcript local.",
+	},
+	"cli.desktop.sessions.row": {
+		En: "  %s · %s · %s · %s ago",
+		Es: "  %s · %s · %s · hace %s",
+	},
+	"cli.desktop.sessions.untitled": {
+		En: "(untitled)",
+		Es: "(sin título)",
+	},
+	"cli.desktop.sessions.archived": {
+		En: "[archived]",
+		Es: "[archivada]",
+	},
+	"cli.desktop.sessions.more": {
+		En: "  … and %d more: ccp desktop sessions %s",
+		Es: "  … y %d más: ccp desktop sessions %s",
+	},
+	"cli.desktop.sessions.hint": {
+		En: "Copy one to another profile's window: ccp desktop copy <uuid|title> <profile>",
+		Es: "Cópiala a la ventana de otro perfil: ccp desktop copy <uuid|título> <perfil>",
+	},
+
+	// --- ccp desktop copy ---
+	"cli.desktop.copy.args": {
+		En: "copy needs a session and a destination profile: ccp desktop copy <uuid|title> <profile> [--from <profile>]",
+		Es: "copy necesita una sesión y un perfil destino: ccp desktop copy <uuid|título> <perfil> [--from <perfil>]",
+	},
+	"cli.desktop.copy.flag_needs_value": {
+		En: "%s needs a profile",
+		Es: "%s necesita un perfil",
+	},
+	"cli.desktop.copy.unknown_from": {
+		En: "unknown profile: %s",
+		Es: "no existe el perfil: %s",
+	},
+	"cli.desktop.copy.not_found": {
+		En: "no session matches «%s» in %s. List them with: ccp desktop sessions",
+		Es: "ninguna sesión casa con «%s» en %s. Lístalas con: ccp desktop sessions",
+	},
+	"cli.desktop.copy.ambiguous": {
+		En: "«%s» matches %d sessions; name it by its uuid (or narrow it down with --from):",
+		Es: "«%s» casa con %d sesiones; nómbrala por su uuid (o acota con --from):",
+	},
+	"cli.desktop.copy.header": {
+		En: "Session «%s» (%s)",
+		Es: "Sesión «%s» (%s)",
+	},
+	"cli.desktop.copy.folder": {
+		En: "  folder: %s",
+		Es: "  carpeta: %s",
+	},
+	"cli.desktop.copy.src_busy": {
+		En: "The session changed %s ago in '%s': if it is still running there, this copy is a snapshot of right now.",
+		Es: "La sesión cambió hace %s en «%s»: si sigue en marcha allí, la copia es una foto de este momento.",
+	},
+	"cli.desktop.copy.dry.new": {
+		En: "(dry-run) would copy the transcript to %s",
+		Es: "(dry-run) copiaría el transcript a %s",
+	},
+	"cli.desktop.copy.dry.updated": {
+		En: "(dry-run) would bring the older copy in %s up to date",
+		Es: "(dry-run) pondría al día la copia anterior de %s",
+	},
+	"cli.desktop.copy.dry.same": {
+		En: "(dry-run) %s is already this exact copy",
+		Es: "(dry-run) %s ya es esta misma copia",
+	},
+	"cli.desktop.copy.dry.ahead": {
+		En: "(dry-run) %s already has the session and it continued there: nothing to copy",
+		Es: "(dry-run) %s ya tiene la sesión y siguió allí: no hay nada que copiar",
+	},
+	"cli.desktop.copy.dry.import": {
+		En: "(dry-run) then would ask the '%s' window to import it (%s)",
+		Es: "(dry-run) después le pediría a la ventana de «%s» que la importe (%s)",
+	},
+	"cli.desktop.copy.dry.indexed": {
+		En: "(dry-run) it is already in the '%s' sidebar: no import needed",
+		Es: "(dry-run) ya está en la barra lateral de «%s»: no hace falta importarla",
+	},
+	"cli.desktop.copy.diverged": {
+		En: "The session continued separately in '%s' and in '%s': no copy can keep both, so nothing was written. Keep going in one of the two.",
+		Es: "La sesión siguió por separado en «%s» y en «%s»: ninguna copia conserva las dos, así que no he escrito nada. Sigue en una sola.",
+	},
+	"cli.desktop.copy.update_open": {
+		En: "The '%s' window is open and already lists this session: if it has it loaded, it would continue from the old version and fork the conversation. Close that window and run this again.",
+		Es: "La ventana de «%s» está abierta y ya tiene esta sesión: si la tiene cargada, seguiría desde la versión vieja y la conversación se bifurcaría. Cierra esa ventana y repite el comando.",
+	},
+	"cli.desktop.copy.new": {
+		En: "Copied to '%s' (%s).",
+		Es: "Copiada a «%s» (%s).",
+	},
+	"cli.desktop.copy.updated": {
+		En: "'%s' had an older copy: brought it up to date.",
+		Es: "«%s» tenía una copia anterior: la he puesto al día.",
+	},
+	"cli.desktop.copy.same": {
+		En: "'%s' already had this exact copy.",
+		Es: "«%s» ya tenía esta misma copia.",
+	},
+	"cli.desktop.copy.ahead": {
+		En: "'%s' already has the session and it continued there: left untouched.",
+		Es: "«%s» ya tiene la sesión y siguió allí por su cuenta: no la toco.",
+	},
+	"cli.desktop.copy.title_added": {
+		En: "  title added at the end so Desktop picks it up (it only reads the last 256 KB)",
+		Es: "  título añadido al final para que Desktop lo lea (solo mira los últimos 256 KB)",
+	},
+	"cli.desktop.copy.companion": {
+		En: "  %d subagent/workflow file(s) copied",
+		Es: "  %d archivo(s) de subagentes/workflows copiado(s)",
+	},
+	"cli.desktop.copy.companion_kept": {
+		En: "  %d file(s) the destination already had with different content were left as they were",
+		Es: "  %d archivo(s) que el destino ya tenía distintos se dejaron como estaban",
+	},
+	"cli.desktop.copy.indexed": {
+		En: "It is already in the sidebar of the '%s' Claude Desktop window.",
+		Es: "Ya está en la barra lateral de la ventana de Claude Desktop de «%s».",
+	},
+	"cli.desktop.copy.no_open": {
+		En: "Copy only (--no-open). To import it into the window later: ccp desktop copy %s %s",
+		Es: "Solo copia (--no-open). Para importarla en la ventana después: ccp desktop copy %s %s",
+	},
+	"cli.desktop.copy.launching": {
+		En: "Opening the '%s' window to import it…",
+		Es: "Abriendo la ventana de «%s» para importarla…",
+	},
+	"cli.desktop.copy.waiting": {
+		En: "Waiting for Claude Desktop ('%s') to import it…",
+		Es: "Esperando a que Claude Desktop («%s») la importe…",
+	},
+	"cli.desktop.copy.imported": {
+		En: "Imported into Claude Desktop ('%s'): it is in the sidebar as «%s».",
+		Es: "Importada en Claude Desktop («%s»): ya sale en la barra lateral como «%s».",
+	},
+	"cli.desktop.copy.not_confirmed": {
+		En: "Could not confirm the import within %s. The copy is done: with the '%s' window open, run this command again (it will only import).",
+		Es: "No pude confirmar la importación en %s. La copia está hecha: con la ventana de «%s» abierta, repite este comando (solo importará).",
+	},
+	"cli.desktop.copy.send_failed": {
+		En: "could not send the import link: %v",
+		Es: "no se pudo mandar el enlace de importación: %v",
+	},
+	"cli.desktop.copy.cwd_missing": {
+		En: "The session's folder no longer exists (%s): Desktop cannot open it. The copy is done.",
+		Es: "La carpeta de la sesión ya no existe (%s): Desktop no puede abrirla. La copia está hecha.",
+	},
+	"cli.desktop.copy.not_darwin": {
+		En: "Importing into the window is macOS-only. The copy is done.",
+		Es: "La importación en la ventana solo existe en macOS. La copia está hecha.",
+	},
+	"cli.desktop.copy.cli_alternative": {
+		En: "To continue it in the terminal: cd %s && ccp use %s && claude --resume %s",
+		Es: "Para seguirla en la terminal: cd %s && ccp use %s && claude --resume %s",
+	},
+	"cli.desktop.copy.after": {
+		En: "The original stays in '%s'. Continue the conversation in one place only: if you write in both, they drift apart.",
+		Es: "La original sigue en «%s». Sigue la conversación en un solo sitio: si escribes en las dos, se separan.",
+	},
+	"cli.desktop.copy.refuse.no_launcher": {
+		En: "'%s' has no launcher: its window shares its identity with your main Claude, so the link would land there. Create it with `ccp desktop app %s`, open it with `ccp desktop open %s` and run this again.",
+		Es: "«%s» no tiene lanzador: su ventana comparte identidad con tu Claude principal y el enlace iría a parar ahí. Créalo con `ccp desktop app %s`, ábrela con `ccp desktop open %s` y repite este comando.",
+	},
+	"cli.desktop.copy.refuse.identity_collapsed": {
+		En: "The '%s' window is registered in macOS as %s (your main Claude), so the link would not reach it. Close it, open it again with `ccp desktop open %s` and retry. Details: `ccp desktop doctor %s`.",
+		Es: "La ventana de «%s» está registrada en macOS como %s (tu Claude principal): el enlace no le llegaría. Ciérrala, vuelve a abrirla con `ccp desktop open %s` y repite. Detalle: `ccp desktop doctor %s`.",
+	},
+	"cli.desktop.copy.refuse.main_id_hijacked": {
+		En: "Another window holds your main Claude's identity (%s), so the link would land there. Close it and retry; `ccp desktop doctor` tells you which one it is.",
+		Es: "Otra ventana ocupa la identidad de tu Claude principal (%s) y el enlace iría a parar ahí. Ciérrala y repite; `ccp desktop doctor` te dice cuál es.",
+	},
+	"cli.desktop.copy.refuse.instance_unsafe": {
+		En: "The '%s' window is running without its isolation (%s): it would look for the session in another profile. Close it, open it with `ccp desktop open %s` and retry.",
+		Es: "La ventana de «%s» corre sin su aislamiento (%s): buscaría la sesión en otro perfil. Ciérrala, ábrela con `ccp desktop open %s` y repite.",
+	},
+	"cli.desktop.copy.refuse.probe_unavailable": {
+		En: "Could not check which window the link would reach (%s is unavailable), so it was not sent.",
+		Es: "No se pudo comprobar a qué ventana llegaría el enlace (%s no está disponible), así que no lo he mandado.",
 	},
 }

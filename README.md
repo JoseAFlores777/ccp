@@ -598,6 +598,61 @@ now starts with its updater switched off, and `ccp desktop doctor` checks the gu
 than assuming it. `default` is exempt on purpose: that instance **is** your Claude, and muting its updates
 would be hijacking it — updates reach you through it, as always.
 
+### Moving a conversation to another profile's window
+
+Each window keeps its own Code-tab sessions, so a conversation started under one account does not show up
+in another profile's window. `ccp desktop copy` takes it there: it copies the conversation into the
+destination profile and asks that window to import it, so it appears in its sidebar with the same title and
+you carry on where you left off.
+
+```bash
+ccp desktop sessions                               # every window's sessions: uuid, title, folder
+ccp desktop sessions work-1                        # only that profile's (all of them)
+ccp desktop copy "loan type validator" default     # by title, or a piece of it…
+ccp desktop copy 37b541db work-1                   # …or by uuid, or its first characters
+ccp desktop copy 37b541db work-1 --from personal-1 # when the same session lives in two windows
+ccp desktop copy 37b541db work-1 --dry-run         # say what it would do, touch nothing
+ccp desktop copy 37b541db work-1 --no-open         # copy only (then continue it in the terminal)
+```
+
+What it does:
+
+1. **Finds the session.** Titles come from each window's own index — the ones you see in its sidebar.
+   Without `--from` it searches every window except the destination; if the name matches more than one
+   session it lists them (with their full uuid) and stops.
+2. **Copies the conversation**: the Claude Code transcript (`<cc-home>/projects/<folder>/<uuid>.jsonl`) and
+   the folder next to it with subagent and workflow files, into the destination profile, under the same
+   folder and the same uuid. The copy is a file of its own and private (`0600`). The original is never
+   touched.
+3. **Asks the destination window to import it**, with Claude Desktop's own link,
+   `claude://resume?session=<uuid>`, sent to *that* window (to its launcher; to your Claude for `default`).
+   `ccp` never writes Desktop's index by hand: it waits until Desktop adds the session to it, and only then
+   says it's done. If the window was closed, the link opens it.
+
+The rules that keep it safe:
+
+- **It never overwrites a conversation.** If the destination already has the session and you kept going
+  there, it is left alone. If the destination has an older copy nobody continued — the return trip of a
+  loan — it is brought up to date, but not while that window is open with the session in its sidebar: it
+  could have the old version loaded and would fork the conversation, so `ccp` asks you to close it first.
+  If both sides kept going separately, nothing is written.
+- **The link only goes where it should.** Before sending it, `ccp` checks with `ps` and `lsappinfo` that the
+  destination window holds its own identity. A profile without a launcher (its window runs as your main
+  Claude) or a window whose identity collapsed (see *Limits*) gets the copy but not the link, and you are
+  told why and what to do. If it cannot check, it does not send.
+- **The title travels with it.** Desktop only reads a session's title from the last 256 KB of its
+  conversation; for a long one titled at the start, `ccp` adds the title at the end of the copy.
+- **It is idempotent.** Running it again duplicates nothing: a window that already lists the session is not
+  asked to import it again.
+- Only sessions with a local transcript can be copied (remote ones cannot), and only into `official` or
+  `default` windows. A CLI session works too: pass its full uuid. The import step is macOS only; elsewhere
+  you get the copy and the command to continue it in the terminal.
+
+The original stays in the source window. Continue in one place only: if you write in both, they drift
+apart — and from then on no copy can keep both. Exit code: `0` when the session is in the destination's
+sidebar (or, with `--no-open`, copied); `1` otherwise, including "copied but not imported", which always
+comes with what to do next.
+
 ### Limits
 
 - **`official`** and **`default`** profiles only. Claude Desktop does not read `ANTHROPIC_BASE_URL`, so
@@ -796,6 +851,8 @@ With commands: `ccp config show` · `ccp config set <clave> <valor>` · `ccp con
 | Auto-handoff policy / sensors | `ccp auto status [--json]` |
 | Open Claude Desktop with a profile | `ccp desktop open [<n>]` |
 | Give each Desktop instance its own name and icon colour | `ccp desktop app [<n>]` |
+| See the Code-tab sessions of each Desktop window | `ccp desktop sessions [<n>]` |
+| Move a conversation to another profile's Desktop window | `ccp desktop copy <uuid\|title> <n>` |
 | Status / diagnostics | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
 | Update | `ccp upgrade` |

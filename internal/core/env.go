@@ -80,6 +80,10 @@ func shellQuote(s string) string {
 	return b.String()
 }
 
+// ShellQuote es shellQuote para quien imprime un comando que el usuario va a
+// pegar en su shell (p. ej. la alternativa de `ccp desktop copy`).
+func ShellQuote(s string) string { return shellQuote(s) }
+
 // shellSpecial reporta si un byte ASCII debe escaparse con backslash en %q
 // (independiente de su posición). Espeja el conjunto de bash 5.3.
 func shellSpecial(c byte) bool {
