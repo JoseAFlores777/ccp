@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Lo que puede hacer la ventana principal: arrastrarse por la barra superior y abrir los diálogos de archivo y carpeta. El resto pasa por los comandos propios del puente (ccp_call, open_terminal, reveal_path).",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "dialog:allow-open",
+    "dialog:allow-save"
+  ]
+}

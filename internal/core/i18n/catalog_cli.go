@@ -32,6 +32,10 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "Unknown command: '%s'",
 		Es: "Comando desconocido: '%s'",
 	},
+	"cli.serve.usage": {
+		En: "Usage: ccp serve --stdio  (JSON API for the graphical interface: one request and one response per line)",
+		Es: "Uso: ccp serve --stdio  (API JSON para la interfaz gráfica: una petición y una respuesta por línea)",
+	},
 	// Lo emiten ccpHome/claudeSrc, que corren ANTES de poder leer ccp.yaml: se
 	// traducen con i18n.Resolve("") (solo CCP_LANG), nunca con currentLang() —
 	// currentLang llama a ccpHome y la traducción se volvería recursiva.
@@ -859,6 +863,7 @@ SCRIPTING
   ccp resolve [path]          print the path's profile (exit 0=rule, 1=default)
   ccp status [--json]         terminal status
   ccp completion bash|zsh     autocompletion scripts
+  ccp serve --stdio           JSON API over stdin/stdout (used by the desktop app)
 
 LIFE CYCLE
   ccp install | uninstall     add/remove the shell-init block from the rc
@@ -948,6 +953,7 @@ SCRIPTING
   ccp resolve [ruta]          imprime el perfil del path (exit 0=regla, 1=default)
   ccp status [--json]         estado de la terminal
   ccp completion bash|zsh     scripts de autocompletado
+  ccp serve --stdio           API JSON por stdin/stdout (la usa la app de escritorio)
 
 CICLO DE VIDA
   ccp install | uninstall     añade/quita el bloque shell-init del rc

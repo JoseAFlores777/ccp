@@ -62,6 +62,8 @@ No TTY, or prefer the terminal? Everything is in the CLI, with the same palette:
 <img src="docs/screenshots/cli-help.png" alt="ccp help — colored CLI" width="620">
 </div>
 
+Prefer a window? There is also a **desktop app** (`gui/`, Tauri, beta): the same accounts, folders, conversations, rotation and Desktop windows, plus an **account map** where fallbacks are wired by dragging arrows and nothing is written until you review and apply. It runs the engine you already have (`ccp serve --stdio`), shows the CLI equivalent of every screen, and opens a Terminal for the things only a terminal can do (a `/login`, a handoff, a supervised session). Build and development notes: [gui/README.md](gui/README.md).
+
 ---
 
 ## Before you start
