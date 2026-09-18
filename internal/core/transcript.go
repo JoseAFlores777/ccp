@@ -89,13 +89,17 @@ func CCHome(home, profile string) (string, error) {
 type SessionInfo struct {
 	UUID    string
 	Path    string
-	Title   string // aiTitle (último visto); "" si no hay
+	Title   string // el que muestra Claude Code (ver TranscriptTitle); "" si no hay
 	ModTime time.Time
 }
 
 // ListSessions escanea <ccHome>/projects/<slug>/*.jsonl y devuelve las sesiones
 // ordenadas de más nueva a más vieja (por mtime). Carpeta inexistente => lista
 // vacía sin error.
+//
+// El título sale de TranscriptTitle, el mismo lector que `ccp desktop
+// sessions`. Aquí se leía solo el aiTitle, y la pestaña Code de Desktop solo
+// escribe customTitle: todas sus sesiones salían «(sin título)».
 func ListSessions(ccHome, slug string) ([]SessionInfo, error) {
 	dir := ProjectDir(ccHome, slug)
 	entries, err := os.ReadDir(dir)
@@ -119,36 +123,12 @@ func ListSessions(ccHome, slug string) ([]SessionInfo, error) {
 		out = append(out, SessionInfo{
 			UUID:    uuid,
 			Path:    full,
-			Title:   readAITitle(full),
+			Title:   TranscriptTitle(full),
 			ModTime: info.ModTime(),
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ModTime.After(out[j].ModTime) })
 	return out, nil
-}
-
-// readAITitle devuelve el último aiTitle del transcript, o "" si no hay.
-func readAITitle(path string) string {
-	f, err := os.Open(path)
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-	title := ""
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024) // líneas grandes
-	for sc.Scan() {
-		var m map[string]any
-		if json.Unmarshal(sc.Bytes(), &m) != nil {
-			continue
-		}
-		if m["type"] == "ai-title" {
-			if t, ok := m["aiTitle"].(string); ok {
-				title = t
-			}
-		}
-	}
-	return title
 }
 
 // writeTranscriptAtomic escribe data en path por tmp+rename.
@@ -225,10 +205,10 @@ func CopyTranscript(srcPath, dstDir string, force bool) (string, error) {
 }
 
 // RewriteSession lee srcPath (JSONL), reescribe cada campo sessionId de oldID a
-// newID, y prepende "[de <fromLabel>] " al aiTitle (idempotente: no duplica si
-// ya empieza con "[de "). NO toca cwd, el árbol uuid/parentUuid/leafUuid,
-// messageId, timestamps ni el contenido de los mensajes. Escribe en dstPath y
-// valida que el resultado no contenga oldID en sessionId y sea JSONL válido.
+// newID, y prepende "[de <fromLabel>] " al título de la sesión (ver prefixTitle).
+// NO toca cwd, el árbol uuid/parentUuid/leafUuid, messageId, timestamps ni el
+// contenido de los mensajes. Escribe en dstPath y valida que el resultado no
+// contenga oldID en sessionId y sea JSONL válido.
 func RewriteSession(srcPath, dstPath, oldID, newID, fromLabel string) error {
 	f, err := os.Open(srcPath)
 	if err != nil {
@@ -262,10 +242,11 @@ func RewriteSession(srcPath, dstPath, oldID, newID, fromLabel string) error {
 			if sid, ok := m["sessionId"].(string); ok && sid == oldID {
 				m["sessionId"] = newID
 			}
-			if m["type"] == "ai-title" {
-				if t, ok := m["aiTitle"].(string); ok && !strings.HasPrefix(t, "[de ") {
-					m["aiTitle"] = "[de " + fromLabel + "] " + t
-				}
+			switch m["type"] {
+			case "custom-title":
+				prefixTitle(m, "customTitle", fromLabel)
+			case "ai-title":
+				prefixTitle(m, "aiTitle", fromLabel)
 			}
 			if eerr := enc.Encode(m); eerr != nil { // Encode añade '\n'
 				return fmt.Errorf("no se pudo serializar línea: %w", eerr)
@@ -298,4 +279,21 @@ func RewriteSession(srcPath, dstPath, oldID, newID, fromLabel string) error {
 	}
 
 	return writeTranscriptAtomic(dstPath, out)
+}
+
+// prefixTitle antepone "[de <fromLabel>] " al título m[field] si no empieza ya
+// por "[de " (idempotente) y no está en blanco.
+//
+// Se marcan los dos campos, customTitle y aiTitle, porque Claude Code muestra el
+// primero cuando existe. Marcar solo aiTitle dejaba sin «[de …]» a la vista
+// justo las sesiones renombradas y todas las de Desktop, que solo llevan
+// customTitle.
+//
+// Un título en blanco se deja como está: TranscriptTitle lo ignora, y con el
+// prefijo pasaría a ser el título, uno que solo dice de dónde viene y que tapa
+// el de verdad.
+func prefixTitle(m map[string]any, field, fromLabel string) {
+	if t, ok := m[field].(string); ok && strings.TrimSpace(t) != "" && !strings.HasPrefix(t, "[de ") {
+		m[field] = "[de " + fromLabel + "] " + t
+	}
 }

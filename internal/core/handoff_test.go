@@ -280,6 +280,58 @@ func TestHandoffEndBackSyncsAsNewSession(t *testing.T) {
 	}
 }
 
+// TestHandoffSesionDeDesktopConservaElTitulo lleva y trae una sesión de la
+// pestaña Code de Desktop, cuyo transcript solo trae custom-title. Antes el
+// marcador guardaba "" (así la pintaban `handoff list` y la TUI) y la sesión
+// de vuelta seguía sin título, y por tanto sin «[de …]».
+func TestHandoffSesionDeDesktopConservaElTitulo(t *testing.T) {
+	home := t.TempDir()
+	seedHandoffEnv(t, home)
+	cwd := "/repo"
+	slug := SlugForCwd(cwd)
+	uuid := "dddddddd-4444-4444-8444-dddddddddddd"
+	const title = "Sesión de Desktop"
+	originCC := home + "/profiles/personal-1/cc-home"
+	writeLines(t, ProjectDir(originCC, slug)+"/"+uuid+".jsonl",
+		userMsgLine(uuid), customTitleLine(uuid, title), userMsgLine(uuid), customTitleLine(uuid, title))
+
+	if _, err := HandoffForward(home, "personal-1", "work-1", cwd, uuid, true, false, false, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	h, err := LoadHandoffs(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(h.Active) != 1 || h.Active[0].Title != title {
+		t.Fatalf("marcador = %+v, quería Title %q", h.Active, title)
+	}
+
+	if _, err := HandoffEnd(home, cwd, "", false, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	h, err = LoadHandoffs(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(h.Archived) != 1 {
+		t.Fatalf("marcador no archivado: %+v", h)
+	}
+	newID := h.Archived[0].ReturnedAs
+	sessions, err := ListSessions(originCC, slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range sessions {
+		if s.UUID == newID {
+			if want := "[de work-1] " + title; s.Title != want {
+				t.Fatalf("título de la sesión de vuelta = %q, quería %q", s.Title, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("la sesión de vuelta %s no aparece en el picker del origen: %+v", newID, sessions)
+}
+
 func TestHandoffEndCwdMismatchWarns(t *testing.T) {
 	const warn = "el cwd actual difiere del marcador"
 

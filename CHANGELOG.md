@@ -21,6 +21,20 @@
   ventana, con el título de su barra lateral, la carpeta y el uuid. `--json` emite siempre un array con
   `profile`, `uuid`, `title`, `cwd`, `last_activity`, `archived` y `transcript`.
 
+### Fixed
+
+- **Las sesiones de la pestaña Code de Claude Desktop ya no salen «(sin título)»** en el selector de
+  `ccp handoff`, en `ccp handoff sessions` (también en el `title` de `--json`) ni en el título que guarda el
+  marcador del handoff. ccp solo leía el título que genera el modelo (`ai-title`), y Desktop, como el
+  `/rename` del CLI, guarda el suyo como `custom-title`. Ahora se lee en el orden en que lo muestra Claude
+  Code: el último `customTitle` y, si no hay, el último `aiTitle`.
+- **La sesión que vuelve con `ccp handoff end` lleva `[de <perfil>]` en el título que se ve**, también si
+  estaba renombrada o venía de Desktop. Antes solo se marcaba `aiTitle`, que Claude Code no muestra cuando hay
+  un `customTitle`.
+- Una línea de más de 8 MB en el transcript (una imagen pegada, un `tool_result` grande) ya no corta la
+  lectura del título. Claude Code vuelve a escribir el título al final del archivo cada pocos turnos, así que
+  el vigente solía quedar detrás del corte.
+
 ## [2.18.0] — una instancia de perfil ya no puede suplantar ni actualizar a tu Claude
 
 Esta versión sale de un incidente real (2026-09-15). Un usuario con tres perfiles pasó una tarde creyendo

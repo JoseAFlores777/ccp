@@ -81,6 +81,32 @@ func writeJSONL(t *testing.T, dir, uuid, title string, mod time.Time) {
 	}
 }
 
+// writeLines escribe un transcript con las líneas dadas, una por línea.
+func writeLines(t *testing.T, path string, lines ...string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// customTitleLine y aiTitleLine tienen la forma exacta con que Claude Code
+// escribe los títulos: custom-title el `/rename` del CLI y todas las sesiones de
+// la pestaña Code de Desktop; ai-title el título generado por el modelo.
+func customTitleLine(sid, title string) string {
+	return `{"type":"custom-title","customTitle":"` + title + `","sessionId":"` + sid + `"}`
+}
+
+func aiTitleLine(sid, title string) string {
+	return `{"type":"ai-title","aiTitle":"` + title + `","sessionId":"` + sid + `"}`
+}
+
+func userMsgLine(sid string) string {
+	return `{"type":"user","sessionId":"` + sid + `","cwd":"/repo","uuid":"m1","parentUuid":null,"message":{"role":"user","content":"hola"}}`
+}
+
 func TestCCHomeProfile(t *testing.T) {
 	got, err := CCHome("/cfg/ccp", "work-1")
 	if err != nil {
@@ -135,6 +161,91 @@ func TestListSessionsEmpty(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Fatalf("len = %d, want 0 (carpeta inexistente = lista vacía)", len(got))
+	}
+}
+
+// TestListSessionsTitulo fija qué título ofrece el picker de `ccp handoff` según
+// las líneas de título del transcript: la regla de Claude Code, customTitle y, si
+// no hay, aiTitle (TranscriptTitle). Antes solo se leía aiTitle, y toda sesión
+// de Desktop salía «(sin título)».
+func TestListSessionsTitulo(t *testing.T) {
+	const sid = "12121212-1212-4121-8121-121212121212"
+	cases := []struct {
+		name  string
+		lines []string
+		want  string
+	}{
+		{
+			// Forma de Desktop: solo custom-title, re-anexado cada pocos turnos.
+			name:  "solo custom-title",
+			lines: []string{userMsgLine(sid), customTitleLine(sid, "Desde Desktop"), userMsgLine(sid), customTitleLine(sid, "Desde Desktop")},
+			want:  "Desde Desktop",
+		},
+		{
+			name:  "solo ai-title",
+			lines: []string{userMsgLine(sid), aiTitleLine(sid, "Desde el CLI")},
+			want:  "Desde el CLI",
+		},
+		{
+			// Manda por tipo, no por posición: el aiTitle es más reciente y pierde.
+			name:  "los dos: custom-title antes",
+			lines: []string{customTitleLine(sid, "Renombrada"), userMsgLine(sid), aiTitleLine(sid, "Del modelo")},
+			want:  "Renombrada",
+		},
+		{
+			name:  "los dos: custom-title después",
+			lines: []string{aiTitleLine(sid, "Del modelo"), userMsgLine(sid), customTitleLine(sid, "Renombrada")},
+			want:  "Renombrada",
+		},
+		{
+			name:  "el último custom-title gana",
+			lines: []string{customTitleLine(sid, "Primero"), aiTitleLine(sid, "Del modelo"), customTitleLine(sid, "Segundo")},
+			want:  "Segundo",
+		},
+		{
+			name:  "el último ai-title gana",
+			lines: []string{aiTitleLine(sid, "Primero"), userMsgLine(sid), aiTitleLine(sid, "Segundo")},
+			want:  "Segundo",
+		},
+		{
+			// Un custom-title en blanco no es un título. RewriteSession cuenta con
+			// ello para no marcarlo (ver prefixTitle).
+			name:  "custom-title vacío o en blanco se ignora",
+			lines: []string{customTitleLine(sid, "Renombrada"), aiTitleLine(sid, "Del modelo"), customTitleLine(sid, ""), customTitleLine(sid, "   ")},
+			want:  "Renombrada",
+		},
+		{
+			name:  "sin líneas de título",
+			lines: []string{userMsgLine(sid)},
+			want:  "",
+		},
+		{
+			// El filtro previo a decodificar no puede depender del formato del JSON.
+			name:  "JSON con espacios y otro orden de claves",
+			lines: []string{`{"sessionId": "` + sid + `", "customTitle": "Espaciada", "type": "custom-title"}`},
+			want:  "Espaciada",
+		},
+		{
+			name:  "una línea corrupta no corta la lectura",
+			lines: []string{`{"type":"custom-title","customTitle":"Rot`, customTitleLine(sid, "Entera")},
+			want:  "Entera",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cc := t.TempDir()
+			writeLines(t, filepath.Join(ProjectDir(cc, "-repo"), sid+".jsonl"), tc.lines...)
+			got, err := ListSessions(cc, "-repo")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != 1 {
+				t.Fatalf("len = %d, quería 1", len(got))
+			}
+			if got[0].Title != tc.want {
+				t.Fatalf("Title = %q, quería %q", got[0].Title, tc.want)
+			}
+		})
 	}
 }
 
@@ -230,6 +341,82 @@ func TestRewriteSessionTitleIdempotent(t *testing.T) {
 	data, _ := os.ReadFile(dstPath)
 	if strings.Count(string(data), "[de ") != 1 {
 		t.Fatalf("prefijo duplicado: %s", data)
+	}
+}
+
+// TestRewriteSessionMarcaElTituloVisible fija que la sesión que vuelve de un
+// handoff muestra «[de <perfil>]» en el título que de verdad se ve. Antes solo
+// se marcaba aiTitle, y Claude Code muestra customTitle cuando existe: una
+// sesión renombrada, o cualquiera de Desktop, volvía sin marca.
+func TestRewriteSessionMarcaElTituloVisible(t *testing.T) {
+	const old = "56565656-5656-4565-8565-565656565656"
+	const newID = "67676767-6767-4676-8676-676767676767"
+	cases := []struct {
+		name  string
+		lines []string
+		want  string // TranscriptTitle del resultado
+	}{
+		{
+			name:  "solo custom-title",
+			lines: []string{customTitleLine(old, "Desde Desktop"), userMsgLine(old), customTitleLine(old, "Desde Desktop")},
+			want:  "[de work-1] Desde Desktop",
+		},
+		{
+			name:  "solo ai-title",
+			lines: []string{userMsgLine(old), aiTitleLine(old, "Refactor")},
+			want:  "[de work-1] Refactor",
+		},
+		{
+			name:  "los dos",
+			lines: []string{aiTitleLine(old, "Del modelo"), userMsgLine(old), customTitleLine(old, "Renombrada")},
+			want:  "[de work-1] Renombrada",
+		},
+		{
+			name:  "ya marcado no se duplica",
+			lines: []string{customTitleLine(old, "[de x] Ya"), aiTitleLine(old, "[de x] Del modelo")},
+			want:  "[de x] Ya",
+		},
+		{
+			// Marcado, un custom-title en blanco pasaría a ser el título: un
+			// «[de work-1]» a secas en lugar de «Renombrada».
+			name:  "custom-title vacío o en blanco no se marca",
+			lines: []string{customTitleLine(old, "Renombrada"), aiTitleLine(old, "Del modelo"), customTitleLine(old, ""), customTitleLine(old, "   ")},
+			want:  "[de work-1] Renombrada",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			src := filepath.Join(dir, old+".jsonl")
+			dst := filepath.Join(dir, newID+".jsonl")
+			writeLines(t, src, tc.lines...)
+
+			if err := RewriteSession(src, dst, old, newID, "work-1"); err != nil {
+				t.Fatal(err)
+			}
+			if got := TranscriptTitle(dst); got != tc.want {
+				t.Fatalf("título de la sesión de vuelta = %q, quería %q", got, tc.want)
+			}
+			// Toda línea de título con texto queda marcada una sola vez, no solo
+			// la última: el listado rápido de Claude Code lee el título de la cola
+			// del archivo y, si ahí no lo encuentra, de la cabeza.
+			data, err := os.ReadFile(dst)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, ln := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+				var m map[string]any
+				if err := json.Unmarshal([]byte(ln), &m); err != nil {
+					t.Fatalf("línea no es JSON válido: %s", ln)
+				}
+				for _, field := range []string{"customTitle", "aiTitle"} {
+					s, _ := m[field].(string)
+					if strings.TrimSpace(s) != "" && (!strings.HasPrefix(s, "[de ") || strings.Count(s, "[de ") != 1) {
+						t.Errorf("%s sin marca o con marca doble: %q", field, s)
+					}
+				}
+			}
+		})
 	}
 }
 
