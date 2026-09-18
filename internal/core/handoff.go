@@ -165,7 +165,7 @@ func HandoffForward(home, from, to, cwd, sessionUUID string, writeMarker, yolo, 
 		h.Active = append(h.Active, Marker{
 			Session: sessionUUID, Slug: slug, Cwd: cwd,
 			From: from, To: to,
-			Title: readAITitle(srcPath),
+			Title: TranscriptTitle(srcPath),
 			Since: now.UTC().Format(time.RFC3339),
 		})
 		active, oldest = len(h.Active), oldestActive(h)
@@ -203,8 +203,8 @@ func oldestActive(h *Handoffs) Marker {
 
 // HandoffEnd toma el marcador resuelto (por cwd o por uuid explícito), hace
 // back-sync del transcript (que creció en el destino) hacia el origen como una
-// sesión NUEVA (uuid nuevo, sessionId reescrito, aiTitle prefijado con el
-// origen), lo archiva y devuelve el emit con el env del ORIGEN + el uuid nuevo.
+// sesión NUEVA (uuid nuevo, sessionId reescrito, título prefijado con el
+// destino), lo archiva y devuelve el emit con el env del ORIGEN + el uuid nuevo.
 // No destructivo: ni el original del origen ni el del destino se borran.
 // Si hay 2+ activos para el cwd devuelve ErrAmbiguousHandoff SIN tocar nada;
 // el caller desambigua y vuelve a llamar con sessionFlag.

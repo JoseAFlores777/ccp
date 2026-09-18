@@ -119,8 +119,8 @@ func HandoffChain(home, from, to, cwd, sessionUUID string, auto, force bool, now
 			if auto {
 				m.Auto = true
 			}
-			// El título se deja como estaba: readAITitle sobre el transcript ya
-			// crecido devolvería el aiTitle del momento, y sobrescribirlo perdería
+			// El título se deja como estaba: TranscriptTitle sobre el transcript
+			// ya crecido devolvería el título del momento, y sobrescribirlo perdería
 			// el nombre con el que el usuario reconoce el préstamo en `handoff list`.
 			out = *m
 			return nil
@@ -128,7 +128,7 @@ func HandoffChain(home, from, to, cwd, sessionUUID string, auto, force bool, now
 		out = Marker{
 			Session: sessionUUID, Slug: slug, Cwd: cwd,
 			From: from, To: to,
-			Title: readAITitle(srcPath),
+			Title: TranscriptTitle(srcPath),
 			Since: now.UTC().Format(time.RFC3339),
 			Auto:  auto,
 			// El primer destino ya cuenta como hop: Hops es el rastro de destinos,
@@ -148,7 +148,7 @@ func HandoffChain(home, from, to, cwd, sessionUUID string, auto, force bool, now
 // HandoffEndSession es el núcleo de HandoffEnd sin presentación: resuelve el
 // marcador (por cwd o por uuid explícito), hace el back-sync del transcript
 // hacia el perfil ORIGEN como una sesión NUEVA (uuid nuevo, sessionId reescrito,
-// aiTitle prefijado con el destino) y archiva el marcador. Devuelve el marcador
+// título prefijado con el destino) y archiva el marcador. Devuelve el marcador
 // cerrado y el uuid nuevo en el origen.
 //
 // Existe separada porque el supervisor necesita exactamente esto y nada más: no
@@ -213,7 +213,7 @@ func HandoffEndSession(home, cwd, sessionFlag string, now time.Time) (Marker, st
 
 // HandoffAdoptHome lleva al perfil `to` una conversación que vive en `from` SIN
 // marcador de préstamo, como sesión NUEVA (uuid nuevo, sessionId reescrito,
-// aiTitle prefijado con `from`). Devuelve el uuid nuevo.
+// título prefijado con `from`). Devuelve el uuid nuevo.
 //
 // Es la vuelta a casa del caso DEGRADADO del supervisor: cuando la rotación
 // ocurrió antes de que existiera el jsonl no hubo nada que prestar, así que no
