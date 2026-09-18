@@ -24,7 +24,11 @@ var desktopPsCommand = []string{"ps", "-Ewww", "-axo", "pid=,command="}
 // hacia arriba: si `ps` no está o devuelve error, se devuelve nada y quien
 // llama debe tratar eso como «no lo sé», no como «no hay ninguno». Esa
 // distinción la mantiene el doctor marcando Unknown en vez de OK.
-func desktopProcesses() []core.DesktopProc {
+//
+// Es una variable, como las sondas de desktop_sessions.go, para que un test
+// monte la tabla de procesos que necesita —la ventana de un perfil abierta,
+// ninguna— sin depender de lo que corra en la máquina ni de que haya `ps`.
+var desktopProcesses = func() []core.DesktopProc {
 	if runtime.GOOS == "windows" {
 		return nil
 	}

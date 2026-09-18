@@ -128,6 +128,16 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "  Its Desktop launcher still points to '%s' and won't open anymore (%s).\n  Replace it with its window closed: %s && %s",
 		Es: "  Su lanzador de Desktop sigue apuntando a '%s' y ya no abre (%s).\n  Sustitúyelo con su ventana cerrada: %s && %s",
 	},
+	// La guarda de `profile rename` (desktopGuard): el directorio que se mueve
+	// lleva dentro el data dir y el cc-home de la ventana de Desktop del perfil.
+	"cli.profile.rename_desktop_open": {
+		En: "'%s' has its Claude Desktop window open. Renaming would move its data dir and cc-home out from under the running app, which keeps writing by path under the old name and would leave the profile's state split in two: close that window first (or pass --force).",
+		Es: "'%s' tiene su ventana de Claude Desktop abierta. Renombrar le movería el data dir y el cc-home a la app en marcha, que sigue escribiendo por ruta con el nombre viejo y dejaría el estado del perfil partido en dos: cierra esa ventana primero (o pasa --force).",
+	},
+	"cli.profile.rename_forced": {
+		En: "--force: renaming anyway. Close that window now: whatever it writes from here on can end up in a stray profiles/%s/.",
+		Es: "--force: se renombra de todos modos. Cierra esa ventana ya: lo que escriba desde ahora puede acabar en un profiles/%s/ huérfano.",
+	},
 	"cli.profile.usage_show": {
 		En: "Usage: ccp profile show <name>",
 		Es: "Uso: ccp profile show <nombre>",
