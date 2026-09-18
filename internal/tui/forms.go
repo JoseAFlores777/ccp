@@ -149,8 +149,8 @@ func formDeleteProfile(home, name string, lang i18n.Lang) action {
 }
 
 // formRenameProfile pide el nombre nuevo y renombra. El core mueve con él las
-// reglas, los marcadores de handoff y el directorio (login + key), así que
-// desde la TUI es una sola pregunta.
+// reglas, las cadenas de rotación, los marcadores de handoff y el directorio
+// (login + key), así que desde la TUI es una sola pregunta.
 func formRenameProfile(home, name string, lang i18n.Lang) action {
 	nuevo := name
 	form := huh.NewForm(

@@ -1,17 +1,21 @@
 package core
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
 
-// profile_rename_test.go — el nombre de un perfil vive en cuatro sitios
-// (ccp.yaml profiles, ccp.yaml rules, <home>/profiles/<name>/ y los marcadores
-// de handoffs.yaml). Renombrar tocando solo uno deja el estado incoherente:
-// una regla apuntando a un perfil inexistente resuelve a `default` en silencio,
-// y un marcador con el nombre viejo ya no se puede terminar.
+// profile_rename_test.go — el nombre de un perfil vive en cinco sitios
+// (ccp.yaml profiles, ccp.yaml rules, el bloque auto_handoff de ccp.yaml,
+// <home>/profiles/<name>/ y los marcadores de handoffs.yaml). Renombrar tocando
+// solo uno deja el estado incoherente: una regla apuntando a un perfil
+// inexistente resuelve a `default` en silencio, una cadena de rotación con el
+// nombre viejo deja de prestar esa cuenta, y un marcador con el nombre viejo ya
+// no se puede terminar.
 
 // seedRenameHome deja un home con dos perfiles, reglas hacia ambos, un
 // artefacto authored del perfil a renombrar y su directorio con api_key.
@@ -182,5 +186,288 @@ func TestProfileRenameRevierteSiFallaElConfig(t *testing.T) {
 	c, _ := Load(home)
 	if _, ok := c.Profiles["viejo"]; !ok {
 		t.Fatal("ccp.yaml no debería haber cambiado")
+	}
+}
+
+// seedRenameAutoHome es seedRenameHome con un bloque auto_handoff que nombra a
+// «viejo» en los tres sitios que llevan perfiles: el fallback de las políticas,
+// allow_from (clave y listas) y hooks. Lleva además un nombre entre espacios
+// (así lo deja una edición a mano, y los lectores del bloque lo recortan) y
+// claves que este binario no conoce, que el rename tiene que conservar.
+func seedRenameAutoHome(t *testing.T) string {
+	t.Helper()
+	home := seedRenameHome(t)
+	c, err := Load(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Profiles["cliente"] = Profile{Type: "official"}
+	c.AutoHandoff = &AutoHandoff{
+		Enabled: true,
+		Policies: map[string]AutoPolicy{
+			"default": {Fallback: []string{"otro", "viejo"}, Threshold: 80, Extra: map[string]any{"park_wait": "5m"}},
+			"noche":   {Fallback: []string{" viejo ", "cliente"}},
+			"sin-el":  {Fallback: []string{"otro"}},
+		},
+		AllowFrom: map[string][]string{
+			"viejo":   {"viejo", "otro"},
+			"otro":    {"otro", "viejo"},
+			"cliente": {"cliente"},
+		},
+		Hooks: []string{"otro", "viejo"},
+		Extra: map[string]any{"statusline_augment": true},
+	}
+	if err := Save(home, c); err != nil {
+		t.Fatal(err)
+	}
+	return home
+}
+
+// TestProfileRenameRenombraAutoHandoff: sin esto, tras un rename la política
+// nombraba a un perfil inexistente (`ccp session` fallaba con «el perfil de
+// fallback no existe»), el allow_from del perfil dejaba de encontrarse y la
+// siguiente regeneración de su cc-home le quitaba los sensores.
+func TestProfileRenameRenombraAutoHandoff(t *testing.T) {
+	home := seedRenameAutoHome(t)
+	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+
+	if err := ProfileRename(home, "viejo", "nuevo"); err != nil {
+		t.Fatalf("rename: %v", err)
+	}
+	c, err := Load(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ah := c.AutoHandoff
+	for pol, want := range map[string][]string{
+		"default": {"otro", "nuevo"},
+		"noche":   {"nuevo", "cliente"},
+		"sin-el":  {"otro"},
+	} {
+		if got := ah.Policies[pol].Fallback; !slices.Equal(got, want) {
+			t.Errorf("fallback de %q = %q, quiero %q", pol, got, want)
+		}
+	}
+	if _, ok := ah.AllowFrom["viejo"]; ok {
+		t.Errorf("allow_from conserva la clave vieja: %v", ah.AllowFrom)
+	}
+	for primary, want := range map[string][]string{
+		"nuevo":   {"nuevo", "otro"},
+		"otro":    {"otro", "nuevo"},
+		"cliente": {"cliente"},
+	} {
+		if got := ah.AllowFrom[primary]; !slices.Equal(got, want) {
+			t.Errorf("allow_from.%s = %q, quiero %q", primary, got, want)
+		}
+	}
+	if !slices.Equal(ah.Hooks, []string{"otro", "nuevo"}) {
+		t.Errorf("hooks = %q", ah.Hooks)
+	}
+	// Lo que no es un nombre de perfil viaja intacto.
+	if d := ah.Policies["default"]; d.Threshold != 80 || d.Extra["park_wait"] != "5m" {
+		t.Errorf("la política perdió sus ajustes: %+v", d)
+	}
+	if ah.Extra["statusline_augment"] != true || !ah.Enabled {
+		t.Errorf("el bloque perdió sus claves: %+v", ah)
+	}
+
+	// Lo que de verdad importa: la cuenta renombrada sigue prestándose, y como
+	// primario conserva su propio gate.
+	rc, err := ResolveAutoChain(home, nil, "default", "/repo/dos")
+	if err != nil {
+		t.Fatalf("la cadena desde otro no resuelve: %v", err)
+	}
+	if !slices.Equal(rc.Fallback, []string{"nuevo"}) || len(rc.Denied) != 0 {
+		t.Errorf("desde otro: fallback %q, denegados %q", rc.Fallback, rc.Denied)
+	}
+	rc, err = ResolveAutoChain(home, nil, "default", "/repo/uno")
+	if err != nil {
+		t.Fatalf("la cadena desde nuevo no resuelve: %v", err)
+	}
+	if rc.Primary != "nuevo" || !slices.Equal(rc.Fallback, []string{"otro"}) || len(rc.Denied) != 0 {
+		t.Errorf("desde nuevo: %+v", rc)
+	}
+
+	// Y ProfileSync, al regenerar el cc-home con el nombre nuevo, le vuelve a
+	// poner los sensores.
+	settings, err := os.ReadFile(filepath.Join(ccHomePath(home, "nuevo"), "settings.json"))
+	if err != nil {
+		t.Fatalf("no se regeneró el settings.json: %v", err)
+	}
+	for _, want := range []string{autoStatusLineCmd, autoLimitHookCmd} {
+		if !strings.Contains(string(settings), want) {
+			t.Errorf("el settings.json regenerado no lleva %s:\n%s", want, settings)
+		}
+	}
+}
+
+// TestProfileRenameDeshaceCcpYamlEnteroSiFallanLosMarcadores: ccp.yaml se
+// escribe (reglas y auto_handoff en el mismo Save) y luego falla handoffs.yaml.
+// Deshacer tiene que dejar ccp.yaml byte a byte como estaba. La regla huérfana
+// hacia «nuevo» es la prueba de que se guarda lo leído en vez de invertir el
+// cambio a mano: una inversión nuevo→viejo la habría convertido en una regla
+// del perfil viejo.
+func TestProfileRenameDeshaceCcpYamlEnteroSiFallanLosMarcadores(t *testing.T) {
+	home := seedRenameAutoHome(t)
+	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+	c, err := Load(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Rules = append(c.Rules, Rule{Path: "/repo/huerfana", Profile: "nuevo"})
+	if err := Save(home, c); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveHandoffs(home, &Handoffs{
+		Version: HandoffsVersion,
+		Active:  []Marker{{Session: "aaa", Slug: "-r", Cwd: "/r", From: "viejo", To: "otro", Since: "2026-07-01T00:00:00Z"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	antes, err := os.ReadFile(filepath.Join(home, "ccp.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// handoffs.yaml.tmp como directorio: el tmp+rename de los marcadores falla
+	// después de que ccp.yaml ya se escribiera renombrado.
+	if err := os.Mkdir(filepath.Join(home, "handoffs.yaml.tmp"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ProfileRename(home, "viejo", "nuevo"); err == nil {
+		t.Fatal("esperaba error al escribir handoffs.yaml")
+	}
+	despues, err := os.ReadFile(filepath.Join(home, "ccp.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(antes, despues) {
+		t.Fatalf("ccp.yaml no volvió a como estaba.\nantes:\n%s\ndespués:\n%s", antes, despues)
+	}
+	if _, err := os.Stat(profileDirPath(home, "viejo")); err != nil {
+		t.Fatalf("el directorio no volvió a su sitio: %v", err)
+	}
+	if _, err := os.Stat(profileDirPath(home, "nuevo")); !os.IsNotExist(err) {
+		t.Fatal("quedó el directorio con el nombre nuevo")
+	}
+}
+
+// TestProfileRenameRechazaUnNombreQueAutoHandoffYaMenciona: un nombre destino
+// que el bloque ya nombra es un resto de otro perfil. Renombrar encima le daría
+// al perfil renombrado cadenas y permisos que no eran suyos; el caso de
+// allow_from es el grave, porque abriría un gate que hoy le deniega préstamos.
+func TestProfileRenameRechazaUnNombreQueAutoHandoffYaMenciona(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		apply func(*AutoHandoff)
+		where string
+	}{
+		{"en un fallback", func(a *AutoHandoff) {
+			p := a.Policies["sin-el"]
+			p.Fallback = append(p.Fallback, "nuevo")
+			a.Policies["sin-el"] = p
+		}, "policies.sin-el.fallback"},
+		{"como clave de allow_from", func(a *AutoHandoff) { a.AllowFrom["nuevo"] = []string{"otro"} }, "allow_from.nuevo"},
+		{"en una lista de allow_from", func(a *AutoHandoff) { a.AllowFrom["cliente"] = []string{"cliente", " nuevo"} }, "allow_from.cliente"},
+		{"en hooks", func(a *AutoHandoff) { a.Hooks = append(a.Hooks, "nuevo") }, "hooks"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home := seedRenameAutoHome(t)
+			t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+			c, err := Load(home)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tc.apply(c.AutoHandoff)
+			if err := Save(home, c); err != nil {
+				t.Fatal(err)
+			}
+			antes, _ := os.ReadFile(filepath.Join(home, "ccp.yaml"))
+
+			err = ProfileRename(home, "viejo", "nuevo")
+			if err == nil {
+				t.Fatal("esperaba que el rename se negara")
+			}
+			if !strings.Contains(err.Error(), "auto_handoff") || !strings.Contains(err.Error(), tc.where) {
+				t.Errorf("el error no dice dónde está la mención (%s): %v", tc.where, err)
+			}
+			despues, _ := os.ReadFile(filepath.Join(home, "ccp.yaml"))
+			if !bytes.Equal(antes, despues) {
+				t.Error("un rename rechazado no debe tocar ccp.yaml")
+			}
+			if _, err := os.Stat(profileDirPath(home, "viejo")); err != nil {
+				t.Error("un rename rechazado no debe mover el directorio")
+			}
+		})
+	}
+}
+
+// TestProfileRenameConservaLosComentarios: goccy recoloca cada comentario por
+// su ruta en el yaml, así que los que cuelgan de una clave renombrada
+// (profiles.<viejo>, allow_from.<viejo>) se perdían en silencio. Los de allow_from
+// son los que más duele perder: ahí se apunta por qué un cliente no presta a
+// cierta cuenta. El nombre con punto cubre el caso en que goccy entrecomilla la
+// clave dentro de la ruta.
+func TestProfileRenameConservaLosComentarios(t *testing.T) {
+	const yamlConComentarios = `version: 2
+profiles:
+  # la cuenta del trabajo
+  viejo:
+    type: official # login con SSO
+  otro:
+    type: official
+rules:
+  - path: /repo/uno
+    profile: viejo # el repo de la empresa
+authored: []
+auto_handoff:
+  enabled: true
+  policies:
+    default:
+      fallback:
+        - otro
+        - viejo # préstamo de noche
+  allow_from:
+    # contrato: no presta a cuentas personales
+    viejo:
+      - viejo # solo a sí mismo
+    otro: [otro, viejo]
+  hooks:
+    - viejo # sensores
+`
+	for _, nuevo := range []string{"nuevo", "work.v2"} {
+		t.Run(nuevo, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+			if err := os.WriteFile(filepath.Join(home, "ccp.yaml"), []byte(yamlConComentarios), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := ProfileRename(home, "viejo", nuevo); err != nil {
+				t.Fatalf("rename: %v", err)
+			}
+			b, err := os.ReadFile(filepath.Join(home, "ccp.yaml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			out := string(b)
+			if strings.Contains(out, "viejo:") {
+				t.Errorf("quedó una clave con el nombre viejo:\n%s", out)
+			}
+			// Cada comentario sigue ahí y pegado a lo que comentaba: los de
+			// cabecera, justo encima de la clave renombrada.
+			for _, want := range []string{
+				"# la cuenta del trabajo\n  " + nuevo + ":\n",
+				"type: official # login con SSO",
+				"profile: " + nuevo + " # el repo de la empresa",
+				"- " + nuevo + " # préstamo de noche",
+				"# contrato: no presta a cuentas personales\n    " + nuevo + ":\n",
+				"- " + nuevo + " # solo a sí mismo",
+				"- " + nuevo + " # sensores",
+			} {
+				if !strings.Contains(out, want) {
+					t.Errorf("falta %q en:\n%s", want, out)
+				}
+			}
+		})
 	}
 }

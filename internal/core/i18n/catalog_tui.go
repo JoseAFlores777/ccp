@@ -69,8 +69,8 @@ var catalogTUI = map[string]map[Lang]string{
 		Es: "Nombre nuevo para '%s'",
 	},
 	"tui.form.rename_profile_desc": {
-		En: "Its rules, handoff markers, login and API key move with it.",
-		Es: "Sus reglas, marcadores de handoff, login y API key se mueven con él.",
+		En: "Its rules, rotation chains, handoff markers, login and API key move with it.",
+		Es: "Sus reglas, cadenas de rotación, marcadores de handoff, login y API key se mueven con él.",
 	},
 	"tui.form.rename_needs_new_name": {
 		En: "type a name different from the current one",

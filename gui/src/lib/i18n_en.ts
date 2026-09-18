@@ -124,7 +124,7 @@ export const en: Record<string, string> = {
   "Letras, números, punto, guion o guion bajo.": "Letters, numbers, period, hyphen or underscore.",
   "Se mueven su carpeta de perfil, sus reglas de carpeta y sus préstamos.": "Its profile folder, its folder rules and its loans move with it.",
   "Las terminales abiertas siguen con el nombre viejo hasta un ccp use.": "Open terminals keep the old name until you run ccp use.",
-  "Las cadenas de rotación y los permisos que la nombran no se renombran: habrá que volver a añadirla.": "Rotation chains and permissions that name it aren't renamed: you'll have to add it again.",
+  "Las cadenas de rotación, el mapa de permisos y la lista de sensores que la nombran pasan al nombre nuevo.": "The rotation chains, permission map and sensor list that name it switch to the new name.",
   "Su lanzador de Desktop queda con el nombre viejo: quítalo y créalo de nuevo.": "Its Desktop launcher keeps the old name: remove it and create it again.",
   "Su ventana de Desktop está abierta: ciérrala antes de renombrar.": "Its Desktop window is open: close it before renaming.",
   "Renombrar": "Rename",

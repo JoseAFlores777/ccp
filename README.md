@@ -449,7 +449,7 @@ denegados por allow_from: work-2, deepseek
 [error] política "default": el perfil de fallback "app" no existe
 ```
 
-> **`ccp profile rename` and `ccp profile rm` do not touch `auto_handoff`.** They move your path rules and your handoff markers, but the rotation policy is left exactly as it was — so renaming or deleting a profile that is in a chain leaves a dangling name, and the next `ccp session` in that directory fails with the error above until you fix the YAML. Three places carry profile names: `policies.*.fallback`, `allow_from` (**both** the keys and the lists) and `hooks`. Grep for the old name before you close the file.
+> **`ccp profile rename` renames the profile inside `auto_handoff` too; `ccp profile rm` does not touch it.** Three places carry profile names — `policies.*.fallback`, `allow_from` (**both** the keys and the lists) and `hooks` — and a rename rewrites all three in the same write as your path rules, comments included. Deleting a profile leaves its name dangling in all three, and the next `ccp session` in that directory fails with the error above until you fix the YAML: grep for the name before you close the file. Those leftovers are also why a rename **refuses** a new name that `auto_handoff` already mentions — otherwise the renamed account would silently inherit chains and an `allow_from` gate that were never its own.
 
 > **`ccp auto init --force` regenerates the block from scratch**, so it discards your hand edits *and* your comments. Use it to start over, not to refresh. Plain `ccp auto init` is idempotent: with a block already present it does nothing.
 
@@ -702,7 +702,7 @@ ccp profile config <perfil>                 # menú: instrucciones / settings / 
 ccp profile config <perfil> instructions    # abre overlay/CLAUDE.md
 ccp profile config <perfil> settings         # abre overlay/settings.overlay.json
 ccp profile sync [<perfil>]                  # re-mergea cambios del global ~/.claude
-ccp profile rename <old> <new>               # rename: rules, markers, login and key included
+ccp profile rename <old> <new>               # rename: rules, chains, markers, login and key included
 ccp config editor "code -w"                  # editor a usar (fallback: $EDITOR)
 ```
 
@@ -823,7 +823,7 @@ With commands: `ccp config show` · `ccp config set <clave> <valor>` · `ccp con
 | How do I switch the output language? | `ccp lang en\|es`, `CCP_LANG=es`, or press `L` in the TUI. |
 | Does ccp change anything inside Claude Code? | No. It only points Claude Code at a per-folder profile (its own config dir / provider). Your accounts and settings are untouched. |
 | Where are my API keys stored? | Under `~/.config/ccp/profiles/<n>/api_key`, `chmod 600`. Never in `ccp.yaml`, the shell rc, or git. |
-| How do I rename a profile? | `ccp profile rename <old> <new>` (or `r` in the TUI). Its rules, handoff markers, login and API key move with it; if that terminal had it active, run `ccp use <new>`. |
+| How do I rename a profile? | `ccp profile rename <old> <new>` (or `r` in the TUI). Its rules, rotation chains (`fallback`, `allow_from`, `hooks`), handoff markers, login and API key move with it; if that terminal had it active, run `ccp use <new>`. If it had a Desktop launcher, ccp prints the two commands that replace it. |
 | How do I update ccp? | `ccp upgrade` (re-runs the installer + `profile sync`). |
 | How do I uninstall? | `ccp uninstall` (removes the shell block); optionally `rm -rf ~/.config/ccp`. |
 

@@ -34,6 +34,21 @@
 
 ### Fixed
 
+- **`ccp profile rename` renombra también el perfil dentro de `auto_handoff`**: el `fallback` de cada
+  política, las claves y las listas de `allow_from` y `hooks`, en la misma escritura de `ccp.yaml` que las
+  reglas. Antes se quedaban con el nombre viejo, así que la cuenta renombrada dejaba de usarse como préstamo
+  sin avisar (`ccp session` fallaba con «el perfil de fallback no existe» y el diagnóstico lo marcaba como
+  `chain_unknown_profile`), el gate `allow_from` dejaba de reconocerla y la siguiente regeneración de su
+  cc-home le quitaba los sensores.
+  - Si un paso posterior falla, `ccp.yaml` vuelve a quedar byte a byte como estaba: se guarda la
+    configuración tal como se leyó en vez de invertir el cambio a mano.
+  - Se niega a usar un nombre nuevo que `auto_handoff` ya menciona (restos de un perfil borrado: `profile rm`
+    no limpia el bloque). Si no, la cuenta renombrada heredaría cadenas y un gate `allow_from` que no eran
+    suyos, y un gate que le negaba préstamos se abriría sin que nadie lo decidiera.
+  - Los comentarios de `ccp.yaml` que colgaban de la clave renombrada, en `profiles` y en `allow_from`, ya
+    no se pierden.
+  - Si el perfil tenía lanzador de Desktop, avisa de que ya no abre y da los dos comandos que lo sustituyen
+    conservando su color (y su nombre, si era propio). El lanzador no se toca.
 - **Las sesiones de la pestaña Code de Claude Desktop ya no salen «(sin título)»** en el selector de
   `ccp handoff`, en `ccp handoff sessions` (también en el `title` de `--json`) ni en el título que guarda el
   marcador del handoff. ccp solo leía el título que genera el modelo (`ai-title`), y Desktop, como el
