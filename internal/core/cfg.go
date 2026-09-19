@@ -51,12 +51,19 @@ func lastSettingsPath(home, name string) string {
 	return filepath.Join(profileStateDir(home, name), "last-settings.json")
 }
 
-// invalidSettingsPath guarda un cc-home/settings.json que no era JSON antes de
-// regenerarlo encima (adoptSettingsDrift): lo escribió alguien, y regenerar sin
-// copia sería perderlo sin rastro. Una sola ruta: la copia más reciente es la
-// que el aviso enseña.
-func invalidSettingsPath(home, name string) string {
-	return filepath.Join(profileStateDir(home, name), "settings.invalid.json")
+// lastOverlayPath es la copia del overlay con el que se generó lastSettingsPath.
+// Es lo que dice, sin aproximar, si el overlay cambió desde la última
+// regeneración: compararlo con lo generado fallaba cuando la capa auto envolvía
+// una clave del overlay o cuando el overlay borraba una clave.
+func lastOverlayPath(home, name string) string {
+	return filepath.Join(profileStateDir(home, name), "last-overlay.json")
+}
+
+// pendingDriftPath guarda la deriva que encontró una regeneración cuyo informe
+// nadie enseñó (CfgRegenerate, ProfileSync): la enseña el siguiente
+// `ccp profile sync`, `profile config` o `profiles.sync` de la GUI.
+func pendingDriftPath(home, name string) string {
+	return filepath.Join(profileStateDir(home, name), "drift-pending.json")
 }
 
 // ProfileSettingsFile expone la ruta del settings.overlay.json de un perfil a
@@ -278,42 +285,61 @@ func cfgMergeSettings(home, name, src string) (SettingsDrift, error) {
 	// (un settings.json inválido del que no se pudo guardar copia), no se
 	// escribe nada.
 	drift, err := adoptSettingsDrift(home, name, src)
-	if err != nil {
+	// Cualquier error de aquí abajo deja cc-home/settings.json como estaba, y la
+	// deriva lo tiene que decir: un aviso de «se regeneró» encima de un error
+	// sería mentira.
+	fail := func(err error) (SettingsDrift, error) {
+		drift.NotRegenerated = true
 		return drift, err
+	}
+	if err != nil {
+		return fail(err)
 	}
 	cch := ccHomePath(home, name)
 	out := filepath.Join(cch, "settings.json")
 	overlayFile := cfgSettingsFile(home, name)
 
+	// Se lee DESPUÉS de adoptar: la línea base tiene que ser el overlay con el
+	// que de verdad se genera, incluido lo que se acaba de adoptar.
 	overlayData, err := os.ReadFile(overlayFile)
 	if err != nil {
-		return drift, fmt.Errorf("no se pudo leer overlay de settings de %q: %w", name, err)
+		return fail(fmt.Errorf("no se pudo leer overlay de settings de %q: %w", name, err))
 	}
 	merged, err := cfgBuildSettings(home, name, src, overlayData)
 	if err != nil {
-		return drift, err
+		return fail(err)
 	}
 	if err := os.MkdirAll(cch, 0o755); err != nil {
-		return drift, fmt.Errorf("no se pudo crear cc-home de %q: %w", name, err)
+		return fail(fmt.Errorf("no se pudo crear cc-home de %q: %w", name, err))
 	}
-	if err := os.WriteFile(out, merged, 0o644); err != nil {
-		return drift, fmt.Errorf("no se pudo escribir %s: %w", out, err)
+	// tmp+rename: Claude Code y la pestaña Code de Desktop leen este archivo en
+	// caliente. Una escritura cortada a medias dejaba un settings.json truncado
+	// que un claude vivo recargaba sin los deny ni los hooks del perfil, y que la
+	// siguiente regeneración tomaba por «inválido».
+	if err := writeFileAtomic(out, merged, 0o644); err != nil {
+		return fail(fmt.Errorf("no se pudo escribir %s: %w", out, err))
 	}
-	if err := saveLastSettings(home, name, merged); err != nil {
+	if err := saveLastSettings(home, name, merged, overlayData); err != nil {
 		return drift, err
 	}
 	return drift, nil
 }
 
-// saveLastSettings guarda la copia de lo que se acaba de escribir en el
-// cc-home, en 0600 y por tmp+rename (un corte a medias no deja media copia).
-// Si no puede, borra la vieja y lo dice: una copia desfasada es peor que
-// ninguna, porque la siguiente regeneración tomaría por deriva los cambios del
-// global y los congelaría en el overlay. Sin copia, simplemente no se adopta.
-func saveLastSettings(home, name string, data []byte) error {
-	p := lastSettingsPath(home, name)
-	if err := writeFileAtomic(p, data, 0o600); err != nil {
-		_ = os.Remove(p)
+// saveLastSettings guarda la línea base de la deriva: lo que se acaba de
+// escribir en el cc-home y el overlay con el que se generó, en 0600 y por
+// tmp+rename (un corte a medias no deja media copia). Si no puede, borra las dos
+// y lo dice: una línea base desfasada es peor que ninguna, porque la siguiente
+// regeneración tomaría por deriva los cambios del global y los congelaría en el
+// overlay. Sin línea base no se adopta nada (y se guarda una copia de rescate).
+func saveLastSettings(home, name string, settings, overlay []byte) error {
+	ps, po := lastSettingsPath(home, name), lastOverlayPath(home, name)
+	err := writeFileAtomic(ps, settings, 0o600)
+	if err == nil {
+		err = writeFileAtomic(po, overlay, 0o600)
+	}
+	if err != nil {
+		_ = os.Remove(ps)
+		_ = os.Remove(po)
 		return fmt.Errorf("no se pudo guardar la copia de lo generado para %q: %w", name, err)
 	}
 	return nil
@@ -324,9 +350,15 @@ func saveLastSettings(home, name string, data []byte) error {
 // ~/.claude); la capa auto solo se aplica a los perfiles listados en
 // auto_handoff.hooks (ver autohooks.go). Se ejecuta en create/edit/sync —
 // NUNCA en el hook. Adopta la deriva de /config igual que
-// CfgRegenerateReport; solo no la cuenta.
+// CfgRegenerateReport; como no la cuenta, la deja pendiente en el estado del
+// perfil para que la enseñe quien cuente (savePendingDrift): tirarla aquí
+// dejaba sin aviso los conflictos, los borrados y las copias de rescate de
+// todos los caminos que no son `profile sync`.
 func CfgRegenerate(home, name, src string) error {
-	_, err := CfgRegenerateReport(home, name, src)
+	d, err := CfgRegenerateReport(home, name, src)
+	if !d.Empty() {
+		_ = savePendingDrift(home, d)
+	}
 	return err
 }
 
