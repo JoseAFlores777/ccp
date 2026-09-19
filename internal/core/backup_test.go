@@ -487,3 +487,133 @@ func TestBackupRestoreRegeneratesProfiles(t *testing.T) {
 		}
 	}
 }
+
+// --- backups manipulados: nada sale de CCP_HOME ---
+
+// forgeBackup reescribe el tar con los miembros extra dados y un manifest cuyos
+// checksums los cubren: el atacante controla el manifest, así que un checksum
+// correcto no prueba nada. mutate puede cambiar la lista de perfiles.
+func forgeBackup(t *testing.T, archive string, extra map[string][]byte, mutate func(*Manifest)) {
+	t.Helper()
+	ba, err := readBackup(archive)
+	if err != nil {
+		t.Fatalf("readBackup: %v", err)
+	}
+	members := map[string][]byte{}
+	for name, m := range ba.members {
+		members[name] = m.data
+	}
+	for name, data := range extra {
+		members[name] = data
+		ba.manifest.Checksums[name] = "sha256:" + sha256Hex(data)
+	}
+	if mutate != nil {
+		mutate(&ba.manifest)
+	}
+	manData, err := yaml.Marshal(&ba.manifest)
+	if err != nil {
+		t.Fatalf("marshal manifest: %v", err)
+	}
+	members[manifestMemberName] = manData
+	rewriteTar(t, archive, members)
+}
+
+// Un miembro "profiles/work/../../../X/pwned" pasaba el prefijo del perfil y
+// filepath.Join resolvía los ".." fuera de CCP_HOME: restore escribía donde el
+// backup quisiera (~/.zshrc, ~/.claude/settings.json con hooks…).
+func TestBackupRestoreRejectsTraversalMember(t *testing.T) {
+	home := setupHome(t)
+	archive := filepath.Join(t.TempDir(), "b.tar.gz")
+	if err := BackupExport(home, archive, false, fixedTime); err != nil {
+		t.Fatal(err)
+	}
+	forgeBackup(t, archive, map[string][]byte{
+		"profiles/work/../../../X/pwned": []byte("owned"),
+	}, nil)
+
+	root := t.TempDir()
+	dst := filepath.Join(root, "a", "b", "ccphome")
+	if err := os.MkdirAll(dst, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := BackupRestore(dst, archive, RestoreOpts{SnapshotDir: t.TempDir()}); err == nil {
+		t.Fatal("restore aceptó un miembro con '..'")
+	}
+	var escaped []string
+	_ = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
+		if err == nil && info.Name() == "pwned" {
+			escaped = append(escaped, p)
+		}
+		return nil
+	})
+	if len(escaped) > 0 {
+		t.Fatalf("restore escribió %v", escaped)
+	}
+	if _, err := os.Stat(filepath.Join(dst, "profiles", "work")); err == nil {
+		t.Error("restore aplicó perfiles de un backup que debía rechazar entero")
+	}
+}
+
+// Solo se restauran los archivos que BackupExport sabe escribir; cualquier otro
+// miembro bajo profiles/<n>/ (p.ej. un settings.json con hooks) se rechaza.
+func TestBackupRestoreRejectsUnknownProfileMember(t *testing.T) {
+	home := setupHome(t)
+	archive := filepath.Join(t.TempDir(), "b.tar.gz")
+	if err := BackupExport(home, archive, false, fixedTime); err != nil {
+		t.Fatal(err)
+	}
+	forgeBackup(t, archive, map[string][]byte{
+		"profiles/work/cc-home/settings.json": []byte(`{"hooks":{}}`),
+	}, nil)
+	dst := t.TempDir()
+	if _, err := BackupRestore(dst, archive, RestoreOpts{SnapshotDir: t.TempDir()}); err == nil {
+		t.Fatal("restore aceptó un miembro fuera de la lista cerrada")
+	}
+	if _, err := os.Stat(filepath.Join(ccHomePath(dst, "work"), "settings.json")); err == nil {
+		t.Error("settings.json del backup acabó escrito")
+	}
+}
+
+// El nombre de perfil del manifest también es del atacante: "../../x" hacía
+// que profileDirPath (y el RemoveAll de --overwrite) apuntara fuera de CCP_HOME.
+func TestBackupRestoreRejectsInvalidProfileName(t *testing.T) {
+	home := setupHome(t)
+	archive := filepath.Join(t.TempDir(), "b.tar.gz")
+	if err := BackupExport(home, archive, false, fixedTime); err != nil {
+		t.Fatal(err)
+	}
+	// El ccp.yaml del backup también lo declara: si no, applyProfile fallaba
+	// por "ausente de ccp.yaml" y el test no probaba la validación del nombre.
+	yml := readTarMembers(t, archive)["ccp.yaml"]
+	yml = bytes.Replace(yml, []byte("profiles:\n"), []byte("profiles:\n  ../../x:\n    type: official\n"), 1)
+	forgeBackup(t, archive, map[string][]byte{"ccp.yaml": yml}, func(m *Manifest) {
+		m.Profiles = append(m.Profiles, ManifestProfile{Name: "../../x", Type: "official"})
+	})
+
+	root := t.TempDir()
+	victim := filepath.Join(root, "x")
+	if err := os.MkdirAll(victim, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(root, "ccphome")
+	if err := os.MkdirAll(dst, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := BackupRestore(dst, archive, RestoreOpts{SnapshotDir: t.TempDir(), Force: true}); err == nil {
+		t.Fatal("restore aceptó un nombre de perfil inválido")
+	}
+	if _, err := os.Stat(victim); err != nil {
+		t.Fatalf("restore borró fuera de CCP_HOME: %v", err)
+	}
+	ents, _ := os.ReadDir(root)
+	if len(ents) != 2 {
+		var names []string
+		for _, e := range ents {
+			names = append(names, e.Name())
+		}
+		t.Fatalf("restore creó cosas fuera de CCP_HOME: %v", names)
+	}
+	if ents, _ := os.ReadDir(victim); len(ents) != 0 {
+		t.Fatalf("restore escribió en %s", victim)
+	}
+}

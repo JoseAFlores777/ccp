@@ -311,6 +311,12 @@ func BackupRestore(home, archive string, opts RestoreOpts) (RestoreReport, error
 		return rep, err
 	}
 
+	// Nombres de perfil y rutas de miembro, también antes de tocar disco. El
+	// checksum no protege de esto: el manifest viene en el mismo archivo.
+	if err := validateBackupPaths(ba); err != nil {
+		return rep, err
+	}
+
 	// Auto-snapshot reversible del estado actual.
 	snapDir := opts.SnapshotDir
 	if snapDir == "" {
@@ -439,11 +445,17 @@ func applyProfile(home string, ba *backupArchive, bc *Config, name string, cur *
 			continue
 		}
 		rel := strings.TrimPrefix(memberName, "profiles/"+name+"/")
+		// validateBackupPaths ya lo exigió; se repite aquí porque este es el
+		// punto que escribe, y un caller nuevo no debe poder saltárselo.
+		if !backupProfileFiles[rel] {
+			return fmt.Errorf("el backup trae %q, que ccp no restaura", memberName)
+		}
 		dst := filepath.Join(profileDirPath(home, name), filepath.FromSlash(rel))
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			return fmt.Errorf("no se pudo crear directorio para %s: %w", dst, err)
 		}
-		mode := os.FileMode(m.mode)
+		// Solo bits de permiso: el modo viene del tar (setuid/sticky fuera).
+		mode := os.FileMode(m.mode).Perm()
 		if err := os.WriteFile(dst, m.data, mode); err != nil {
 			return fmt.Errorf("no se pudo escribir %s: %w", dst, err)
 		}
@@ -456,6 +468,43 @@ func applyProfile(home string, ba *backupArchive, bc *Config, name string, cur *
 	// Re-siembra symlinks re-seedables (plugins/commands/agents/skills).
 	if err := seedCCHome(home, name); err != nil {
 		return err
+	}
+	return nil
+}
+
+// backupProfileFiles es la lista cerrada de lo que un backup puede escribir
+// dentro de profiles/<n>/: exactamente lo que BackupExport mete. Una lista y no
+// un filtro de ".." porque el peligro no es solo salir de CCP_HOME: un
+// cc-home/settings.json con hooks dentro del perfil también es ejecutar código.
+var backupProfileFiles = map[string]bool{
+	"overlay/CLAUDE.md":             true,
+	"overlay/settings.overlay.json": true,
+	"api_key":                       true,
+	"cc-home/.claude.json":          true,
+}
+
+// validateBackupPaths rechaza el backup entero si un nombre de perfil del
+// manifest no es un nombre de directorio seguro (profileDirPath y el RemoveAll
+// de --overwrite saldrían de CCP_HOME con "../x"), o si trae un miembro que no
+// sea ccp.yaml ni un archivo de la lista cerrada de un perfil del manifest.
+// Todo o nada: se comprueba antes del snapshot, así que no queda nada a medias.
+func validateBackupPaths(ba *backupArchive) error {
+	known := make(map[string]bool, len(ba.manifest.Profiles))
+	for _, mp := range ba.manifest.Profiles {
+		if mp.Name != "default" && !validProfileName(mp.Name) {
+			return fmt.Errorf("el backup trae un perfil con nombre inválido: %q", mp.Name)
+		}
+		known[mp.Name] = true
+	}
+	for name := range ba.members {
+		if name == "ccp.yaml" {
+			continue
+		}
+		rest, ok := strings.CutPrefix(name, "profiles/")
+		prof, rel, ok2 := strings.Cut(rest, "/")
+		if !ok || !ok2 || !known[prof] || prof == "default" || !backupProfileFiles[rel] {
+			return fmt.Errorf("el backup trae %q, que ccp no restaura; archivo manipulado o de otra herramienta", name)
+		}
 	}
 	return nil
 }
