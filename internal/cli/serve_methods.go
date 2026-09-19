@@ -536,6 +536,14 @@ func effKindName(k core.EffKind) string {
 		return "plugins"
 	case core.EffSensors:
 		return "sensors"
+	case core.EffMCP:
+		return "mcp"
+	case core.EffDeny:
+		return "deny"
+	case core.EffAsk:
+		return "ask"
+	case core.EffSettings:
+		return "settings"
 	}
 	return "other"
 }

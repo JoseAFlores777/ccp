@@ -83,12 +83,12 @@ export interface Folder {
 export interface EffRow {
   key: string;
   value: string;
-  origin: 'global' | 'overlay' | 'auto';
+  origin: 'global' | 'overlay' | 'auto' | 'claude-json';
   shadowed: boolean;
 }
 
 export interface EffSection {
-  kind: 'instructions' | 'env' | 'permissions' | 'hooks' | 'plugins' | 'sensors' | 'other';
+  kind: 'instructions' | 'env' | 'permissions' | 'deny' | 'ask' | 'settings' | 'mcp' | 'hooks' | 'plugins' | 'sensors' | 'other';
   file: string;
   error: string;
   rows: EffRow[];

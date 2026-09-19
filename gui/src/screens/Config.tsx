@@ -16,6 +16,7 @@ function originLabel(r: EffRow): { label: string; color: string } {
   if (r.shadowed) return { label: t('{o} · tapado', { o: r.origin === 'global' ? t('global') : r.origin === 'overlay' ? t('perfil') : t('sensores') }), color: 'var(--ink-4)' };
   if (r.origin === 'overlay') return { label: t('perfil'), color: 'var(--accent)' };
   if (r.origin === 'auto') return { label: t('sensores'), color: 'var(--warn)' };
+  if (r.origin === 'claude-json') return { label: '.claude.json', color: 'var(--ink-3)' };
   return { label: t('global'), color: 'var(--ink-3)' };
 }
 
@@ -23,11 +24,19 @@ const SECTION_NAMES: Record<EffSection['kind'], string> = {
   instructions: 'Instrucciones',
   env: 'Variables de entorno',
   permissions: 'Permisos permitidos',
+  deny: 'Permisos denegados',
+  ask: 'Permisos que preguntan',
+  settings: 'Ajustes',
+  mcp: 'Servidores MCP (del .claude.json del perfil)',
   hooks: 'Hooks y barra de estado',
   plugins: 'Plugins',
   sensors: 'Sensores',
   other: 'Otros',
 };
+
+// El motor manda las secciones nuevas al final para no mover las de antes; aquí
+// se enseñan agrupadas: los tres tipos de permiso juntos, luego lo demás.
+const EFFECTIVE_ORDER: EffSection['kind'][] = ['env', 'permissions', 'deny', 'ask', 'settings', 'mcp', 'hooks', 'plugins', 'sensors', 'other'];
 
 const COLS = '1.2fr 1.6fr .8fr 118px';
 
@@ -103,7 +112,9 @@ export function Config() {
       ? [section('instructions')].filter(Boolean) as EffSection[]
       : tab === 'env'
         ? [section('env')].filter(Boolean) as EffSection[]
-        : eff.data.sections.filter((s) => s.kind !== 'instructions');
+        : eff.data.sections
+            .filter((s) => s.kind !== 'instructions')
+            .sort((a, b) => EFFECTIVE_ORDER.indexOf(a.kind) - EFFECTIVE_ORDER.indexOf(b.kind));
 
   return (
     <div>
