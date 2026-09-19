@@ -157,7 +157,10 @@ func ProfileConfig(home, name string, opts ProfileConfigOpts) error {
 }
 
 // ProfileSync re-mergea global ⊕ overlay para un perfil (si name != "") o para
-// todos (si name == ""). Rechaza "default". Migra legacy antes de regenerar.
+// todos (si name == ""). Rechaza "default". Migra legacy antes de regenerar, y
+// siembra lo que falte: `ccp upgrade` termina en un sync, así que es por aquí por
+// donde un perfil ya creado gana lo que la siembra añadió después (output-styles/,
+// hooks/, keybindings.json en la Fase 0). seedCCHome nunca pisa lo que existe.
 func ProfileSync(home, name string) error {
 	if name == "default" {
 		return fmt.Errorf("'default' no tiene cc-home; no se sincroniza")
@@ -178,6 +181,9 @@ func ProfileSync(home, name string) error {
 		if err := CfgMigrateLegacy(home, name); err != nil {
 			return err
 		}
+		if err := seedCCHome(home, name); err != nil {
+			return err
+		}
 		return CfgRegenerate(home, name, src)
 	}
 
@@ -187,6 +193,9 @@ func ProfileSync(home, name string) error {
 	}
 	for _, n := range names {
 		if err := CfgMigrateLegacy(home, n); err != nil {
+			return err
+		}
+		if err := seedCCHome(home, n); err != nil {
 			return err
 		}
 		if err := CfgRegenerate(home, n, src); err != nil {

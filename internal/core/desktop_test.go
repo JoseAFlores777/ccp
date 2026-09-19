@@ -421,3 +421,45 @@ func TestPlanDesktopHintExplicitoGana(t *testing.T) {
 		t.Fatalf("el hint debería ganar, dio %q", plan.App)
 	}
 }
+
+// B4: output-styles/ y hooks/ son directorios sembrados como symlink, así que el
+// espejo de Desktop los convierte igual que commands/. keybindings.json es una
+// hoja y se queda como symlink, que Desktop admite.
+func TestMirrorForDesktopIncluyeOutputStylesYHooks(t *testing.T) {
+	home := t.TempDir()
+	src := makeFakeClaudeSrc(t)
+	t.Setenv("CCP_CLAUDE_SRC", src)
+	for rel, body := range map[string]string{
+		"output-styles/estilo.md": "# estilo",
+		"hooks/antes.sh":          "#!/bin/sh\n",
+		"keybindings.json":        "[]",
+	} {
+		p := filepath.Join(src, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := ProfileAddOfficial(home, "work"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := MirrorForDesktop(home, "work"); err != nil {
+		t.Fatalf("MirrorForDesktop: %v", err)
+	}
+	cch := ccHomePath(home, "work")
+	noHaySymlinkNoHoja(t, cch)
+	for _, dir := range []string{"output-styles", "hooks"} {
+		fi, err := os.Lstat(filepath.Join(cch, dir))
+		if err != nil || !fi.IsDir() || fi.Mode()&os.ModeSymlink != 0 {
+			t.Errorf("%s: se esperaba un directorio real tras el espejo (%v)", dir, err)
+		}
+	}
+	for _, leaf := range []string{"output-styles/estilo.md", "hooks/antes.sh", "keybindings.json"} {
+		fi, err := os.Lstat(filepath.Join(cch, filepath.FromSlash(leaf)))
+		if err != nil || fi.Mode()&os.ModeSymlink == 0 {
+			t.Errorf("%s: se esperaba un symlink hoja al global (%v)", leaf, err)
+		}
+	}
+}
