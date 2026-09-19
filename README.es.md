@@ -689,7 +689,49 @@ ccp backup restore ~/ccp-backup.tar.gz --overwrite    # reemplaza perfiles del b
 ccp backup restore ~/ccp-backup.tar.gz --force        # borra todo y restaura limpio
 ```
 
-Antes de restaurar, `ccp` guarda un snapshot automático en `~/.config/ccp/.backup-pre-restore-<fecha>`.
+Antes de restaurar, `ccp` guarda un snapshot automático en `~/.config/ccp/.backup-pre-restore-<fecha>`, y además
+un [snapshot de seguridad](#snapshots--el-historial-de-toda-tu-configuración) de todo lo demás.
+
+## Snapshots — el historial de toda tu configuración
+
+`ccp backup` es un archivo que hay que acordarse de hacer. `ccp snapshot` es un **historial**: cada snapshot
+guarda toda la configuración, no solo la de ccp, y solo ocupa lo que cambió. Viven en
+`~/.config/ccp/snapshots`.
+
+```bash
+ccp snapshot create -m "antes de probar el MCP nuevo"   # uno ahora (con etiqueta, prune no lo borra)
+ccp snapshot list                                     # el historial, del más nuevo al más viejo
+ccp snapshot diff latest                              # qué cambió desde entonces
+ccp snapshot restore 3f2a9c                           # solo ENSEÑA el plan (sale 1): no escribe nada
+ccp snapshot restore 3f2a9c --yes                     # lo aplica
+ccp snapshot restore 3f2a9c --only claude/agents --yes   # solo una parte
+ccp snapshot export latest ~/config.ccpsnap --with-secrets   # un archivo para otra máquina
+ccp snapshot import ~/config.ccpsnap
+```
+
+Qué captura un snapshot:
+
+| Qué | Clase | Se captura |
+|---|---|---|
+| `ccp.yaml`, el overlay de cada perfil (`CLAUDE.md`, `settings.overlay.json`) | config | siempre |
+| `~/.claude`: `settings.json`, `CLAUDE.md`, `keybindings.json`, `agents/`, `commands/`, `skills/`, `output-styles/`, `hooks/`, las listas de plugins | config | siempre |
+| `.claude/settings.local.json` y `CLAUDE.local.md` de cada carpeta con regla | config | siempre |
+| La `api_key` de un proveedor, la parte de MCP de cada `.claude.json`, el `claude_desktop_config.json` de cada ventana de Desktop | secreto | siempre, sellado con la clave del almacén |
+| Conversaciones (`cc-home/projects`) y `handoffs.yaml` | estado | solo con `--with-state` |
+| Lo generado, las cachés, los logins, los tokens, el `machineID` | — | nunca: se regeneran o se recrean |
+
+- **Restaurar nunca va a ciegas.** Sin `--yes` imprime el plan y no cambia nada. Con `--yes`, primero guarda un
+  snapshot del estado actual; si no puede, no escribe nada. Solo escribe lo que trae el snapshot, nunca borra lo
+  que solo existe en disco, y después regenera los perfiles afectados. De un `.claude.json` solo viaja la
+  configuración: restaurarla la fusiona con el archivo vivo sin tocar tu sesión.
+- **Snapshots automáticos.** Uno de seguridad antes de `ccp profile rm` y de `ccp backup restore`: si no se
+  puede guardar, el comando no se ejecuta. Y uno diario, que toma el primer comando de gestión pasadas 20 horas
+  (nunca `ccp status`, `resolve` ni el hook del prompt). `CCP_NO_AUTO_SNAPSHOT=1` apaga los dos.
+- **Poda.** `ccp snapshot prune` conserva 7 días, 4 semanas y 6 meses, más el último y todo lo fijado
+  (`ccp snapshot pin <id>`) o etiquetado. `--dry-run` enseña lo que borraría.
+- **Los secretos en un archivo exportado** solo viajan con `--with-secrets`, sellados con una frase de al menos
+  12 caracteres que `ccp` pide sin eco (`CCP_SNAPSHOT_PASSPHRASE` la da en scripts). Sin ella, el archivo no
+  lleva secretos, y al importarlo se dice qué elementos llegaron sin datos.
 
 ## Config por perfil
 
@@ -855,6 +897,7 @@ Con comandos: `ccp config show` · `ccp config set <clave> <valor>` · `ccp conf
 | Llevar una conversación a la ventana de Desktop de otro perfil | `ccp desktop copy <uuid\|título> <n>` |
 | Estado / diagnóstico | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
+| Snapshots | `ccp snapshot create\|list\|diff\|restore\|export\|import` |
 | Actualizar | `ccp upgrade` |
 | Ayuda completa | `ccp help` |
 
