@@ -64,6 +64,9 @@ type InvItem struct {
 	Secrets []string `json:"secrets,omitempty"`
 	// Enabled marca un plugin presente en enabledPlugins.
 	Enabled bool `json:"enabled,omitempty"`
+	// Missing es el `command` de un MCP stdio que no resuelve (absoluto que no
+	// existe o fuera del PATH): alimenta los pendientes del plan de adopción.
+	Missing string `json:"missing,omitempty"`
 	// SecretHash sirve para comparar capas en memoria (la Task 4) y no sale
 	// nunca en JSON: el hash de un token corto es un oráculo para adivinarlo.
 	SecretHash string `json:"-"`
@@ -120,7 +123,16 @@ func invHashText(b []byte) string {
 
 // invWalker acumula el recorrido. Cada fuente deja su sonda exactamente una vez.
 type invWalker struct {
-	inv Inventory
+	inv      Inventory
+	lookPath func(string) (string, error)
+	// plugins son los instalados según installed_plugins.json, con su ruta en
+	// disco y si están activos: de ahí salen los MCP que trae cada uno.
+	plugins []invPlugin
+}
+
+type invPlugin struct {
+	id, path string
+	enabled  bool
 }
 
 func (w *invWalker) probe(src, status string, err error) {
@@ -313,20 +325,22 @@ func invSettingsKind(k string) string {
 // BuildInventory recorre las raíces y devuelve lo que encontró. No escribe
 // nada y no falla: lo que no pudo leer queda en Probes como unknown.
 func BuildInventory(r InventoryRoots) Inventory {
-	w := &invWalker{inv: Inventory{Items: []InvItem{}, Probes: []InvProbe{}}}
+	w := &invWalker{inv: Inventory{Items: []InvItem{}, Probes: []InvProbe{}}, lookPath: r.LookPath}
 	// Una raíz vacía no se recorre: Load("") leería ./ccp.yaml del cwd.
+	var cfg *Config
 	if r.CCPHome != "" {
-		w.walkCCP(r.CCPHome)
+		cfg = w.walkCCP(r.CCPHome)
 	}
 	if r.ClaudeSrc != "" {
 		w.walkClaudeGlobal(r.ClaudeSrc)
 	}
+	w.walkMCP(r, cfg)
 	return w.inv
 }
 
 // walkCCP: los perfiles, las reglas y el overlay de cada perfil. Todo lo
 // escribió ccp (Managed), aunque el overlay lo edite el usuario.
-func (w *invWalker) walkCCP(home string) {
+func (w *invWalker) walkCCP(home string) *Config {
 	yml := yamlPath(home)
 	if _, err := os.Stat(yml); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -334,12 +348,12 @@ func (w *invWalker) walkCCP(home string) {
 		} else {
 			w.probe(yml, "unknown", err)
 		}
-		return
+		return nil
 	}
 	cfg, err := Load(home)
 	if err != nil {
 		w.probe(yml, "unknown", err)
-		return
+		return nil
 	}
 	w.probe(yml, "ok", nil)
 
@@ -373,6 +387,7 @@ func (w *invWalker) walkCCP(home string) {
 			w.invSettings(st, sc, true, m)
 		}
 	}
+	return cfg
 }
 
 // walkClaudeGlobal: el ~/.claude del usuario. Nada de aquí lo escribió ccp.
@@ -420,6 +435,7 @@ func (w *invWalker) walkClaudeGlobal(src string) {
 		plugins, _ := m["plugins"].(map[string]any)
 		for _, n := range invSortedKeys(plugins) {
 			on, _ := enabled[n].(bool)
+			w.plugins = append(w.plugins, invPlugin{id: n, path: invPluginPath(plugins[n]), enabled: on})
 			w.add(InvItem{Kind: "plugin", Scope: sc, Name: n, Source: ip, Key: "plugins." + n,
 				Editable: true, Enabled: on, Hash: invHashJSON(plugins[n])})
 		}
@@ -480,5 +496,239 @@ func (w *invWalker) walkSkills(dir string, sc InvScope) {
 		if b, ok := w.readFile(p); ok {
 			w.add(InvItem{Kind: "skill", Scope: sc, Name: e.Name(), Source: p, Editable: true, Hash: invHashText(b)})
 		}
+	}
+}
+
+// invPluginPath saca la ruta en disco de una entrada de installed_plugins.json:
+// en v2 es una lista de instalaciones (por scope) y en v1 un objeto. Vale la
+// primera que la traiga; sin ninguna, el plugin no aporta MCP.
+func invPluginPath(v any) string {
+	entries, isList := v.([]any)
+	if !isList {
+		entries = []any{v}
+	}
+	for _, e := range entries {
+		if m, ok := e.(map[string]any); ok {
+			if p, _ := m["installPath"].(string); p != "" {
+				return p
+			}
+		}
+	}
+	return ""
+}
+
+// invMCPOpts describe una fuente de MCP: a qué capa pertenece cada entrada,
+// dónde aplica y si el usuario puede tocarla desde ccp.
+type invMCPOpts struct {
+	src, keyPrefix string
+	sc             InvScope
+	applies        []string
+	editable       bool
+	why            string
+	// desktop: el archivo es claude_desktop_config.json, que solo carga
+	// entradas stdio (ADR 0016 M3).
+	desktop bool
+	// pluginRoot sustituye ${CLAUDE_PLUGIN_ROOT} antes de resolver el comando.
+	pluginRoot string
+}
+
+// invMCPShape son los campos que definen QUÉ servidor es. Todo lo demás
+// (env, headers) es credencial o ajuste de la cuenta y va al SecretHash.
+var invMCPShape = []string{"type", "command", "args", "url"}
+
+// invMCPServers añade un item por servidor de un mapa mcpServers.
+func (w *invWalker) invMCPServers(servers map[string]any, o invMCPOpts) {
+	for _, name := range invSortedKeys(servers) {
+		entry, ok := servers[name].(map[string]any)
+		if !ok {
+			continue
+		}
+		shape := map[string]any{}
+		for _, k := range invMCPShape {
+			if v, has := entry[k]; has {
+				shape[k] = v
+			}
+		}
+		full := map[string]any{"shape": shape}
+		var secrets []string
+		for _, sk := range []string{"env", "headers"} {
+			m, isMap := entry[sk].(map[string]any)
+			if !isMap || len(m) == 0 {
+				continue
+			}
+			full[sk] = m
+			for _, k := range invSortedKeys(m) {
+				secrets = append(secrets, sk+"."+k)
+			}
+		}
+		typ, _ := entry["type"].(string)
+		stdio := typ == "" || typ == "stdio"
+		it := InvItem{Kind: "mcp", Scope: o.sc, Name: name, Source: o.src, Key: o.keyPrefix + name,
+			Editable: o.editable, Why: o.why, AppliesTo: o.applies, Secrets: secrets,
+			Hash: invHashJSON(shape), SecretHash: invHashJSON(full)}
+		if o.desktop && !stdio {
+			it.Why = "Desktop solo carga stdio en este archivo (M3)"
+		}
+		if cmd, _ := entry["command"].(string); stdio && cmd != "" {
+			it.Missing = w.mcpMissing(cmd, o.pluginRoot)
+		}
+		w.add(it)
+	}
+}
+
+// mcpMissing devuelve el comando si no resuelve, o "". Un absoluto se mira en
+// disco; uno relativo solo si hay LookPath, porque sin él no se puede saber y
+// acusar en falso a un servidor sano ensuciaría los pendientes del plan.
+func (w *invWalker) mcpMissing(cmd, pluginRoot string) string {
+	c := cmd
+	if pluginRoot != "" {
+		c = strings.ReplaceAll(c, "${CLAUDE_PLUGIN_ROOT}", pluginRoot)
+	}
+	if strings.Contains(c, "${") {
+		// Una variable que no sabemos expandir no es un comando ausente.
+		return ""
+	}
+	if filepath.IsAbs(c) {
+		if _, err := os.Stat(c); err != nil {
+			return cmd
+		}
+		return ""
+	}
+	if w.lookPath == nil {
+		return ""
+	}
+	if _, err := w.lookPath(c); err != nil {
+		return cmd
+	}
+	return ""
+}
+
+// invMCPMap devuelve el mapa `mcpServers` de un objeto, o nil.
+func invMCPMap(m map[string]any) map[string]any {
+	s, _ := m["mcpServers"].(map[string]any)
+	return s
+}
+
+// walkMCP recorre todas las fuentes de MCP con su «dónde aplica» (ADR 0016).
+// Van aparte de settings porque un MCP no vive en settings.json: vive en el
+// .claude.json que Claude Code reescribe, en el claude_desktop_config.json de
+// cada ventana, en .mcp.json de proyecto, en managed y en los plugins.
+func (w *invWalker) walkMCP(r InventoryRoots, cfg *Config) {
+	code := invCodeTargets()
+	// La ventana de Desktop comparte su pool con la pestaña Code (M2).
+	win := []string{InvAppliesDesktopChat, InvAppliesDesktopCode}
+	var projects []string
+
+	// ~/.claude.json: el global de la CLI (perfil default) y de la pestaña Code
+	// de la ventana default; y por proyecto, los de `claude mcp add -s local`.
+	if r.ClaudeSrc != "" {
+		cj := r.ClaudeSrc + ".json"
+		if m, ok := w.readJSONObject(cj); ok {
+			w.invMCPServers(invMCPMap(m), invMCPOpts{src: cj, keyPrefix: "mcpServers.",
+				sc: InvScope{Level: "global"}, applies: code, editable: true})
+			ps, _ := m["projects"].(map[string]any)
+			for _, p := range invSortedKeys(ps) {
+				projects = append(projects, p)
+				pm, _ := ps[p].(map[string]any)
+				w.invMCPServers(invMCPMap(pm), invMCPOpts{src: cj, keyPrefix: "projects." + p + ".mcpServers.",
+					sc: InvScope{Level: "project", Name: p}, applies: code, editable: true})
+			}
+		}
+	}
+
+	if r.DesktopDefaultDataDir != "" {
+		w.invDesktopMCP(filepath.Join(r.DesktopDefaultDataDir, "claude_desktop_config.json"), "default", win)
+	}
+	if cfg != nil {
+		for _, n := range invSortedProfiles(cfg) {
+			cj := filepath.Join(ccHomePath(r.CCPHome, n), ".claude.json")
+			if m, ok := w.readJSONObject(cj); ok {
+				w.invMCPServers(invMCPMap(m), invMCPOpts{src: cj, keyPrefix: "mcpServers.",
+					sc: InvScope{Level: "profile", Name: n}, applies: code, editable: true})
+				ps, _ := m["projects"].(map[string]any)
+				projects = append(projects, invSortedKeys(ps)...)
+			}
+			w.invDesktopMCP(filepath.Join(DesktopDataDir(r.CCPHome, n), "claude_desktop_config.json"), n, win)
+		}
+		for _, rl := range cfg.Rules {
+			projects = append(projects, rl.Path)
+		}
+	}
+	w.invProjectMCP(projects, code)
+
+	if r.ManagedDir != "" {
+		mf := filepath.Join(r.ManagedDir, "managed-mcp.json")
+		if m, ok := w.readJSONObject(mf); ok {
+			w.invMCPServers(invMCPMap(m), invMCPOpts{src: mf, keyPrefix: "mcpServers.",
+				sc: InvScope{Level: "managed"}, applies: code, why: "managed-settings"})
+		}
+	}
+	w.invPluginMCP(code)
+}
+
+// invSortedProfiles son los perfiles de ccp.yaml en orden, sin `default`: ese
+// no tiene cc-home ni data dir propio (sus fuentes son las globales).
+func invSortedProfiles(cfg *Config) []string {
+	names := make([]string, 0, len(cfg.Profiles))
+	for n := range cfg.Profiles {
+		if n != "default" {
+			names = append(names, n)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+// invDesktopMCP lee el claude_desktop_config.json de una ventana. Sus MCP son
+// el pool que comparten el chat y la pestaña Code de esa ventana (M2).
+func (w *invWalker) invDesktopMCP(path, window string, applies []string) {
+	if m, ok := w.readJSONObject(path); ok {
+		w.invMCPServers(invMCPMap(m), invMCPOpts{src: path, keyPrefix: "mcpServers.",
+			sc: InvScope{Level: "desktop", Name: window}, applies: applies, editable: true, desktop: true})
+	}
+}
+
+// invProjectMCP lee el .mcp.json de cada proyecto conocido (de los
+// ~/.claude.json y de las reglas de ccp), una sola vez por ruta.
+func (w *invWalker) invProjectMCP(projects []string, applies []string) {
+	seen := map[string]bool{}
+	for _, p := range projects {
+		if p == "" || seen[p] {
+			continue
+		}
+		seen[p] = true
+		f := filepath.Join(p, ".mcp.json")
+		if m, ok := w.readJSONObject(f); ok {
+			w.invMCPServers(invMCPMap(m), invMCPOpts{src: f, keyPrefix: "mcpServers.",
+				sc: InvScope{Level: "project", Name: p}, applies: applies, editable: true})
+		}
+	}
+}
+
+// invPluginMCP: los MCP que trae cada plugin instalado y activo. Un plugin
+// sin carpeta en disco o sin .mcp.json no aporta nada y no deja sonda: la
+// mayoría no trae MCP, y cien sondas «missing» taparían las que importan.
+func (w *invWalker) invPluginMCP(applies []string) {
+	for _, p := range w.plugins {
+		if !p.enabled || p.path == "" {
+			continue
+		}
+		f := filepath.Join(p.path, ".mcp.json")
+		if _, err := os.Stat(f); errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		m, ok := w.readJSONObject(f)
+		if !ok {
+			continue
+		}
+		// El .mcp.json de un plugin admite las dos formas: con la envoltura
+		// mcpServers o con los servidores en la raíz.
+		servers := invMCPMap(m)
+		if servers == nil {
+			servers = m
+		}
+		w.invMCPServers(servers, invMCPOpts{src: f, keyPrefix: "mcpServers.",
+			sc: InvScope{Level: "plugin", Name: p.id}, applies: applies,
+			why: "lo trae el plugin " + p.id, pluginRoot: p.path})
 	}
 }
