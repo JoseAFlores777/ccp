@@ -161,46 +161,55 @@ func ProfileConfig(home, name string, opts ProfileConfigOpts) error {
 // siembra lo que falte: `ccp upgrade` termina en un sync, así que es por aquí por
 // donde un perfil ya creado gana lo que la siembra añadió después (output-styles/,
 // hooks/, keybindings.json en la Fase 0). seedCCHome nunca pisa lo que existe.
+// Adopta la deriva de /config igual que ProfileSyncReport; solo no la cuenta.
 func ProfileSync(home, name string) error {
+	_, err := ProfileSyncReport(home, name)
+	return err
+}
+
+// ProfileSyncReport es ProfileSync devolviendo, por perfil y en orden, lo que la
+// regeneración encontró cambiado a mano en cc-home/settings.json (B6). Solo salen
+// los perfiles con algo que contar: un sync de todos con uno solo tocado no debe
+// dar una línea por perfil. Con error, devuelve lo reunido hasta ahí, porque lo
+// que ya se adoptó está en el overlay aunque el perfil siguiente falle.
+func ProfileSyncReport(home, name string) ([]SettingsDrift, error) {
 	if name == "default" {
-		return fmt.Errorf("'default' no tiene cc-home; no se sincroniza")
+		return nil, fmt.Errorf("'default' no tiene cc-home; no se sincroniza")
 	}
 	src, err := claudeSrc()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	var names []string
 	if name != "" {
 		c, err := Load(home)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if _, exists := c.Profiles[name]; !exists {
-			return fmt.Errorf("no existe el perfil %q", name)
+			return nil, fmt.Errorf("no existe el perfil %q", name)
 		}
-		if err := CfgMigrateLegacy(home, name); err != nil {
-			return err
-		}
-		if err := seedCCHome(home, name); err != nil {
-			return err
-		}
-		return CfgRegenerate(home, name, src)
+		names = []string{name}
+	} else if names, err = ProfileList(home); err != nil {
+		return nil, err
 	}
 
-	names, err := ProfileList(home)
-	if err != nil {
-		return err
-	}
+	var out []SettingsDrift
 	for _, n := range names {
 		if err := CfgMigrateLegacy(home, n); err != nil {
-			return err
+			return out, err
 		}
 		if err := seedCCHome(home, n); err != nil {
-			return err
+			return out, err
 		}
-		if err := CfgRegenerate(home, n, src); err != nil {
-			return err
+		d, err := CfgRegenerateReport(home, n, src)
+		if !d.Empty() {
+			out = append(out, d)
+		}
+		if err != nil {
+			return out, err
 		}
 	}
-	return nil
+	return out, nil
 }

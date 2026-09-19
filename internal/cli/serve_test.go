@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -334,5 +335,41 @@ func TestServeProfilesRenameDiceSiHayQueVolverAEntrar(t *testing.T) {
 	mustResult(t, r["2"], &raw)
 	if raw["ok"] != true || raw["relogin"] != false {
 		t.Fatalf("profiles.rename sin login = %v, quiero ok:true y relogin:false", raw)
+	}
+}
+
+// profiles.sync cuenta lo que adoptó de /config (B6). "drift" es siempre un
+// array, y cada lista de dentro también: la GUI no tiene que distinguir null de
+// vacío, ni «sin deriva» de «este ccp no lo sabe decir».
+func TestServeProfilesSyncDevuelveLaDeriva(t *testing.T) {
+	home := serveEnv(t)
+	_, r := serveRun(t, req(1, "profiles.sync", map[string]any{"name": "work"}))
+	var vacio struct {
+		Drift []json.RawMessage `json:"drift"`
+	}
+	mustResult(t, r["1"], &vacio)
+	if vacio.Drift == nil || len(vacio.Drift) != 0 {
+		t.Fatalf("sin deriva, drift es [] y nunca null: %s", r["1"].Result)
+	}
+	sj := filepath.Join(home, "profiles", "work", "cc-home", "settings.json")
+	if err := os.WriteFile(sj, []byte(`{"autoCompactEnabled":false}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, r = serveRun(t, req(2, "profiles.sync", map[string]any{"name": "work"}))
+	var got struct {
+		OK    bool `json:"ok"`
+		Drift []struct {
+			Profile   string   `json:"profile"`
+			Adopted   []string `json:"adopted"`
+			Removed   []string `json:"removed"`
+			Conflicts []string `json:"conflicts"`
+			Invalid   string   `json:"invalid"`
+		} `json:"drift"`
+	}
+	mustResult(t, r["2"], &got)
+	if !got.OK || len(got.Drift) != 1 || got.Drift[0].Profile != "work" ||
+		!reflect.DeepEqual(got.Drift[0].Adopted, []string{"autoCompactEnabled"}) ||
+		got.Drift[0].Removed == nil || got.Drift[0].Conflicts == nil {
+		t.Fatalf("profiles.sync = %s", r["2"].Result)
 	}
 }

@@ -113,7 +113,12 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 		if len(rest) > 0 {
 			name = rest[0]
 		}
-		if err := core.ProfileSync(home, name); err != nil {
+		// La deriva se cuenta antes que el error: lo que ya se adoptó está a
+		// salvo en el overlay aunque un perfil posterior falle, y callarlo
+		// dejaría al usuario creyendo que su /config se perdió.
+		drifts, err := core.ProfileSyncReport(home, name)
+		printSettingsDrift(stdout, lang, drifts)
+		if err != nil {
 			fmt.Fprintf(stderr, "[error] %v\n", err)
 			return 1
 		}
@@ -127,6 +132,26 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.unknown_sub", sub))
 		fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.sub_help"))
 		return 1
+	}
+}
+
+// printSettingsDrift cuenta lo que `profile sync` encontró cambiado a mano en el
+// settings.json de cada perfil (casi siempre /config). Lo adoptado es un [ok]:
+// ya está a salvo en el overlay. Lo demás es un [warn], porque decide el usuario.
+func printSettingsDrift(w io.Writer, lang i18n.Lang, drifts []core.SettingsDrift) {
+	for _, d := range drifts {
+		if len(d.Adopted) > 0 {
+			fmt.Fprintln(w, okLine(w, i18n.T(lang, "cli.profile.sync_adopted", d.Profile, strings.Join(d.Adopted, ", "))))
+		}
+		if len(d.Conflicts) > 0 {
+			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.sync_conflict", d.Profile, strings.Join(d.Conflicts, ", "))))
+		}
+		if len(d.Removed) > 0 {
+			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.sync_removed", d.Profile, strings.Join(d.Removed, ", "), d.Profile)))
+		}
+		if d.Invalid != "" {
+			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.sync_invalid", d.Profile, d.Invalid)))
+		}
 	}
 }
 

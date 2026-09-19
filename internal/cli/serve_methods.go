@@ -524,7 +524,31 @@ func srvProfilesSync(s *server, raw json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nil, core.ProfileSync(s.home, p.Name)
+	drifts, err := core.ProfileSyncReport(s.home, p.Name)
+	if err != nil {
+		return nil, err
+	}
+	// drift: lo que /config había cambiado en cada perfil (B6). Siempre array, y
+	// cada lista también, para que la GUI no tenga que distinguir null de vacío.
+	// "ok" se queda: es lo que este método respondía antes y la GUI ya lo lee.
+	type row struct {
+		Profile   string   `json:"profile"`
+		Adopted   []string `json:"adopted"`
+		Removed   []string `json:"removed"`
+		Conflicts []string `json:"conflicts"`
+		Invalid   string   `json:"invalid"`
+	}
+	nz := func(v []string) []string {
+		if v == nil {
+			return []string{}
+		}
+		return v
+	}
+	out := []row{}
+	for _, d := range drifts {
+		out = append(out, row{Profile: d.Profile, Adopted: nz(d.Adopted), Removed: nz(d.Removed), Conflicts: nz(d.Conflicts), Invalid: d.Invalid})
+	}
+	return map[string]any{"ok": true, "drift": out}, nil
 }
 
 // effKindName es el nombre estable de cada sección de la configuración efectiva.
