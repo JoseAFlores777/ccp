@@ -165,3 +165,41 @@ func TestInventoryRCConCCHomeYRutaInexistente(t *testing.T) {
 		t.Errorf("el rc apunta al cc-home de un perfil: no es sin gestionar: %+v", it)
 	}
 }
+
+// Basta con haber abierto claude una vez en el home para que ~/.claude.json lo
+// guarde como proyecto, y entonces <home>/.claude ES el global: recorrerlo otra
+// vez como config de repo duplicaba cada item global en una capa de proyecto y
+// dejaba dos sondas por archivo. Lo que el home tiene fuera de .claude (su
+// CLAUDE.md) sí es del proyecto.
+func TestInventoryHomeComoProyectoNoDuplicaElGlobal(t *testing.T) {
+	r := invFixture(t)
+	mustWrite(t, r.ClaudeSrc+".json", `{"projects": {"`+r.Home+`": {}}}`)
+	mustWrite(t, filepath.Join(r.Home, "CLAUDE.md"), "home\n")
+	inv := BuildInventory(r)
+
+	seen := map[string]int{}
+	for _, it := range inv.Items {
+		seen[it.Kind+"|"+it.Name+"|"+it.Source]++
+	}
+	for k, n := range seen {
+		if n > 1 {
+			t.Errorf("%s aparece %d veces", k, n)
+		}
+	}
+	if it := invFind(inv, "agent", "rev", "project"); it != nil {
+		t.Errorf("el agente global sale como de proyecto: %+v", it)
+	}
+	n := 0
+	for _, p := range inv.Probes {
+		if p.Source == filepath.Join(r.ClaudeSrc, "settings.json") {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("sondas de ~/.claude/settings.json = %d, quiero 1", n)
+	}
+	if it := invFind(inv, "rule-instr", "CLAUDE.md", "project"); it == nil ||
+		it.Source != filepath.Join(r.Home, "CLAUDE.md") {
+		t.Errorf("el CLAUDE.md del home debe seguir saliendo como proyecto: %+v", it)
+	}
+}

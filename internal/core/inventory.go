@@ -354,8 +354,9 @@ func BuildInventory(r InventoryRoots) Inventory {
 	}
 	w.walkMCP(r, cfg)
 	// Después de walkMCP: es quien junta los proyectos conocidos.
-	w.walkProjects()
-	w.walkConfigDirs(r, cfg)
+	owned := invOwnedConfigDirs(r, cfg)
+	w.walkProjects(owned)
+	w.walkConfigDirs(r, owned)
 	return w.inv
 }
 
