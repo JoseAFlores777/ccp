@@ -694,6 +694,22 @@ var catalogTUI = map[string]map[Lang]string{
 		En: "Sensors",
 		Es: "Sensores",
 	},
+	"tui.profview.deny": {
+		En: "Denied",
+		Es: "Denegados",
+	},
+	"tui.profview.ask": {
+		En: "Ask first",
+		Es: "Preguntar antes",
+	},
+	"tui.profview.settings": {
+		En: "Settings",
+		Es: "Ajustes",
+	},
+	"tui.profview.mcp": {
+		En: "MCP servers",
+		Es: "Servidores MCP",
+	},
 	"tui.profview.footer": {
 		En: "tab: panel · j/k: navigate · e: edit file · esc: back · q: quit",
 		Es: "tab: panel · j/k: navegar · e: editar archivo · esc: volver · q: salir",
@@ -709,6 +725,14 @@ var catalogTUI = map[string]map[Lang]string{
 	"tui.profview.origin_auto": {
 		En: "auto",
 		Es: "auto",
+	},
+	"tui.profview.origin_claude_json": {
+		En: ".claude.json",
+		Es: ".claude.json",
+	},
+	"tui.profview.mcp_no_file": {
+		En: "MCP servers live in the profile's .claude.json, which Claude Code rewrites: add them with 'claude mcp add' in a terminal on this profile",
+		Es: "los MCP viven en el .claude.json del perfil, que reescribe Claude Code: añádelos con 'claude mcp add' en una terminal con este perfil",
 	},
 	"tui.profview.no_file": {
 		En: "this box has no editable file: sensors live in auto_handoff.hooks (press 'c')",

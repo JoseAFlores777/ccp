@@ -5,8 +5,9 @@ package tui
 //
 // Usa el chrome del dashboard (logo, tres cajas, cursor, pie) a través del
 // shell, no un render propio. Tres cajas espejando Perfiles | Reglas | Estado:
-// Instrucciones y Env son las editables; Efectivo junta permisos, hooks,
-// plugins y sensores en modo lectura, plegados en cuatro conteos.
+// Instrucciones y Env son las editables; Efectivo junta permisos (allow, deny,
+// ask), ajustes sueltos, MCP, hooks, plugins y sensores en modo lectura,
+// plegados en un conteo por grupo (effGroups).
 
 import (
 	"fmt"
@@ -132,7 +133,11 @@ func (m *model) updateProfileView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if f := m.profFile(); f != "" {
 			return m.editProfileFile(f)
 		}
-		m.setStatus("", errCmd{i18n.T(m.lang, "tui.profview.no_file")})
+		key := "tui.profview.no_file"
+		if m.profOpen && m.profGroup == core.EffMCP {
+			key = "tui.profview.mcp_no_file"
+		}
+		m.setStatus("", errCmd{i18n.T(m.lang, key)})
 		return m, nil
 	}
 	return m, nil
@@ -152,7 +157,8 @@ func (m *model) editProfileFile(file string) (tea.Model, tea.Cmd) {
 // archivo (su fuente de verdad es auto_handoff.hooks en ccp.yaml, se toca
 // desde la vista Config con 'c' — spec:129-132), así que 'e' ahí tiene que
 // devolver "" y caer en tui.profview.no_file, no en el settingsFile de
-// Permisos/Hooks/Plugins por descuido.
+// Permisos/Hooks/Plugins por descuido. Los MCP tampoco: viven en el
+// .claude.json del perfil, que reescribe Claude Code, no en el overlay.
 func (m *model) profFile() string {
 	switch m.profPanel {
 	case profPanelInstr:
@@ -160,7 +166,7 @@ func (m *model) profFile() string {
 	case profPanelEnv:
 		return m.section(core.EffEnv).File
 	default:
-		if m.profOpen && m.profGroup == core.EffSensors {
+		if m.profOpen && (m.profGroup == core.EffSensors || m.profGroup == core.EffMCP) {
 			return ""
 		}
 		return m.section(core.EffPermissions).File
@@ -335,6 +341,8 @@ func (m *model) originLabel(o core.Origin) string {
 		return i18n.T(m.lang, "tui.profview.origin_global")
 	case core.OriginOverlay:
 		return i18n.T(m.lang, "tui.profview.origin_overlay")
+	case core.OriginClaudeJSON:
+		return i18n.T(m.lang, "tui.profview.origin_claude_json")
 	default:
 		return i18n.T(m.lang, "tui.profview.origin_auto")
 	}
@@ -345,13 +353,22 @@ func (m *model) originLabel(o core.Origin) string {
 // desplegó el usuario). Dos listas separadas se desincronizan y el usuario
 // termina abriendo Plugins cuando pulsó sobre Hooks.
 func effGroups() []core.EffKind {
-	return []core.EffKind{core.EffPermissions, core.EffHooks, core.EffPlugins, core.EffSensors}
+	return []core.EffKind{core.EffPermissions, core.EffDeny, core.EffAsk, core.EffSettings,
+		core.EffMCP, core.EffHooks, core.EffPlugins, core.EffSensors}
 }
 
 func effGroupKey(k core.EffKind) string {
 	switch k {
 	case core.EffPermissions:
 		return "tui.profview.permissions"
+	case core.EffDeny:
+		return "tui.profview.deny"
+	case core.EffAsk:
+		return "tui.profview.ask"
+	case core.EffSettings:
+		return "tui.profview.settings"
+	case core.EffMCP:
+		return "tui.profview.mcp"
 	case core.EffHooks:
 		return "tui.profview.hooks"
 	case core.EffPlugins:
@@ -361,7 +378,7 @@ func effGroupKey(k core.EffKind) string {
 	}
 }
 
-// effSummaryRows es la caja Efectivo plegada: cuatro conteos, que son la
+// effSummaryRows es la caja Efectivo plegada: un conteo por grupo, que son la
 // respuesta a «qué aplica este perfil». El detalle se pide con enter.
 func (m *model) effSummaryRows() []rowSpec {
 	groups := effGroups()

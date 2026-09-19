@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 type Origin int
@@ -23,6 +24,9 @@ const (
 	OriginGlobal Origin = iota
 	OriginOverlay
 	OriginAuto
+	// OriginClaudeJSON: sale del .claude.json que lee el perfil (los MCP de
+	// scope user), no de settings.json.
+	OriginClaudeJSON
 )
 
 func (o Origin) String() string {
@@ -33,6 +37,8 @@ func (o Origin) String() string {
 		return "overlay"
 	case OriginAuto:
 		return "auto"
+	case OriginClaudeJSON:
+		return "claude-json"
 	}
 	return "?"
 }
@@ -46,6 +52,12 @@ const (
 	EffHooks
 	EffPlugins
 	EffSensors
+	// Las cuatro de la Fase 0 (spec 2026-09-18, B5) van al final, en la
+	// enumeración y en Sections: ningún consumidor que dependa del orden cambia.
+	EffMCP
+	EffDeny
+	EffAsk
+	EffSettings
 )
 
 // EffRow es una fila con su capa ganadora. Shadowed es un booleano y no la
@@ -120,6 +132,13 @@ func ProfileEffective(home, name, src string) (Effective, error) {
 		EffSection{Kind: EffPlugins, File: settingsFile, Err: L.overlayErr,
 			Rows: effMapRows(L.docs, "enabledPlugins")},
 		effSensorsSection(cfg, name),
+		effMCPSection(home, name, src),
+		EffSection{Kind: EffDeny, File: settingsFile, Err: L.overlayErr,
+			Rows: effArrayRows(L.docs, "permissions", "deny")},
+		EffSection{Kind: EffAsk, File: settingsFile, Err: L.overlayErr,
+			Rows: effArrayRows(L.docs, "permissions", "ask")},
+		EffSection{Kind: EffSettings, File: settingsFile, Err: L.overlayErr,
+			Rows: effSettingsRows(home, name, cfg, L)},
 	)
 	return e, nil
 }
@@ -420,4 +439,123 @@ func effSensorsSection(cfg *Config, name string) EffSection {
 		s.Rows = append(s.Rows, EffRow{Key: name, Value: "on", Origin: OriginAuto})
 	}
 	return s
+}
+
+// effMCPSection lista los MCP de scope user que carga el perfil: los de SU
+// .claude.json (cc-home/.claude.json; para default, el de junto a ~/.claude).
+// Los de proyecto (.mcp.json, o projects.<ruta> del mismo archivo) dependen de
+// la carpeta y no salen aquí. Sin File: ese archivo lo reescribe Claude Code.
+func effMCPSection(home, name, src string) EffSection {
+	path := src + ".json"
+	if name != "default" {
+		path = filepath.Join(ccHomePath(home, name), ".claude.json")
+	}
+	sec := EffSection{Kind: EffMCP, Rows: []EffRow{}}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return sec // sin archivo: sin MCP
+	}
+	var doc struct {
+		MCPServers map[string]struct {
+			Type    string   `json:"type"`
+			URL     string   `json:"url"`
+			Command string   `json:"command"`
+			Args    []string `json:"args"`
+		} `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		sec.Err = fmt.Errorf("%s no es JSON válido: %w", path, err)
+		return sec
+	}
+	names := make([]string, 0, len(doc.MCPServers))
+	for n := range doc.MCPServers {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		srv := doc.MCPServers[n]
+		v := strings.TrimSpace(srv.Command + " " + strings.Join(srv.Args, " "))
+		if srv.URL != "" {
+			t := srv.Type
+			if t == "" {
+				t = "http"
+			}
+			v = t + " " + srv.URL
+		}
+		sec.Rows = append(sec.Rows, EffRow{Key: n, Value: v, Origin: OriginClaudeJSON})
+	}
+	return sec
+}
+
+// effSettingKeys son los ajustes sueltos que la vista enseña, uno por fila.
+var effSettingKeys = [][]string{{"model"}, {"outputStyle"}, {"permissions", "defaultMode"}, {"statusLine", "command"}}
+
+// effAtLayer es effAtPresent sabiendo además si la capa BLOQUEA el camino: si
+// define un tramo intermedio con un valor que no es objeto (un null explícito,
+// por ejemplo), en el merge real esa capa gana la subrama entera y lo que
+// trajeran las anteriores deja de aplicar.
+func effAtLayer(doc map[string]any, path ...string) (v any, present, blocked bool) {
+	cur := any(doc)
+	for i, k := range path {
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return nil, false, i > 0
+		}
+		v, present := m[k]
+		if !present {
+			return nil, false, false
+		}
+		if i == len(path)-1 {
+			return v, true, false
+		}
+		cur = v
+	}
+	return cur, true, false
+}
+
+// effSettingsRows: para cada ajuste gana la última capa que lo define, y las
+// anteriores quedan Shadowed. La barra de estado es la excepción: con la capa de
+// sensores instalada, lo que corre es el envoltorio de ccp (applyAutoLayer),
+// igual que en effHookRows.
+func effSettingsRows(home, name string, cfg *Config, L effLayers) []EffRow {
+	out := []EffRow{}
+	for _, path := range effSettingKeys {
+		var row *EffRow
+		seen := false
+		for _, l := range L.docs {
+			v, present, blocked := effAtLayer(l.doc, path...)
+			switch {
+			case blocked:
+				row = nil
+			case present:
+				row = &EffRow{Key: strings.Join(path, "."), Value: effScalar(v), Origin: l.origin, Shadowed: seen}
+				seen = true
+			}
+		}
+		if row != nil {
+			out = append(out, *row)
+		}
+	}
+	if name == "default" || !AutoHooksEnabled(cfg, name) {
+		return out
+	}
+	pre, err := MergeJSON(L.globalBytes, L.overlayBytes)
+	if err != nil {
+		return out // overlay roto: ya se reporta aparte vía EffSection.Err
+	}
+	doc, err := effDecode(applyAutoLayer(home, name, pre))
+	if err != nil {
+		return out
+	}
+	cmd, ok := effAt(doc, "statusLine", "command").(string)
+	if !ok {
+		return out
+	}
+	for i, r := range out {
+		if r.Key == "statusLine.command" {
+			out[i] = EffRow{Key: r.Key, Value: cmd, Origin: OriginAuto, Shadowed: true}
+			return out
+		}
+	}
+	return append(out, EffRow{Key: "statusLine.command", Value: cmd, Origin: OriginAuto})
 }

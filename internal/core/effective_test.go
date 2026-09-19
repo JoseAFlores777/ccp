@@ -3,6 +3,7 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -197,4 +198,103 @@ func TestEffectiveHooksConservaElStopFailureAjenoDelOverlay(t *testing.T) {
 		}
 	}
 	t.Fatal("falta la fila StopFailure")
+}
+
+// B5: la vista efectiva enseña también los MCP que carga el perfil, deny/ask y
+// los ajustes sueltos. Van al final: el orden de las secciones de antes no cambia.
+func TestEffectiveMCPAndSettings(t *testing.T) {
+	home, src, name := seedEff(t, `{
+	  "model": "opus",
+	  "permissions": {"deny": ["Bash(rm -rf *)"], "ask": ["Bash(git push*)"], "defaultMode": "acceptEdits"}
+	}`, `{"outputStyle":"Explanatory","permissions":{"deny":["WebFetch"]}}`)
+	if err := os.WriteFile(filepath.Join(ccHomePath(home, name), ".claude.json"),
+		[]byte(`{"machineID":"x","mcpServers":{"github":{"command":"npx","args":["-y","gh"]},"jira":{"type":"http","url":"https://j/mcp"}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	e, err := ProfileEffective(home, name, src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mcp := sectionOf(t, e, EffMCP).Rows
+	if len(mcp) != 2 || mcp[0].Key != "github" || mcp[0].Value != "npx -y gh" ||
+		mcp[1].Key != "jira" || mcp[1].Value != "http https://j/mcp" || mcp[0].Origin != OriginClaudeJSON {
+		t.Fatalf("MCP = %+v", mcp)
+	}
+	deny := sectionOf(t, e, EffDeny).Rows
+	if len(deny) != 1 || deny[0].Key != "WebFetch" || deny[0].Origin != OriginOverlay || !deny[0].Shadowed {
+		t.Fatalf("deny = %+v (el overlay reemplaza el array global entero)", deny)
+	}
+	if ask := sectionOf(t, e, EffAsk).Rows; len(ask) != 1 || ask[0].Origin != OriginGlobal {
+		t.Fatalf("ask = %+v", ask)
+	}
+	settings := map[string]EffRow{}
+	for _, r := range sectionOf(t, e, EffSettings).Rows {
+		settings[r.Key] = r
+	}
+	if settings["model"].Value != "opus" || settings["outputStyle"].Origin != OriginOverlay ||
+		settings["permissions.defaultMode"].Value != "acceptEdits" {
+		t.Fatalf("settings = %+v", settings)
+	}
+	if e.Sections[0].Kind != EffInstructions || e.Sections[len(e.Sections)-1].Kind != EffSettings {
+		t.Fatalf("orden de secciones = %v", e.Sections)
+	}
+}
+
+// default lee el .claude.json de junto a ~/.claude, no un cc-home.
+func TestEffectiveMCPDefaultReadsHomeClaudeJSON(t *testing.T) {
+	home, src, _ := seedEff(t, "", "")
+	if err := os.WriteFile(src+".json", []byte(`{"mcpServers":{"linear":{"type":"sse","url":"https://l/sse"}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e, err := ProfileEffective(home, "default", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mcp := sectionOf(t, e, EffMCP).Rows; len(mcp) != 1 || mcp[0].Value != "sse https://l/sse" {
+		t.Fatalf("MCP de default = %+v", mcp)
+	}
+}
+
+// Un null explícito en el overlay gana la subrama entera, igual que en el merge
+// real: el ajuste del global deja de aplicar y no puede salir en la vista.
+func TestEffectiveSettingsNullOverlayWins(t *testing.T) {
+	home, src, name := seedEff(t, `{"statusLine":{"type":"command","command":"starship"}}`, `{"statusLine":null}`)
+	e, err := ProfileEffective(home, name, src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range sectionOf(t, e, EffSettings).Rows {
+		if r.Key == "statusLine.command" {
+			t.Fatalf("statusLine.command sigue saliendo pese al null del overlay: %+v", r)
+		}
+	}
+}
+
+// Con los sensores instalados, la barra de estado que corre es el envoltorio de
+// ccp alrededor de la del usuario: esa es la fila que tiene que salir.
+func TestEffectiveSettingsStatusLineWrappedByAuto(t *testing.T) {
+	home, src, name := seedEff(t, `{"statusLine":{"type":"command","command":"starship prompt"}}`, "")
+	cfg, err := Load(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.AutoHandoff = &AutoHandoff{Hooks: []string{name}}
+	if err := Save(home, cfg); err != nil {
+		t.Fatal(err)
+	}
+	SetAutoHooksBin("ccp")
+	e, err := ProfileEffective(home, name, src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range sectionOf(t, e, EffSettings).Rows {
+		if r.Key == "statusLine.command" {
+			if r.Origin != OriginAuto || !r.Shadowed || !strings.Contains(r.Value, "_statusline") || !strings.Contains(r.Value, "starship") {
+				t.Fatalf("statusLine.command = %+v", r)
+			}
+			return
+		}
+	}
+	t.Fatal("falta statusLine.command")
 }

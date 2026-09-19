@@ -246,10 +246,10 @@ func TestEEnSensoresNoTieneArchivo(t *testing.T) {
 	send(m, key('e'))
 	send(m, tea.KeyMsg{Type: tea.KeyTab})
 	send(m, tea.KeyMsg{Type: tea.KeyTab}) // Efectivo, plegada
-	m.profRow = 3                         // Sensores es la 4ª fila del resumen (effGroups)
+	m.profRow = effGroupRow(t, core.EffSensors)
 	send(m, tea.KeyMsg{Type: tea.KeyEnter})
 	if m.profGroup != core.EffSensors || !m.profOpen {
-		t.Fatalf("enter en la fila 3 tiene que desplegar Sensores: group=%v open=%v", m.profGroup, m.profOpen)
+		t.Fatalf("enter en la fila %d tiene que desplegar Sensores: group=%v open=%v", m.profRow, m.profGroup, m.profOpen)
 	}
 	if got := m.profFile(); got != "" {
 		t.Fatalf("Sensores no tiene archivo editable: %q", got)
@@ -257,5 +257,40 @@ func TestEEnSensoresNoTieneArchivo(t *testing.T) {
 	send(m, key('e'))
 	if !m.statusErr {
 		t.Fatal("'e' sobre Sensores tiene que explicar que no hay archivo, no fallar en silencio")
+	}
+}
+
+// effGroupRow es la fila del resumen de Efectivo que despliega el grupo k. Se
+// busca en effGroups en vez de fijar el número: los grupos crecieron en la Fase 0
+// y un índice escrito a mano abría otro grupo sin que nadie lo notara.
+func effGroupRow(t *testing.T, k core.EffKind) int {
+	t.Helper()
+	for i, g := range effGroups() {
+		if g == k {
+			return i
+		}
+	}
+	t.Fatalf("effGroups no tiene el grupo %v", k)
+	return -1
+}
+
+// B5: los MCP salen en Efectivo, pero 'e' no puede abrir el overlay para
+// editarlos: ahí no están. Tiene que decir dónde viven.
+func TestEEnMCPExplicaDondeViven(t *testing.T) {
+	m := profileViewModel(t)
+	send(m, key('e'))
+	send(m, tea.KeyMsg{Type: tea.KeyTab})
+	send(m, tea.KeyMsg{Type: tea.KeyTab}) // Efectivo, plegada
+	m.profRow = effGroupRow(t, core.EffMCP)
+	send(m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.profGroup != core.EffMCP || !m.profOpen {
+		t.Fatalf("enter tiene que desplegar MCP: group=%v open=%v", m.profGroup, m.profOpen)
+	}
+	if got := m.profFile(); got != "" {
+		t.Fatalf("MCP no tiene archivo editable en el overlay: %q", got)
+	}
+	send(m, key('e'))
+	if !m.statusErr || !strings.Contains(m.statusMsg, ".claude.json") {
+		t.Fatalf("'e' sobre MCP tiene que explicar dónde viven: err=%v %q", m.statusErr, m.statusMsg)
 	}
 }
