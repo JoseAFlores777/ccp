@@ -368,6 +368,32 @@ func TestProfileSyncUnknownProfile(t *testing.T) {
 	}
 }
 
+// ProfileSyncReport cuenta la deriva de /config (B6) solo de los perfiles que la
+// tienen: un sync de todos con uno solo tocado no debe dar una línea por perfil.
+func TestProfileSyncReportSoloLosPerfilesConDeriva(t *testing.T) {
+	home, src := t.TempDir(), t.TempDir()
+	t.Setenv("CCP_CLAUDE_SRC", src)
+	for _, n := range []string{"a", "b"} {
+		if err := ProfileAddOfficial(home, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p := filepath.Join(ccHomePath(home, "b"), "settings.json")
+	if err := os.WriteFile(p, []byte(`{"autoCompactEnabled":false}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ds, err := ProfileSyncReport(home, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ds) != 1 || ds[0].Profile != "b" || !reflect.DeepEqual(ds[0].Adopted, []string{"autoCompactEnabled"}) {
+		t.Fatalf("informe = %+v", ds)
+	}
+	if ds, err := ProfileSyncReport(home, "a"); err != nil || len(ds) != 0 {
+		t.Fatalf("un perfil sin deriva no sale: %+v %v", ds, err)
+	}
+}
+
 // TestProfileConfig usa un Launch inyectado para simular la edición.
 func TestProfileConfig(t *testing.T) {
 	home := t.TempDir()

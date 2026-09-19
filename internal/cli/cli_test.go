@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
@@ -53,6 +54,42 @@ func TestDispatchProfileSync(t *testing.T) {
 	sj := filepath.Join(home, "profiles", "work", "cc-home", "settings.json")
 	if _, err := os.Stat(sj); err != nil {
 		t.Errorf("settings.json no regenerado: %v", err)
+	}
+}
+
+// `profile sync` cuenta lo que adoptó de /config (B6) y avisa cuando el
+// settings.json del perfil no era JSON: sin eso, lo adoptado quedaba a salvo
+// pero nadie sabía que ccp lo había movido al overlay.
+func TestDispatchProfileSyncEnseñaLaDeriva(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CCP_HOME", home)
+	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("CCP_LANG", "es")
+	if err := core.ProfileAddOfficial(home, "work"); err != nil {
+		t.Fatal(err)
+	}
+	sj := filepath.Join(home, "profiles", "work", "cc-home", "settings.json")
+	if err := os.WriteFile(sj, []byte(`{"autoCompactEnabled":false}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	if code := Dispatch([]string{"profile", "sync", "work"}, &out, &errb); code != 0 {
+		t.Fatalf("exit %d: %s", code, errb.String())
+	}
+	if !strings.Contains(out.String(), "[ok] work: guardado en su overlay lo que cambiaste con /config: autoCompactEnabled") {
+		t.Errorf("no cuenta lo adoptado: %q", out.String())
+	}
+
+	if err := os.WriteFile(sj, []byte("{roto"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	if code := Dispatch([]string{"profile", "sync", "work"}, &out, &errb); code != 0 {
+		t.Fatalf("exit %d: %s", code, errb.String())
+	}
+	if !strings.Contains(out.String(), "[warn] work:") || !strings.Contains(out.String(), "settings.invalid.json") {
+		t.Errorf("no avisa del settings.json inválido: %q", out.String())
 	}
 }
 

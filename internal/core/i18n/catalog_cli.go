@@ -163,6 +163,23 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "Profile '%s' re-synced (global ⊕ overlay).",
 		Es: "Perfil '%s' re-sincronizado (global ⊕ overlay).",
 	},
+	// La deriva de /config que `profile sync` encontró (B6). %s: perfil y claves.
+	"cli.profile.sync_adopted": {
+		En: "%s: kept in its overlay what you changed with /config: %s",
+		Es: "%s: guardado en su overlay lo que cambiaste con /config: %s",
+	},
+	"cli.profile.sync_conflict": {
+		En: "%s: %s changed with /config and also in the overlay; the overlay wins.",
+		Es: "%s: %s cambió con /config y también en el overlay; gana el overlay.",
+	},
+	"cli.profile.sync_removed": {
+		En: "%s: you removed %s with /config, but it comes from the global config or the overlay and is back: remove it where it comes from (overlay: ccp profile config %s).",
+		Es: "%s: quitaste %s con /config, pero sale del global o del overlay y vuelve a estar: quítalo de donde sale (overlay: ccp profile config %s).",
+	},
+	"cli.profile.sync_invalid": {
+		En: "%s: cc-home/settings.json was not valid JSON, so nothing from it was kept; it was regenerated and a copy is at %s.",
+		Es: "%s: cc-home/settings.json no era JSON válido y no se guardó nada de él; se regeneró y hay una copia en %s.",
+	},
 	"cli.profile.unknown_sub": {
 		En: "profile: unknown subcommand '%s'",
 		Es: "profile: subcomando desconocido '%s'",
