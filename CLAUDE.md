@@ -166,6 +166,10 @@ añaden pero **no** se borran — viven en arrays sin id estable— y la tecla l
 en vez de fingir. El CLI no cambia: `ccp profile config <perfil>` sigue abriendo
 el editor.
 
+### Inventory and adoption (`core/inventory*.go`, `core/adopt.go`)
+
+`ccp scan` / `ccp adopt` (spec §5, Fase A). `BuildInventory(InventoryRoots)` is read-only with **injected roots** (HOME, CCP_HOME, the global source, the default Desktop data dir, the managed dir, rc files, `LookPath`): it never reads the environment itself, so a whole fake machine fits in a test. Rules: a source that exists but can't be read is `unknown`, **never** empty; secret values never leave it (only `Secrets` paths; `SecretHash` is `json:"-"` and exists only so `AdoptPlan` can tell two copies of an MCP with different tokens apart); `AppliesTo` follows ADR 0016 (cc-home and global → CLI + Code; `claude_desktop_config.json` → chat + Code, stdio only). `AdoptPlan(inv, AdoptInputs)` is pure (`AdoptInputsFor` reads logins, keys and launchers from disk) and emits steps with **stable, unique IDs** (hash of kind+from+to+key+items: kind+from+to alone collided for every MCP of one file, and `--only` applied them all). An MCP only in Desktop is lifted to `~/.claude.json` if it is in the default window or in every window, **never** when copies differ in shape or secrets (global projects to every profile). `AdoptApply` needs `Before` (the safety snapshot) to succeed first; `Only` nil = defaults, empty non-nil = nothing (the GUI with nothing checked applies nothing). Adopting a `~/.claude-x` copies config into a new profile's overlay (never tokens, never `env`) and leaves the original alone.
+
 ### Snapshots (`internal/snapshot`, `internal/vault`, `core/snapshot_*.go`)
 
 `ccp snapshot` is the history of the **whole** configuration ([ADR 0012](docs/adr/0012-snapshots-content-addressed.md), spec `2026-09-18-config-unificada-snapshots-nube` §8). Three layers, and the split is the point:
