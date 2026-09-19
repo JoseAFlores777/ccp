@@ -73,15 +73,25 @@ func (w *invWalker) tagProject(from int, p string) {
 // versionada (.claude/settings.json, CLAUDE.md, .claude/{agents,commands,skills})
 // y la local (settings.local.json, CLAUDE.local.md). El .mcp.json ya lo leyó
 // walkMCP. Un archivo que el proyecto no tiene no deja sonda.
-func (w *invWalker) walkProjects() {
+//
+// Un proyecto cuyo .claude es un config dir con dueño (el caso de siempre: el
+// home, que ~/.claude.json guarda en cuanto se abre claude allí) no aporta su
+// .claude: ese directorio ES el global (o el cc-home de un perfil) y ya se
+// recorrió como tal. Leerlo otra vez duplicaba cada item global en una capa de
+// proyecto, con doble sonda. Lo que el proyecto tiene fuera de .claude
+// (CLAUDE.md, CLAUDE.local.md) sí es suyo.
+func (w *invWalker) walkProjects(owned map[string]bool) {
 	for _, p := range w.invProjectPaths() {
 		sc := InvScope{Level: "project", Name: p}
 		from := len(w.inv.Items)
+		cd := filepath.Join(p, ".claude")
+		// repoCD: el .claude es del proyecto y no un config dir con dueño.
+		repoCD := !owned[invRealPath(cd)]
 		for _, f := range []string{
 			filepath.Join(p, ".claude", "settings.json"),
 			filepath.Join(p, ".claude", "settings.local.json"),
 		} {
-			if !invExists(f) {
+			if !repoCD || !invExists(f) {
 				continue
 			}
 			if m, ok := w.readJSONObject(f); ok {
@@ -97,7 +107,10 @@ func (w *invWalker) walkProjects() {
 				w.add(InvItem{Kind: "rule-instr", Scope: sc, Name: n, Source: f, Editable: true, Hash: invHashText(b)})
 			}
 		}
-		cd := filepath.Join(p, ".claude")
+		if !repoCD {
+			w.tagProject(from, p)
+			continue
+		}
 		// En orden fijo: el inventario sale igual en cada ejecución.
 		for _, sk := range [][2]string{{"agents", "agent"}, {"commands", "command"}} {
 			if d := filepath.Join(cd, sk[0]); invExists(d) {
@@ -109,6 +122,23 @@ func (w *invWalker) walkProjects() {
 		}
 		w.tagProject(from, p)
 	}
+}
+
+// invOwnedConfigDirs son los config dirs que ya tienen dueño: el ~/.claude del
+// usuario y el cc-home de cada perfil, por ruta real. Se recorren como global o
+// como perfil, y nadie más (ni un proyecto ni un candidato a adoptar) los
+// vuelve a contar.
+func invOwnedConfigDirs(r InventoryRoots, cfg *Config) map[string]bool {
+	owned := map[string]bool{}
+	if r.ClaudeSrc != "" {
+		owned[invRealPath(r.ClaudeSrc)] = true
+	}
+	if cfg != nil {
+		for _, n := range invSortedProfiles(cfg) {
+			owned[invRealPath(ccHomePath(r.CCPHome, n))] = true
+		}
+	}
+	return owned
 }
 
 // invRealPath resuelve enlaces para comparar rutas; si no puede (no existe),
@@ -125,16 +155,7 @@ func invRealPath(p string) string {
 // los que declaran los rc con `export CLAUDE_CONFIG_DIR=`. Son candidatos a
 // adoptar como perfil (spec §5.2, D5); el ~/.claude del usuario y el cc-home
 // de cada perfil ya tienen dueño y no salen.
-func (w *invWalker) walkConfigDirs(r InventoryRoots, cfg *Config) {
-	owned := map[string]bool{}
-	if r.ClaudeSrc != "" {
-		owned[invRealPath(r.ClaudeSrc)] = true
-	}
-	if cfg != nil {
-		for _, n := range invSortedProfiles(cfg) {
-			owned[invRealPath(ccHomePath(r.CCPHome, n))] = true
-		}
-	}
+func (w *invWalker) walkConfigDirs(r InventoryRoots, owned map[string]bool) {
 	idx := map[string]int{}
 	add := func(dir string) *InvItem {
 		k := invRealPath(dir)
