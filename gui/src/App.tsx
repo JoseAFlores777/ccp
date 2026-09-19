@@ -7,6 +7,7 @@ import { Header, Shell } from './components/Shell';
 import { bridgeInfo } from './lib/bridge';
 import { t } from './lib/i18n';
 import { useApp, type Screen } from './lib/store';
+import { Detectar } from './screens/Detectar';
 import { Ajustes, Copias } from './screens/Ajustes';
 import { Carpetas } from './screens/Carpetas';
 import { Config } from './screens/Config';
@@ -42,7 +43,7 @@ const SCREENS: Record<Screen, () => React.JSX.Element | null> = {
   memoria: Memoria,
   ajustes: Ajustes,
   copias: Copias,
-  bienvenida: Inicio,
+  bienvenida: Detectar,
 };
 
 /** Si el motor no arranca no hay nada que enseñar: se dice qué falló y cómo
