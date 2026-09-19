@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -175,5 +176,42 @@ func TestSaveAtomicAndDefaultImplicit(t *testing.T) {
 	}
 	if got.Profiles["work"].Type != "official" {
 		t.Error("work profile lost on round-trip")
+	}
+}
+
+// El bloque mcp: es aditivo: una clave desconocida dentro y otra al lado
+// sobreviven a Load/Save, y sin bloque no se serializa nada.
+func TestMCPBlockRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	orig := "version: 2\nprofiles:\n  work:\n    type: official\nmcp:\n  targets:\n    jira:\n    - cli\n  disabled:\n    work:\n    - finance\n  futuro: 1\n"
+	if err := os.WriteFile(filepath.Join(home, "ccp.yaml"), []byte(orig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.MCP == nil || !reflect.DeepEqual(MCPTargets(c, "jira"), []string{"cli"}) || !MCPDisabled(c, "work", "finance") {
+		t.Fatalf("mcp = %+v", c.MCP)
+	}
+	if !reflect.DeepEqual(MCPTargets(c, "otro"), []string{"cli", "desktop"}) {
+		t.Error("sin declarar, los destinos son los dos")
+	}
+	if err := Save(home, c); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(filepath.Join(home, "ccp.yaml"))
+	if !strings.Contains(string(b), "futuro: 1") || strings.Count(string(b), "targets:") != 1 {
+		t.Fatalf("round-trip = %s", b)
+	}
+	home2 := t.TempDir()
+	if err := Save(home2, &Config{Profiles: map[string]Profile{}}); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(home2, "ccp.yaml")); strings.Contains(string(b), "mcp") {
+		t.Errorf("sin bloque no se serializa: %s", b)
+	}
+	if ValidateMCPTargets([]string{"cli", "chat"}) == nil {
+		t.Error("chat no es un destino")
 	}
 }

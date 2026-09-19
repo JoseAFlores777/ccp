@@ -78,6 +78,11 @@ type Config struct {
 	// viejo lo preserva vía Extra sin necesitar entenderlo.
 	AutoHandoff *AutoHandoff `yaml:"auto_handoff,omitempty"`
 
+	// MCP son los metadatos de ccp sobre los MCP por capas (mcp_layers.go):
+	// destinos por servidor, apagados por perfil y si la ventana default recibe
+	// proyección. Aditivo como auto_handoff: un ccp viejo lo preserva vía Extra.
+	MCP *MCPConfig `yaml:"mcp,omitempty"`
+
 	// Extra: catch-all para claves de nivel superior que este binario no
 	// conoce. Se preservan tal cual en el round-trip.
 	Extra map[string]any `yaml:",inline"`
@@ -97,6 +102,7 @@ var knownTopKeys = map[string]struct{}{
 	"rules":        {},
 	"authored":     {},
 	"auto_handoff": {},
+	"mcp":          {},
 }
 
 func yamlPath(home string) string { return filepath.Join(home, "ccp.yaml") }
@@ -138,6 +144,7 @@ func Load(home string) (*Config, error) {
 	// quitamos para que Extra solo contenga lo realmente desconocido.
 	stripKnownKeys(c.Extra)
 	stripAutoKnownKeys(c.AutoHandoff)
+	stripMCPKnownKeys(c.MCP)
 	// 'default' es implícito: nunca debe vivir en el mapa.
 	delete(c.Profiles, "default")
 	return c, nil
@@ -165,6 +172,7 @@ func Save(home string, c *Config) error {
 	}
 	stripKnownKeys(c.Extra)
 	stripAutoKnownKeys(c.AutoHandoff)
+	stripMCPKnownKeys(c.MCP)
 
 	var out []byte
 	var err error
@@ -266,5 +274,22 @@ func stripAutoKnownKeys(a *AutoHandoff) {
 			delete(p.Extra, k)
 		}
 		a.Policies[name] = p
+	}
+}
+
+// knownMCPKeys es knownTopKeys para el catch-all de dentro de `mcp:`.
+var knownMCPKeys = map[string]struct{}{
+	"targets":         {},
+	"disabled":        {},
+	"desktop_default": {},
+}
+
+// stripMCPKnownKeys limpia el catch-all del bloque mcp (ver stripAutoKnownKeys).
+func stripMCPKnownKeys(m *MCPConfig) {
+	if m == nil {
+		return
+	}
+	for k := range knownMCPKeys {
+		delete(m.Extra, k)
 	}
 }
