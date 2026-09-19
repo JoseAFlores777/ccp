@@ -43,6 +43,9 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.usage_rm"))
 			return 1
 		}
+		if !withSafetySnapshot(home, "pre-profile-rm", lang, stderr) {
+			return 1
+		}
 		if err := core.ProfileRm(home, rest[0]); err != nil {
 			fmt.Fprintf(stderr, "[error] %v\n", err)
 			return 1
