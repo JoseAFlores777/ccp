@@ -70,7 +70,7 @@ func TestDoctor_ProfileLoginAndKey(t *testing.T) {
 		t.Fatalf("ProfileAddOfficial: %v", err)
 	}
 	claudeJSON := filepath.Join(home, "profiles", "casa", "cc-home", ".claude.json")
-	if err := os.WriteFile(claudeJSON, []byte("{}"), 0o644); err != nil {
+	if err := os.WriteFile(claudeJSON, []byte(`{"oauthAccount":{"emailAddress":"casa@example.com"}}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// Perfil deepseek 'ds' sin key.
@@ -108,5 +108,49 @@ func TestDoctor_ProfileLoginAndKey(t *testing.T) {
 		if c.OK != tc.wantOK {
 			t.Errorf("chequeo %q OK = %v, quiero %v (label=%q)", tc.substr, c.OK, tc.wantOK, c.Label)
 		}
+	}
+}
+
+// B3: Claude Code crea .claude.json en su primer arranque, antes del /login, así
+// que su existencia no dice nada. Lo que lo dice es la cuenta registrada.
+func TestHasLoginNeedsAnAccount(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+	if err := ProfileAddOfficial(home, "work"); err != nil {
+		t.Fatal(err)
+	}
+	cj := filepath.Join(ccHomePath(home, "work"), ".claude.json")
+	for body, want := range map[string]bool{
+		"":                                  false, // sin archivo
+		`{}`:                                false, // primer arranque, antes de /login
+		`{"numStartups":3,"machineID":"x"}`: false,
+		`{"oauthAccount":null}`:             false,
+		`{"oauthAccount":{}}`:               false,
+		`{"oauthAccount":{"emailAddress":"a@b"}}`: true,
+		`{"primaryApiKey":"sk-ant-api03-xxx"}`:    true,
+		`no es json`:                              false,
+	} {
+		os.Remove(cj)
+		if body != "" {
+			os.WriteFile(cj, []byte(body), 0o600)
+		}
+		if got := HasLogin(home, "work"); got != want {
+			t.Errorf("HasLogin con %q = %v, quiero %v", body, got, want)
+		}
+		show, err := ProfileShow(home, "work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Contains(show, "Login:       configurado"); got != want {
+			t.Errorf("profile show con %q dice login=%v, quiero %v", body, got, want)
+		}
+	}
+	src := t.TempDir()
+	if DefaultHasLogin(src) {
+		t.Error("DefaultHasLogin sin ~/.claude.json = true")
+	}
+	os.WriteFile(src+".json", []byte(`{"oauthAccount":{"emailAddress":"a@b"}}`), 0o600)
+	if !DefaultHasLogin(src) {
+		t.Error("DefaultHasLogin con cuenta = false")
 	}
 }

@@ -155,16 +155,15 @@ func errString(err error) string {
 }
 
 // profileLoggedIn dice si una cuenta official (o default) inició sesión. Para
-// default, el archivo es ~/.claude.json, fuera de ~/.claude: por eso no vale
-// core.HasLogin, que mira dentro del cc-home.
+// default, el archivo es ~/.claude.json (src + ".json"), fuera de ~/.claude: por
+// eso va por core.DefaultHasLogin y no por core.HasLogin, que mira el cc-home.
 func profileLoggedIn(home, name string) bool {
 	if name == "default" {
-		uh, err := os.UserHomeDir()
+		src, err := claudeSrc()
 		if err != nil {
 			return false
 		}
-		_, err = os.Stat(filepath.Join(uh, ".claude.json"))
-		return err == nil
+		return core.DefaultHasLogin(src)
 	}
 	return core.HasLogin(home, name)
 }

@@ -158,8 +158,7 @@ func ProfileShow(home, name string) (string, error) {
 	case p.Type == "official":
 		cch := ccHomePath(home, name)
 		fmt.Fprintf(&sb, " Config dir:  %s\n", cch)
-		claudeJSON := filepath.Join(cch, ".claude.json")
-		if fileExists(claudeJSON) {
+		if HasLogin(home, name) {
 			fmt.Fprintf(&sb, " Login:       configurado\n")
 		} else {
 			fmt.Fprintf(&sb, " Login:       pendiente (ccp profile login %s)\n", name)
