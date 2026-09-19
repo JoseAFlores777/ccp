@@ -57,6 +57,26 @@
 
 ### Fixed
 
+- **La pista de `ccp instruct add profile mcp` ya no promete que `global` llega a todos los perfiles.**
+  `global` escribe en `~/.claude.json`, que solo lee `default`: cada perfil official lee su propio
+  `cc-home/.claude.json`. Ahora sugiere `project` (el `.mcp.json` del repo, que ven todos) y dice a quién
+  llega `global`. El MCP por perfil de verdad llega con la proyección por capas.
+- **`ccp backup restore` regenera el cc-home de los perfiles restaurados.** Antes, `settings.json` y
+  `CLAUDE.md` seguían viejos hasta el siguiente `ccp profile sync`. La salida y `backup.restore` de
+  `ccp serve` dicen cuáles se regeneraron.
+- **«Tiene login» ya no significa «existe `.claude.json`».** Claude Code crea ese archivo en su primer
+  arranque, antes del `/login`, así que `ccp doctor`, `ccp profile show`, la TUI y la app de escritorio
+  daban por iniciada una sesión que no lo estaba. Ahora cuenta la cuenta registrada (`oauthAccount` o
+  `primaryApiKey`), también para `default`.
+- **Cada perfil hereda también `output-styles/`, `hooks/` y `keybindings.json` del `~/.claude` global**,
+  como ya heredaba `commands/`, `agents/`, `skills/` y `plugins/`. Antes no veía los estilos de salida ni
+  los atajos, y un hook global que invocaba un script de `~/.claude/hooks` desde el perfil fallaba. Los
+  perfiles ya creados los ganan con `ccp profile sync`, que ahora siembra lo que falte sin pisar nada y que
+  `ccp upgrade` ya ejecuta. El espejo de Desktop también los convierte.
+- **La vista efectiva de un perfil enseña sus servidores MCP, `permissions.deny` y `permissions.ask`,
+  y los ajustes sueltos** (`model`, `outputStyle`, `permissions.defaultMode`, la barra de estado), con la
+  capa de la que sale cada uno. En la TUI (`e` sobre un perfil), en la pantalla Config de la app y en
+  `profiles.effective` de `ccp serve`.
 - **`ccp profile rename` ya no mueve un perfil con su ventana de Claude Desktop abierta.** El directorio que
   se mueve lleva dentro el data dir de esa ventana y el cc-home de su pestaña Code, y la app en marcha sigue
   escribiendo por ruta con el nombre viejo: podía recrear un `profiles/<viejo>/…` a medias y dejar el estado
