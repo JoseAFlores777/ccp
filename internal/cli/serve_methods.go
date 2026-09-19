@@ -90,6 +90,10 @@ func serveRegistry() map[string]serveMethod {
 		"backup.export":  w(srvBackupExport),
 		"backup.restore": w(srvBackupRestore),
 
+		"inventory.scan": r(srvInventoryScan),
+		"adopt.plan":     r(srvAdoptPlan),
+		"adopt.apply":    w(srvAdoptApply),
+
 		"snapshot.list":    r(srvSnapshotList),
 		"snapshot.show":    r(srvSnapshotShow),
 		"snapshot.diff":    r(srvSnapshotDiff),

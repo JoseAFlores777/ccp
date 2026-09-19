@@ -409,3 +409,38 @@ func TestServeProfilesSyncConErrorDejaLaDerivaPendiente(t *testing.T) {
 		t.Fatalf("el segundo sync tenía que contar lo que adoptó el primero: %s", r["2"].Result)
 	}
 }
+
+// Fase A por serve: el plan propone subir el MCP de la ventana default; `only: []`
+// no aplica nada y `only` ausente aplica los pasos por defecto.
+func TestServeAdopt(t *testing.T) {
+	serveEnv(t)
+	def := os.Getenv("CCP_DESKTOP_DEFAULT_DATA_DIR")
+	t.Setenv("CCP_MANAGED_DIR", t.TempDir())
+	if err := os.WriteFile(filepath.Join(def, "claude_desktop_config.json"),
+		[]byte(`{"mcpServers":{"filesystem":{"command":"npx","args":["fs"]}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, r := serveRun(t, req(1, "inventory.scan", nil), req(2, "adopt.plan", nil))
+	if r["1"].Error != nil || !strings.Contains(string(r["1"].Result), `"filesystem"`) {
+		t.Fatalf("inventory.scan = %s %+v", r["1"].Result, r["1"].Error)
+	}
+	var plan struct {
+		Steps []core.AdoptStep `json:"steps"`
+	}
+	mustResult(t, r["2"], &plan)
+	if len(plan.Steps) == 0 || plan.Steps[0].Kind != core.AdoptLiftMCPGlobal {
+		t.Fatalf("adopt.plan = %s", r["2"].Result)
+	}
+	cj := os.Getenv("CCP_CLAUDE_SRC") + ".json"
+	_, r = serveRun(t, req(3, "adopt.apply", map[string]any{"only": []string{}}))
+	if r["3"].Error != nil {
+		t.Fatalf("adopt.apply only=[]: %+v", r["3"].Error)
+	}
+	if _, err := os.Stat(cj); err == nil {
+		t.Fatal("only: [] tenía que no aplicar nada")
+	}
+	_, r = serveRun(t, req(4, "adopt.apply", nil))
+	if b, _ := os.ReadFile(cj); r["4"].Error != nil || !strings.Contains(string(b), "filesystem") {
+		t.Fatalf("adopt.apply = %s %+v; ~/.claude.json = %s", r["4"].Result, r["4"].Error, b)
+	}
+}
