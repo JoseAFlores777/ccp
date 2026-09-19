@@ -67,9 +67,21 @@ type InvItem struct {
 	// Missing es el `command` de un MCP stdio que no resuelve (absoluto que no
 	// existe o fuera del PATH): alimenta los pendientes del plan de adopción.
 	Missing string `json:"missing,omitempty"`
+	// Project es la identidad portable del proyecto al que pertenece el item
+	// (spec §11): la misma clave que usan los snapshots, para que un proyecto
+	// clonado en otra ruta se reconozca por su remoto.
+	Project *InvProject `json:"project,omitempty"`
 	// SecretHash sirve para comparar capas en memoria (la Task 4) y no sale
 	// nunca en JSON: el hash de un token corto es un oráculo para adivinarlo.
 	SecretHash string `json:"-"`
+}
+
+// InvProject identifica un proyecto: su ruta en esta máquina, su clave
+// portable (projectKey) y el remoto origin tal cual está en .git/config.
+type InvProject struct {
+	Path   string `json:"path"`
+	Key    string `json:"key"`
+	Remote string `json:"remote,omitempty"`
 }
 
 // InvProbe es el resultado de leer una fuente.
@@ -128,6 +140,12 @@ type invWalker struct {
 	// plugins son los instalados según installed_plugins.json, con su ruta en
 	// disco y si están activos: de ahí salen los MCP que trae cada uno.
 	plugins []invPlugin
+	// projects son las rutas de proyecto conocidas, en el orden en que
+	// aparecen (reglas y claves `projects` de cada .claude.json), con
+	// repeticiones: invProjectPaths las deduplica.
+	projects []string
+	// ids cachea la identidad de cada proyecto: leer .git/config una vez.
+	ids map[string]*InvProject
 }
 
 type invPlugin struct {
@@ -335,6 +353,9 @@ func BuildInventory(r InventoryRoots) Inventory {
 		w.walkClaudeGlobal(r.ClaudeSrc)
 	}
 	w.walkMCP(r, cfg)
+	// Después de walkMCP: es quien junta los proyectos conocidos.
+	w.walkProjects()
+	w.walkConfigDirs(r, cfg)
 	return w.inv
 }
 
@@ -371,8 +392,14 @@ func (w *invWalker) walkCCP(home string) *Config {
 	}
 	for _, rl := range cfg.Rules {
 		// Una regla de carpeta la aplica el hook del shell: solo la CLI la ve.
+		// Una cuya carpeta ya no está no aplica a nada: se dice, para que el
+		// plan de adopción no la trate como un proyecto vivo.
+		why := ""
+		if !invExists(rl.Path) {
+			why = "la carpeta no existe"
+		}
 		w.add(InvItem{Kind: "rule-path", Scope: InvScope{Level: "profile", Name: rl.Profile}, Name: rl.Path,
-			Source: yml, Key: "rules", Managed: true, Editable: true, AppliesTo: []string{InvAppliesCLI},
+			Source: yml, Key: "rules", Managed: true, Editable: true, Why: why, AppliesTo: []string{InvAppliesCLI},
 			Hash: invHashJSON(rl)})
 	}
 	for _, n := range names {
@@ -617,8 +644,6 @@ func (w *invWalker) walkMCP(r InventoryRoots, cfg *Config) {
 	code := invCodeTargets()
 	// La ventana de Desktop comparte su pool con la pestaña Code (M2).
 	win := []string{InvAppliesDesktopChat, InvAppliesDesktopCode}
-	var projects []string
-
 	// ~/.claude.json: el global de la CLI (perfil default) y de la pestaña Code
 	// de la ventana default; y por proyecto, los de `claude mcp add -s local`.
 	if r.ClaudeSrc != "" {
@@ -628,10 +653,12 @@ func (w *invWalker) walkMCP(r InventoryRoots, cfg *Config) {
 				sc: InvScope{Level: "global"}, applies: code, editable: true})
 			ps, _ := m["projects"].(map[string]any)
 			for _, p := range invSortedKeys(ps) {
-				projects = append(projects, p)
+				w.projects = append(w.projects, p)
 				pm, _ := ps[p].(map[string]any)
+				from := len(w.inv.Items)
 				w.invMCPServers(invMCPMap(pm), invMCPOpts{src: cj, keyPrefix: "projects." + p + ".mcpServers.",
 					sc: InvScope{Level: "project", Name: p}, applies: code, editable: true})
+				w.tagProject(from, p)
 			}
 		}
 	}
@@ -646,15 +673,15 @@ func (w *invWalker) walkMCP(r InventoryRoots, cfg *Config) {
 				w.invMCPServers(invMCPMap(m), invMCPOpts{src: cj, keyPrefix: "mcpServers.",
 					sc: InvScope{Level: "profile", Name: n}, applies: code, editable: true})
 				ps, _ := m["projects"].(map[string]any)
-				projects = append(projects, invSortedKeys(ps)...)
+				w.projects = append(w.projects, invSortedKeys(ps)...)
 			}
 			w.invDesktopMCP(filepath.Join(DesktopDataDir(r.CCPHome, n), "claude_desktop_config.json"), n, win)
 		}
 		for _, rl := range cfg.Rules {
-			projects = append(projects, rl.Path)
+			w.projects = append(w.projects, rl.Path)
 		}
 	}
-	w.invProjectMCP(projects, code)
+	w.invProjectMCP(code)
 
 	if r.ManagedDir != "" {
 		mf := filepath.Join(r.ManagedDir, "managed-mcp.json")
@@ -690,17 +717,17 @@ func (w *invWalker) invDesktopMCP(path, window string, applies []string) {
 
 // invProjectMCP lee el .mcp.json de cada proyecto conocido (de los
 // ~/.claude.json y de las reglas de ccp), una sola vez por ruta.
-func (w *invWalker) invProjectMCP(projects []string, applies []string) {
-	seen := map[string]bool{}
-	for _, p := range projects {
-		if p == "" || seen[p] {
+func (w *invWalker) invProjectMCP(applies []string) {
+	for _, p := range w.invProjectPaths() {
+		f := filepath.Join(p, ".mcp.json")
+		if !invExists(f) {
 			continue
 		}
-		seen[p] = true
-		f := filepath.Join(p, ".mcp.json")
 		if m, ok := w.readJSONObject(f); ok {
+			from := len(w.inv.Items)
 			w.invMCPServers(invMCPMap(m), invMCPOpts{src: f, keyPrefix: "mcpServers.",
 				sc: InvScope{Level: "project", Name: p}, applies: applies, editable: true})
+			w.tagProject(from, p)
 		}
 	}
 }
