@@ -316,6 +316,52 @@ export interface SettingsDrift {
   not_regenerated?: boolean;
 }
 
+/** Un elemento del inventario de la máquina (inventory.scan, Fase A). Nunca
+ *  trae valores secretos: de env/headers solo las rutas (`secrets`). */
+export interface InvItem {
+  kind: string;
+  scope: { level: string; name?: string };
+  name: string;
+  source: string;
+  key?: string;
+  class: string;
+  managed: boolean;
+  editable: boolean;
+  why?: string;
+  applies_to: string[];
+  hash: string;
+  secrets?: string[];
+  enabled?: boolean;
+  missing?: string;
+  project?: { path: string; key: string; remote?: string };
+}
+
+export interface Inventory {
+  items: InvItem[];
+  probes: { source: string; status: 'ok' | 'missing' | 'unknown'; error?: string }[];
+}
+
+/** Un paso del plan de adopción (adopt.plan). Los `pending` no se aplican. */
+export interface AdoptStep {
+  id: string;
+  order: number;
+  kind: string;
+  title: string;
+  detail?: string;
+  from?: string;
+  to?: string;
+  key?: string;
+  items: string[];
+  default: boolean;
+  pending: boolean;
+}
+
+export interface AdoptReport {
+  applied: AdoptStep[];
+  skipped: { id: string; title: string; reason: string }[];
+  pending: AdoptStep[];
+}
+
 export const api = {
   info: () => ccpCall<AppInfo>('app.info'),
   setLang: (lang: string) => ccpCall('app.setLang', { lang }),
@@ -386,6 +432,10 @@ export const api = {
   diag: () => ccpCall<Finding[]>('diag.run'),
   backupExport: (dest: string, with_secrets: boolean) => ccpCall('backup.export', { dest, with_secrets }),
   backupRestore: (archive: string, mode: 'merge' | 'overwrite' | 'force') => ccpCall<RestoreReport>('backup.restore', { archive, mode }),
+  inventoryScan: () => ccpCall<Inventory>('inventory.scan'),
+  adoptPlan: () => ccpCall<{ steps: AdoptStep[] }>('adopt.plan'),
+  // only es obligatorio aquí a propósito: [] no aplica nada; la GUI siempre dice qué pasos.
+  adoptApply: (only: string[]) => ccpCall<AdoptReport>('adopt.apply', { only }),
   system: (action: 'install' | 'uninstall' | 'upgrade' | 'doctor', from_source = false, pull = false) =>
     ccpCall<CliRun>('system.run', { action, from_source, pull }),
 };

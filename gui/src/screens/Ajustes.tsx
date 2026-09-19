@@ -187,6 +187,10 @@ export function Ajustes() {
           <button className="btn" onClick={() => go('copias')}>{t('Abrir')}</button>
         </SettingRow>
 
+        <SettingRow label={t('Detectar esta máquina')} desc={t('Todo lo de Claude que hay aquí y el plan para traer a ccp lo que vive fuera.')}>
+          <button className="btn" onClick={() => go('bienvenida')}>{t('Abrir')}</button>
+        </SettingRow>
+
         <SettingRow
           label={t('Desinstalar')}
           desc={t('Quitar la integración es reversible. Borrar también cuentas y configuración no se hace desde aquí: pide exportar una copia antes y hacerlo a mano.')}

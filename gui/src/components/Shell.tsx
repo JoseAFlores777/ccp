@@ -70,7 +70,7 @@ export function screenHead(s: Screen, selected: string, selectedType: string): [
     case 'memoria': return [t('Memoria de Claude'), t('Las instrucciones y artefactos que ccp gestiona, por alcance.')];
     case 'ajustes': return [t('Ajustes'), t('Lo que se configura una vez y se revisa rara vez.')];
     case 'copias': return [t('Copias de seguridad'), t('Exportar con o sin secretos, y restaurar viendo antes qué trae el archivo.')];
-    case 'bienvenida': return [t('Bienvenida'), t('Lo mínimo para empezar: una cuenta, una carpeta y, si quieres, un respaldo.')];
+    case 'bienvenida': return [t('Detectar esta máquina'), t('Todo lo de Claude que hay aquí, dónde aplica cada cosa y el plan para traer a ccp lo que vive fuera.')];
   }
 }
 
