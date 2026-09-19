@@ -337,7 +337,7 @@ func adoptPlanMCP(inv Inventory, in AdoptInputs, add func(AdoptStep)) {
 			sort.Strings(secretPaths)
 			add(AdoptStep{Kind: AdoptMCPConflict, Key: "mcpServers." + name, Items: append([]string{name}, wins...), Pending: true,
 				Title: fmt.Sprintf("%s está en varias ventanas con credenciales distintas", name),
-				Detail: "Ventanas: " + strings.Join(wins, ", ") + "; difieren " + strings.Join(secretPaths, ", ") +
+				Detail: "Ventanas: " + strings.Join(wins, ", ") + "; sus credenciales (" + strings.Join(secretPaths, ", ") + ") no coinciden" +
 					". No se sube a global: daría la credencial de una cuenta a las demás. Cuando llegue el MCP por perfil (Fase B), cada ventana tendrá la suya."})
 			continue
 		}
