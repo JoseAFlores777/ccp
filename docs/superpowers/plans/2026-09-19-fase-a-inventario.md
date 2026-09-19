@@ -23,7 +23,8 @@ en esta máquina aparecen los MCP de la ventana `default` de Desktop y se propon
 intocable, golden intacto, `go 1.24.0`). Además:
 - **Nunca un valor secreto en el inventario**: de `env.*` y `headers.*` de un MCP, y de `env` de un
   settings, solo las rutas (`Item.Secrets`), nunca los valores. Un test lo comprueba serializando el
-  inventario de un árbol con un token falso y buscándolo.
+  inventario de un árbol con un token falso y buscándolo (y buscando también su `SecretHash`, que es
+  `json:"-"`: un hash de un token corto es un oráculo para adivinarlo).
 - `scan` y `adopt` **no** entran en la completion (como `snapshot`, `backup`, `serve`).
 - `adopt` escribe en `~/.claude.json`, que Claude Code reescribe a menudo: solo por
   `ClaudeJSONApplyConfig`-style read-modify-write con tmp+rename, conservando todas las demás claves y
@@ -85,6 +86,12 @@ clases, `AppliesTo`, que `unknown` aparece con un `settings.json` roto, y que un
 - `Name` = nombre del servidor; `Key` = `mcpServers.<name>`; `Secrets` = rutas `env.*` y `headers.*`
   presentes; `Hash` = sha256 de `{type,command,args,url}` (sin secretos): dos entradas con la misma
   forma tienen el mismo hash aunque cambien los tokens.
+- `SecretHash string \`json:"-"\`` = sha256 de la entrada **completa** (forma + valores de `env.*` y
+  `headers.*`, claves ordenadas). Es interno: nunca se serializa (ni en `scan --json` ni en serve) y
+  solo lo usa `AdoptPlan` para saber si dos entradas con la misma forma llevan los mismos secretos.
+  Sin él, `github` con el token personal en la ventana `default` y con el de trabajo en la del perfil
+  `work` darían el mismo `Hash`, pasarían por «la misma entrada» y se subirían a global: el token de
+  una cuenta acabaría en la otra.
 - `InvItem` gana `Missing string` para un MCP stdio cuyo `command` no resuelve con `LookPath` (absoluto
   inexistente o no en PATH): alimenta los pendientes de la Task 4.
 
@@ -134,7 +141,15 @@ scopes, `AppliesTo`, el `Why` de la http, `Secrets` sin valores y `Missing` con 
   `lift-mcp-global` («subir a global»: a `~/.claude.json mcpServers`) si está en la ventana `default`
   o en todas las ventanas; si solo está en la ventana de un perfil, paso `Pending` «subir a perfil:
   llega con la Fase B». Mismo nombre con distinta forma (`Hash`) en dos ventanas → no se sube: paso
-  pendiente «conflicto de nombre».
+  pendiente «conflicto de nombre». Mismo nombre y misma forma pero **distinto `SecretHash`** (los
+  mismos `env.*`/`headers.*` con valores distintos: cuentas distintas) → tampoco se sube: paso
+  pendiente «conflicto de secretos», con `Detail` que nombra las ventanas y las rutas de secreto que
+  difieren (nunca los valores). Global pasa a significar «proyectado a todos los perfiles» (spec §4,
+  B1), así que subir una de las dos daría el token de una cuenta al CLI de la otra; decidir qué valor
+  va a qué perfil es cosa del usuario. `lift-mcp-global` solo se emite cuando todas las copias tienen
+  el mismo `SecretHash`, y entonces da igual cuál se copie; aun así `From` es la de la ventana
+  `default` si la hay, y si no la primera en orden de nombre de perfil, para que el plan sea
+  determinista.
 - `adopt-config-dir`: nombre de perfil derivado del sufijo (`~/.claude-work` → `work`), único frente a
   los existentes (`work-2`…), validado con `validProfileName`; `Detail` lista qué se copia (config, no
   tokens) y que hará falta un `/login`.
@@ -145,7 +160,11 @@ scopes, `AppliesTo`, el `Why` de la http, `Secrets` sin valores y `Missing` con 
 
 **Tests:** el árbol del criterio de salida (MCP en `default` de Desktop, `~/.claude.json` vacío) da
 exactamente un `lift-mcp-global` por MCP y ninguno para uno que ya está en `~/.claude.json`;
-conflicto de forma; nombre único para `.claude-work` cuando `work` ya existe; orden estable; **dos MCP
+conflicto de forma; **conflicto de secretos**: `github` con `env.GITHUB_TOKEN=tok-personal` en la
+ventana `default` y `env.GITHUB_TOKEN=tok-trabajo` en la de `work`, en ningún CLI → ningún
+`lift-mcp-global` para `github`, un paso `Pending` de conflicto cuyo `Detail` no contiene ninguno de
+los dos valores (y el mismo árbol con el mismo token en ambas da exactamente un `lift-mcp-global`
+con `From` = la ventana `default`); nombre único para `.claude-work` cuando `work` ya existe; orden estable; **dos MCP
 del mismo `claude_desktop_config.json`** (`filesystem` y `github`) dan dos `lift-mcp-global` con
 `Key` distinta e **IDs distintos**, y los IDs de todo el plan son únicos (se comprueba recorriéndolo).
 
@@ -156,7 +175,8 @@ del mismo `claude_desktop_config.json`** (`filesystem` y `github`) dan dos `lift
 - `AdoptApplyOpts{Only []string /* IDs; vacío = los Default */; Before func() error; Now time.Time}`.
 - Primero `Before()` (el snapshot de seguridad): si falla, no se aplica nada.
 - `lift-mcp-global`: lee `~/.claude.json` (puede no existir: se crea `0600`), añade las entradas que
-  falten con su forma exacta (secretos incluidos: se copian tal cual de donde ya estaban en claro), sin
+  falten con su forma exacta (secretos incluidos: se copian tal cual de donde ya estaban en claro,
+  tomados del `From` del paso, que la Task 4 solo emite cuando todas las copias llevan los mismos), sin
   pisar un nombre que ya exista, y escribe con tmp+rename conservando el modo. Nunca toca otras claves.
 - `adopt-config-dir`: `ProfileAddOfficial(nuevo)`; copia `settings.json` del directorio como
   `overlay/settings.overlay.json` (sin `env`: va a `Report.Skipped` con aviso, mismo motivo que B6);
