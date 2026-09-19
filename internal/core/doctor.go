@@ -1,9 +1,12 @@
 package core
 
 import (
+	"encoding/json"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
@@ -19,15 +22,38 @@ type DoctorCheck struct {
 // lookPath se inyecta en tests para no depender del PATH real de la máquina.
 var lookPath = exec.LookPath
 
-// HasLogin indica si un perfil oficial ya tiene sesión iniciada: existe el
-// archivo cc-home/.claude.json. Para perfiles no oficiales no aplica el
-// concepto de login; el caller decide qué mostrar. Read-only, sin imprimir.
+// HasLogin indica si un perfil oficial tiene sesión iniciada: su
+// cc-home/.claude.json registra una cuenta (oauthAccount) o una clave de consola
+// (primaryApiKey). Que el archivo exista no basta: Claude Code lo crea en su
+// primer arranque, antes del /login (spec 2026-09-18, B3). Para perfiles no
+// oficiales no aplica el concepto de login; el caller decide qué mostrar.
+// Read-only, sin imprimir.
 func HasLogin(home, name string) bool {
-	return fileExists(filepath.Join(ccHomePath(home, name), ".claude.json"))
+	return claudeJSONHasLogin(filepath.Join(ccHomePath(home, name), ".claude.json"))
+}
+
+// DefaultHasLogin es HasLogin para la cuenta de siempre: el .claude.json junto a
+// la fuente global (src + ".json", igual que InstructDest).
+func DefaultHasLogin(src string) bool { return claudeJSONHasLogin(src + ".json") }
+
+func claudeJSONHasLogin(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	var v struct {
+		OAuthAccount  json.RawMessage `json:"oauthAccount"`
+		PrimaryAPIKey string          `json:"primaryApiKey"`
+	}
+	if json.Unmarshal(data, &v) != nil {
+		return false
+	}
+	acct := strings.TrimSpace(string(v.OAuthAccount))
+	return (acct != "" && acct != "null" && acct != "{}") || v.PrimaryAPIKey != ""
 }
 
 // Doctor reproduce cmd_doctor del bash: chequea node/claude/git en PATH y, por
-// cada perfil, su estado de login (official: cc-home/.claude.json) o key
+// cada perfil, su estado de login (official: HasLogin) o key
 // (deepseek: api_key). Devuelve la lista de chequeos en orden estable; cli la
 // presenta. No imprime nada: lógica pura sobre home + PATH.
 func Doctor(l i18n.Lang, home string) ([]DoctorCheck, error) {
@@ -55,8 +81,7 @@ func Doctor(l i18n.Lang, home string) ([]DoctorCheck, error) {
 		p := c.Profiles[name]
 		switch p.Type {
 		case "official":
-			claudeJSON := filepath.Join(ccHomePath(home, name), ".claude.json")
-			if fileExists(claudeJSON) {
+			if HasLogin(home, name) {
 				checks = append(checks, DoctorCheck{
 					OK: true, Label: i18n.T(l, "doctor.official_logged", name)})
 			} else {
