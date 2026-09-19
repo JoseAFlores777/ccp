@@ -1,7 +1,7 @@
 // P-02 Perfiles — todas las cuentas y su estado, default siempre primero.
 
 import { api, type Profile } from '../lib/api';
-import { accessInfo, deleteProfileModal, editProviderModal, isProvider, newProfileModal, renameModal, typeLabel } from '../lib/actions';
+import { accessInfo, deleteProfileModal, editProviderModal, isProvider, newProfileModal, renameModal, syncMsg, typeLabel } from '../lib/actions';
 import { t } from '../lib/i18n';
 import { useApp } from '../lib/store';
 import { Card, CliBar, Row, Swatch, TableHead, toneColors } from '../components/ui';
@@ -85,7 +85,7 @@ export function Perfiles() {
         <button
           className="btn lg"
           title={t('Vuelve a fundir la configuración global en cada cuenta, como ccp profile sync')}
-          onClick={() => mutate(() => api.syncProfile(''), { msg: t('Todas las cuentas resincronizadas') })}
+          onClick={() => mutate(() => api.syncProfile(''), { msg: syncMsg })}
         >
           {t('Resincronizar todas')}
         </button>

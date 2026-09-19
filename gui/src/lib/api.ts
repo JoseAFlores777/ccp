@@ -296,6 +296,17 @@ export interface RestoreReport {
   snapshot: string;
 }
 
+/** Lo que /config había cambiado en el settings.json de un perfil (profiles.sync, B6).
+ *  Las listas llegan siempre como array, nunca null; `invalid` es la ruta de la
+ *  copia de un settings.json que no era JSON, o "" si lo era. */
+export interface SettingsDrift {
+  profile: string;
+  adopted: string[];
+  removed: string[];
+  conflicts: string[];
+  invalid: string;
+}
+
 export const api = {
   info: () => ccpCall<AppInfo>('app.info'),
   setLang: (lang: string) => ccpCall('app.setLang', { lang }),
@@ -307,10 +318,12 @@ export const api = {
     ccpCall('profiles.add', p),
   updateProfile: (p: { name: string; base_url?: string; model_pro?: string; model_flash?: string; effort?: string }) =>
     ccpCall('profiles.update', p),
-  renameProfile: (from: string, to: string) => ccpCall('profiles.rename', { from, to }),
+  // relogin y drift son opcionales a propósito: el puente prefiere el ccp
+  // instalado si habla `serve`, y uno anterior a B6/B7 responde solo {ok:true}.
+  renameProfile: (from: string, to: string) => ccpCall<{ ok: boolean; relogin?: boolean }>('profiles.rename', { from, to }),
   removeProfile: (name: string) => ccpCall('profiles.remove', { name }),
   setKey: (name: string, key: string) => ccpCall('profiles.setKey', { name, key }),
-  syncProfile: (name = '') => ccpCall('profiles.sync', { name }),
+  syncProfile: (name = '') => ccpCall<{ ok: boolean; drift?: SettingsDrift[] }>('profiles.sync', { name }),
   effective: (name: string) => ccpCall<Effective>('profiles.effective', { name }),
   envSet: (name: string, key: string, value: string) => ccpCall('overlay.envSet', { name, key, value }),
   envDel: (name: string, key: string) => ccpCall('overlay.envDel', { name, key }),

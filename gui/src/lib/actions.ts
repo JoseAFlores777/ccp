@@ -6,7 +6,7 @@
 // diagnóstico. Cuando una operación se puede deshacer de verdad, el deshacer es
 // la operación inversa en el motor, no una foto de la pantalla.
 
-import { api, type ActiveLoan, type AutoStatus, type CliRun, type DesktopRow, type Profile, type Rule } from './api';
+import { api, type ActiveLoan, type AutoStatus, type CliRun, type DesktopRow, type Profile, type Rule, type SettingsDrift } from './api';
 import { shellJoin, shellPath, tilde } from './format';
 import { t } from './i18n';
 import type { Ctx, Field, ModalSpec } from './store';
@@ -153,6 +153,13 @@ export function renameModal(app: Ctx, p: Profile): ModalSpec {
       t('Se mueven su carpeta de perfil, sus reglas de carpeta y sus préstamos.'),
       t('Las terminales abiertas siguen con el nombre viejo hasta un ccp use.'),
       ...(p.in_chain ? [t('Las cadenas de rotación, el mapa de permisos y la lista de sensores que la nombran pasan al nombre nuevo.')] : []),
+      // B7: la credencial de una cuenta official está en el Llavero con un nombre
+      // que sale de la ruta de su carpeta (ADR 0016, M4), y el rename la mueve.
+      // Se avisa antes de confirmar, no solo después: es la misma regla que
+      // aplica el motor (official con login), así que no hay aviso de más.
+      ...(p.type === 'official' && p.access === 'ok'
+        ? [t('Claude Code guarda el login de esta cuenta según su carpeta: al renombrarla tendrás que volver a iniciar sesión.')]
+        : []),
       ...(p.desktop.launcher ? [t('Su lanzador de Desktop queda con el nombre viejo: quítalo y créalo de nuevo.')] : []),
       ...(p.desktop.running ? [t('Su ventana de Desktop está abierta: ciérrala antes de renombrar.')] : []),
     ],
@@ -164,15 +171,36 @@ export function renameModal(app: Ctx, p: Profile): ModalSpec {
     cli: (f) => shellJoin(['ccp', 'profile', 'rename', name, (f.to ?? '').trim() || '<nuevo>']),
     onConfirm: async (f) => {
       const to = f.to.trim();
-      await api.renameProfile(name, to);
+      const r = await api.renameProfile(name, to);
       if (app.selected === name) app.select(to);
-      return t('Se renombró a {n}', { n: to });
+      // relogin lo decide el motor antes de mover (official y con login): la
+      // lista de la pantalla puede ir un refresco por detrás.
+      return r.relogin
+        ? t('Se renombró a {n}. Vuelve a iniciar sesión: ccp profile login {n}', { n: to })
+        : t('Se renombró a {n}', { n: to });
     },
     undo: (f) => async () => {
       await api.renameProfile(f.to.trim(), name);
       app.select(name);
     },
   };
+}
+
+/** El aviso de «Resincronizar»: qué se guardó de /config en cada perfil y si
+ *  quedan avisos (B6). El detalle de lo quitado, los conflictos y un
+ *  settings.json inválido no cabe en un aviso de una línea: se nombra y se
+ *  manda a `ccp profile sync`, que lo cuenta entero. Un ccp anterior a B6 no
+ *  manda `drift`, y entonces es el aviso de siempre. */
+export function syncMsg(r: { drift?: SettingsDrift[] }): string {
+  const drift = r.drift ?? [];
+  const adopted = drift.filter((d) => d.adopted.length > 0).map((d) => `${d.profile}: ${d.adopted.join(', ')}`);
+  let msg = adopted.length
+    ? t('Cuentas resincronizadas. Se guardó en su perfil lo que cambiaste con /config: {k}', { k: adopted.join(' · ') })
+    : t('Todas las cuentas resincronizadas');
+  if (drift.some((d) => d.removed.length > 0 || d.conflicts.length > 0 || d.invalid !== '')) {
+    msg += '. ' + t('Hay avisos: míralos con ccp profile sync.');
+  }
+  return msg;
 }
 
 export function backupName(prefix = 'ccp-backup'): string {
