@@ -93,6 +93,10 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "  Skipped:     %s (use --overwrite to replace)",
 		Es: "  Saltados:    %s (usa --overwrite para reemplazar)",
 	},
+	"cli.backup.restore_regenerated": {
+		En: "  Regenerated: %s (cc-home)",
+		Es: "  Regenerados: %s (cc-home)",
+	},
 	"cli.backup.restore_rules": {
 		En: "  Rules added: %d",
 		Es: "  Reglas añadidas: %d",

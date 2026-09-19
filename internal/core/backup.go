@@ -278,6 +278,7 @@ type RestoreReport struct {
 	Overwritten []string // perfiles reemplazados
 	RulesAdded  int      // reglas de path añadidas por merge
 	SnapshotDir string   // ruta del auto-snapshot tomado antes de aplicar
+	Regenerated []string // perfiles cuyo cc-home se regeneró tras restaurar
 }
 
 // backupArchive es el contenido parseado de un .tar.gz de backup en memoria.
@@ -395,6 +396,22 @@ func BackupRestore(home, archive string, opts RestoreOpts) (RestoreReport, error
 
 	if err := Save(home, cur); err != nil {
 		return rep, err
+	}
+	// Regenera lo que sale del overlay restaurado (spec B2). Sin esto,
+	// cc-home/settings.json y CLAUDE.md seguían viejos hasta el próximo sync.
+	// Va después de Save porque la regeneración lee ccp.yaml (la capa auto).
+	src, err := claudeSrc()
+	if err != nil {
+		return rep, err
+	}
+	for _, name := range append(append([]string{}, rep.Created...), rep.Overwritten...) {
+		if name == "default" {
+			continue
+		}
+		if err := CfgRegenerate(home, name, src); err != nil {
+			return rep, fmt.Errorf("se restauró %q pero no se pudo regenerar su cc-home: %w", name, err)
+		}
+		rep.Regenerated = append(rep.Regenerated, name)
 	}
 	return rep, nil
 }

@@ -459,3 +459,31 @@ func rewriteTar(t *testing.T, archive string, members map[string][]byte) {
 		t.Fatal(err)
 	}
 }
+
+// Tras restaurar, el cc-home ya refleja el overlay restaurado, sin esperar a un
+// `ccp profile sync` (spec B2).
+func TestBackupRestoreRegeneratesProfiles(t *testing.T) {
+	home := setupHome(t)
+	archive := filepath.Join(t.TempDir(), "b.tar.gz")
+	if err := BackupExport(home, archive, false, fixedTime); err != nil {
+		t.Fatal(err)
+	}
+	dst := t.TempDir()
+	rep, err := BackupRestore(dst, archive, RestoreOpts{SnapshotDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Regenerated) == 0 {
+		t.Fatalf("Regenerated vacío: %+v", rep)
+	}
+	for _, name := range rep.Regenerated {
+		cch := ccHomePath(dst, name)
+		md, err := os.ReadFile(filepath.Join(cch, "CLAUDE.md"))
+		if err != nil || !bytes.Contains(md, []byte("@")) {
+			t.Errorf("%s: cc-home/CLAUDE.md no generado: %q %v", name, md, err)
+		}
+		if _, err := os.Stat(filepath.Join(cch, "settings.json")); err != nil {
+			t.Errorf("%s: cc-home/settings.json no generado: %v", name, err)
+		}
+	}
+}
