@@ -637,7 +637,7 @@ func withSafetySnapshot(home, trigger string, lang i18n.Lang, stderr io.Writer) 
 var dailySnapshotCmds = map[string]bool{
 	"profile": true, "account": true, "instruct": true, "backup": true, "config": true,
 	"desktop": true, "auto": true, "handoff": true, "session": true, "snapshot": true,
-	"doctor": true, "lang": true, "upgrade": true, "update": true,
+	"doctor": true, "lang": true, "upgrade": true, "update": true, "adopt": true,
 }
 
 // dailySnapshotEvery: 20 horas y no 24, para que quien abre ccp a la misma hora

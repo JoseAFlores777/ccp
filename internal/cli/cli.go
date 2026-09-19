@@ -131,6 +131,10 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 		return dispatchBackup(rest, stdout, stderr)
 	case "snapshot":
 		return dispatchSnapshot(rest, stdout, stderr)
+	case "scan":
+		return dispatchScan(rest, stdout, stderr)
+	case "adopt":
+		return dispatchAdopt(rest, stdout, stderr)
 	case "config":
 		return cmdConfig(rest, stdout, stderr)
 	case "doctor":
