@@ -115,9 +115,18 @@ scopes, `AppliesTo`, el `Why` de la http, `Secrets` sin valores y `Missing` con 
 
 **Files:** Create `internal/core/adopt.go`, `internal/core/adopt_test.go`.
 
-- `AdoptStep{ID, Order int, Kind, Title, Detail, From, To string; Items []string; Default bool; Pending bool}`
+- `AdoptStep{ID, Order int, Kind, Title, Detail, From, To, Key string; Items []string; Default bool; Pending bool}`
   con `Kind` en: `adopt-config-dir`, `lift-mcp-global`, `rule-orphan`, `desktop-launcher`, `login`,
-  `api-key`, `mcp-command-missing`. `ID` estable (hash corto de kind+from+to) para seleccionar pasos.
+  `api-key`, `mcp-command-missing`. `Key` es la clave JSON dentro de `From`/`To` que el paso mueve
+  (`mcpServers.<name>` en `lift-mcp-global` y `mcp-command-missing`; vacía si el paso es el archivo o
+  el directorio entero), igual que `InvItem` separa `Source` de `Key`.
+- `ID` estable para seleccionar pasos: hash corto de kind+from+to+key+`Items` ordenados, cada campo
+  separado por un byte `\x00` (así `a`+`bc` y `ab`+`c` no dan el mismo hash). Kind+from+to **no
+  basta**: todos los `lift-mcp-global` salidos del mismo `claude_desktop_config.json` comparten los
+  tres (mismo archivo, mismo `~/.claude.json`), y con un ID repetido `ccp adopt --only <id>` aplicaría
+  todos — p. ej. subiría `github` con su `env.GITHUB_TOKEN` al pedir solo `filesystem` — y las casillas
+  de la GUI, indexadas por ID, quedarían enlazadas. Si aun así dos pasos coinciden en todo, son el mismo
+  paso: `AdoptPlan` los deduplica en vez de emitir dos con el mismo ID.
 - Orden del spec §5.2: perfiles (config dirs) → reglas → capas → Desktop → pendientes. La proyección
   a perfiles es la Fase B: aquí no hay pasos de proyección.
 - **Capas (lo que pide el criterio de salida):** un MCP que está en uno o más `claude_desktop_config.json`
@@ -136,7 +145,9 @@ scopes, `AppliesTo`, el `Why` de la http, `Secrets` sin valores y `Missing` con 
 
 **Tests:** el árbol del criterio de salida (MCP en `default` de Desktop, `~/.claude.json` vacío) da
 exactamente un `lift-mcp-global` por MCP y ninguno para uno que ya está en `~/.claude.json`;
-conflicto de forma; nombre único para `.claude-work` cuando `work` ya existe; orden estable.
+conflicto de forma; nombre único para `.claude-work` cuando `work` ya existe; orden estable; **dos MCP
+del mismo `claude_desktop_config.json`** (`filesystem` y `github`) dan dos `lift-mcp-global` con
+`Key` distinta e **IDs distintos**, y los IDs de todo el plan son únicos (se comprueba recorriéndolo).
 
 ### Task 5: aplicar la adopción
 
@@ -158,7 +169,8 @@ conflicto de forma; nombre único para `.claude-work` cuando `work` ya existe; o
 
 **Tests:** aplicar el plan del árbol del criterio de salida deja los MCP en `~/.claude.json` con las
 demás claves intactas y el modo conservado; aplicarlo dos veces no duplica; `Before` que falla no
-escribe nada; adoptar `~/.claude-work` crea el perfil con overlay y cc-home, sin tokens y con el
+escribe nada; con dos MCP del mismo archivo, `Only: []string{<ID de filesystem>}` sube
+**exactamente** `filesystem` y deja `github` (y su token) fuera de `~/.claude.json`; adoptar `~/.claude-work` crea el perfil con overlay y cc-home, sin tokens y con el
 original intacto.
 
 ### Task 6: CLI `ccp scan` y `ccp adopt`
