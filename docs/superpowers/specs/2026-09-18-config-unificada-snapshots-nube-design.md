@@ -177,6 +177,10 @@ todos los perfiles». Tamaño: **S**. Los ocho, arreglados en la rama `fix/fase0
 
 ## 5. Subproyecto A: inventario y adopción («detectar la máquina»)
 
+> **Implementado (plan 2026-09-19-fase-a-inventario).** Criterio de salida comprobado en esta máquina (solo
+> lectura): los 6 MCP de la ventana `default` aparecen; 5 se proponen como global y `dokploy-mcp` queda como
+> conflicto de credenciales porque la ventana de `e-cc` lo tiene con otra clave.
+
 ### 5.1 Motor: `core/inventory.go` (puro, raíces inyectadas)
 
 `Inventory(roots) → []Item`. Solo lectura, sin efectos, con raíces inyectadas para montar una

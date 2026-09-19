@@ -4,6 +4,15 @@
 
 ### Added
 
+- **`ccp scan` y `ccp adopt`: detectar la máquina** (spec §5). `scan` hace inventario de toda la configuración de
+  Claude: global, perfiles, cada ventana de Desktop, proyectos y `CLAUDE_CONFIG_DIR` sin gestionar. De cada
+  elemento dice dónde aplica (CLI, Code o chat), según lo medido en el ADR 0016. Un archivo ilegible cuenta como
+  «desconocido», nunca como vacío, y los secretos solo salen por su ruta.
+  - `adopt` enseña un plan con IDs estables y solo lo aplica con `--yes`, tras un snapshot de seguridad. Sube a
+    global los MCP que solo tenía Desktop, salvo que dos ventanas los tengan con credenciales distintas, y adopta
+    un `~/.claude-x` como perfil copiando su configuración, sin tokens ni `env`.
+  - `ccp serve`: `inventory.scan`, `adopt.plan` y `adopt.apply`. En la app de escritorio, la pantalla P-19
+    «Detectar esta máquina», también desde Ajustes.
 - **`ccp snapshot`** — el historial de toda la configuración, no solo la de ccp. Entran `ccp.yaml`, los
   overlays, `~/.claude` (settings, CLAUDE.md, agentes, comandos, skills, hooks, plugins), la parte de MCP de
   cada `.claude.json`, la config de cada ventana de Desktop y los archivos locales de cada carpeta con regla.

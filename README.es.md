@@ -733,6 +733,30 @@ Qué captura un snapshot:
   12 caracteres que `ccp` pide sin eco (`CCP_SNAPSHOT_PASSPHRASE` la da en scripts). Sin ella, el archivo no
   lleva secretos, y al importarlo se dice qué elementos llegaron sin datos.
 
+## Detectar la máquina — `ccp scan` y `ccp adopt`
+
+`ccp scan` lista todo lo de Claude que hay en esta máquina: tu `~/.claude` global, cada perfil, los MCP de cada
+ventana de Desktop, los archivos de los proyectos y los `CLAUDE_CONFIG_DIR` que ccp aún no gestiona. De cada cosa
+dice **dónde aplica**: CLI, pestaña Code o chat de Desktop. Los valores secretos no salen nunca, solo que existen.
+
+`ccp adopt` lo convierte en un plan y solo lo aplica con `--yes`, tras un snapshot de seguridad:
+
+```bash
+ccp adopt              # enseña el plan (sale 1 si hay algo que aplicar)
+ccp adopt --yes        # aplica los pasos marcados
+ccp adopt --only <id> --yes
+```
+
+- Un MCP que solo vive en tu ventana principal de Desktop se propone como **global** (`~/.claude.json`), para que
+  lo vea también la CLI. El mismo MCP con **credenciales distintas** en dos ventanas no se sube nunca: daría el
+  token de una cuenta a todos los perfiles.
+- Un `~/.claude-xyz` que usabas a mano se adopta como perfil nuevo **copiando** su configuración (nunca sus
+  tokens ni su `env`); el original no se toca y haces un `/login`.
+- Los logins, las API keys, los comandos de MCP que faltan y los lanzadores de Desktop salen como cosas por hacer
+  a mano.
+
+La app de escritorio enseña lo mismo en la pantalla **Detectar esta máquina**.
+
 ## Config por perfil
 
 Cada perfil tiene su propia config de Claude, aplicada como **capa baseline** cuando está activo:
