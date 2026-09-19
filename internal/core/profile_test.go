@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -640,5 +641,81 @@ func TestSeedCCHomeLinksStylesHooksAndKeybindings(t *testing.T) {
 		if err != nil || fi.Mode()&os.ModeSymlink == 0 {
 			t.Errorf("%s: no es un symlink a la fuente global (%v)", item, err)
 		}
+	}
+}
+
+// Un perfil nace con su config generada, como en el oráculo (_seed_cc_home):
+// overlay/, cc-home/CLAUDE.md y cc-home/settings.json. Antes no los tenía hasta
+// el primer `ccp profile sync`, aunque el CLI dijera «config generada» (B8).
+func TestProfileAddGeneraLaConfig(t *testing.T) {
+	for _, kind := range []string{"official", "deepseek"} {
+		t.Run(kind, func(t *testing.T) {
+			home, src := t.TempDir(), t.TempDir()
+			t.Setenv("CCP_CLAUDE_SRC", src)
+			if err := os.WriteFile(filepath.Join(src, "settings.json"), []byte(`{"model":"opus"}`), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(src, "CLAUDE.md"), []byte("global\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			var err error
+			if kind == "official" {
+				err = ProfileAddOfficial(home, "p")
+			} else {
+				err = ProfileAddDeepseek(home, "p", BuiltinDefaults())
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, f := range []string{cfgInstrFile(home, "p"), cfgSettingsFile(home, "p")} {
+				if !fileExists(f) {
+					t.Errorf("falta %s", f)
+				}
+			}
+			cch := ccHomePath(home, "p")
+			md, err := os.ReadFile(filepath.Join(cch, "CLAUDE.md"))
+			if err != nil || !strings.Contains(string(md), "@"+cfgInstrFile(home, "p")) ||
+				!strings.Contains(string(md), "@"+filepath.Join(src, "CLAUDE.md")) {
+				t.Errorf("cc-home/CLAUDE.md sin los @import: %q %v", md, err)
+			}
+			sj, err := os.ReadFile(filepath.Join(cch, "settings.json"))
+			if err != nil || !strings.Contains(string(sj), "opus") {
+				t.Errorf("cc-home/settings.json no sale del global: %q %v", sj, err)
+			}
+		})
+	}
+}
+
+// Si la config no se puede generar, el alta NO se deshace (como en el bash): el
+// perfil queda en ccp.yaml y el error es un *ProfileConfigError, que es lo que
+// deja a cada front-end decir «creado, pero reintenta con ccp profile sync» en
+// su idioma en vez de reenviar la prosa del core.
+func TestProfileAddConfigFallidaNoDeshaceElAlta(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+	// overlay/ ocupado por un archivo: CfgInitOverlay no puede crear el directorio.
+	if err := os.MkdirAll(profileDirPath(home, "p"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfgOverlayDir(home, "p"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := ProfileAddOfficial(home, "p")
+	var pce *ProfileConfigError
+	if !errors.As(err, &pce) {
+		t.Fatalf("err = %v (%T), quiero *ProfileConfigError", err, err)
+	}
+	if pce.Name != "p" || pce.Err == nil {
+		t.Errorf("ProfileConfigError = %+v", pce)
+	}
+	if !strings.Contains(err.Error(), "ccp profile sync p") {
+		t.Errorf("el error no dice cómo reintentar: %v", err)
+	}
+	c, lerr := Load(home)
+	if lerr != nil {
+		t.Fatal(lerr)
+	}
+	if _, ok := c.Profiles["p"]; !ok {
+		t.Error("el alta se deshizo: el perfil ya no está en ccp.yaml")
 	}
 }

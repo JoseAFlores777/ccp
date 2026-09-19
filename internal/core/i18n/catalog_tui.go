@@ -250,6 +250,12 @@ var catalogTUI = map[string]map[Lang]string{
 		En: "profile created, but set key failed",
 		Es: "perfil creado, pero falló set key",
 	},
+	// El alta a medias (B8): el perfil existe, pero su config no se generó.
+	// wrapErr pone detrás la causa cruda del core.
+	"tui.form.config_failed": {
+		En: "profile '%s' was created, but its config could not be generated (retry with: ccp profile sync %s)",
+		Es: "el perfil '%s' se creó, pero no se pudo generar su config (reintenta con: ccp profile sync %s)",
+	},
 	"tui.form.official_created": {
 		En: "official profile '%s' created. Log in: login.",
 		Es: "Perfil official '%s' creado. Inicia sesión: login.",

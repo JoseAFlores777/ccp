@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -268,7 +269,7 @@ func profileAdd(home string, args []string, stdout, stderr io.Writer) int {
 
 	if kind == "official" {
 		if err := core.ProfileAddOfficial(home, name); err != nil {
-			fmt.Fprintf(stderr, "[error] %v\n", err)
+			printProfileAddErr(stderr, lang, err)
 			return 1
 		}
 		fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.profile.official_created", name)))
@@ -308,12 +309,24 @@ func profileAdd(home string, args []string, stdout, stderr io.Writer) int {
 	}
 
 	if err := core.ProfileAddProvider(home, name, kind, d); err != nil {
-		fmt.Fprintf(stderr, "[error] %v\n", err)
+		printProfileAddErr(stderr, lang, err)
 		return 1
 	}
 	fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.profile.provider_created", kind, name)))
 	fmt.Fprintln(stdout, i18n.T(lang, "cli.profile.provider_key_hint", name))
 	return 0
+}
+
+// printProfileAddErr distingue el alta a medias (B8) del resto: si lo que
+// falló fue generar la config, el perfil YA existe y hay que decirlo, con cómo
+// reintentarlo y en el idioma del usuario; la causa del core va detrás.
+func printProfileAddErr(stderr io.Writer, lang i18n.Lang, err error) {
+	var pce *core.ProfileConfigError
+	if errors.As(err, &pce) {
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.config_failed", pce.Name, pce.Name, pce.Err))
+		return
+	}
+	fmt.Fprintf(stderr, "[error] %v\n", err)
 }
 
 // profileLogin abre Claude Code con el config dir del perfil oficial para que

@@ -35,7 +35,10 @@ func ProfileAddOfficial(home, name string) error {
 	if err := Save(home, c); err != nil {
 		return err
 	}
-	return seedCCHome(home, name)
+	if err := seedCCHome(home, name); err != nil {
+		return err
+	}
+	return profileGenerateConfig(home, name)
 }
 
 // ProfileAddProvider añade un perfil de proveedor compatible (deepseek/kimi/glm)
@@ -65,7 +68,10 @@ func ProfileAddProvider(home, name, providerType string, d Defaults) error {
 	if err := Save(home, c); err != nil {
 		return err
 	}
-	return seedCCHome(home, name)
+	if err := seedCCHome(home, name); err != nil {
+		return err
+	}
+	return profileGenerateConfig(home, name)
 }
 
 // ProfileAddDeepseek/Kimi/GLM son envoltorios delgados sobre ProfileAddProvider
@@ -192,11 +198,46 @@ func ProfileSetKey(home, name, key string) error {
 	return SetKey(home, name, key)
 }
 
+// ProfileConfigError es el alta que quedó a medias: el perfil ya está en
+// ccp.yaml y su cc-home sembrado, pero su config no se pudo generar. Es un tipo
+// y no un fmt.Errorf para que cada front-end ponga el marco en su idioma y diga
+// cómo reintentarlo (la causa cruda va detrás como detalle técnico), y para que
+// sepa que el perfil SÍ existe: la TUI, por ejemplo, guarda igual la API key.
+type ProfileConfigError struct {
+	Name string
+	Err  error
+}
+
+func (e *ProfileConfigError) Error() string {
+	return fmt.Sprintf("perfil %q creado, pero no se pudo generar su config (reintenta con: ccp profile sync %s): %v", e.Name, e.Name, e.Err)
+}
+
+func (e *ProfileConfigError) Unwrap() error { return e.Err }
+
+// profileGenerateConfig es la segunda mitad de _seed_cc_home del oráculo:
+// overlay vacío y cc-home regenerado (CfgRegenerate empieza por CfgInitOverlay).
+// Sin esto el perfil nacía sin overlay/, sin cc-home/CLAUDE.md y sin
+// settings.json hasta el primer sync, aunque el CLI dijera «config generada»
+// (spec 2026-09-18, B8). ccp.yaml ya está guardado, que es lo que lee la capa
+// auto. Si falla, el perfil existe igual (como en el bash): se dice cómo
+// reintentarlo en vez de deshacer el alta.
+func profileGenerateConfig(home, name string) error {
+	src, err := claudeSrc()
+	if err == nil {
+		err = CfgRegenerate(home, name, src)
+	}
+	if err != nil {
+		return &ProfileConfigError{Name: name, Err: err}
+	}
+	return nil
+}
+
 // seedCCHome porta _seed_cc_home del bash: crea <home>/profiles/<name>/cc-home/
 // y añade symlinks para plugins/, commands/, agents/, skills/ apuntando al
 // directorio fuente (CCP_CLAUDE_SRC o ~/.claude por defecto). Solo crea cada
 // symlink si la entrada existe en la fuente y NO existe aún en el cc-home.
-// CLAUDE.md y settings.json son responsabilidad de cfg (fuera de este issue).
+// CLAUDE.md y settings.json los genera cfg (CfgRegenerate), que el alta llama
+// justo después (profileGenerateConfig).
 func seedCCHome(home, name string) error {
 	cch := ccHomePath(home, name)
 	if err := os.MkdirAll(cch, 0o755); err != nil {
