@@ -355,7 +355,7 @@ _instr_dest_or_die() { # scope type
        info "Usa scope 'global' (aplica a todos los perfiles) o 'project' (acota al repo)." >&2; return 3 ;;
     4) err "scope 'project': no estás en un repo git y no hay CCP_REPO_ROOT."; return 4 ;;
     5) err "scope 'profile': MCP por-perfil no está soportado todavía."
-       info "Usa 'ccp instruct add global mcp ...' (todos los perfiles) o 'project' (este repo)." >&2; return 5 ;;
+       info "Usa 'project' (el .mcp.json de este repo; lo ven todos los perfiles). 'global' solo llega a default." >&2; return 5 ;;
     *) err "scope/tipo inválido: '$scope'/'$type'."; return 1 ;;
   esac
 }
