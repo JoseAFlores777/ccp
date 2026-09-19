@@ -742,12 +742,13 @@ ccp profile config <perfil>                 # menú: instrucciones / settings / 
 ccp profile config <perfil> instructions    # abre overlay/CLAUDE.md
 ccp profile config <perfil> settings         # abre overlay/settings.overlay.json
 ccp profile sync [<perfil>]                  # re-mergea cambios del global ~/.claude
-ccp profile rename <viejo> <nuevo>           # renombra: reglas, cadenas, marcadores, login y key incluidos
+ccp profile rename <viejo> <nuevo>           # renombra: reglas, cadenas, marcadores y key incluidos (official: vuelve a iniciar sesión)
 ccp config editor "code -w"                  # editor a usar (fallback: $EDITOR)
 ```
 
 - **Instrucciones**: `cc-home/CLAUDE.md` hace `@import` del global `~/.claude/CLAUDE.md` y luego de tu overlay.
 - **Settings**: `cc-home/settings.json` = global ⊕ overlay (deep-merge puro en Go).
+- **`/config` dentro de un perfil se conserva**: Claude Code lo escribe en `cc-home/settings.json`, y antes de regenerarlo `ccp` pasa al overlay del perfil lo que añadiste o cambiaste (`ccp profile sync` dice qué). Lo que quitaste solo se avisa, si el overlay también cambió esa clave gana el overlay, y un archivo inválido se copia a `profiles/<nombre>/state/` en vez de adoptarse.
 - **Prioridad real**: es una baseline — la config del repo (`.claude/settings.json`) gana en conflicto.
 - `default` no tiene overlay: `ccp profile config default` abre tu `~/.claude` global directo.
 
@@ -863,7 +864,7 @@ Con comandos: `ccp config show` · `ccp config set <clave> <valor>` · `ccp conf
 | ¿Cómo cambio el idioma de la salida? | `ccp lang en\|es`, `CCP_LANG=es`, o pulsa `L` en el TUI. |
 | ¿ccp cambia algo dentro de Claude Code? | No. Solo apunta Claude Code a un perfil por carpeta (su propio config dir / proveedor). Tus cuentas y ajustes quedan intactos. |
 | ¿Dónde se guardan mis API keys? | En `~/.config/ccp/profiles/<n>/api_key`, `chmod 600`. Nunca en `ccp.yaml`, en el rc del shell, ni en git. |
-| ¿Cómo renombro un perfil? | `ccp profile rename <viejo> <nuevo>` (o `r` en el TUI). Se mueven con él sus reglas, sus cadenas de rotación (`fallback`, `allow_from`, `hooks`), sus marcadores de handoff, su login y su API key; si esa terminal lo tenía activo, corre `ccp use <nuevo>`. Si tenía lanzador de Desktop, ccp te da los dos comandos que lo sustituyen. |
+| ¿Cómo renombro un perfil? | `ccp profile rename <viejo> <nuevo>` (o `r` en el TUI). Se mueven con él sus reglas, sus cadenas de rotación (`fallback`, `allow_from`, `hooks`), sus marcadores de handoff y su API key; si esa terminal lo tenía activo, corre `ccp use <nuevo>`. Un perfil official tiene que volver a iniciar sesión (`ccp profile login <nuevo>`): Claude Code nombra su credencial del Llavero según la carpeta del perfil, y ccp lo avisa en vez de tocar el Llavero. Si tenía lanzador de Desktop, ccp te da los dos comandos que lo sustituyen. |
 | ¿Cómo actualizo ccp? | `ccp upgrade` (re-ejecuta el instalador + `profile sync`). |
 | ¿Cómo desinstalo? | `ccp uninstall` (quita el bloque del shell); opcionalmente `rm -rf ~/.config/ccp`. |
 

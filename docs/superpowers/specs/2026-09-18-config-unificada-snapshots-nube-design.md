@@ -5,6 +5,7 @@ ADRs a escribir: 0011–0016 (§14)
 
 Planes de implementación:
 - [Fase 0: mediciones de Desktop y defectos B1-B5](../plans/2026-09-18-fase0-mediciones-y-defectos.md)
+- [Fase 0, cierre: defectos B6-B8](../plans/2026-09-19-fase0-b6-b8.md)
 - [D: snapshots locales](../plans/2026-09-18-snapshots-locales.md)
 - [F1: bóveda, dispositivos y sincronización](../plans/2026-09-18-nube-f1-boveda-y-sync.md) (depende de D)
 - Infraestructura (I): desplegada el 2026-09-18 desde `deploy/ccp-cloud/`
@@ -49,9 +50,11 @@ Estado real de esta máquina, para calibrar:
 
 ### Defectos encontrados de camino (se arreglan en la Fase 0)
 
-> **B1–B5 arreglados** en la rama `fix/fase0-defectos` (plan 2026-09-18-fase0-mediciones-y-defectos). B1 solo
-> en su pista: el arreglo de fondo es el subproyecto B. B4 llega a los perfiles ya creados por `profile sync`.
-> B5 enseña además `permissions.ask`, y en la TUI `e` sobre los MCP explica dónde viven en vez de abrir el overlay.
+> **B1–B8 arreglados** en la rama `fix/fase0-defectos`: B1–B5 con el plan 2026-09-18-fase0-mediciones-y-defectos
+> y B6–B8 con el 2026-09-19-fase0-b6-b8. B1 solo en su pista: el arreglo de fondo es el subproyecto B. B4 llega
+> a los perfiles ya creados por `profile sync`. B5 enseña además `permissions.ask`, y en la TUI `e` sobre los
+> MCP explica dónde viven en vez de abrir el overlay. B6 adopta desde la segunda regeneración en los perfiles
+> creados antes del arreglo: la primera guarda la línea base.
 
 - **B1 — El MCP «global» no es global.** `InstructDest("global","mcp")` escribe `src+".json"`,
   es decir `~/.claude.json` (`instruct.go:64`). Ese archivo solo lo lee `default`: cada perfil
@@ -65,6 +68,13 @@ Estado real de esta máquina, para calibrar:
 - **B4 — Faltan cosas por sembrar.** `seedCCHome` no siembra `output-styles/`, `hooks/` (los scripts)
   ni `keybindings.json`. Los perfiles no heredan estilos de salida.
 - **B5 — `ProfileEffective` ciega** a MCP y al resto de claves de la tabla de arriba.
+- **B6 — `/config` dentro de un perfil se perdía** en el siguiente sync, porque escribe en el
+  `cc-home/settings.json` que ccp genera. *Arreglado*: se adopta en el overlay (copia de lo generado en
+  `profiles/<n>/state/`).
+- **B7 — `profile rename` dejaba el perfil sin login sin decirlo** (M4). *Arreglado*: avisa; ccp no
+  toca el Llavero.
+- **B8 — `profile add` no generaba la config.** *Arreglado*: genera overlay, `CLAUDE.md` y
+  `settings.json` como el oráculo.
 
 ## 2. Principio de arquitectura: una fuente declarada, varias proyecciones
 
@@ -162,7 +172,8 @@ reglas de permisos escritas con el nombre corto. Queda descartado.
 Arreglos: **B1–B5**, más **B6–B8**, que salieron de las mediciones (ADR 0016): `/config` dentro de un
 perfil se pierde en el siguiente sync, `profile rename` deja el perfil sin login y `profile add` no
 genera la config. B1 se resuelve de fondo con el subproyecto B: «global» pasa a significar «proyectado a
-todos los perfiles». Tamaño: **S**.
+todos los perfiles». Tamaño: **S**. Los ocho, arreglados en la rama `fix/fase0-defectos`: B1-B5 con el plan
+2026-09-18 y B6-B8 con el 2026-09-19.
 
 ## 5. Subproyecto A: inventario y adopción («detectar la máquina»)
 
@@ -787,7 +798,7 @@ Dokploy v0.30.4, un solo servidor.
 
 | Fase | Entrega | Depende de | Tamaño | Sale cuando… |
 |---|---|---|---|---|
-| 0 | M1–M6 medidos + ADR de Desktop; B1–B5 | — | S | Cada «?» de §3 tiene respuesta |
+| 0 | M1–M6 medidos + ADR de Desktop; B1–B8 | — | S | Cada «?» de §3 tiene respuesta |
 | A | `ccp scan`, `ccp adopt`, P-19 | 0 | M | En esta máquina aparecen los 6 MCP de Desktop y se proponen como global |
 | B | Proyección de MCP a CLI y a Desktop; skills y agents por perfil; hooks y permisos editables; deriva | 0, A | L | Un MCP añadido al perfil `work` aparece en `claude` y en la ventana de `work` tras `profile sync` |
 | C | P-20 + editores + serve y CLI `ccp mcp` | B | L | Todo lo de §3 se puede leer desde la GUI, y editar lo que es editable |

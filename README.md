@@ -745,12 +745,13 @@ ccp profile config <perfil>                 # menú: instrucciones / settings / 
 ccp profile config <perfil> instructions    # abre overlay/CLAUDE.md
 ccp profile config <perfil> settings         # abre overlay/settings.overlay.json
 ccp profile sync [<perfil>]                  # re-mergea cambios del global ~/.claude
-ccp profile rename <old> <new>               # rename: rules, chains, markers, login and key included
+ccp profile rename <old> <new>               # rename: rules, chains, markers and key included (official: log in again)
 ccp config editor "code -w"                  # editor a usar (fallback: $EDITOR)
 ```
 
 - **Instructions**: `cc-home/CLAUDE.md` does an `@import` of the global `~/.claude/CLAUDE.md` and then of your overlay.
 - **Settings**: `cc-home/settings.json` = global ⊕ overlay (pure-Go deep-merge).
+- **`/config` inside a profile is kept**: Claude Code writes it to `cc-home/settings.json`, and before regenerating it `ccp` moves what you added or changed into the profile's overlay (`ccp profile sync` says what). What you removed is only warned about, the overlay wins if it changed that key too, and an invalid file is copied to `profiles/<name>/state/` instead of adopted.
 - **Real precedence**: it's a baseline — the repo's config (`.claude/settings.json`) wins on conflict.
 - `default` has no overlay: `ccp profile config default` opens your global `~/.claude` directly.
 
@@ -866,7 +867,7 @@ With commands: `ccp config show` · `ccp config set <clave> <valor>` · `ccp con
 | How do I switch the output language? | `ccp lang en\|es`, `CCP_LANG=es`, or press `L` in the TUI. |
 | Does ccp change anything inside Claude Code? | No. It only points Claude Code at a per-folder profile (its own config dir / provider). Your accounts and settings are untouched. |
 | Where are my API keys stored? | Under `~/.config/ccp/profiles/<n>/api_key`, `chmod 600`. Never in `ccp.yaml`, the shell rc, or git. |
-| How do I rename a profile? | `ccp profile rename <old> <new>` (or `r` in the TUI). Its rules, rotation chains (`fallback`, `allow_from`, `hooks`), handoff markers, login and API key move with it; if that terminal had it active, run `ccp use <new>`. If it had a Desktop launcher, ccp prints the two commands that replace it. |
+| How do I rename a profile? | `ccp profile rename <old> <new>` (or `r` in the TUI). Its rules, rotation chains (`fallback`, `allow_from`, `hooks`), handoff markers and API key move with it; if that terminal had it active, run `ccp use <new>`. An official profile has to log in again (`ccp profile login <new>`): Claude Code names its Keychain credential after the profile's folder, and ccp says so instead of touching the Keychain. If it had a Desktop launcher, ccp prints the two commands that replace it. |
 | How do I update ccp? | `ccp upgrade` (re-runs the installer + `profile sync`). |
 | How do I uninstall? | `ccp uninstall` (removes the shell block); optionally `rm -rf ~/.config/ccp`. |
 
