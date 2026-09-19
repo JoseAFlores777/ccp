@@ -57,6 +57,9 @@ func TestDispatchProfileSync(t *testing.T) {
 }
 
 func TestDispatchProfileUnknownSub(t *testing.T) {
+	// dispatchProfile corre ensureMigrated antes de mirar el subcomando: sin
+	// CCP_HOME temporal, migraba (y creaba) el ~/.config/ccp real.
+	t.Setenv("CCP_HOME", t.TempDir())
 	var out, errb bytes.Buffer
 	code := Dispatch([]string{"profile", "wat"}, &out, &errb)
 	if code != 1 {
