@@ -127,6 +127,11 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "  This terminal still has %s active: run 'ccp use %s' (other open terminals too).",
 		Es: "  Esta terminal aún tiene %s activo: corre 'ccp use %s' (y en las demás terminales abiertas).",
 	},
+	// %s: el nombre nuevo del perfil (B7: el login cuelga de la ruta del cc-home).
+	"cli.profile.rename_relogin_hint": {
+		En: "  Claude Code keeps this profile's login under a name derived from its folder, and the rename changed that folder: log in again with 'ccp profile login %s'. The old credential stays in the Keychain; ccp doesn't touch it.",
+		Es: "  Claude Code guarda el login de este perfil con un nombre que sale de su carpeta, y el rename la cambió: vuelve a iniciar sesión con 'ccp profile login %s'. La credencial vieja se queda en el Llavero; ccp no la toca.",
+	},
 	// %s: perfil viejo, ruta del .app, `ccp desktop app rm …`, `ccp desktop app …`.
 	"cli.profile.rename_launcher_hint": {
 		En: "  Its Desktop launcher still points to '%s' and won't open anymore (%s).\n  Replace it with its window closed: %s && %s",

@@ -196,9 +196,20 @@ func formRenameProfile(home, name string, lang i18n.Lang) action {
 // applyRename es el cuerpo del apply de formRenameProfile, fuera del closure
 // para poder probarlo sin TTY: el valor del input solo se puede fijar corriendo
 // el form, así que un test sobre el closure no ejercitaría nada.
+//
+// El aviso de volver a iniciar sesión (B7) sale también detrás de un error:
+// si lo que falló fue la regeneración, el directorio ya se movió y el login se
+// perdió igual.
 func applyRename(home, old, nuevo string, lang i18n.Lang) (string, error) {
-	if err := core.ProfileRename(home, old, nuevo); err != nil {
+	res, err := core.ProfileRename(home, old, nuevo)
+	if err != nil {
+		if res.Relogin {
+			return "", fmt.Errorf("%w. %s", err, i18n.T(lang, "tui.form.rename_relogin_hint", nuevo))
+		}
 		return "", err
+	}
+	if res.Relogin {
+		return i18n.T(lang, "tui.form.profile_renamed_relogin", old, nuevo, nuevo), nil
 	}
 	return i18n.T(lang, "tui.form.profile_renamed", old, nuevo), nil
 }

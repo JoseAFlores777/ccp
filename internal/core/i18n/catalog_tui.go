@@ -80,6 +80,17 @@ var catalogTUI = map[string]map[Lang]string{
 		En: "Profile renamed: %s → %s",
 		Es: "Perfil renombrado: %s → %s",
 	},
+	// B7: el login de Claude Code cuelga de la ruta del cc-home, y el rename la
+	// cambió. %s: viejo, nuevo, nuevo.
+	"tui.form.profile_renamed_relogin": {
+		En: "Profile renamed: %s → %s. Its login stayed with the old folder: ccp profile login %s",
+		Es: "Perfil renombrado: %s → %s. Su login se quedó con la carpeta vieja: ccp profile login %s",
+	},
+	// El mismo aviso detrás de un error de regeneración: el rename ya se hizo.
+	"tui.form.rename_relogin_hint": {
+		En: "Its login stayed with the old folder: ccp profile login %s",
+		Es: "Su login se quedó con la carpeta vieja: ccp profile login %s",
+	},
 	"tui.profiles.empty": {
 		En: "(no profiles — press 'a' to add)",
 		Es: "(sin perfiles — pulsa 'a' para añadir)",

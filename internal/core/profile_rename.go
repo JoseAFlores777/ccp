@@ -35,6 +35,21 @@ func validProfileName(name string) bool {
 	return name != ".." && profileNameRe.MatchString(name)
 }
 
+// RenameResult es lo que el rename no puede arreglar solo y el usuario tiene que
+// saber. Vale también junto a un error: si el directorio ya se movió y lo que
+// falló fue la regeneración, el login se perdió igual.
+type RenameResult struct {
+	// Relogin: el perfil era official y tenía sesión. Claude Code guarda su
+	// credencial en el Llavero con un nombre que sale de la ruta del cc-home
+	// (`Claude Code-credentials-<sha256(dir)[:8]>`, ADR 0016, M4), y el rename
+	// acaba de cambiar esa ruta: hay que volver a hacer /login. ccp no mueve la
+	// credencial, porque tocaría secretos del Llavero. Tampoco distingue Linux,
+	// donde la credencial vive en el cc-home y sí viajaría: no está medido, y un
+	// aviso de más cuesta un /login mientras que uno de menos deja un perfil
+	// que no entra sin decir por qué.
+	Relogin bool
+}
+
 // ProfileRename renombra un perfil moviendo TODO su estado: el directorio
 // (api_key + cc-home + overlay + datos de Desktop), la entrada de ccp.yaml, las
 // reglas que lo apuntan, los artefactos authored de scope profile, sus
@@ -55,25 +70,29 @@ func validProfileName(name string) bool {
 // toca el lanzador de Desktop (~/Applications/Claude (<viejo>).app): su
 // manifiesto nombra el perfil viejo, pero rehacerlo es cosa de `ccp desktop
 // app`, que sabe comprobar antes que su ventana no esté abierta; el CLI avisa.
-func ProfileRename(home, oldName, newName string) error {
+// Tampoco puede mover el login de un perfil official: Claude Code guarda la
+// credencial en el Llavero con un nombre que sale de la ruta del cc-home, y esa
+// ruta es justo lo que el rename cambia. ccp no toca el Llavero; lo devuelve en
+// RenameResult para que cada front-end pida el /login (B7).
+func ProfileRename(home, oldName, newName string) (RenameResult, error) {
 	if oldName == "" || oldName == "default" {
-		return fmt.Errorf("no se puede renombrar el perfil reservado %q", oldName)
+		return RenameResult{}, fmt.Errorf("no se puede renombrar el perfil reservado %q", oldName)
 	}
 	if newName == "default" {
-		return fmt.Errorf("%q es un nombre reservado", newName)
+		return RenameResult{}, fmt.Errorf("%q es un nombre reservado", newName)
 	}
 	if !validProfileName(newName) {
-		return fmt.Errorf("nombre de perfil inválido: %q (usa letras, números, '.', '_' o '-')", newName)
+		return RenameResult{}, fmt.Errorf("nombre de perfil inválido: %q (usa letras, números, '.', '_' o '-')", newName)
 	}
 	c, err := Load(home)
 	if err != nil {
-		return err
+		return RenameResult{}, err
 	}
 	if _, exists := c.Profiles[oldName]; !exists {
-		return fmt.Errorf("no existe el perfil %q", oldName)
+		return RenameResult{}, fmt.Errorf("no existe el perfil %q", oldName)
 	}
 	if _, taken := c.Profiles[newName]; taken {
-		return fmt.Errorf("el perfil %q ya existe", newName)
+		return RenameResult{}, fmt.Errorf("el perfil %q ya existe", newName)
 	}
 	// Un nombre destino que auto_handoff ya menciona es un resto, casi siempre
 	// de un perfil borrado (`profile rm` no limpia el bloque). Renombrar encima
@@ -82,20 +101,23 @@ func ProfileRename(home, oldName, newName string) error {
 	// préstamos se abriría sin que nadie lo decidiera. Mismo criterio que con el
 	// directorio suelto de abajo: se respeta y se pide limpiarlo antes.
 	if where := autoHandoffMentions(c.AutoHandoff, newName); len(where) > 0 {
-		return fmt.Errorf("auto_handoff ya menciona %q (%s), seguramente restos de un perfil borrado: quita esas menciones de ccp.yaml antes de renombrar o el perfil renombrado las heredaría",
+		return RenameResult{}, fmt.Errorf("auto_handoff ya menciona %q (%s), seguramente restos de un perfil borrado: quita esas menciones de ccp.yaml antes de renombrar o el perfil renombrado las heredaría",
 			newName, strings.Join(where, ", "))
 	}
 	oldDir, newDir := profileDirPath(home, oldName), profileDirPath(home, newName)
 	// Un directorio suelto con el nombre destino (p. ej. un perfil borrado del
 	// yaml pero no del disco) se respeta: pisarlo perdería su login y su key.
 	if _, err := os.Stat(newDir); err == nil {
-		return fmt.Errorf("ya existe el directorio %s; muévelo o elimínalo antes de renombrar", newDir)
+		return RenameResult{}, fmt.Errorf("ya existe el directorio %s; muévelo o elimínalo antes de renombrar", newDir)
 	}
+
+	// Se mira ANTES de mover: después, el .claude.json ya está en la ruta nueva.
+	res := RenameResult{Relogin: c.Profiles[oldName].Type == "official" && HasLogin(home, oldName)}
 
 	movido := false
 	if _, err := os.Stat(oldDir); err == nil {
 		if err := os.Rename(oldDir, newDir); err != nil {
-			return fmt.Errorf("no se pudo mover %s -> %s: %w", oldDir, newDir, err)
+			return RenameResult{}, fmt.Errorf("no se pudo mover %s -> %s: %w", oldDir, newDir, err)
 		}
 		movido = true
 	}
@@ -109,7 +131,7 @@ func ProfileRename(home, oldName, newName string) error {
 
 	if err := Save(home, renamedConfig(c, oldName, newName)); err != nil {
 		revertirDir()
-		return err
+		return RenameResult{}, err
 	}
 
 	if err := renameInHandoffs(home, oldName, newName); err != nil {
@@ -119,21 +141,22 @@ func ProfileRename(home, oldName, newName string) error {
 		// deshacer es guardarlo tal como se leyó.
 		if serr := Save(home, c); serr != nil {
 			revertirDir()
-			return fmt.Errorf("%w (además falló revertir ccp.yaml: %v)", err, serr)
+			return RenameResult{}, fmt.Errorf("%w (además falló revertir ccp.yaml: %v)", err, serr)
 		}
 		revertirDir()
-		return err
+		return RenameResult{}, err
 	}
 
 	// El cc-home guarda rutas absolutas al overlay del perfil, con el nombre
 	// viejo dentro. Regenerar es lo que las pone al día; si falla, el rename ya
-	// es válido, así que se reporta sin deshacerlo.
+	// es válido, así que se reporta sin deshacerlo, y con res: el login se
+	// perdió igual.
 	if movido {
 		if err := ProfileSync(home, newName); err != nil {
-			return fmt.Errorf("perfil renombrado, pero no se pudo regenerar su config: %w", err)
+			return res, fmt.Errorf("perfil renombrado, pero no se pudo regenerar su config: %w", err)
 		}
 	}
-	return nil
+	return res, nil
 }
 
 // renamedConfig devuelve una COPIA de c con oldName cambiado por newName en

@@ -304,3 +304,35 @@ func TestServeProfileRemoveTakesSafetySnapshot(t *testing.T) {
 		t.Fatalf("tras profiles.remove: %d snapshots (%v)", len(ms), err)
 	}
 }
+
+// profiles.rename dice si hay que volver a iniciar sesión (B7): la GUI lo
+// enseña al confirmar. "ok" sigue ahí para no cambiar la forma de lo que ya se
+// respondía, y "relogin" sale siempre, también en false, para que la GUI no
+// tenga que distinguir «no hace falta» de «este ccp no lo sabe decir».
+func TestServeProfilesRenameDiceSiHayQueVolverAEntrar(t *testing.T) {
+	home := serveEnv(t)
+	cj := filepath.Join(home, "profiles", "work", "cc-home", ".claude.json")
+	if err := os.WriteFile(cj, []byte(`{"oauthAccount":{"emailAddress":"a@b"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := core.ProfileAddOfficial(home, "sinlogin"); err != nil {
+		t.Fatal(err)
+	}
+	_, r := serveRun(t,
+		req(1, "profiles.rename", map[string]any{"from": "work", "to": "work2"}),
+		req(2, "profiles.rename", map[string]any{"from": "sinlogin", "to": "sinlogin2"}),
+	)
+	var got struct {
+		OK      bool `json:"ok"`
+		Relogin bool `json:"relogin"`
+	}
+	mustResult(t, r["1"], &got)
+	if !got.OK || !got.Relogin {
+		t.Fatalf("profiles.rename = %+v, quiero ok y relogin", got)
+	}
+	var raw map[string]any
+	mustResult(t, r["2"], &raw)
+	if raw["ok"] != true || raw["relogin"] != false {
+		t.Fatalf("profiles.rename sin login = %v, quiero ok:true y relogin:false", raw)
+	}
+}

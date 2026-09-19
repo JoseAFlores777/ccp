@@ -481,7 +481,13 @@ func srvProfilesRename(s *server, raw json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nil, core.ProfileRename(s.home, p.From, strings.TrimSpace(p.To))
+	res, err := core.ProfileRename(s.home, p.From, strings.TrimSpace(p.To))
+	if err != nil {
+		return nil, err
+	}
+	// relogin: la GUI lo enseña al confirmar (B7). "ok" se queda para no cambiar
+	// la forma de lo que ya se respondía.
+	return map[string]any{"ok": true, "relogin": res.Relogin}, nil
 }
 
 func srvProfilesRemove(s *server, raw json.RawMessage) (any, error) {
