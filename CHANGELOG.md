@@ -77,6 +77,30 @@
   y los ajustes sueltos** (`model`, `outputStyle`, `permissions.defaultMode`, la barra de estado), con la
   capa de la que sale cada uno. En la TUI (`e` sobre un perfil), en la pantalla Config de la app y en
   `profiles.effective` de `ccp serve`.
+- **`ccp profile add` genera la config del perfil al crearlo**, como ya decía: `overlay/`,
+  `cc-home/CLAUDE.md` y `cc-home/settings.json`. Antes el perfil nacía sin ellos hasta el primer
+  `ccp profile sync` (el oráculo bash sí los generaba). También desde la TUI y la app de escritorio. Si esa
+  generación falla, el perfil queda creado y el error dice cómo terminarla (`ccp profile sync <perfil>`); la
+  TUI guarda igual la API key que tecleaste.
+- **Lo que cambias con `/config` (o `/model`, `/permissions`…) dentro de un perfil ya no se pierde en el
+  siguiente `ccp profile sync`.** Claude Code lo escribe en `cc-home/settings.json`, que ccp genera.
+  Ahora ccp guarda una copia de lo último que generó y, antes de regenerar, pasa al overlay del perfil lo
+  que añadiste o cambiaste. Pasa en todo lo que regenera: `profile sync`, `profile config`, `instruct add`,
+  los restores, el rename y la app de escritorio.
+  - Lo que quitaste solo se avisa: el overlay no puede expresar un borrado.
+  - Si la clave cambió también en el overlay, gana el overlay y se avisa.
+  - Si el archivo no es JSON válido, no se adopta nada y queda una copia en `profiles/<perfil>/state/`.
+  - Los sensores de `auto_handoff` nunca se adoptan.
+  - `ccp profile sync` y `profiles.sync` de `ccp serve` (`drift`) dicen qué se adoptó, y la app de
+    escritorio lo resume en el aviso de «Resincronizar todas».
+  - Un perfil creado antes de este arreglo no tiene esa copia: la guarda en su primer sync, que
+    `ccp upgrade` ya ejecuta, y adopta desde el siguiente.
+- **`ccp profile rename` avisa de que hay que volver a iniciar sesión.** Claude Code guarda la credencial
+  de un perfil official con un nombre que sale de la ruta de su cc-home (ADR 0016, M4), y el rename cambia
+  esa ruta. ccp no toca el Llavero: dice que hace falta `ccp profile login <nuevo>`, también cuando lo que
+  falla es la regeneración de después, porque para entonces la carpeta ya se movió. Lo dicen también la
+  TUI, `profiles.rename` de `ccp serve` (`relogin`) y la app de escritorio, que lo advierte antes de
+  confirmar.
 - **`ccp profile rename` ya no mueve un perfil con su ventana de Claude Desktop abierta.** El directorio que
   se mueve lleva dentro el data dir de esa ventana y el cc-home de su pestaña Code, y la app en marcha sigue
   escribiendo por ruta con el nombre viejo: podía recrear un `profiles/<viejo>/…` a medias y dejar el estado
