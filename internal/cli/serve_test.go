@@ -265,3 +265,42 @@ func TestServeConversaciones(t *testing.T) {
 		t.Errorf("el filtro por carpeta debe dejar fuera las de otra carpeta: %+v", none)
 	}
 }
+
+func TestServeSnapshot(t *testing.T) {
+	serveEnv(t)
+	os.WriteFile(filepath.Join(os.Getenv("CCP_CLAUDE_SRC"), "settings.json"), []byte(`{}`), 0o644)
+
+	_, r := serveRun(t, req(1, "snapshot.create", map[string]any{"label": "desde la gui"}))
+	if r["1"].Error != nil {
+		t.Fatalf("snapshot.create: %+v", r["1"].Error)
+	}
+	_, r = serveRun(t, req(2, "snapshot.list", nil))
+	var list []snapSummary
+	if err := json.Unmarshal(r["2"].Result, &list); err != nil || len(list) != 1 || list[0].Label != "desde la gui" {
+		t.Fatalf("snapshot.list = %s, %v", r["2"].Result, err)
+	}
+	_, r = serveRun(t, req(3, "snapshot.restore", map[string]any{"id": "latest", "dry_run": true}))
+	var plan core.SnapshotRestoreReport
+	if err := json.Unmarshal(r["3"].Result, &plan); err != nil || len(plan.Steps) == 0 || plan.PreSnapshot != "" {
+		t.Fatalf("snapshot.restore dry_run = %s, %v", r["3"].Result, err)
+	}
+	_, r = serveRun(t, req(4, "snapshot.show", map[string]any{}))
+	if r["4"].Error == nil || r["4"].Error.Code != "invalid_params" {
+		t.Fatalf("snapshot.show sin id: %+v", r["4"])
+	}
+}
+
+// La GUI borra perfiles por serve: también ahí queda la red antes de borrar.
+func TestServeProfileRemoveTakesSafetySnapshot(t *testing.T) {
+	home := serveEnv(t)
+	t.Setenv("CCP_NO_AUTO_SNAPSHOT", "")
+	_, r := serveRun(t, req(1, "profiles.remove", map[string]any{"name": "work"}))
+	if r["1"].Error != nil {
+		t.Fatalf("profiles.remove: %+v", r["1"].Error)
+	}
+	st, _ := core.OpenSnapshotStore(home)
+	ms, err := st.List()
+	if err != nil || len(ms) == 0 || ms[0].Trigger != "pre-profile-rm" {
+		t.Fatalf("tras profiles.remove: %d snapshots (%v)", len(ms), err)
+	}
+}
