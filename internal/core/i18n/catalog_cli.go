@@ -176,6 +176,26 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "%s: you removed %s with /config, but it comes from the global config or the overlay and is back: remove it where it comes from (overlay: ccp profile config %s).",
 		Es: "%s: quitaste %s con /config, pero sale del global o del overlay y vuelve a estar: quítalo de donde sale (overlay: ccp profile config %s).",
 	},
+	"cli.profile.sync_unsaved": {
+		En: "%s: could not save in its overlay what you changed with /config (%s): %s. It was regenerated without it; the copy is listed below.",
+		Es: "%s: no se pudo guardar en su overlay lo que cambiaste con /config (%s): %s. Se regeneró sin ello; la copia está abajo.",
+	},
+	"cli.profile.sync_skipped": {
+		En: "%s: %s changed in cc-home/settings.json, but env is never kept in the overlay on its own (it usually holds tokens, and the overlay goes into backups): if you want it in the profile, set it with ccp profile config %s.",
+		Es: "%s: %s cambió en cc-home/settings.json, pero env nunca se guarda solo en el overlay (suele llevar tokens, y el overlay va en los backups): si lo quieres en el perfil, ponlo con ccp profile config %s.",
+	},
+	"cli.profile.sync_invalid_kept": {
+		En: "%s: cc-home/settings.json is not valid JSON; it was not regenerated and a copy is at %s.",
+		Es: "%s: cc-home/settings.json no es JSON válido; no se regeneró y hay una copia en %s.",
+	},
+	"cli.profile.sync_unattributed": {
+		En: "%s: there was no reference copy to tell what you changed with /config, so nothing was kept in the overlay; it was regenerated and what it had is at %s.",
+		Es: "%s: no había copia de referencia para saber qué cambiaste con /config, así que no se guardó nada en el overlay; se regeneró y lo que tenía está en %s.",
+	},
+	"cli.profile.sync_rescued": {
+		En: "%s: what cc-home/settings.json had before regenerating is at %s.",
+		Es: "%s: lo que tenía cc-home/settings.json antes de regenerar está en %s.",
+	},
 	"cli.profile.sync_invalid": {
 		En: "%s: cc-home/settings.json was not valid JSON, so nothing from it was kept; it was regenerated and a copy is at %s.",
 		Es: "%s: cc-home/settings.json no era JSON válido y no se guardó nada de él; se regeneró y hay una copia en %s.",

@@ -298,13 +298,22 @@ export interface RestoreReport {
 
 /** Lo que /config había cambiado en el settings.json de un perfil (profiles.sync, B6).
  *  Las listas llegan siempre como array, nunca null; `invalid` es la ruta de la
- *  copia de un settings.json que no era JSON, o "" si lo era. */
+ *  copia de un settings.json que no era JSON, o "" si lo era. Los campos
+ *  opcionales los añadió la revisión de la Fase 0: un ccp anterior no los manda.
+ *  `rescued` es la copia de lo que había antes de regenerar cuando algo no pasó
+ *  al perfil (conflictos, env, lo no guardado, o que no había línea base). */
 export interface SettingsDrift {
   profile: string;
   adopted: string[];
   removed: string[];
   conflicts: string[];
   invalid: string;
+  skipped?: string[];
+  unsaved?: string[];
+  unsaved_error?: string;
+  rescued?: string;
+  unattributed?: boolean;
+  not_regenerated?: boolean;
 }
 
 export const api = {

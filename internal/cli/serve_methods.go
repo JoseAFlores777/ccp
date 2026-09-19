@@ -526,17 +526,28 @@ func srvProfilesSync(s *server, raw json.RawMessage) (any, error) {
 	}
 	drifts, err := core.ProfileSyncReport(s.home, p.Name)
 	if err != nil {
+		// Una respuesta de error no lleva resultado: lo reunido hasta el fallo (lo
+		// ya adoptado en perfiles anteriores, sus copias de rescate) se deja
+		// pendiente para el siguiente sync en vez de perderlo.
+		core.SavePendingDrift(s.home, drifts)
 		return nil, err
 	}
 	// drift: lo que /config había cambiado en cada perfil (B6). Siempre array, y
 	// cada lista también, para que la GUI no tenga que distinguir null de vacío.
 	// "ok" se queda: es lo que este método respondía antes y la GUI ya lo lee.
+	// Los campos de skipped en adelante son aditivos: un cliente viejo los ignora.
 	type row struct {
-		Profile   string   `json:"profile"`
-		Adopted   []string `json:"adopted"`
-		Removed   []string `json:"removed"`
-		Conflicts []string `json:"conflicts"`
-		Invalid   string   `json:"invalid"`
+		Profile        string   `json:"profile"`
+		Adopted        []string `json:"adopted"`
+		Removed        []string `json:"removed"`
+		Conflicts      []string `json:"conflicts"`
+		Invalid        string   `json:"invalid"`
+		Skipped        []string `json:"skipped"`
+		Unsaved        []string `json:"unsaved"`
+		UnsavedError   string   `json:"unsaved_error"`
+		Rescued        string   `json:"rescued"`
+		Unattributed   bool     `json:"unattributed"`
+		NotRegenerated bool     `json:"not_regenerated"`
 	}
 	nz := func(v []string) []string {
 		if v == nil {
@@ -546,7 +557,11 @@ func srvProfilesSync(s *server, raw json.RawMessage) (any, error) {
 	}
 	out := []row{}
 	for _, d := range drifts {
-		out = append(out, row{Profile: d.Profile, Adopted: nz(d.Adopted), Removed: nz(d.Removed), Conflicts: nz(d.Conflicts), Invalid: d.Invalid})
+		out = append(out, row{
+			Profile: d.Profile, Adopted: nz(d.Adopted), Removed: nz(d.Removed), Conflicts: nz(d.Conflicts), Invalid: d.Invalid,
+			Skipped: nz(d.Skipped), Unsaved: nz(d.Unsaved), UnsavedError: d.UnsavedErr, Rescued: d.Rescued,
+			Unattributed: d.Unattributed, NotRegenerated: d.NotRegenerated,
+		})
 	}
 	return map[string]any{"ok": true, "drift": out}, nil
 }

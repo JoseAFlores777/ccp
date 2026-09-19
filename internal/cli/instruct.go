@@ -145,6 +145,11 @@ func instructAdd(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stdout, i18n.T(lang, "cli.instruct.hook_rm_other", res.Dest))
 		}
 	}
+	// Un hook de perfil regenera su cc-home: lo que /config había cambiado ahí se
+	// cuenta ya.
+	if res.Scope == "profile" && ctx.ActiveProfile != "" && ctx.ActiveProfile != "default" {
+		printSettingsDrift(stdout, lang, core.TakePendingDrift(ctx.Home, ctx.ActiveProfile))
+	}
 	return 0
 }
 

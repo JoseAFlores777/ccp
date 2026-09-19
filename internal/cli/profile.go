@@ -102,7 +102,14 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 		if len(rest) > 0 {
 			name = rest[0]
 		}
-		if err := core.ProfileConfig(home, name, core.ProfileConfigOpts{}); err != nil {
+		err := core.ProfileConfig(home, name, core.ProfileConfigOpts{})
+		// La regeneración de después del editor es justo donde nace un conflicto
+		// con /config (el overlay recién editado gana): se cuenta aquí, no en el
+		// próximo sync.
+		if name != "" {
+			printSettingsDrift(stdout, lang, core.TakePendingDrift(home, name))
+		}
+		if err != nil {
 			fmt.Fprintf(stderr, "[error] %v\n", err)
 			return 1
 		}
@@ -140,17 +147,35 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 // ya está a salvo en el overlay. Lo demás es un [warn], porque decide el usuario.
 func printSettingsDrift(w io.Writer, lang i18n.Lang, drifts []core.SettingsDrift) {
 	for _, d := range drifts {
+		// [ok] solo para lo que de verdad quedó en el overlay: lo que no se pudo
+		// escribir va en Unsaved, nunca en Adopted.
 		if len(d.Adopted) > 0 {
 			fmt.Fprintln(w, okLine(w, i18n.T(lang, "cli.profile.sync_adopted", d.Profile, strings.Join(d.Adopted, ", "))))
 		}
+		if len(d.Unsaved) > 0 {
+			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.sync_unsaved", d.Profile, strings.Join(d.Unsaved, ", "), d.UnsavedErr)))
+		}
 		if len(d.Conflicts) > 0 {
 			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.sync_conflict", d.Profile, strings.Join(d.Conflicts, ", "))))
+		}
+		if len(d.Skipped) > 0 {
+			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.sync_skipped", d.Profile, strings.Join(d.Skipped, ", "), d.Profile)))
 		}
 		if len(d.Removed) > 0 {
 			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.sync_removed", d.Profile, strings.Join(d.Removed, ", "), d.Profile)))
 		}
 		if d.Invalid != "" {
-			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.sync_invalid", d.Profile, d.Invalid)))
+			key := "cli.profile.sync_invalid"
+			if d.NotRegenerated {
+				key = "cli.profile.sync_invalid_kept"
+			}
+			fmt.Fprintln(w, warnLine(w, i18n.T(lang, key, d.Profile, d.Invalid)))
+		}
+		switch {
+		case d.Rescued != "" && d.Unattributed:
+			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.sync_unattributed", d.Profile, d.Rescued)))
+		case d.Rescued != "":
+			fmt.Fprintln(w, mute(w, i18n.T(lang, "cli.profile.sync_rescued", d.Profile, d.Rescued)))
 		}
 	}
 }

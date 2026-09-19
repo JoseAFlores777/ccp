@@ -373,3 +373,39 @@ func TestServeProfilesSyncDevuelveLaDeriva(t *testing.T) {
 		t.Fatalf("profiles.sync = %s", r["2"].Result)
 	}
 }
+
+// Si el sync de todos falla a medias, la respuesta de error no lleva resultado:
+// lo ya adoptado en los perfiles anteriores queda pendiente y lo cuenta el
+// siguiente profiles.sync, en vez de perderse.
+func TestServeProfilesSyncConErrorDejaLaDerivaPendiente(t *testing.T) {
+	home := serveEnv(t)
+	if err := core.ProfileAddOfficial(home, "zz"); err != nil {
+		t.Fatal(err)
+	}
+	sj := filepath.Join(home, "profiles", "work", "cc-home", "settings.json")
+	if err := os.WriteFile(sj, []byte(`{"autoCompactEnabled":false}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	zzOv := core.ProfileSettingsFile(home, "zz")
+	if err := os.WriteFile(zzOv, []byte(`{roto`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, r := serveRun(t, req(1, "profiles.sync", map[string]any{"name": ""}))
+	if r["1"].Error == nil {
+		t.Fatalf("con el overlay de zz roto, profiles.sync tenía que fallar: %s", r["1"].Result)
+	}
+	if err := os.WriteFile(zzOv, []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, r = serveRun(t, req(2, "profiles.sync", map[string]any{"name": ""}))
+	var got struct {
+		Drift []struct {
+			Profile string   `json:"profile"`
+			Adopted []string `json:"adopted"`
+		} `json:"drift"`
+	}
+	mustResult(t, r["2"], &got)
+	if len(got.Drift) != 1 || got.Drift[0].Profile != "work" || !reflect.DeepEqual(got.Drift[0].Adopted, []string{"autoCompactEnabled"}) {
+		t.Fatalf("el segundo sync tenía que contar lo que adoptó el primero: %s", r["2"].Result)
+	}
+}
