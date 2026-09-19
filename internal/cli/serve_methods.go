@@ -90,6 +90,16 @@ func serveRegistry() map[string]serveMethod {
 		"backup.export":  w(srvBackupExport),
 		"backup.restore": w(srvBackupRestore),
 
+		"snapshot.list":    r(srvSnapshotList),
+		"snapshot.show":    r(srvSnapshotShow),
+		"snapshot.diff":    r(srvSnapshotDiff),
+		"snapshot.create":  w(srvSnapshotCreate),
+		"snapshot.restore": w(srvSnapshotRestore),
+		"snapshot.prune":   w(srvSnapshotPrune),
+		"snapshot.pin":     w(srvSnapshotPin),
+		"snapshot.export":  w(srvSnapshotExport),
+		"snapshot.import":  w(srvSnapshotImport),
+
 		"system.run": w(srvSystemRun),
 	}
 }
@@ -481,6 +491,9 @@ func srvProfilesRemove(s *server, raw json.RawMessage) (any, error) {
 	}](raw)
 	if err != nil {
 		return nil, err
+	}
+	if _, err := autoSnapshot(s.home, "pre-profile-rm"); err != nil {
+		return nil, fmt.Errorf("no se pudo guardar el snapshot de seguridad y no se borró nada: %w", err)
 	}
 	return nil, core.ProfileRm(s.home, p.Name)
 }

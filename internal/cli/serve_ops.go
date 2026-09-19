@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1141,6 +1142,9 @@ func srvBackupRestore(s *server, raw json.RawMessage) (any, error) {
 		opts.Force = true
 	default:
 		return nil, badParams("modo desconocido: %q (merge, overwrite, force)", p.Mode)
+	}
+	if _, err := autoSnapshot(s.home, "pre-backup-restore"); err != nil {
+		return nil, fmt.Errorf("no se pudo guardar el snapshot de seguridad y no se restauró nada: %w", err)
 	}
 	rep, err := core.BackupRestore(s.home, p.Archive, opts)
 	if err != nil {
