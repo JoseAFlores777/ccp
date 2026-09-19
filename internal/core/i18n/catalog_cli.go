@@ -182,6 +182,12 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "Official profile '%s' created (plugins/skills symlinked, config generated).",
 		Es: "Perfil oficial '%s' creado (plugins/skills symlinked, config generada).",
 	},
+	// El alta a medias (B8): el perfil ya está en ccp.yaml pero su config no se
+	// generó. El marco se traduce aquí; el %v es la causa cruda del core.
+	"cli.profile.config_failed": {
+		En: "[error] Profile '%s' was created, but its config could not be generated (retry with: ccp profile sync %s): %v",
+		Es: "[error] El perfil '%s' se creó, pero no se pudo generar su config (reintenta con: ccp profile sync %s): %v",
+	},
 	"cli.profile.official_login_hint": {
 		En: "Log in once:  ccp profile login %s   (run /login inside)",
 		Es: "Loguéate una vez:  ccp profile login %s   (corre /login dentro)",

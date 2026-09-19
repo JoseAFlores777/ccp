@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -85,10 +86,7 @@ func formAddProfile(home string, defs core.Defaults, lang i18n.Lang) action {
 
 	apply := func() (string, error) {
 		if ptype == "official" {
-			if err := core.ProfileAddOfficial(home, name); err != nil {
-				return "", err
-			}
-			return i18n.T(lang, "tui.form.official_created", name), nil
+			return createProfile(home, lang, ptype, name, core.Defaults{}, "")
 		}
 		// Proveedor compatible (deepseek/kimi/glm). Los campos del form se
 		// pre-siembran con los defaults deepseek; para kimi/glm partimos del
@@ -110,17 +108,40 @@ func formAddProfile(home string, defs core.Defaults, lang i18n.Lang) action {
 				d.Effort = effort
 			}
 		}
-		if err := core.ProfileAddProvider(home, name, ptype, d); err != nil {
-			return "", err
-		}
-		if apiKey != "" {
-			if err := core.ProfileSetKey(home, name, apiKey); err != nil {
-				return "", fmt.Errorf("%s: %w", i18n.T(lang, "tui.form.set_key_failed"), err)
-			}
-		}
-		return i18n.T(lang, "tui.form.provider_created", ptype, name), nil
+		return createProfile(home, lang, ptype, name, d, apiKey)
 	}
 	return action{form: form, apply: apply}
+}
+
+// createProfile materializa el alta del formulario. Un alta a medias (B8: el
+// perfil ya está en ccp.yaml, pero su config no se pudo generar) no se trata
+// como un alta fallida: la API key se guarda igual —si no, se perdería en
+// silencio lo que el usuario tecleó— y el error lleva el marco traducido con
+// cómo terminarla, en vez de la prosa castellana del core.
+func createProfile(home string, lang i18n.Lang, ptype, name string, d core.Defaults, apiKey string) (string, error) {
+	var err error
+	if ptype == "official" {
+		err = core.ProfileAddOfficial(home, name)
+	} else {
+		err = core.ProfileAddProvider(home, name, ptype, d)
+	}
+	var pce *core.ProfileConfigError
+	partial := errors.As(err, &pce)
+	if err != nil && !partial {
+		return "", err
+	}
+	if apiKey != "" && ptype != "official" {
+		if kerr := core.ProfileSetKey(home, name, apiKey); kerr != nil {
+			return "", fmt.Errorf("%s: %w", i18n.T(lang, "tui.form.set_key_failed"), kerr)
+		}
+	}
+	if partial {
+		return "", wrapErr(lang, "tui.form.config_failed", pce.Err, name, name)
+	}
+	if ptype == "official" {
+		return i18n.T(lang, "tui.form.official_created", name), nil
+	}
+	return i18n.T(lang, "tui.form.provider_created", ptype, name), nil
 }
 
 // formDeleteProfile confirma y borra el perfil dado.

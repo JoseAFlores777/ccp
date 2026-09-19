@@ -125,6 +125,7 @@ func TestConfigEditFlagDesconocida(t *testing.T) {
 func TestConfigEditProfileNoBloqueanteNoMiente(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("CCP_HOME", home)
+	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
 	if err := core.ProfileAddOfficial(home, "work"); err != nil {
 		t.Fatal(err)
 	}
@@ -164,6 +165,7 @@ func TestConfigEditProfileNoBloqueanteNoMiente(t *testing.T) {
 func TestConfigEditProfileBloqueanteSiRegenera(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("CCP_HOME", home)
+	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
 	t.Setenv("NO_COLOR", "1")
 	t.Setenv("VISUAL", "")
 	t.Setenv("EDITOR", "")

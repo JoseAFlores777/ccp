@@ -17,9 +17,7 @@ func seedEff(t *testing.T, global, overlay string) (home, src, name string) {
 	if err := ProfileAddOfficial(home, name); err != nil {
 		t.Fatalf("ProfileAddOfficial: %v", err)
 	}
-	// ProfileAddOfficial solo crea profiles/<name>/cc-home/ (seedCCHome); el
-	// directorio overlay/ lo crea CfgInitOverlay, no ProfileAddOfficial. Sin
-	// esto, el os.WriteFile de abajo falla con ENOENT.
+	// ProfileAddOfficial ya crea overlay/ (B8); CfgInitOverlay es idempotente y se queda por claridad.
 	if err := CfgInitOverlay(home, name); err != nil {
 		t.Fatalf("CfgInitOverlay: %v", err)
 	}
