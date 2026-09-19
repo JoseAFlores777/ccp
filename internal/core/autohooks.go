@@ -320,8 +320,7 @@ func keepForeignStopFailure(out, prev []byte) []byte {
 	foreign := stopFailureEntries(prev)
 	kept := make([]any, 0, len(foreign))
 	for _, e := range foreign {
-		b, err := json.Marshal(e)
-		if err != nil || strings.Contains(string(b), autoLimitHookCmd) {
+		if isCCPStopFailureEntry(e) {
 			continue
 		}
 		kept = append(kept, e)
@@ -368,4 +367,76 @@ func stopFailureEntries(settings []byte) []any {
 	}
 	arr, _ := hooks[autoStopFailureEvent].([]any)
 	return arr
+}
+
+// isCCPStopFailureEntry reconoce una entrada de hooks.StopFailure como nuestra:
+// alguna parte de ella llama a `_limit-hook`. Se mira la entrada serializada y no
+// un campo concreto porque la forma del array la escribe CC (o el usuario a
+// mano) y puede anidar el comando donde quiera. Es el único criterio de «esta
+// entrada es de ccp», compartido por keepForeignStopFailure (no duplicar la
+// nuestra) y stripAutoLayer (no adoptarla como deriva): dos criterios distintos
+// acabarían borrando un hook del usuario o metiendo el nuestro en su overlay.
+// Una entrada que no se pueda serializar no es nuestra: ccp siempre escribe la
+// suya con una forma que sí se serializa.
+func isCCPStopFailureEntry(e any) bool {
+	b, err := json.Marshal(e)
+	return err == nil && strings.Contains(string(b), autoLimitHookCmd)
+}
+
+// stripAutoLayer devuelve una copia de un settings.json decodificado sin lo que
+// es de ccp: el statusLine si es nuestro envoltorio y las entradas de
+// hooks.StopFailure que llaman a `_limit-hook`. El evento y `hooks` desaparecen
+// si se quedan vacíos.
+//
+// Lo usa la deriva (cfg_drift.go): la capa es infraestructura, no una preferencia
+// que el usuario cambiara con /config, así que nunca se adopta al overlay, ni
+// siquiera cuando la ruta del binario difiere entre dos generaciones. El
+// criterio es el mismo que isCCPStatusLine y keepForeignStopFailure, a propósito:
+// tres sitios que decidieran distinto qué es «nuestro» acabarían envolviendo o
+// borrando algo del usuario. Un statusLine ajeno se queda: si el usuario lo
+// cambió con /statusline, eso sí es deriva, y la regeneración lo envolverá.
+//
+// No muta doc: copia el nivel de arriba y `hooks`, que son los únicos que toca.
+// Una forma inesperada (statusLine que no es objeto, StopFailure que no es
+// array) se deja tal cual; esto es un filtro, no un validador.
+func stripAutoLayer(doc map[string]any) map[string]any {
+	out := make(map[string]any, len(doc))
+	for k, v := range doc {
+		out[k] = v
+	}
+	if sl, ok := out["statusLine"].(map[string]any); ok {
+		if cmd, _ := sl["command"].(string); isCCPStatusLine(strings.TrimSpace(cmd), AutoHooksBin()) {
+			delete(out, "statusLine")
+		}
+	}
+	hooks, ok := out["hooks"].(map[string]any)
+	if !ok {
+		return out
+	}
+	arr, ok := hooks[autoStopFailureEvent].([]any)
+	if !ok {
+		return out
+	}
+	kept := make([]any, 0, len(arr))
+	for _, e := range arr {
+		if isCCPStopFailureEntry(e) {
+			continue
+		}
+		kept = append(kept, e)
+	}
+	h := make(map[string]any, len(hooks))
+	for k, v := range hooks {
+		h[k] = v
+	}
+	if len(kept) == 0 {
+		delete(h, autoStopFailureEvent)
+	} else {
+		h[autoStopFailureEvent] = kept
+	}
+	if len(h) == 0 {
+		delete(out, "hooks")
+	} else {
+		out["hooks"] = h
+	}
+	return out
 }

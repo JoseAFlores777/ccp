@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -399,5 +400,68 @@ func TestApplyAutoLayerNoRompeConYamlIlegible(t *testing.T) {
 	}
 	if _, err := os.ReadFile(out); err != nil {
 		t.Fatalf("settings.json no regenerado: %v", err)
+	}
+}
+
+// La capa de sensores es infraestructura de ccp: la deriva de /config no puede
+// adoptarla nunca al overlay (B6). stripAutoLayer quita solo lo nuestro, con el
+// mismo criterio que isCCPStatusLine y keepForeignStopFailure.
+func TestStripAutoLayerQuitaSoloLoNuestro(t *testing.T) {
+	prev := AutoHooksBin()
+	SetAutoHooksBin("ccp")
+	t.Cleanup(func() { SetAutoHooksBin(prev) })
+
+	doc := map[string]any{
+		"model":      "opus",
+		"statusLine": map[string]any{"type": "command", "command": "/otro/sitio/ccp _statusline -- /bin/sh -c starship"},
+		"hooks": map[string]any{
+			"StopFailure": []any{
+				map[string]any{"hooks": []any{map[string]any{"type": "command", "command": "/otro/sitio/ccp _limit-hook"}}},
+				map[string]any{"hooks": []any{map[string]any{"type": "command", "command": "notify-send fallo"}}},
+			},
+			"PreToolUse": []any{"x"},
+		},
+	}
+	got := stripAutoLayer(doc)
+	if _, ok := got["statusLine"]; ok {
+		t.Error("el statusLine de ccp (aunque el binario se haya mudado) se tiene que quitar")
+	}
+	if got["model"] != "opus" {
+		t.Errorf("model = %v: lo que no es de la capa no se toca", got["model"])
+	}
+	hooks := got["hooks"].(map[string]any)
+	if sf := hooks["StopFailure"].([]any); len(sf) != 1 || !strings.Contains(fmt.Sprint(sf[0]), "notify-send") {
+		t.Errorf("StopFailure ajeno perdido o el nuestro conservado: %v", sf)
+	}
+	if _, ok := hooks["PreToolUse"]; !ok {
+		t.Error("los demás eventos no se tocan")
+	}
+	if _, ok := doc["statusLine"]; !ok || len(doc["hooks"].(map[string]any)["StopFailure"].([]any)) != 2 {
+		t.Error("stripAutoLayer no puede mutar su entrada")
+	}
+
+	ajeno := map[string]any{"statusLine": map[string]any{"type": "command", "command": "~/.claude/hooks/cc_statusline.sh"}}
+	if _, ok := stripAutoLayer(ajeno)["statusLine"]; !ok {
+		t.Error("un statusLine ajeno no es nuestro")
+	}
+
+	solo := map[string]any{"hooks": map[string]any{"StopFailure": []any{
+		map[string]any{"hooks": []any{map[string]any{"type": "command", "command": "ccp _limit-hook"}}},
+	}}}
+	if _, ok := stripAutoLayer(solo)["hooks"]; ok {
+		t.Error("sin nada más, hooks tiene que desaparecer entero")
+	}
+	if _, ok := solo["hooks"]; !ok {
+		t.Error("vaciar hooks en la copia no puede borrarlo del original")
+	}
+
+	// Formas inesperadas (el usuario puede haber escrito cualquier cosa a mano):
+	// se devuelven tal cual, sin pánico.
+	raro := map[string]any{"statusLine": "texto", "hooks": map[string]any{"StopFailure": "no-es-array"}}
+	if r := stripAutoLayer(raro); r["statusLine"] != "texto" || r["hooks"].(map[string]any)["StopFailure"] != "no-es-array" {
+		t.Errorf("forma rara alterada: %v", r)
+	}
+	if r := stripAutoLayer(nil); len(r) != 0 {
+		t.Errorf("nil = %v, quiero vacío", r)
 	}
 }
