@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -143,7 +145,70 @@ func TestApplyRenameDesdeLaTUI(t *testing.T) {
 	if !strings.Contains(msg, "nuevo") {
 		t.Errorf("el mensaje no nombra el destino: %q", msg)
 	}
+	if strings.Contains(msg, "profile login") {
+		t.Errorf("sin sesión iniciada no hay login que rehacer: %q", msg)
+	}
 	if _, err := applyRename(home, "nuevo", "default", i18n.Es); err == nil {
 		t.Error("renombrar a 'default' debe fallar")
+	}
+}
+
+// Un official con sesión pierde el login al renombrarlo (B7): el mensaje de la
+// TUI tiene que decirlo, porque es lo único que el usuario va a leer.
+func TestApplyRenameAvisaDelLogin(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+	if err := core.Save(home, &core.Config{
+		Version:  core.SchemaVersion,
+		Profiles: map[string]core.Profile{"viejo": {Type: "official"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cch := filepath.Join(home, "profiles", "viejo", "cc-home")
+	if err := os.MkdirAll(cch, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cch, ".claude.json"), []byte(`{"oauthAccount":{"emailAddress":"a@b"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	msg, err := applyRename(home, "viejo", "nuevo", i18n.Es)
+	if err != nil {
+		t.Fatalf("rename: %v", err)
+	}
+	if !strings.Contains(msg, "ccp profile login nuevo") {
+		t.Errorf("el mensaje no avisa de que hay que volver a iniciar sesión: %q", msg)
+	}
+}
+
+// Si lo que falla es la regeneración, el rename ya está hecho y el login se
+// perdió igual: la línea de error de la TUI también lo dice.
+func TestApplyRenameAvisaDelLoginAunqueFalleLaRegeneracion(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+	if err := core.Save(home, &core.Config{
+		Version:  core.SchemaVersion,
+		Profiles: map[string]core.Profile{"viejo": {Type: "official"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(home, "profiles", "viejo")
+	for _, sub := range []string{"cc-home", "overlay"} {
+		if err := os.MkdirAll(filepath.Join(dir, sub), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "cc-home", ".claude.json"), []byte(`{"oauthAccount":{"emailAddress":"a@b"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Un overlay ilegible hace fallar el merge de settings, que va al final.
+	if err := os.WriteFile(filepath.Join(dir, "overlay", "settings.overlay.json"), []byte(`{roto`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := applyRename(home, "viejo", "nuevo", i18n.Es)
+	if err == nil {
+		t.Fatal("quería el error de la regeneración")
+	}
+	if !strings.Contains(err.Error(), "ccp profile login nuevo") {
+		t.Errorf("el error no avisa de que hay que volver a iniciar sesión: %v", err)
 	}
 }

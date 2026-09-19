@@ -79,8 +79,63 @@ func TestProfileRenameCLI(t *testing.T) {
 	if strings.Contains(out.String(), "desktop app") {
 		t.Errorf("sin lanzador de Desktop no debe salir su aviso: %q", out.String())
 	}
+	if strings.Contains(out.String(), "profile login") {
+		t.Errorf("sin sesión iniciada no hay login que rehacer: %q", out.String())
+	}
 	if _, err := os.Stat(filepath.Join(home, "profiles", "nuevo", "cc-home")); err != nil {
 		t.Fatalf("el cc-home no viajó: %v", err)
+	}
+}
+
+// Un official con sesión pierde el login al renombrarlo (B7): Claude Code lo
+// guarda con un nombre que sale de la ruta del cc-home. El rename sale bien,
+// así que el aviso va a stdout, junto a la confirmación.
+func TestProfileRenameCLIAvisaDelLogin(t *testing.T) {
+	home := seedCLIProfile(t)
+	t.Setenv("CCP_HOME", home)
+	t.Setenv("CCP_LANG", "es")
+	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+	t.Setenv("CCP_PROFILE", "")
+	cj := filepath.Join(home, "profiles", "viejo", "cc-home", ".claude.json")
+	if err := os.WriteFile(cj, []byte(`{"oauthAccount":{"emailAddress":"a@b"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	if code := Dispatch([]string{"profile", "rename", "viejo", "nuevo"}, &out, &errb); code != 0 {
+		t.Fatalf("exit %d: %s", code, errb.String())
+	}
+	if !strings.Contains(out.String(), "ccp profile login nuevo") {
+		t.Errorf("no avisa de que hay que volver a iniciar sesión: %q", out.String())
+	}
+}
+
+// Si el directorio ya se movió y lo que falla es regenerar la config, el
+// comando sale con 1 pero el login se perdió igual: el aviso acompaña al error,
+// o el usuario arregla la regeneración y se queda con un perfil que no entra.
+func TestProfileRenameCLIAvisaDelLoginAunqueFalleLaRegeneracion(t *testing.T) {
+	home := seedCLIProfile(t)
+	t.Setenv("CCP_HOME", home)
+	t.Setenv("CCP_LANG", "es")
+	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+	t.Setenv("CCP_PROFILE", "")
+	cj := filepath.Join(home, "profiles", "viejo", "cc-home", ".claude.json")
+	if err := os.WriteFile(cj, []byte(`{"oauthAccount":{"emailAddress":"a@b"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Un overlay ilegible hace fallar el merge de settings, que va al final.
+	overlay := filepath.Join(home, "profiles", "viejo", "overlay")
+	if err := os.MkdirAll(overlay, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(overlay, "settings.overlay.json"), []byte(`{roto`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	if code := Dispatch([]string{"profile", "rename", "viejo", "nuevo"}, &out, &errb); code != 1 {
+		t.Fatalf("esperaba exit 1 por la regeneración, got %d (stdout %q)", code, out.String())
+	}
+	if !strings.Contains(errb.String(), "ccp profile login nuevo") {
+		t.Errorf("el error no avisa de que hay que volver a iniciar sesión: %q", errb.String())
 	}
 }
 

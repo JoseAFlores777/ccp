@@ -52,7 +52,7 @@ func TestProfileRenameMueveTodoElEstado(t *testing.T) {
 	home := seedRenameHome(t)
 	t.Setenv("CCP_CLAUDE_SRC", t.TempDir()) // seed/regenerate sin tocar ~/.claude
 
-	if err := ProfileRename(home, "viejo", "nuevo"); err != nil {
+	if _, err := ProfileRename(home, "viejo", "nuevo"); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 	c, err := Load(home)
@@ -112,7 +112,7 @@ func TestProfileRenameReescribeMarcadoresDeHandoff(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := ProfileRename(home, "viejo", "nuevo"); err != nil {
+	if _, err := ProfileRename(home, "viejo", "nuevo"); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 	h, err := LoadHandoffs(home)
@@ -143,7 +143,7 @@ func TestProfileRenameRechaza(t *testing.T) {
 		{"destino con barra", "viejo", "a/b", "inválido"},
 		{"destino con ..", "viejo", "..", "inválido"},
 	} {
-		err := ProfileRename(home, tc.old, tc.new)
+		_, err := ProfileRename(home, tc.old, tc.new)
 		if err == nil {
 			t.Errorf("%s: esperaba error", tc.name)
 			continue
@@ -174,7 +174,7 @@ func TestProfileRenameRevierteSiFallaElConfig(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(home, "ccp.yaml.tmp"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := ProfileRename(home, "viejo", "nuevo"); err == nil {
+	if _, err := ProfileRename(home, "viejo", "nuevo"); err == nil {
 		t.Fatal("esperaba error al persistir ccp.yaml")
 	}
 	if _, err := os.Stat(profileDirPath(home, "viejo")); err != nil {
@@ -231,7 +231,7 @@ func TestProfileRenameRenombraAutoHandoff(t *testing.T) {
 	home := seedRenameAutoHome(t)
 	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
 
-	if err := ProfileRename(home, "viejo", "nuevo"); err != nil {
+	if _, err := ProfileRename(home, "viejo", "nuevo"); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 	c, err := Load(home)
@@ -334,7 +334,7 @@ func TestProfileRenameDeshaceCcpYamlEnteroSiFallanLosMarcadores(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := ProfileRename(home, "viejo", "nuevo"); err == nil {
+	if _, err := ProfileRename(home, "viejo", "nuevo"); err == nil {
 		t.Fatal("esperaba error al escribir handoffs.yaml")
 	}
 	despues, err := os.ReadFile(filepath.Join(home, "ccp.yaml"))
@@ -384,7 +384,7 @@ func TestProfileRenameRechazaUnNombreQueAutoHandoffYaMenciona(t *testing.T) {
 			}
 			antes, _ := os.ReadFile(filepath.Join(home, "ccp.yaml"))
 
-			err = ProfileRename(home, "viejo", "nuevo")
+			_, err = ProfileRename(home, "viejo", "nuevo")
 			if err == nil {
 				t.Fatal("esperaba que el rename se negara")
 			}
@@ -442,7 +442,7 @@ auto_handoff:
 			if err := os.WriteFile(filepath.Join(home, "ccp.yaml"), []byte(yamlConComentarios), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			if err := ProfileRename(home, "viejo", nuevo); err != nil {
+			if _, err := ProfileRename(home, "viejo", nuevo); err != nil {
 				t.Fatalf("rename: %v", err)
 			}
 			b, err := os.ReadFile(filepath.Join(home, "ccp.yaml"))
@@ -469,5 +469,95 @@ auto_handoff:
 				}
 			}
 		})
+	}
+}
+
+// Un perfil official con sesión pierde el login al renombrarlo: Claude Code
+// guarda la credencial con un nombre que sale de la ruta del cc-home (ADR 0016,
+// M4). ccp no toca el Llavero, así que lo dice (B7).
+func TestProfileRenameAvisaSiHabiaLogin(t *testing.T) {
+	cases := []struct {
+		nombre, tipo, claudeJSON string
+		quiero                   bool
+	}{
+		{"official con cuenta", "official", `{"oauthAccount":{"emailAddress":"a@b"}}`, true},
+		{"official con clave de consola", "official", `{"primaryApiKey":"sk-ant-x"}`, true},
+		{"official sin login", "official", `{}`, false},
+		{"proveedor", "deepseek", `{"oauthAccount":{"emailAddress":"a@b"}}`, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.nombre, func(t *testing.T) {
+			home := seedRenameHome(t)
+			t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+			if tc.tipo != "official" {
+				c, err := Load(home)
+				if err != nil {
+					t.Fatal(err)
+				}
+				c.Profiles["viejo"] = Profile{Type: tc.tipo, BaseURL: "https://x", ModelPro: "m", ModelFlash: "m", Effort: "high"}
+				if err := Save(home, c); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cj := filepath.Join(ccHomePath(home, "viejo"), ".claude.json")
+			if err := os.WriteFile(cj, []byte(tc.claudeJSON), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			res, err := ProfileRename(home, "viejo", "nuevo")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.Relogin != tc.quiero {
+				t.Errorf("Relogin = %v, quiero %v", res.Relogin, tc.quiero)
+			}
+		})
+	}
+}
+
+// Si el directorio ya se movió y lo que falla es la regeneración, el rename es
+// válido y el login se perdió igual: el aviso tiene que viajar junto al error,
+// o el usuario arregla la regeneración y se queda con un perfil que no entra.
+// Un rename que se deshace entero, en cambio, no cambió ninguna ruta.
+func TestProfileRenameAvisaDelLoginAunqueFalleLaRegeneracion(t *testing.T) {
+	home := seedRenameHome(t)
+	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+	cj := filepath.Join(ccHomePath(home, "viejo"), ".claude.json")
+	if err := os.WriteFile(cj, []byte(`{"oauthAccount":{"emailAddress":"a@b"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Un overlay ilegible hace fallar el merge de settings, que es lo último.
+	if err := os.MkdirAll(cfgOverlayDir(home, "viejo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfgSettingsFile(home, "viejo"), []byte(`{roto`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := ProfileRename(home, "viejo", "nuevo")
+	if err == nil {
+		t.Fatal("quería el error de la regeneración")
+	}
+	if !res.Relogin {
+		t.Errorf("Relogin = false junto al error de regeneración (%v); el login se perdió igual", err)
+	}
+	if _, serr := os.Stat(profileDirPath(home, "nuevo")); serr != nil {
+		t.Fatalf("el directorio debería haberse movido: %v", serr)
+	}
+}
+
+// Un rename que falla antes de mover no cambia ninguna ruta, así que no hay
+// login que rehacer aunque el perfil tuviera sesión.
+func TestProfileRenameRechazadoNoPideLogin(t *testing.T) {
+	home := seedRenameHome(t)
+	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+	cj := filepath.Join(ccHomePath(home, "viejo"), ".claude.json")
+	if err := os.WriteFile(cj, []byte(`{"oauthAccount":{"emailAddress":"a@b"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, err := ProfileRename(home, "viejo", "otro") // ya existe
+	if err == nil {
+		t.Fatal("quería el error de nombre ocupado")
+	}
+	if res.Relogin {
+		t.Error("Relogin = true en un rename que no movió nada")
 	}
 }

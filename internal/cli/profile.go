@@ -164,11 +164,22 @@ func profileRename(home string, args []string, stdout, stderr io.Writer) int {
 		i18n.T(lang, "cli.profile.rename_forced", old)) {
 		return 1
 	}
-	if err := core.ProfileRename(home, old, nuevo); err != nil {
+	res, err := core.ProfileRename(home, old, nuevo)
+	if err != nil {
 		fmt.Fprintf(stderr, "[error] %v\n", err)
+		// Un error después de mover el directorio (la regeneración) deja el
+		// rename hecho y el login perdido igual: el aviso va con el error.
+		if res.Relogin {
+			fmt.Fprintln(stderr, i18n.T(lang, "cli.profile.rename_relogin_hint", nuevo))
+		}
 		return 1
 	}
 	fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.profile.renamed", old, nuevo)))
+	// B7: la credencial de Claude Code cuelga de la ruta del cc-home, que el
+	// rename acaba de cambiar. ccp no toca el Llavero, así que lo dice.
+	if res.Relogin {
+		fmt.Fprintln(stdout, i18n.T(lang, "cli.profile.rename_relogin_hint", nuevo))
+	}
 	// El binario corre en un proceso hijo: no puede reexportar CCP_PROFILE
 	// en la terminal del usuario. Si esta terminal tenía el perfil viejo
 	// activo, su env quedó apuntando a un nombre que ya no existe.
