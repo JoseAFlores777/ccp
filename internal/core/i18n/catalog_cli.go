@@ -874,6 +874,13 @@ BACKUP
   ccp backup export [file] [--with-secrets]
   ccp backup restore <file> [--overwrite | --force]
 
+SNAPSHOTS
+  ccp snapshot create [-m <label>]      save the whole configuration (also taken daily)
+  ccp snapshot list | show <id> | diff <id> [<id>]
+  ccp snapshot restore <id> [--only <path>] [--dry-run | --yes]
+  ccp snapshot pin|unpin <id> | prune [--dry-run]
+  ccp snapshot export <id> <file> [--with-secrets] | import <file>
+
 SCRIPTING
   ccp resolve [path]          print the path's profile (exit 0=rule, 1=default)
   ccp status [--json]         terminal status
@@ -963,6 +970,13 @@ INSTRUCCIONES
 BACKUP
   ccp backup export [archivo] [--with-secrets]
   ccp backup restore <archivo> [--overwrite | --force]
+
+SNAPSHOTS
+  ccp snapshot create [-m <etiqueta>]   guarda toda la configuración (también a diario)
+  ccp snapshot list | show <id> | diff <id> [<id>]
+  ccp snapshot restore <id> [--only <ruta>] [--dry-run | --yes]
+  ccp snapshot pin|unpin <id> | prune [--dry-run]
+  ccp snapshot export <id> <archivo> [--with-secrets] | import <archivo>
 
 SCRIPTING
   ccp resolve [ruta]          imprime el perfil del path (exit 0=regla, 1=default)

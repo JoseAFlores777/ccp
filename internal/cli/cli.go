@@ -54,6 +54,11 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 	if len(args) > 0 {
 		rest = args[1:]
 	}
+	// El snapshot del día (best-effort, nunca falla ni imprime). Solo en los
+	// comandos de gestión: los de scripting corren en cada prompt.
+	if dailySnapshotCmds[cmd] {
+		maybeDailySnapshot(time.Now())
+	}
 
 	switch cmd {
 	case "version", "--version", "-v":
@@ -124,6 +129,8 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 		return dispatchInstruct(rest, stdout, stderr)
 	case "backup":
 		return dispatchBackup(rest, stdout, stderr)
+	case "snapshot":
+		return dispatchSnapshot(rest, stdout, stderr)
 	case "config":
 		return cmdConfig(rest, stdout, stderr)
 	case "doctor":
@@ -222,6 +229,9 @@ func dispatchBackup(args []string, stdout, stderr io.Writer) int {
 		}
 		if archive == "" {
 			fmt.Fprintln(stderr, i18n.T(lang, "cli.backup.usage_restore"))
+			return 1
+		}
+		if !withSafetySnapshot(home, "pre-backup-restore", lang, stderr) {
 			return 1
 		}
 		opts.Now = time.Now()
