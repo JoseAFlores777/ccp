@@ -186,20 +186,27 @@ export function renameModal(app: Ctx, p: Profile): ModalSpec {
   };
 }
 
-/** El aviso de «Resincronizar»: qué se guardó de /config en cada perfil y si
- *  quedan avisos (B6). El detalle de lo quitado, los conflictos y un
- *  settings.json inválido no cabe en un aviso de una línea: se nombra y se
- *  manda a `ccp profile sync`, que lo cuenta entero. Un ccp anterior a B6 no
- *  manda `drift`, y entonces es el aviso de siempre. */
+/** El aviso de «Resincronizar»: qué se guardó de /config en cada perfil y, con
+ *  su detalle, lo que no (B6). El detalle va aquí y no «míralo con ccp profile
+ *  sync»: este sync ya regeneró, así que otro no tendría nada que contar. Un ccp
+ *  anterior a B6 no manda `drift`, y entonces es el aviso de siempre. */
 export function syncMsg(r: { drift?: SettingsDrift[] }): string {
   const drift = r.drift ?? [];
   const adopted = drift.filter((d) => d.adopted.length > 0).map((d) => `${d.profile}: ${d.adopted.join(', ')}`);
   let msg = adopted.length
     ? t('Cuentas resincronizadas. Se guardó en su perfil lo que cambiaste con /config: {k}', { k: adopted.join(' · ') })
     : t('Todas las cuentas resincronizadas');
-  if (drift.some((d) => d.removed.length > 0 || d.conflicts.length > 0 || d.invalid !== '')) {
-    msg += '. ' + t('Hay avisos: míralos con ccp profile sync.');
+  const warns: string[] = [];
+  for (const d of drift) {
+    const p = d.profile;
+    if (d.unsaved?.length) warns.push(t('{p}: no se pudo guardar en su perfil {k}', { p, k: d.unsaved.join(', ') }));
+    if (d.conflicts.length) warns.push(t('{p}: {k} cambió con /config y en el perfil; gana el perfil', { p, k: d.conflicts.join(', ') }));
+    if (d.skipped?.length) warns.push(t('{p}: {k} no se guarda solo en el perfil (env suele llevar tokens)', { p, k: d.skipped.join(', ') }));
+    if (d.removed.length) warns.push(t('{p}: quitaste {k} con /config, pero vuelve de donde sale', { p, k: d.removed.join(', ') }));
+    if (d.invalid) warns.push(t('{p}: su settings.json no era JSON; copia en {f}', { p, f: d.invalid }));
+    if (d.rescued) warns.push(t('{p}: lo que había antes está en {f}', { p, f: d.rescued }));
   }
+  if (warns.length) msg += '. ' + warns.join(' · ');
   return msg;
 }
 

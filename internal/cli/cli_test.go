@@ -88,8 +88,48 @@ func TestDispatchProfileSyncEnseñaLaDeriva(t *testing.T) {
 	if code := Dispatch([]string{"profile", "sync", "work"}, &out, &errb); code != 0 {
 		t.Fatalf("exit %d: %s", code, errb.String())
 	}
-	if !strings.Contains(out.String(), "[warn] work:") || !strings.Contains(out.String(), "settings.invalid.json") {
+	if !strings.Contains(out.String(), "[warn] work:") || !strings.Contains(out.String(), "settings.invalid-") {
 		t.Errorf("no avisa del settings.json inválido: %q", out.String())
+	}
+}
+
+// Lo que no se pudo guardar nunca sale como [ok], y una regeneración que dejó un
+// conflicto (aquí, la de `profile config` tras editar el overlay) se cuenta en el
+// mismo comando, con la copia de rescate.
+func TestDispatchProfileConfigEnseñaElConflicto(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CCP_HOME", home)
+	t.Setenv("CCP_CLAUDE_SRC", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("CCP_LANG", "es")
+	if err := core.ProfileAddOfficial(home, "work"); err != nil {
+		t.Fatal(err)
+	}
+	ov := core.ProfileSettingsFile(home, "work")
+	if err := os.WriteFile(ov, []byte(`{"model":"a"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	if code := Dispatch([]string{"profile", "sync", "work"}, &out, &errb); code != 0 {
+		t.Fatalf("exit %d: %s", code, errb.String())
+	}
+	sj := filepath.Join(home, "profiles", "work", "cc-home", "settings.json")
+	if err := os.WriteFile(sj, []byte(`{"model":"b"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// El «editor» deja el overlay en c: es lo que haría el usuario en profile config.
+	ed := filepath.Join(t.TempDir(), "editor.sh")
+	if err := os.WriteFile(ed, []byte("#!/bin/sh\nprintf '{\"model\":\"c\"}' > \"$1\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("EDITOR", ed)
+	out.Reset()
+	errb.Reset()
+	if code := Dispatch([]string{"profile", "config", "work"}, &out, &errb); code != 0 {
+		t.Fatalf("exit %d: %s / %s", code, out.String(), errb.String())
+	}
+	if !strings.Contains(out.String(), "model cambió con /config y también en el overlay") || !strings.Contains(out.String(), "settings.rescued-") {
+		t.Errorf("profile config no cuenta el conflicto ni la copia: %q", out.String())
 	}
 }
 
