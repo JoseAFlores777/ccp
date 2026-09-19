@@ -49,6 +49,10 @@ Estado real de esta máquina, para calibrar:
 
 ### Defectos encontrados de camino (se arreglan en la Fase 0)
 
+> **B1–B5 arreglados** en la rama `fix/fase0-defectos` (plan 2026-09-18-fase0-mediciones-y-defectos). B1 solo
+> en su pista: el arreglo de fondo es el subproyecto B. B4 llega a los perfiles ya creados por `profile sync`.
+> B5 enseña además `permissions.ask`, y en la TUI `e` sobre los MCP explica dónde viven en vez de abrir el overlay.
+
 - **B1 — El MCP «global» no es global.** `InstructDest("global","mcp")` escribe `src+".json"`,
   es decir `~/.claude.json` (`instruct.go:64`). Ese archivo solo lo lee `default`: cada perfil
   `official` lee **su** `cc-home/.claude.json`. La pista del error de código 5 dice «Usa global

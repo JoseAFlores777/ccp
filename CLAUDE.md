@@ -77,10 +77,12 @@ So: env mutation lives in the rc-installed function; all logic lives in the bina
 Returns data/strings; the front-ends format. The exceptions are `env.go` and `shellinit.go`, which produce exact strings because they ARE the contract.
 
 - **`rules.go`** — pure resolver. `Resolve(query, rules)` returns the **profile name**: among rules whose path is P or an ancestor, the **deepest** wins; no match → `default`. `rules_cmd.go` does the CRUD (`RuleSet/RuleDel/RulesClear/RulesList`) over `ccp.yaml`. `NormalizePath` resolves `.`/`..`/`~` textually (not `realpath`).
-- **`profile.go`** — profile CRUD on an explicit `home` arg (`ProfileAddOfficial/AddDeepseek/Rm/List/Show/SetKey`). Seeds each non-`default` profile's `cc-home` (symlinks `plugins/ commands/ agents/ skills/` from `~/.claude`).
+- **`profile.go`** — profile CRUD on an explicit `home` arg (`ProfileAddOfficial/AddDeepseek/Rm/List/Show/SetKey`). Seeds each non-`default` profile's `cc-home` (symlinks `plugins/ commands/ agents/ skills/ output-styles/ hooks/` and the file `keybindings.json` from `~/.claude`; the last three since Fase 0, B4). `seedCCHome` never touches an entry that exists, and `ProfileSync` calls it too — that is how a profile created before the list grew gets the new entries, since `ccp upgrade` ends in a sync. Adding an item means touching `desktopMirrorItems` too (directories only) and `_seed_cc_links` in the bash oracle.
 - **`env.go`** — `EnvDelta(home, profile, cfg)` emits the eval-able delta: always `unset` all managed vars first, then `export` the target's. Every value is quoted by `shellQuote`, a hand-rolled replica of bash `printf %q` (NOT `strconv.Quote`) — this is contract risk #1; it has a dedicated test plus an eval-effect test in zsh+bash.
 - **`store.go`** — reads/writes the canonical `ccp.yaml` (atomic tmp+rename under a `flock`; preserves comments + unknown keys; aborts if the file's schema version is newer than this binary knows).
 - **`migrate.go`** — the universal chained migrator dsctl→ccp(TSV)→`ccp.yaml`, idempotent, backs up before touching anything.
+- **`doctor.go`** — `HasLogin`/`DefaultHasLogin` decide «logged in» by the **account recorded** in `.claude.json` (`oauthAccount` non-empty or `primaryApiKey`), never by the file existing: Claude Code creates it on first start, before `/login` (B3). `doctor`, `profile show`, the TUI and `serve` all go through it.
+- **`backup.go`** — `BackupRestore` regenerates (`CfgRegenerate`) every created/overwritten profile after `Save`, and reports them in `RestoreReport.Regenerated` (B2); before, `cc-home/settings.json` and `CLAUDE.md` stayed stale until a `profile sync`.
 - **`cfg.go`/`cfg_cmd.go`** — profile-config overlay: `cc-home/CLAUDE.md` = `@import`s of global + overlay; `cc-home/settings.json` = a **pure-Go** deep-merge of global ⊕ overlay ⊕ **auto layer** when `AutoHooksEnabled` (no `jq`). `secrets.go`, `backup.go`, `instruct.go`, `doctor.go`, `status.go`, `shellinit.go` round it out.
 - **`envpairs.go`** — `EnvPairs`/`EnvForChild`: the same delta `env.go` emits, as data instead of shell text. `EnvForChild(os.Environ(), …)` is how the supervisor gives a child process a profile's environment without a shell to `eval` in.
 
@@ -136,8 +138,15 @@ cursor con marcas `↑ N más` / `↓ N más`.
 `e` sobre un perfil abre la **vista de perfil** (`modeProfile`,
 `profile_view.go`): tres cajas —Instrucciones · Env · Efectivo— sobre
 `core.ProfileEffective`, que devuelve la procedencia como dato (`OriginGlobal` /
-`OriginOverlay` / `OriginAuto`, más `Shadowed` cuando otra capa traía la misma
-clave). Se edita lo que `core` ya sabe escribir: reglas por `InstructRuleAdd/Rm`,
+`OriginOverlay` / `OriginAuto` / `OriginClaudeJSON`, más `Shadowed` cuando otra
+capa traía la misma clave). Desde la Fase 0 (B5) trae también `EffMCP` (los
+`mcpServers` del `.claude.json` que lee el perfil), `EffDeny`, `EffAsk` y
+`EffSettings` (`model`, `outputStyle`, `permissions.defaultMode`,
+`statusLine.command`, este último con el envoltorio de los sensores si están
+instalados). Van **al final** de `Sections` para no mover a nadie; la TUI y la
+GUI los ordenan a su gusto (`effGroups`, `EFFECTIVE_ORDER`). Los MCP no tienen
+archivo editable: su `.claude.json` lo reescribe Claude Code, así que `e` ahí
+explica dónde viven en vez de abrir el overlay. Se edita lo que `core` ya sabe escribir: reglas por `InstructRuleAdd/Rm`,
 variables por `OverlayEnvSet/Del`, hooks por `InstructAdd` (con el `ActiveProfile`
 del `InstructCtx` fijado al perfil MIRADO, no al de la terminal). Los hooks se
 añaden pero **no** se borran — viven en arrays sin id estable— y la tecla lo dice
