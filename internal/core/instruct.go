@@ -92,7 +92,11 @@ func InstructDest(scope, typ, home, activeProfile, src, repoRoot string) (string
 			return "", &DestError{
 				Code: 5,
 				Msg:  "scope 'profile': MCP por-perfil no está soportado todavía.",
-				Hint: "Usa 'ccp instruct add global mcp ...' (todos los perfiles) o 'project' (este repo).",
+				// «global» va a ~/.claude.json, que solo lee el perfil default: cada
+				// perfil official lee su propio cc-home/.claude.json. Hasta que llegue
+				// el MCP por perfil (spec 2026-09-18 §6.1), lo único que alcanza a
+				// todos es el scope project.
+				Hint: "Usa 'project' (el .mcp.json de este repo; lo ven todos los perfiles). 'global' solo llega a default.",
 			}
 		case "agent", "command", "skill":
 			return "", &DestError{

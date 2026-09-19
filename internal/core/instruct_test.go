@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -361,5 +362,21 @@ func TestInstructRmRulesAntesQueArtefactos(t *testing.T) {
 	rows, _ = InstructList(ctx, "global")
 	if len(rows) != 2 || rows[0].Text != "regla A" || rows[1].Type != "mcp" {
 		t.Fatalf("tras rm: %v", rows)
+	}
+}
+
+// B1: «global» no llega a todos los perfiles. Va a ~/.claude.json, que solo lee
+// default; cada perfil official lee su propio cc-home/.claude.json.
+func TestInstructDestProfileMCPHintIsHonest(t *testing.T) {
+	_, err := InstructDest("profile", "mcp", t.TempDir(), "work", t.TempDir(), "")
+	var de *DestError
+	if !errors.As(err, &de) || de.Code != 5 {
+		t.Fatalf("err = %v, quiero DestError código 5", err)
+	}
+	if strings.Contains(de.Hint, "add global mcp") {
+		t.Fatalf("la pista vuelve a recomendar global como si llegara a todos los perfiles: %q", de.Hint)
+	}
+	if !strings.Contains(de.Hint, "'global' solo llega a default") || !strings.Contains(de.Hint, "project") {
+		t.Fatalf("la pista debe decir a quién llega global y ofrecer project: %q", de.Hint)
 	}
 }
