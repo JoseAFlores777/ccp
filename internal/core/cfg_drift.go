@@ -10,6 +10,7 @@ package core
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 )
 
 type changeKind int
@@ -186,35 +188,62 @@ func decodeJSONObject(data []byte) (map[string]any, error) {
 // SettingsDrift es lo que ccp encontró cambiado a mano en el cc-home/settings.json
 // de un perfil al regenerarlo, casi siempre con /config, /model o /permissions.
 // Las rutas van como las enseña pathString (permissions.allow, env.FOO) y en el
-// orden de diffSettings.
+// orden de diffSettings. Las etiquetas JSON son las del estado pendiente
+// (drift-pending.json), no un contrato de serve: serve arma sus filas a mano.
 type SettingsDrift struct {
-	Profile   string
-	Adopted   []string // claves copiadas al overlay: sobreviven a esta regeneración y a las siguientes
-	Removed   []string // quitadas a mano, pero salen del global o del overlay y vuelven: solo se avisa
-	Conflicts []string // cambiadas a mano y también en el overlay desde la última regeneración: gana el overlay
-	Invalid   string   // != "": settings.json no era JSON; su copia está aquí y no se adoptó nada
+	Profile   string   `json:"profile"`
+	Adopted   []string `json:"adopted,omitempty"`   // copiadas al overlay: sobreviven a esta regeneración y a las siguientes
+	Removed   []string `json:"removed,omitempty"`   // quitadas a mano, pero salen del global o del overlay y vuelven: solo se avisa
+	Conflicts []string `json:"conflicts,omitempty"` // cambiadas a mano y también en el overlay desde la última regeneración: gana el overlay
+	// Skipped son cambios en env.*: no se adoptan nunca. Suelen ser tokens, y el
+	// overlay viaja en claro en los backups «sin secretos» y en los snapshots; el
+	// cc-home/settings.json no. Se ponen a mano con `ccp profile config`.
+	Skipped []string `json:"skipped,omitempty"`
+	// Unsaved son claves que había que adoptar pero el overlay no se pudo escribir
+	// (un symlink a un almacén de solo lectura, por ejemplo). No se cuentan como
+	// adoptadas; la regeneración sigue, como antes de B6.
+	Unsaved    []string `json:"unsaved,omitempty"`
+	UnsavedErr string   `json:"unsaved_error,omitempty"`
+	// Invalid != "": settings.json no era JSON; su copia está aquí y no se adoptó nada.
+	Invalid string `json:"invalid,omitempty"`
+	// Rescued != "": copia de lo que había en cc-home/settings.json antes de
+	// regenerar, porque algo de ahí no pasó al overlay (conflictos, env, lo no
+	// guardado o, con Unattributed, que no había línea base con la que atribuirlo).
+	Rescued      string `json:"rescued,omitempty"`
+	Unattributed bool   `json:"unattributed,omitempty"`
+	// NotRegenerated: la regeneración falló después de mirar la deriva, así que
+	// cc-home/settings.json sigue como estaba. No cuenta para Empty: el error ya
+	// lo dice; solo cambia cómo se enseña lo demás.
+	NotRegenerated bool `json:"not_regenerated,omitempty"`
 }
 
 // Empty dice si no hay nada que contar.
 func (d SettingsDrift) Empty() bool {
-	return len(d.Adopted) == 0 && len(d.Removed) == 0 && len(d.Conflicts) == 0 && d.Invalid == ""
+	return len(d.Adopted) == 0 && len(d.Removed) == 0 && len(d.Conflicts) == 0 &&
+		len(d.Skipped) == 0 && len(d.Unsaved) == 0 && d.Invalid == "" && d.Rescued == ""
 }
 
-// adoptSettingsDrift compara el cc-home/settings.json de ahora con la copia de lo
-// último generado y pasa al overlay lo que el usuario añadió o cambió, antes de
-// que la regeneración lo pise. Reglas (plan 2026-09-19, «Decisiones»):
+// adoptSettingsDrift compara el cc-home/settings.json de ahora con la línea base
+// (lo último generado y el overlay con el que se generó) y pasa al overlay lo que
+// el usuario añadió o cambió, antes de que la regeneración lo pise. Reglas (plan
+// 2026-09-19, «Decisiones», revisadas tras la revisión de la fase):
 //   - cc-home inválido: se guarda una copia y no se adopta nada; si la copia no
 //     se puede guardar, se devuelve error y no se regenera encima;
-//   - sin copia de lo generado, o con una ilegible: no se atribuye nada;
-//   - la capa auto no es deriva (stripAutoLayer), en ninguno de los lados;
+//   - sin línea base, o con una ilegible: no se atribuye nada, pero si lo que hay
+//     no es lo que va a salir, se guarda una copia de rescate antes;
+//   - la capa auto no es deriva (stripAutoLayer);
 //   - solo se adopta lo que la regeneración perdería;
-//   - si el overlay también cambió esa clave, gana el overlay;
-//   - lo quitado solo se avisa, y solo si va a volver.
+//   - si el overlay cambió esa clave desde la última regeneración (incluido
+//     borrarla), gana el overlay: conflicto;
+//   - env.* no se adopta nunca (Skipped);
+//   - lo quitado solo se avisa, y solo si va a volver;
+//   - si el overlay no se puede escribir, lo que iba a adoptarse queda Unsaved y
+//     la regeneración sigue: adoptar es un extra que no puede convertir en error
+//     una regeneración que antes funcionaba.
 //
-// El overlay solo se escribe si se adoptó algo. Cualquier otra rareza (overlay
-// roto, global que no es un objeto) devuelve la deriva vacía sin error:
-// cfgMergeSettings ya falla o regenera como antes, y adoptar es un extra que no
-// puede convertir en error una regeneración que antes funcionaba.
+// Todo lo que el usuario escribió y no llega al overlay deja una copia de
+// rescate en state/ (0600, fuera de backups y snapshots). El único error que
+// para la regeneración es no poder guardar una copia que hacía falta.
 func adoptSettingsDrift(home, name, src string) (SettingsDrift, error) {
 	d := SettingsDrift{Profile: name}
 	curB, err := os.ReadFile(filepath.Join(ccHomePath(home, name), "settings.json"))
@@ -228,22 +257,13 @@ func adoptSettingsDrift(home, name, src string) (SettingsDrift, error) {
 	cur, err := decodeJSONObject(curB)
 	if err != nil {
 		// Se mira ANTES que la línea base: lo que hay dentro lo escribió alguien,
-		// y guardarlo no depende de poder atribuirlo. Sin copia no se regenera
-		// encima: sería perder lo que el usuario escribió sin dejar rastro.
-		inv := invalidSettingsPath(home, name)
-		if werr := writeFileAtomic(inv, curB, 0o600); werr != nil {
+		// y guardarlo no depende de poder atribuirlo.
+		p, werr := rescueSettings(home, name, "invalid", curB)
+		if werr != nil {
 			return d, fmt.Errorf("cc-home/settings.json de %q no es JSON válido y no se pudo guardar una copia antes de regenerar: %w", name, werr)
 		}
-		d.Invalid = inv
+		d.Invalid = p
 		return d, nil
-	}
-	lastB, err := os.ReadFile(lastSettingsPath(home, name))
-	if err != nil {
-		return d, nil // sin línea base (un perfil de antes de B6): no se atribuye nada
-	}
-	last, err := decodeJSONObject(lastB)
-	if err != nil {
-		return d, nil // la copia es estado derivado: ilegible = no hay línea base
 	}
 	file := cfgSettingsFile(home, name)
 	ovB, err := os.ReadFile(file)
@@ -255,11 +275,8 @@ func adoptSettingsDrift(home, name, src string) (SettingsDrift, error) {
 		return d, nil // overlay roto: cfgMergeSettings falla justo después y no pisa nada
 	}
 	// exp es lo que sale de las capas del usuario (global ⊕ overlay), SIN la capa
-	// auto, y se compara también sin ella: los tres lados en la misma moneda. Con
-	// la capa dentro, el statusLine de exp sería siempre nuestro envoltorio, que
-	// nunca es igual al del usuario, y un statusLine idéntico al del global se
-	// adoptaría igual (congelando el global en el overlay); y un borrado de
-	// `hooks` se avisaría como «vuelve» solo porque la capa pone su StopFailure.
+	// auto, y se compara también sin ella: los lados en la misma moneda. Con la
+	// capa dentro, el statusLine de exp sería siempre nuestro envoltorio.
 	expB, err := cfgBuildUserSettings(name, src, ovB)
 	if err != nil {
 		return d, nil
@@ -268,8 +285,23 @@ func adoptSettingsDrift(home, name, src string) (SettingsDrift, error) {
 	if err != nil {
 		return d, nil
 	}
+	cur, exp = stripAutoLayer(cur), stripAutoLayer(exp)
 
-	last, cur, exp = stripAutoLayer(last), stripAutoLayer(cur), stripAutoLayer(exp)
+	last, lastOv, ok := readSettingsBaseline(home, name)
+	if !ok {
+		// Un perfil de antes de B6, o una línea base perdida: no se sabe qué
+		// cambió el usuario y qué el global. Se regenera como siempre, pero no
+		// sin dejar copia de lo que había si va a cambiar.
+		if !jsonEqual(cur, exp) {
+			if err := d.rescue(home, name, curB); err != nil {
+				return d, err
+			}
+			d.Unattributed = true
+		}
+		return d, nil
+	}
+	last = stripAutoLayer(last)
+
 	for _, ch := range diffSettings(last, cur) {
 		p := pathString(ch.Path)
 		if ch.Kind == changeRemoved {
@@ -283,36 +315,166 @@ func adoptSettingsDrift(home, name, src string) (SettingsDrift, error) {
 		if v, ok := jsonLookup(exp, ch.Path); ok && jsonEqual(v, ch.Value) {
 			continue // ya sale así: adoptarlo solo congelaría el global en el overlay
 		}
-		// Conflicto: el overlay tiene esa clave y su valor ya no es el que se
-		// generó la última vez, o sea que alguien lo editó desde entonces (un
-		// `ccp profile config` recién hecho). Gana el overlay. La copia es la
-		// aproximación de «el overlay de entonces», y es exacta salvo en un caso:
-		// un statusLine en el overlay con la capa auto puesta, que en la copia
-		// está envuelto y al quitar la capa desaparece. Ahí sale conflicto aunque
-		// el overlay no cambiara; se avisa y no se pisa nada, que es el lado
-		// seguro.
-		if v, ok := jsonLookup(ov, ch.Path); ok {
-			if lv, lok := jsonLookup(last, ch.Path); !lok || !jsonEqual(v, lv) {
-				d.Conflicts = append(d.Conflicts, p)
-				continue
-			}
+		if overlayChanged(ov, lastOv, ch.Path) {
+			d.Conflicts = append(d.Conflicts, p) // alguien editó el overlay después: gana
+			continue
+		}
+		if ch.Path[0] == "env" {
+			d.Skipped = append(d.Skipped, p)
+			continue
 		}
 		jsonSetPath(ov, ch.Path, ch.Value)
 		d.Adopted = append(d.Adopted, p)
 	}
-	if len(d.Adopted) == 0 {
-		return d, nil
+	if len(d.Adopted) > 0 {
+		// marshalIndent ordena por clave, como OverlayEnvSet: el overlay sale igual
+		// lo reescriba quien lo reescriba.
+		out, err := marshalIndent(ov)
+		if err == nil {
+			err = writeOverlayPreservingLink(file, out)
+		}
+		if err != nil {
+			d.Unsaved, d.Adopted, d.UnsavedErr = d.Adopted, nil, err.Error()
+		}
 	}
-	// marshalIndent ordena por clave, como OverlayEnvSet: el overlay sale igual
-	// lo reescriba quien lo reescriba.
-	out, err := marshalIndent(ov)
-	if err != nil {
-		return d, fmt.Errorf("no se pudo serializar el overlay de %q: %w", name, err)
-	}
-	if err := writeOverlayPreservingLink(file, out); err != nil {
-		return d, fmt.Errorf("no se pudo guardar en el overlay de %q lo adoptado de /config: %w", name, err)
+	if len(d.Conflicts)+len(d.Skipped)+len(d.Unsaved) > 0 {
+		if err := d.rescue(home, name, curB); err != nil {
+			return d, err
+		}
 	}
 	return d, nil
+}
+
+// overlayChanged dice si el overlay de ahora difiere del de la última
+// regeneración en path: otro valor, o la clave puesta o quitada.
+func overlayChanged(ov, lastOv map[string]any, path []string) bool {
+	v, ok := jsonLookup(ov, path)
+	lv, lok := jsonLookup(lastOv, path)
+	return ok != lok || (ok && !jsonEqual(v, lv))
+}
+
+// readSettingsBaseline lee la línea base: lo último generado y el overlay con el
+// que se generó. Las dos o ninguna: es estado derivado, y una copia ilegible vale
+// lo mismo que no tenerla.
+func readSettingsBaseline(home, name string) (last, lastOv map[string]any, ok bool) {
+	lastB, err := os.ReadFile(lastSettingsPath(home, name))
+	if err != nil {
+		return nil, nil, false
+	}
+	if last, err = decodeJSONObject(lastB); err != nil {
+		return nil, nil, false
+	}
+	lastOvB, err := os.ReadFile(lastOverlayPath(home, name))
+	if err != nil {
+		return nil, nil, false
+	}
+	if lastOv, err = decodeOverlayObject(lastOvB); err != nil {
+		return nil, nil, false
+	}
+	return last, lastOv, true
+}
+
+// rescue guarda la copia de rescate y la apunta en la deriva. Sin copia no se
+// regenera encima: sería perder lo que el usuario escribió sin dejar rastro.
+func (d *SettingsDrift) rescue(home, name string, data []byte) error {
+	p, err := rescueSettings(home, name, "rescued", data)
+	if err != nil {
+		return fmt.Errorf("no se pudo guardar una copia de cc-home/settings.json de %q antes de regenerar, y regenerar perdería lo que cambiaste: %w", name, err)
+	}
+	d.Rescued = p
+	return nil
+}
+
+// rescuedKeep es cuántas copias de cada clase (invalid, rescued) se conservan.
+const rescuedKeep = 20
+
+// rescueSettings guarda data en state/settings.<kind>-<hash>.json (0600). El
+// nombre sale del contenido: dos copias distintas no se pisan (una sola ruta fija
+// perdía la primera en cuanto llegaba la segunda) y el mismo contenido no se
+// duplica. Conserva las rescuedKeep más recientes de esa clase.
+func rescueSettings(home, name, kind string, data []byte) (string, error) {
+	sum := sha256.Sum256(data)
+	dir := profileStateDir(home, name)
+	p := filepath.Join(dir, fmt.Sprintf("settings.%s-%x.json", kind, sum[:6]))
+	if err := writeFileAtomic(p, data, 0o600); err != nil {
+		return "", err
+	}
+	now := time.Now()
+	_ = os.Chtimes(p, now, now) // el mismo contenido otra vez cuenta como el más reciente
+	pruneRescued(dir, "settings."+kind+"-", rescuedKeep)
+	return p, nil
+}
+
+// pruneRescued deja las keep copias más recientes con ese prefijo. Best-effort:
+// podar es higiene, no puede hacer fallar una regeneración.
+func pruneRescued(dir, prefix string, keep int) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	type f struct {
+		path string
+		mod  time.Time
+	}
+	var files []f
+	for _, e := range entries {
+		if !e.Type().IsRegular() || !strings.HasPrefix(e.Name(), prefix) || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		if info, err := e.Info(); err == nil {
+			files = append(files, f{filepath.Join(dir, e.Name()), info.ModTime()})
+		}
+	}
+	if len(files) <= keep {
+		return
+	}
+	slices.SortFunc(files, func(a, b f) int { return b.mod.Compare(a.mod) })
+	for _, x := range files[keep:] {
+		_ = os.Remove(x.path)
+	}
+}
+
+// savePendingDrift añade d al informe pendiente de su perfil: lo que encontró una
+// regeneración cuyo llamador no cuenta la deriva. Best-effort para quien llama;
+// la copia de rescate ya está en disco.
+func savePendingDrift(home string, d SettingsDrift) error {
+	p := pendingDriftPath(home, d.Profile)
+	var all []SettingsDrift
+	if b, err := os.ReadFile(p); err == nil {
+		_ = json.Unmarshal(b, &all) // pendiente ilegible = vacío: es un aviso, no un dato
+	}
+	all = append(all, d)
+	b, err := json.MarshalIndent(all, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeFileAtomic(p, append(b, '\n'), 0o600)
+}
+
+// SavePendingDrift deja pendientes varias derivas, cada una en su perfil. Lo usa
+// quien las recibió pero no puede enseñarlas (serve, cuando el sync falla a
+// medias y la respuesta de error no lleva resultado).
+func SavePendingDrift(home string, ds []SettingsDrift) {
+	for _, d := range ds {
+		if !d.Empty() {
+			_ = savePendingDrift(home, d)
+		}
+	}
+}
+
+// TakePendingDrift devuelve y borra el informe pendiente de un perfil.
+func TakePendingDrift(home, name string) []SettingsDrift {
+	p := pendingDriftPath(home, name)
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return nil
+	}
+	_ = os.Remove(p)
+	var all []SettingsDrift
+	if json.Unmarshal(b, &all) != nil {
+		return nil
+	}
+	return all
 }
 
 // writeOverlayPreservingLink reescribe el overlay con tmp+rename (un corte a

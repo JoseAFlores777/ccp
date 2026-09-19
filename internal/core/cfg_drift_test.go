@@ -384,7 +384,8 @@ func TestDerivaSettingsInvalidoNoAdopta(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d.Invalid != invalidSettingsPath(home, "work") || len(d.Adopted) != 0 || d.Empty() {
+	if filepath.Dir(d.Invalid) != profileStateDir(home, "work") || !strings.HasPrefix(filepath.Base(d.Invalid), "settings.invalid-") ||
+		len(d.Adopted) != 0 || d.Empty() {
 		t.Fatalf("deriva = %+v", d)
 	}
 	if c, _ := os.ReadFile(d.Invalid); string(c) != "{roto" {
@@ -454,14 +455,31 @@ func TestDerivaSinCopiaPreviaNoAdopta(t *testing.T) {
 	}
 	simulaConfig(t, home, func(m map[string]any) { m["model"] = "x" })
 	d, err := CfgRegenerateReport(home, "work", src)
-	if err != nil || !d.Empty() {
-		t.Fatalf("sin línea base no se atribuye nada: %+v %v", d, err)
+	if err != nil || len(d.Adopted) != 0 || !d.Unattributed || d.Rescued == "" {
+		t.Fatalf("sin línea base no se atribuye nada, pero se rescata lo que había: %+v %v", d, err)
+	}
+	if c, _ := os.ReadFile(d.Rescued); !strings.Contains(string(c), `"model":"x"`) {
+		t.Errorf("la copia de rescate no tiene lo de /config: %s", c)
 	}
 	if _, ok := leeOverlay(t, home)["model"]; ok {
 		t.Error("sin línea base el overlay no se toca")
 	}
-	if !fileExists(lastSettingsPath(home, "work")) {
-		t.Error("se guarda la copia para la próxima vez")
+	if !fileExists(lastSettingsPath(home, "work")) || !fileExists(lastOverlayPath(home, "work")) {
+		t.Error("se guarda la línea base para la próxima vez")
+	}
+	if d, err := CfgRegenerateReport(home, "work", src); err != nil || !d.Empty() {
+		t.Errorf("con la línea base ya guardada no queda nada que contar: %+v %v", d, err)
+	}
+}
+
+// Sin línea base, lo que ya coincide con lo que va a salir no merece copia.
+func TestDerivaSinCopiaPreviaYSinCambiosNoRescata(t *testing.T) {
+	home, src := perfilConBase(t, "", "")
+	if err := os.Remove(lastSettingsPath(home, "work")); err != nil {
+		t.Fatal(err)
+	}
+	if d, err := CfgRegenerateReport(home, "work", src); err != nil || !d.Empty() {
+		t.Fatalf("deriva = %+v %v, quiero vacía", d, err)
 	}
 }
 
@@ -473,8 +491,8 @@ func TestDerivaCopiaIlegibleNoAdopta(t *testing.T) {
 	}
 	simulaConfig(t, home, func(m map[string]any) { m["model"] = "x" })
 	d, err := CfgRegenerateReport(home, "work", src)
-	if err != nil || !d.Empty() {
-		t.Fatalf("con la copia ilegible no se atribuye nada: %+v %v", d, err)
+	if err != nil || len(d.Adopted) != 0 || !d.Unattributed || d.Rescued == "" {
+		t.Fatalf("con la copia ilegible no se atribuye nada, pero se rescata: %+v %v", d, err)
 	}
 	if last, _ := os.ReadFile(lastSettingsPath(home, "work")); !json.Valid(last) {
 		t.Error("la copia se rehace")
@@ -674,5 +692,217 @@ func TestDerivaSeAdoptaPorCualquierCamino(t *testing.T) {
 	gen := leeGenerado(t, home)
 	if v, _ := jsonLookup(gen, []string{"autoCompactEnabled"}); v != false {
 		t.Errorf("generado = %v", gen)
+	}
+}
+
+// Un overlay que no se puede escribir (un symlink a un almacén de dotfiles de
+// solo lectura, como home-manager/Nix) no puede convertir en error una
+// regeneración que antes de B6 funcionaba: lo que no se pudo guardar se cuenta
+// como no guardado —nunca como adoptado— y se regenera igual. Si no, cada
+// sync, upgrade o auto install fallaría para siempre en ese perfil.
+func TestDerivaOverlayDeSoloLecturaNoBloqueaLaRegeneracion(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root escribe en un directorio 0555")
+	}
+	home, src := perfilConBase(t, "", "")
+	ro := t.TempDir()
+	dotfiles := filepath.Join(ro, "work.json")
+	if err := os.WriteFile(dotfiles, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ovPath := cfgSettingsFile(home, "work")
+	if err := os.Remove(ovPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(dotfiles, ovPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(ro, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(ro, 0o755) })
+	if err := CfgRegenerate(home, "work", src); err != nil {
+		t.Fatal(err)
+	}
+	simulaConfig(t, home, func(m map[string]any) { m["autoCompactEnabled"] = false })
+
+	d, err := CfgRegenerateReport(home, "work", src)
+	if err != nil {
+		t.Fatalf("un overlay de solo lectura no puede hacer fallar la regeneración: %v", err)
+	}
+	if len(d.Adopted) != 0 {
+		t.Errorf("Adopted = %v: no se guardó, no puede contarse como adoptado", d.Adopted)
+	}
+	if !reflect.DeepEqual(d.Unsaved, []string{"autoCompactEnabled"}) || d.UnsavedErr == "" || d.Empty() {
+		t.Fatalf("deriva = %+v, quiero Unsaved=[autoCompactEnabled] con su motivo", d)
+	}
+	if _, ok := leeGenerado(t, home)["autoCompactEnabled"]; ok {
+		t.Error("se tenía que regenerar como antes de B6")
+	}
+	if d, err := CfgRegenerateReport(home, "work", src); err != nil || !d.Empty() {
+		t.Errorf("la siguiente regeneración ya no tiene deriva: %+v %v", d, err)
+	}
+}
+
+// Si la regeneración falla después de mirar la deriva (aquí: cc-home inválido
+// y overlay roto), la deriva lo dice: la copia del inválido está guardada, pero
+// no se regeneró nada, y nadie debe contar que sí.
+func TestDerivaMarcaCuandoNoSeRegenero(t *testing.T) {
+	home, src := perfilConBase(t, "", "")
+	p := filepath.Join(ccHomePath(home, "work"), "settings.json")
+	if err := os.WriteFile(p, []byte("{roto"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfgSettingsFile(home, "work"), []byte("{overlay roto"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	d, err := CfgRegenerateReport(home, "work", src)
+	if err == nil {
+		t.Fatal("con el overlay roto la regeneración tiene que fallar")
+	}
+	if d.Invalid == "" || !d.NotRegenerated {
+		t.Fatalf("deriva = %+v, quiero Invalid y NotRegenerated", d)
+	}
+}
+
+// #1 de la revisión: borrar del overlay una clave que /config cambió también es
+// cambiar el overlay. Gana el overlay (la clave sigue borrada) y lo de /config
+// queda en la copia de rescate.
+func TestDerivaBorradoEnElOverlayGana(t *testing.T) {
+	home, src := perfilConBase(t, "", `{"model":"a"}`)
+	simulaConfig(t, home, func(m map[string]any) { m["model"] = "b" })
+	if err := os.WriteFile(cfgSettingsFile(home, "work"), []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	d, err := CfgRegenerateReport(home, "work", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(d.Conflicts, []string{"model"}) || len(d.Adopted) != 0 || d.Rescued == "" {
+		t.Fatalf("deriva = %+v, quiero Conflicts [model] con copia de rescate", d)
+	}
+	if _, ok := leeOverlay(t, home)["model"]; ok {
+		t.Error("el borrado del overlay se deshizo")
+	}
+	if c, _ := os.ReadFile(d.Rescued); !strings.Contains(string(c), `"model":"b"`) {
+		t.Errorf("la copia de rescate no tiene el valor de /config: %s", c)
+	}
+}
+
+// #2: un overlay con "hooks": {} y la capa auto puesta no es un conflicto cuando
+// el usuario añade un hook con /hooks: el overlay no cambió.
+func TestDerivaHooksVaciosEnElOverlayConCapaAuto(t *testing.T) {
+	home, src := perfilConBase(t, "", `{"hooks":{}}`)
+	conCapaAuto(t, home, src, "/opt/ccp")
+	simulaConfig(t, home, func(m map[string]any) {
+		h := m["hooks"].(map[string]any)
+		h["PreToolUse"] = []any{map[string]any{"matcher": "Bash", "hooks": []any{map[string]any{"type": "command", "command": "echo hi"}}}}
+	})
+	d, err := CfgRegenerateReport(home, "work", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Conflicts) != 0 || len(d.Adopted) == 0 {
+		t.Fatalf("deriva = %+v, quiero el hook adoptado sin conflicto", d)
+	}
+	if _, ok := jsonLookup(leeGenerado(t, home), []string{"hooks", "PreToolUse"}); !ok {
+		t.Error("el hook de /hooks se perdió al regenerar")
+	}
+}
+
+// #4: con sensores y un statusLine en el overlay, cambiar la barra con
+// /statusline se adopta (y la capa la vuelve a envolver); no es un conflicto.
+func TestDerivaStatusLineDelOverlayConCapaAutoSeAdopta(t *testing.T) {
+	home, src := perfilConBase(t, "", `{"statusLine":{"type":"command","command":"mi-barra-vieja"}}`)
+	conCapaAuto(t, home, src, "/opt/ccp")
+	simulaConfig(t, home, func(m map[string]any) {
+		m["statusLine"] = map[string]any{"type": "command", "command": "mi-barra-nueva"}
+	})
+	d, err := CfgRegenerateReport(home, "work", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(d.Adopted, []string{"statusLine"}) || len(d.Conflicts) != 0 {
+		t.Fatalf("deriva = %+v, quiero Adopted [statusLine]", d)
+	}
+	if v, _ := jsonLookup(leeOverlay(t, home), []string{"statusLine", "command"}); v != "mi-barra-nueva" {
+		t.Errorf("overlay statusLine = %v", v)
+	}
+	if v, _ := jsonLookup(leeGenerado(t, home), []string{"statusLine", "command"}); !strings.Contains(fmt.Sprint(v), "mi-barra-nueva") || !strings.Contains(fmt.Sprint(v), "_statusline") {
+		t.Errorf("generado statusLine = %v, quiero la barra nueva envuelta por los sensores", v)
+	}
+}
+
+// #13: env.* no se adopta nunca: suelen ser tokens, y el overlay viaja en claro
+// en los backups «sin secretos». Queda en la copia de rescate (0600, fuera de
+// backups y snapshots) y se avisa.
+func TestDerivaEnvNoSeAdopta(t *testing.T) {
+	home, src := perfilConBase(t, "", "")
+	simulaConfig(t, home, func(m map[string]any) {
+		m["env"] = map[string]any{"ANTHROPIC_AUTH_TOKEN": "sk-FAKE"}
+		m["model"] = "opus"
+	})
+	d, err := CfgRegenerateReport(home, "work", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(d.Skipped, []string{"env"}) || !reflect.DeepEqual(d.Adopted, []string{"model"}) || d.Rescued == "" {
+		t.Fatalf("deriva = %+v, quiero Skipped [env], Adopted [model] y copia", d)
+	}
+	if b, _ := os.ReadFile(cfgSettingsFile(home, "work")); strings.Contains(string(b), "sk-FAKE") {
+		t.Fatalf("el token acabó en el overlay: %s", b)
+	}
+	if fi, err := os.Stat(d.Rescued); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Errorf("la copia de rescate no es 0600: %v %v", fi, err)
+	}
+}
+
+// #11: en un conflicto gana el overlay, pero el valor de /config no se pierde sin
+// rastro: queda en la copia de rescate. Y dos copias distintas no se pisan.
+func TestDerivaConflictoDejaCopiaYNoSePisan(t *testing.T) {
+	home, src := perfilConBase(t, "", `{"model":"a"}`)
+	var rescued []string
+	for _, v := range []string{"b", "b2"} {
+		simulaConfig(t, home, func(m map[string]any) { m["model"] = v })
+		if err := os.WriteFile(cfgSettingsFile(home, "work"), []byte(`{"model":"c-`+v+`"}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		d, err := CfgRegenerateReport(home, "work", src)
+		if err != nil || d.Rescued == "" {
+			t.Fatalf("deriva = %+v %v", d, err)
+		}
+		rescued = append(rescued, d.Rescued)
+	}
+	if rescued[0] == rescued[1] {
+		t.Fatal("dos copias de rescate distintas comparten ruta: la segunda pisa la primera")
+	}
+	for i, v := range []string{"b", "b2"} {
+		if c, _ := os.ReadFile(rescued[i]); !strings.Contains(string(c), `"model":"`+v+`"`) {
+			t.Errorf("copia %d = %s", i, c)
+		}
+	}
+}
+
+// #6: CfgRegenerate (el camino de profile config, instruct, la GUI, los restores)
+// no cuenta la deriva, así que la deja pendiente; el siguiente ProfileSyncReport
+// la devuelve una vez y la borra.
+func TestDerivaPendienteLaEnsenaElSiguienteSync(t *testing.T) {
+	home, src := perfilConBase(t, "", `{"model":"a"}`)
+	simulaConfig(t, home, func(m map[string]any) { m["model"] = "b" })
+	if err := os.WriteFile(cfgSettingsFile(home, "work"), []byte(`{"model":"c"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := CfgRegenerate(home, "work", src); err != nil {
+		t.Fatal(err)
+	}
+	ds, err := ProfileSyncReport(home, "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ds) != 1 || !reflect.DeepEqual(ds[0].Conflicts, []string{"model"}) || ds[0].Rescued == "" {
+		t.Fatalf("sync = %+v, quiero el conflicto que dejó pendiente la regeneración anterior", ds)
+	}
+	if ds, err := ProfileSyncReport(home, "work"); err != nil || len(ds) != 0 {
+		t.Errorf("el pendiente se enseña una sola vez: %+v %v", ds, err)
 	}
 }

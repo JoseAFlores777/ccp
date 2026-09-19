@@ -161,9 +161,11 @@ func ProfileConfig(home, name string, opts ProfileConfigOpts) error {
 // siembra lo que falte: `ccp upgrade` termina en un sync, así que es por aquí por
 // donde un perfil ya creado gana lo que la siembra añadió después (output-styles/,
 // hooks/, keybindings.json en la Fase 0). seedCCHome nunca pisa lo que existe.
-// Adopta la deriva de /config igual que ProfileSyncReport; solo no la cuenta.
+// Adopta la deriva de /config igual que ProfileSyncReport; como no la cuenta, la
+// deja pendiente para el siguiente que la enseñe (ver CfgRegenerate).
 func ProfileSync(home, name string) error {
-	_, err := ProfileSyncReport(home, name)
+	ds, err := ProfileSyncReport(home, name)
+	SavePendingDrift(home, ds)
 	return err
 }
 
@@ -171,7 +173,10 @@ func ProfileSync(home, name string) error {
 // regeneración encontró cambiado a mano en cc-home/settings.json (B6). Solo salen
 // los perfiles con algo que contar: un sync de todos con uno solo tocado no debe
 // dar una línea por perfil. Con error, devuelve lo reunido hasta ahí, porque lo
-// que ya se adoptó está en el overlay aunque el perfil siguiente falle.
+// que ya se adoptó está en el overlay aunque el perfil siguiente falle. Delante
+// de la deriva nueva de cada perfil va la que dejaron pendiente las
+// regeneraciones que no la contaron (CfgRegenerate): quien llama a esta función
+// la enseña, y si no puede (serve con error), la vuelve a dejar pendiente.
 func ProfileSyncReport(home, name string) ([]SettingsDrift, error) {
 	if name == "default" {
 		return nil, fmt.Errorf("'default' no tiene cc-home; no se sincroniza")
@@ -203,6 +208,7 @@ func ProfileSyncReport(home, name string) ([]SettingsDrift, error) {
 		if err := seedCCHome(home, n); err != nil {
 			return out, err
 		}
+		out = append(out, TakePendingDrift(home, n)...)
 		d, err := CfgRegenerateReport(home, n, src)
 		if !d.Empty() {
 			out = append(out, d)
