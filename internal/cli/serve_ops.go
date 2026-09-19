@@ -1157,7 +1157,8 @@ func srvBackupRestore(s *server, raw json.RawMessage) (any, error) {
 		return v
 	}
 	return map[string]any{"created": nz(rep.Created), "skipped": nz(rep.Skipped),
-		"overwritten": nz(rep.Overwritten), "rules_added": rep.RulesAdded, "snapshot": rep.SnapshotDir}, nil
+		"overwritten": nz(rep.Overwritten), "rules_added": rep.RulesAdded, "snapshot": rep.SnapshotDir,
+		"regenerated": nz(rep.Regenerated)}, nil
 }
 
 // --- sistema ---

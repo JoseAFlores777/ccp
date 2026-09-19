@@ -253,6 +253,9 @@ func dispatchBackup(args []string, stdout, stderr io.Writer) int {
 		if rep.RulesAdded > 0 {
 			fmt.Fprintln(stdout, i18n.T(lang, "cli.backup.restore_rules", rep.RulesAdded))
 		}
+		if len(rep.Regenerated) > 0 {
+			fmt.Fprintln(stdout, i18n.T(lang, "cli.backup.restore_regenerated", strings.Join(rep.Regenerated, ", ")))
+		}
 		return 0
 
 	default:
