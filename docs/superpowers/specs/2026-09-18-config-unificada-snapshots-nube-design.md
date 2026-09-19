@@ -113,19 +113,21 @@ Reglas que no se negocian:
 
 ## 3. Qué puede llegar a cada destino
 
-Leyenda: ✓ ya llega · ◐ llega con este diseño · ✗ imposible desde local · ? por medir (Fase 0)
+Leyenda: ✓ ya llega · ◐ llega con este diseño · ✗ imposible desde local. Los «?» de la Fase 0 ya
+están medidos: [ADR 0016](../../adr/0016-what-desktop-reads-from-a-profile.md) (Claude.app 2.2553.1; la
+pestaña Code corre su propio Claude Code, 2.1.27x).
 
 | Elemento | CLI | Desktop · Code | Desktop · chat | Notas |
 |---|---|---|---|---|
-| CLAUDE.md / reglas (global, perfil) | ✓ | ✓? (M1) | ✗ | El chat usa instrucciones de la cuenta en claude.ai, en el servidor |
+| CLAUDE.md / reglas (global, perfil) | ✓ | ✓ (M1, `@import` fuera del root incluido) | ✗ | El chat usa instrucciones de la cuenta en claude.ai, en el servidor |
 | CLAUDE.md / reglas (proyecto) | ✓ | ✓ (por cwd) | ✗ | El chat no tiene cwd |
-| hooks, permisos, `env`, `statusLine`, `outputStyle` | ✓ | ✓? (M1) | ✗ | Solo existen en Claude Code |
-| MCP stdio (global, perfil) | ◐ (B1) | ◐ (M1, M2) | ◐ | Se proyecta a `.claude.json` **y** a `claude_desktop_config.json` |
-| MCP http/sse (global, perfil) | ◐ | ◐ (M1) | ? (M3) | Si el archivo de Desktop no admite remotos: el remoto pasa por el puente stdio `mcp-remote`, o se avisa de que en el chat solo va como conector de la cuenta |
+| hooks, permisos, `env`, `statusLine`, `outputStyle` | ✓ | ✓ (M1: hook, `allow` y `env` medidos) | ✗ | Solo existen en Claude Code |
+| MCP stdio (global, perfil) | ◐ (B1) | ✓ por los dos lados (M1, M2) | ◐ | Se proyecta a `.claude.json` **y** a `claude_desktop_config.json`. En Code, con nombre repetido gana Desktop (M2) |
+| MCP http/sse (global, perfil) | ◐ | ◐ (M1) | ✗ en local (M3) | El archivo del chat solo admite stdio: el remoto pasa por el puente stdio `mcp-remote`, o se avisa de que en el chat solo va como conector de la cuenta |
 | MCP (proyecto, `.mcp.json`) | ✓ | ✓ (por cwd) | ✗ | Sin cwd en el chat |
-| skills, agents, commands (global) | ✓ | ✓? (M1) | ✗ | Las skills del chat son de la cuenta (servidor) |
-| skills, agents, commands (perfil) | ◐ | ◐ | ✗ | `overlay/{skills,agents,commands}` se une al espejo |
-| plugins (`enabledPlugins`) | ✓ | ? (M1) | ✗ | |
+| skills, agents, commands (global) | ✓ | ✓ (M1) | ✗ | Las skills del chat son de la cuenta (servidor) |
+| skills, agents, commands (perfil) | ◐ | ✓ (M1: `cc-home/{skills,agents}` tras el espejo) | ✗ | `overlay/{skills,agents,commands}` se une al espejo |
+| plugins (`enabledPlugins`) | ✓ | ✓ (M1) | ✗ | Desktop añade en Code los plugins y conectores de la cuenta |
 
 Conclusión honesta:
 - La **pestaña Code** puede recibir todo, porque comparte el cc-home con el CLI.
@@ -133,11 +135,9 @@ Conclusión honesta:
 - Las skills, las instrucciones y los conectores del chat son de la cuenta de claude.ai. La UI lo
   dice en cada elemento con un distintivo «Dónde aplica: CLI · Code · Chat» en lugar de prometerlo.
 
-Una observación que respalda M2: la sesión desde la que se escribió este documento corre en la
-pestaña Code de la instancia `default`, y expone exactamente los MCP del `claude_desktop_config.json`
-de `default`, aunque `~/.claude.json` no tiene ninguno. Todo apunta a que **la pestaña Code hereda
-los MCP del chat**. Hay que confirmarlo en una instancia de perfil y ver qué pasa cuando el mismo
-nombre llega por los dos lados: duplicado, precedencia o dos procesos.
+M2 lo confirmó en una instancia de perfil: **la pestaña Code hereda los MCP del chat**, servidos por el
+proceso de Desktop desde un *shared pool*. Cuando el mismo nombre llega por los dos lados, se ve una vez y
+gana Desktop, pero el `claude` de la pestaña también lanza su copia: dos procesos, uno ocioso.
 
 ## 4. Fase 0: mediciones y arreglos previos
 
@@ -145,23 +145,24 @@ Nada de lo demás se construye sobre suposiciones; es la lección de ADR 0009. C
 escrito el método, la versión de Claude.app y de Claude Code, y el resultado. Las conclusiones de
 Desktop van en un ADR, igual que 0008 y 0009.
 
-| # | Pregunta | Método |
-|---|---|---|
-| M1 | ¿La pestaña Code de una instancia de perfil respeta `cc-home/{settings.json, CLAUDE.md (con @import fuera del root), skills/, agents/, commands/, .claude.json:mcpServers, enabledPlugins}`? | Poner marcadores únicos en cada archivo, abrir una sesión Code y preguntar o ejecutar. Además, grep en `app.asar` de cómo lanza su `claude-code/<ver>/` |
-| M2 | ¿Code hereda los `mcpServers` de `claude_desktop_config.json`? ¿Qué ocurre si el mismo nombre llega también por `.claude.json`? | Un servidor con nombre repetido y otro con nombre único; mirar `/mcp` y `ps` |
-| M3 | ¿El `claude_desktop_config.json` del chat admite entradas remotas? ¿Se relee en caliente o hace falta reiniciar? | Entrada http de prueba; editar con la instancia abierta |
-| M4 | ¿Con qué nombre guarda Claude Code las credenciales en el Keychain cuando `CLAUDE_CONFIG_DIR` no es el de siempre? ¿Depende de la ruta? | `security find-generic-password` antes y después de `/login` en un cc-home temporal |
-| M5 | ¿Desktop reescribe `claude_desktop_config.json` mientras corre (por `preferences`)? | fswatch con la instancia abierta y cambiando preferencias |
-| M6 | ¿Claude Code conserva un `mcpServers` escrito desde fuera en `.claude.json` mientras hay un `claude` vivo, o lo pisa con su copia en memoria? | Escribir con un `claude` interactivo abierto, esperar a que guarde estado y releer |
+| # | Pregunta | Método | Resultado ([ADR 0016](../../adr/0016-what-desktop-reads-from-a-profile.md)) |
+|---|---|---|---|
+| M1 | ¿La pestaña Code de una instancia de perfil respeta `cc-home/{settings.json, CLAUDE.md (con @import fuera del root), skills/, agents/, commands/, .claude.json:mcpServers, enabledPlugins}`? | Poner marcadores únicos en cada archivo, abrir una sesión Code y preguntar o ejecutar. Además, grep en `app.asar` de cómo lanza su `claude-code/<ver>/` | **Sí, todo.** Desktop lanza su propio Claude Code con `--setting-sources=user,project,local` y sin `--mcp-config` |
+| M2 | ¿Code hereda los `mcpServers` de `claude_desktop_config.json`? ¿Qué ocurre si el mismo nombre llega también por `.claude.json`? | Un servidor con nombre repetido y otro con nombre único; mirar `/mcp` y `ps` | **Sí**, por un pool compartido de Desktop. Nombre repetido: se ve una vez y gana Desktop, pero también arranca la copia de `.claude.json` |
+| M3 | ¿El `claude_desktop_config.json` del chat admite entradas remotas? ¿Se relee en caliente o hace falta reiniciar? | Entrada http de prueba; editar con la instancia abierta | **Solo stdio**: la http se descarta («Skipped invalid MCP server config entries»). **Hay que reiniciar** |
+| M4 | ¿Con qué nombre guarda Claude Code las credenciales en el Keychain cuando `CLAUDE_CONFIG_DIR` no es el de siempre? ¿Depende de la ruta? | `security find-generic-password` antes y después de `/login` en un cc-home temporal | `Claude Code-credentials-<sha256(dir)[:8]>`, sin sufijo para `~/.claude`. **Depende de la ruta**. El login de Desktop no le sirvió a la CLI |
+| M5 | ¿Desktop reescribe `claude_desktop_config.json` mientras corre (por `preferences`)? | fswatch con la instancia abierta y cambiando preferencias | **Sí**, y conservó los `mcpServers` escritos antes de arrancar. Sin medir: una escritura en caliente seguida de una reescritura suya |
+| M6 | ¿Claude Code conserva un `mcpServers` escrito desde fuera en `.claude.json` mientras hay un `claude` vivo, o lo pisa con su copia en memoria? | Escribir con un `claude` interactivo abierto, esperar a que guarde estado y releer | **Lo conserva**: dos reescrituras suyas después, la entrada seguía ahí |
 
-M6 decide la técnica de proyección del MCP al CLI. Si Claude Code pisa lo escrito desde fuera, la
-alternativa es que ccp genere **un plugin local por perfil** (`ccp-<perfil>@ccp-local`, activado en el
-`settings.json` que ya genera). El plugin llevaría `.mcp.json`, skills, agents, commands y
-`hooks.json`, y no tocaría `.claude.json`. Coste: los nombres cambian a `mcp__plugin_…`, lo que rompe
-reglas de permisos escritas con el nombre corto. Por eso es el plan B y no el A.
+M6 decidía la técnica de proyección del MCP al CLI, y la decidió: **técnica A**, fusionar en
+`.claude.json` (D7). El plan B era un plugin local por perfil (`ccp-<perfil>@ccp-local`, activado en el
+`settings.json` que ya se genera), que habría renombrado los servidores a `mcp__plugin_…` y roto las
+reglas de permisos escritas con el nombre corto. Queda descartado.
 
-Arreglos: **B1–B5**. B1 se resuelve con el subproyecto B y no con un parche: «global» pasa a
-significar «proyectado a todos los perfiles». Tamaño: **S**.
+Arreglos: **B1–B5**, más **B6–B8**, que salieron de las mediciones (ADR 0016): `/config` dentro de un
+perfil se pierde en el siguiente sync, `profile rename` deja el perfil sin login y `profile add` no
+genera la config. B1 se resuelve de fondo con el subproyecto B: «global» pasa a significar «proyectado a
+todos los perfiles». Tamaño: **S**.
 
 ## 5. Subproyecto A: inventario y adopción («detectar la máquina»)
 
@@ -273,26 +274,30 @@ mcp:
 
 - **Efectivo por perfil** = global ⊕ overlay − disabled. Si hay colisión de nombres, gana el perfil.
 - **Al CLI**:
-  - Técnica A: fusionar en `cc-home/.claude.json:mcpServers` solo los nombres gestionados. Se lee,
-    se modifica y se escribe de forma atómica, bajo flock, conservando todas las demás claves.
-  - Técnica B: el plugin local. Una u otra según M6.
+  - **Técnica A** (D7, decidida por M6): fusionar en `cc-home/.claude.json:mcpServers` solo los
+    nombres gestionados. Se lee, se modifica y se escribe de forma atómica, bajo flock, conservando
+    todas las demás claves y sin cachear nada: Claude Code reescribe ese archivo a menudo, pero conserva
+    lo que se escribe desde fuera.
   - La lista de nombres gestionados se guarda en `cc-home/.ccp-managed.json`. Es `derived`: si se
     pierde, se reconstruye comparando con la capa declarada.
 - **Al chat de Desktop**:
   - Se escriben solo los nombres gestionados en `profiles/<n>/desktop/claude_desktop_config.json`,
     conservando `preferences`, `coworkUserFilesPath` y cualquier clave desconocida.
-  - Si la instancia está corriendo y M3/M5 dicen que no se relee en caliente, el perfil queda
-    marcado como **«pendiente de reiniciar la ventana»** y la GUI ofrece reiniciarla. Nunca se mata
-    una ventana por sorpresa.
-  - Las entradas http/sse siguen lo que diga M3.
+  - No se relee en caliente (M3). Si la instancia está corriendo, el perfil queda marcado como
+    **«pendiente de reiniciar la ventana»** y la GUI ofrece reiniciarla. Nunca se mata una ventana por
+    sorpresa. Como M5 no descarta que Desktop vuelque su copia en memoria sobre una escritura en
+    caliente, se escribe con la ventana cerrada o se relee y se reproyecta tras el reinicio.
+  - Solo stdio (M3). Un servidor http/sse con destino `desktop` va envuelto en el puente `mcp-remote`,
+    o la UI dice que en el chat solo puede ir como conector de la cuenta.
 - **Ventana `default`** (`~/Library/Application Support/Claude/`):
   - Es el Claude del usuario, igual que en la barrera del updater: ccp no escribe en ella salvo que
     el usuario active `desktop_default: true`.
   - Aun así la inventaría siempre. Ahí están hoy los 6 MCP.
-- **Duplicados en la pestaña Code**: si M2 confirma que hereda los MCP del chat y que un nombre
-  repetido arranca dos procesos, un servidor con destino `[cli, desktop]` se proyecta a
-  `claude_desktop_config.json` y **no** a `.claude.json` de las instancias que lo reciben por ahí.
-  Si no los duplica, va a ambos. La decisión se toma con la medición, no antes.
+- **Duplicados en la pestaña Code**: M2 confirmó que Code hereda los MCP del chat y que un nombre
+  repetido arranca dos procesos, aunque solo se usa el de Desktop. Aun así, un servidor con destino
+  `[cli, desktop]` va a **los dos** archivos. El cc-home es el mismo para la terminal y para la pestaña
+  Code, así que quitarlo de `.claude.json` dejaría sin él a la CLI. Se acepta el proceso ocioso en la
+  pestaña: es la misma definición y gana la de Desktop (ADR 0016).
 - Los **secretos** (`env.*`, `headers.*`) se proyectan en claro porque así los leen las apps, igual
   que hoy. Solo cambia su clase en los snapshots (§8).
 
@@ -810,7 +815,7 @@ La vía nube puede empezar en cuanto D tenga el formato, y la I (infra) no depen
 | D4 | Conversaciones en snapshots | **Desactivado por defecto**, opcional | Siempre: GB por máquina y datos sensibles en la nube |
 | D5 | Adoptar un `~/.claude-x` existente | **Copiar + un `/login`** | Por referencia (`cc_home:`): conserva el login (si M4 lo confirma), pero toca `_env` (§15) |
 | D6 | Aplicar cambios remotos | **Auto para lo no ejecutable; confirmar lo ejecutable** | Todo automático: cómodo, pero una cuenta robada ejecuta código |
-| D7 | Proyección de MCP al CLI | **`.claude.json`**, si M6 lo permite | Plugin local: sin carreras, pero los nombres cambian a `mcp__plugin_…` |
+| D7 | Proyección de MCP al CLI | **`.claude.json`** (técnica A): M6 confirmó que Claude Code conserva lo escrito desde fuera (ADR 0016) | Plugin local: sin carreras, pero los nombres cambian a `mcp__plugin_…` |
 | D8 | Ventana `default` | **Solo inventariar**, proyectar con opt-in | Proyectar siempre: ccp gestionaría tu Claude principal |
 | D9 | Autenticación | **Keycloak propio del stack `ccp-cloud` (realm `ccp`) para la identidad + frase de bóveda aparte para el cifrado** | Derivar la clave de la contraseña: imposible con Keycloak, porque la contraseña no pasa por `ccp`, y un reset borraría los datos. Quitar el E2E para usar solo Keycloak: el servidor leería tus claves y podría ordenar comandos |
 | D10 | Orden | **La nube antes que el editor**: dos vías en paralelo; E aplazado | El orden original (A→B→C→D→E→F) retrasaba el backend hasta el final |
