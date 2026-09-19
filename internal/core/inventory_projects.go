@@ -250,7 +250,9 @@ func invRCConfigDirs(rc, home string) []string {
 			v = home + v[1:]
 		case strings.HasPrefix(v, "${HOME}"):
 			v = home + strings.TrimPrefix(v, "${HOME}")
-		case strings.HasPrefix(v, "$HOME"):
+		// Sin llaves, el nombre de la variable sigue mientras haya letras,
+		// dígitos o `_`: `$HOMEBREW_PREFIX` es otra variable, no $HOME + "BREW…".
+		case v == "$HOME" || strings.HasPrefix(v, "$HOME/"):
 			v = home + strings.TrimPrefix(v, "$HOME")
 		}
 		if v == "" || strings.Contains(v, "$") || !filepath.IsAbs(v) {

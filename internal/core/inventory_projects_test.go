@@ -203,3 +203,19 @@ func TestInventoryHomeComoProyectoNoDuplicaElGlobal(t *testing.T) {
 		t.Errorf("el CLAUDE.md del home debe seguir saliendo como proyecto: %+v", it)
 	}
 }
+
+// $HOME solo se expande cuando la variable termina ahí: `$HOMEBREW_PREFIX` es
+// otra variable, y pegarle el home delante inventaba /Users/xBREW_PREFIX/….
+func TestInvRCConfigDirsSoloExpandeHOMEEntero(t *testing.T) {
+	rc := "export CLAUDE_CONFIG_DIR=$HOMEBREW_PREFIX/etc/claude\n" +
+		"export CLAUDE_CONFIG_DIR=$HOME_DIR/x\n" +
+		"export CLAUDE_CONFIG_DIR=${HOME_DIR}/y\n" +
+		"export CLAUDE_CONFIG_DIR=$HOME\n" +
+		"export CLAUDE_CONFIG_DIR=\"$HOME/.claude-a\"\n" +
+		"export CLAUDE_CONFIG_DIR=${HOME}/.claude-b\n"
+	got := invRCConfigDirs(rc, "/Users/x")
+	want := []string{"/Users/x", "/Users/x/.claude-a", "/Users/x/.claude-b"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("invRCConfigDirs = %q, want %q", got, want)
+	}
+}
