@@ -933,6 +933,11 @@ SNAPSHOTS
   ccp snapshot pin|unpin <id> | prune [--dry-run]
   ccp snapshot export <id> <file> [--with-secrets] | import <file>
 
+DETECT THE MACHINE
+  ccp scan [--json]                     everything Claude-related here, and where each thing applies
+  ccp adopt [--dry-run | --yes] [--only <id|kind>]
+                                        bring into ccp what lives outside it (shows the plan first)
+
 SCRIPTING
   ccp resolve [path]          print the path's profile (exit 0=rule, 1=default)
   ccp status [--json]         terminal status
@@ -1029,6 +1034,11 @@ SNAPSHOTS
   ccp snapshot restore <id> [--only <ruta>] [--dry-run | --yes]
   ccp snapshot pin|unpin <id> | prune [--dry-run]
   ccp snapshot export <id> <archivo> [--with-secrets] | import <archivo>
+
+DETECTAR LA MÁQUINA
+  ccp scan [--json]                     todo lo de Claude en esta máquina, y dónde aplica cada cosa
+  ccp adopt [--dry-run | --yes] [--only <id|tipo>]
+                                        trae a ccp lo que vive fuera (primero enseña el plan)
 
 SCRIPTING
   ccp resolve [ruta]          imprime el perfil del path (exit 0=regla, 1=default)
