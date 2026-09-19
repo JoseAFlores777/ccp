@@ -492,3 +492,43 @@ func TestResolveEditor(t *testing.T) {
 		t.Errorf("con defaults.editor => %q, quiero 'code --wait'", got)
 	}
 }
+
+// B4 para los perfiles que ya existían: `ccp upgrade` termina en `profile sync`,
+// así que es sync quien les da lo que la siembra ganó después. Lo que el perfil ya
+// tiene (un directorio propio, por ejemplo) no se toca.
+func TestProfileSyncSeedsWhatIsMissing(t *testing.T) {
+	home := t.TempDir()
+	src := t.TempDir()
+	t.Setenv("CCP_CLAUDE_SRC", src)
+	for _, n := range []string{"a", "b"} {
+		if err := ProfileAddOfficial(home, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Después de crear los perfiles, el global gana hooks/ y output-styles/.
+	for _, d := range []string{"hooks", "output-styles"} {
+		if err := os.MkdirAll(filepath.Join(src, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	own := filepath.Join(ccHomePath(home, "b"), "hooks")
+	if err := os.MkdirAll(own, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ProfileSync(home, "a"); err != nil {
+		t.Fatalf("ProfileSync a: %v", err)
+	}
+	if fi, err := os.Lstat(filepath.Join(ccHomePath(home, "a"), "hooks")); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("sync de un perfil no sembró hooks/: %v", err)
+	}
+	if err := ProfileSync(home, ""); err != nil {
+		t.Fatalf("ProfileSync all: %v", err)
+	}
+	if fi, err := os.Lstat(filepath.Join(ccHomePath(home, "b"), "output-styles")); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("sync de todos no sembró output-styles/: %v", err)
+	}
+	if fi, err := os.Lstat(own); err != nil || fi.Mode()&os.ModeSymlink != 0 || !fi.IsDir() {
+		t.Fatalf("sync pisó el hooks/ propio del perfil: %v", err)
+	}
+}

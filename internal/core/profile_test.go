@@ -617,3 +617,28 @@ func equalStringSlices(a, b []string) bool {
 	}
 	return true
 }
+
+// B4: sin output-styles/, hooks/ ni keybindings.json un perfil no heredaba los
+// estilos ni los atajos globales, y un hook global invocado por ruta fallaba.
+func TestSeedCCHomeLinksStylesHooksAndKeybindings(t *testing.T) {
+	home, src := t.TempDir(), t.TempDir()
+	t.Setenv("CCP_CLAUDE_SRC", src)
+	for _, d := range []string{"output-styles", "hooks", "commands"} {
+		if err := os.MkdirAll(filepath.Join(src, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(src, "keybindings.json"), []byte(`[]`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ProfileAddOfficial(home, "work"); err != nil {
+		t.Fatal(err)
+	}
+	cch := ccHomePath(home, "work")
+	for _, item := range []string{"output-styles", "hooks", "keybindings.json", "commands"} {
+		fi, err := os.Lstat(filepath.Join(cch, item))
+		if err != nil || fi.Mode()&os.ModeSymlink == 0 {
+			t.Errorf("%s: no es un symlink a la fuente global (%v)", item, err)
+		}
+	}
+}

@@ -213,7 +213,10 @@ func seedCCHome(home, name string) error {
 	}
 
 	// Solo crea symlink si la entrada existe en src y aún no existe en cch.
-	for _, item := range []string{"plugins", "commands", "agents", "skills"} {
+	// output-styles/ y hooks/ (los scripts que settings.json invoca por ruta) y
+	// keybindings.json llegaron en la Fase 0 (spec 2026-09-18, B4): sin ellos un
+	// perfil no heredaba estilos ni atajos, y un hook global con ruta fallaba.
+	for _, item := range []string{"plugins", "commands", "agents", "skills", "output-styles", "hooks", "keybindings.json"} {
 		srcItem := filepath.Join(src, item)
 		dstItem := filepath.Join(cch, item)
 

@@ -166,19 +166,27 @@ _profile_show() {
 # Fuente override-able para tests: CCP_CLAUDE_SRC (default ~/.claude).
 _seed_cc_home() { # home name
   local home="$1" name="$2"
-  local cch; cch="$(ccp_cfg_cchome "$home" "$name")"
+  local src="${CCP_CLAUDE_SRC:-$HOME/.claude}"
+  _seed_cc_links "$home" "$name"
+  ccp_cfg_init_overlay "$home" "$name"
+  ccp_cfg_regenerate "$home" "$name" "$src"
+}
+
+# Solo los symlinks de lo compartible; nunca pisa lo que ya existe. Lo usan la
+# siembra de un perfil nuevo y `profile sync` (así un perfil viejo gana lo que la
+# lista añadió después: output-styles, hooks, keybindings.json).
+_seed_cc_links() { # home name
+  local cch; cch="$(ccp_cfg_cchome "$1" "$2")"
   local src="${CCP_CLAUDE_SRC:-$HOME/.claude}"
   mkdir -p "$cch"
   if [[ -d "$src" ]]; then
     local item
-    for item in plugins commands agents skills; do
-      if [[ -e "$src/$item" && ! -e "$cch/$item" ]]; then
+    for item in plugins commands agents skills output-styles hooks keybindings.json; do
+      if [[ -e "$src/$item" && ! -e "$cch/$item" && ! -L "$cch/$item" ]]; then
         ln -s "$src/$item" "$cch/$item"
       fi
     done
   fi
-  ccp_cfg_init_overlay "$home" "$name"
-  ccp_cfg_regenerate "$home" "$name" "$src"
 }
 
 _profile_login() {
@@ -267,6 +275,7 @@ _profile_sync() {
   if [[ -n "$name" ]]; then
     ccp_profile_exists "$CCP_HOME" "$name" || { err "No existe '$name'."; return 1; }
     ccp_cfg_migrate_legacy "$CCP_HOME" "$name"
+    _seed_cc_links "$CCP_HOME" "$name"
     ccp_cfg_regenerate "$CCP_HOME" "$name" "$src"
     ok "Perfil '$name' re-sincronizado (global ⊕ overlay)."
     return 0
@@ -275,6 +284,7 @@ _profile_sync() {
   while read -r n; do
     [[ -z "$n" ]] && continue
     ccp_cfg_migrate_legacy "$CCP_HOME" "$n"
+    _seed_cc_links "$CCP_HOME" "$n"
     ccp_cfg_regenerate "$CCP_HOME" "$n" "$src"
   done < <(ccp_profile_list "$CCP_HOME")
   ok "Todos los perfiles re-sincronizados."

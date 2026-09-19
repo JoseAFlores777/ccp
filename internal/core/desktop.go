@@ -32,11 +32,12 @@ import (
 // forma con symlinks de directorio ES el contrato de `profile add`. La
 // conversión es opt-in y por perfil.
 
-// desktopMirrorItems son las entradas de cc-home que seedCCHome symlinkea y que
-// por tanto hay que convertir antes de que Desktop escriba en el config root.
-// Mismo orden y mismo conjunto que seedCCHome a propósito: si mañana alguien
-// añade un item allí, este es el otro sitio que tiene que tocar.
-var desktopMirrorItems = []string{"plugins", "commands", "agents", "skills"}
+// desktopMirrorItems son los DIRECTORIOS que seedCCHome symlinkea y que por eso
+// hay que convertir antes de que Desktop escriba en el config root. Mismo orden
+// que seedCCHome a propósito, menos keybindings.json: es un archivo, una hoja, y
+// Desktop admite symlinks en las hojas. Si mañana seedCCHome siembra otro
+// directorio, este es el otro sitio que hay que tocar.
+var desktopMirrorItems = []string{"plugins", "commands", "agents", "skills", "output-styles", "hooks"}
 
 // DesktopDataDir devuelve el `--user-data-dir` del perfil.
 //
