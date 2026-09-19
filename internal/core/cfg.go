@@ -34,6 +34,23 @@ func cfgSettingsFile(home, name string) string {
 	return filepath.Join(cfgOverlayDir(home, name), "settings.overlay.json")
 }
 
+// profileStateDir es el estado derivado de un perfil que no es de Claude Code.
+// No vive en el cc-home, porque Claude Code lo lee entero, ni en overlay/, que
+// es authored y lo capturan snapshots y backups: SnapshotSources y BackupExport
+// enumeran rutas explícitas y esta no está. Cuelga de profiles/<n>/, así que se
+// mueve con el rename y se borra con el rm.
+func profileStateDir(home, name string) string {
+	return filepath.Join(profileDirPath(home, name), "state")
+}
+
+// lastSettingsPath es la copia de lo último que ccp escribió en
+// cc-home/settings.json: la línea base de la deriva de /config (cfg_drift.go).
+// Sin ella no se distingue «el usuario cambió esto con /config» de «cambió el
+// global», y adoptar lo segundo congelaría el global en el overlay.
+func lastSettingsPath(home, name string) string {
+	return filepath.Join(profileStateDir(home, name), "last-settings.json")
+}
+
 // ProfileSettingsFile expone la ruta del settings.overlay.json de un perfil a
 // los front-ends (la vista de perfil la usa para sembrar overlays en tests y
 // para saber qué archivo abre 'e' sobre la caja Env/Efectivo).
@@ -208,9 +225,34 @@ func cfgWriteClaudeMD(home, name, src string) error {
 	return nil
 }
 
-// cfgMergeSettings escribe cc-home/settings.json = global ⊕ overlay. El global
-// (<src>/settings.json) se ignora si está ausente o es JSON inválido (solo
-// overlay). El overlay debe existir (lo crea CfgInitOverlay).
+// cfgBuildSettings construye el settings.json de un perfil (global ⊕ overlay ⊕
+// auto) sin escribirlo. El global (<src>/settings.json) se ignora si está
+// ausente o es JSON inválido (solo overlay). Está separado de la escritura
+// porque la adopción de la deriva necesita saber qué saldría de regenerar sin
+// adoptar nada, para no copiar al overlay lo que ya sale de las capas.
+func cfgBuildSettings(home, name, src string, overlayData []byte) ([]byte, error) {
+	var globalData []byte
+	globalFile := filepath.Join(src, "settings.json")
+	if g, err := os.ReadFile(globalFile); err == nil && json.Valid(g) {
+		globalData = g
+	}
+
+	merged, err := MergeJSON(globalData, overlayData)
+	if err != nil {
+		return nil, fmt.Errorf("merge de settings de %q falló: %w", name, err)
+	}
+	// Tercera capa: los sensores del auto-handoff (autohooks.go), solo si este
+	// perfil los tiene instalados en ccp.yaml. Va DESPUÉS del overlay porque es
+	// infraestructura de ccp, no preferencia del usuario: si alguien deja un
+	// statusLine en su overlay, la capa lo envuelve en vez de perderlo.
+	// applyAutoLayer no falla nunca — regenerar un cc-home no puede depender de
+	// que ccp.yaml sea legible en ese instante.
+	return applyAutoLayer(home, name, merged), nil
+}
+
+// cfgMergeSettings escribe cc-home/settings.json = global ⊕ overlay ⊕ auto
+// (cfgBuildSettings) y guarda la copia de lo escrito, que es la línea base de
+// la deriva de /config. El overlay debe existir (lo crea CfgInitOverlay).
 func cfgMergeSettings(home, name, src string) error {
 	cch := ccHomePath(home, name)
 	out := filepath.Join(cch, "settings.json")
@@ -220,29 +262,29 @@ func cfgMergeSettings(home, name, src string) error {
 	if err != nil {
 		return fmt.Errorf("no se pudo leer overlay de settings de %q: %w", name, err)
 	}
-
-	var globalData []byte
-	globalFile := filepath.Join(src, "settings.json")
-	if g, err := os.ReadFile(globalFile); err == nil && json.Valid(g) {
-		globalData = g
-	}
-
-	merged, err := MergeJSON(globalData, overlayData)
+	merged, err := cfgBuildSettings(home, name, src, overlayData)
 	if err != nil {
-		return fmt.Errorf("merge de settings de %q falló: %w", name, err)
+		return err
 	}
-	// Tercera capa: los sensores del auto-handoff (autohooks.go), solo si este
-	// perfil los tiene instalados en ccp.yaml. Va DESPUÉS del overlay porque es
-	// infraestructura de ccp, no preferencia del usuario: si alguien deja un
-	// statusLine en su overlay, la capa lo envuelve en vez de perderlo.
-	// applyAutoLayer no falla nunca — regenerar un cc-home no puede depender de
-	// que ccp.yaml sea legible en ese instante.
-	merged = applyAutoLayer(home, name, merged)
 	if err := os.MkdirAll(cch, 0o755); err != nil {
 		return fmt.Errorf("no se pudo crear cc-home de %q: %w", name, err)
 	}
 	if err := os.WriteFile(out, merged, 0o644); err != nil {
 		return fmt.Errorf("no se pudo escribir %s: %w", out, err)
+	}
+	return saveLastSettings(home, name, merged)
+}
+
+// saveLastSettings guarda la copia de lo que se acaba de escribir en el
+// cc-home, en 0600 y por tmp+rename (un corte a medias no deja media copia).
+// Si no puede, borra la vieja y lo dice: una copia desfasada es peor que
+// ninguna, porque la siguiente regeneración tomaría por deriva los cambios del
+// global y los congelaría en el overlay. Sin copia, simplemente no se adopta.
+func saveLastSettings(home, name string, data []byte) error {
+	p := lastSettingsPath(home, name)
+	if err := writeFileAtomic(p, data, 0o600); err != nil {
+		_ = os.Remove(p)
+		return fmt.Errorf("no se pudo guardar la copia de lo generado para %q: %w", name, err)
 	}
 	return nil
 }

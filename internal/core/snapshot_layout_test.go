@@ -109,7 +109,7 @@ func TestSnapshotSources(t *testing.T) {
 		}
 	}
 	for l := range got {
-		for _, forbidden := range []string{"plugins/cache", "agents/alias.md", "cc-home/agents", "cc-home/settings.json", "cc-home/CLAUDE.md", "handoffs.yaml"} {
+		for _, forbidden := range []string{"plugins/cache", "agents/alias.md", "cc-home/agents", "cc-home/settings.json", "cc-home/CLAUDE.md", "handoffs.yaml", "last-settings", "settings.invalid"} {
 			if strings.Contains(l, forbidden) {
 				t.Errorf("se capturó %s, que no es configuración del usuario", l)
 			}

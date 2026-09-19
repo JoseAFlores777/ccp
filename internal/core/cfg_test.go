@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -530,5 +531,105 @@ func TestProfileSyncSeedsWhatIsMissing(t *testing.T) {
 	}
 	if fi, err := os.Lstat(own); err != nil || fi.Mode()&os.ModeSymlink != 0 || !fi.IsDir() {
 		t.Fatalf("sync pisó el hooks/ propio del perfil: %v", err)
+	}
+}
+
+// La copia de lo generado es la línea base de la deriva de /config (B6): tiene
+// que ser byte a byte lo que se escribió en cc-home, y no es de nadie más (0600).
+func TestCfgRegenerateGuardaLoGenerado(t *testing.T) {
+	home, src := t.TempDir(), t.TempDir()
+	t.Setenv("CCP_CLAUDE_SRC", src)
+	if err := os.WriteFile(filepath.Join(src, "settings.json"), []byte(`{"model":"opus"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ProfileAddOfficial(home, "work"); err != nil {
+		t.Fatal(err)
+	}
+	gen, err := os.ReadFile(filepath.Join(ccHomePath(home, "work"), "settings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	last, err := os.ReadFile(lastSettingsPath(home, "work"))
+	if err != nil || !bytes.Equal(gen, last) {
+		t.Fatalf("copia = %q (%v), generado = %q", last, err, gen)
+	}
+	if fi, err := os.Stat(lastSettingsPath(home, "work")); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Errorf("modo de la copia = %v (%v), quiero 0600", fi, err)
+	}
+	p := lastSettingsPath(home, "work")
+	if !strings.HasPrefix(p, profileDirPath(home, "work")+string(filepath.Separator)) ||
+		strings.Contains(p, "cc-home") || strings.Contains(p, "overlay") {
+		t.Errorf("la copia tiene que vivir en profiles/<n>/, fuera de cc-home/ y de overlay/: %s", p)
+	}
+
+	// Una regeneración posterior la pone al día: la copia sigue a lo generado.
+	if err := os.WriteFile(cfgSettingsFile(home, "work"), []byte(`{"effortLevel":"high"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := CfgRegenerate(home, "work", src); err != nil {
+		t.Fatal(err)
+	}
+	gen, _ = os.ReadFile(filepath.Join(ccHomePath(home, "work"), "settings.json"))
+	last, _ = os.ReadFile(p)
+	if !bytes.Equal(gen, last) || !strings.Contains(string(last), "effortLevel") {
+		t.Fatalf("tras regenerar, copia = %q, generado = %q", last, gen)
+	}
+}
+
+// Si la copia no se puede escribir, la regeneración lo dice: una copia desfasada
+// haría adoptar como deriva los cambios del global.
+func TestCfgRegenerateFallaSiNoPuedeGuardarLaCopia(t *testing.T) {
+	home, src := t.TempDir(), t.TempDir()
+	t.Setenv("CCP_CLAUDE_SRC", src)
+	if err := ProfileAddOfficial(home, "work"); err != nil {
+		t.Fatal(err)
+	}
+	st := profileStateDir(home, "work")
+	if err := os.RemoveAll(st); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(st, []byte("no soy un directorio"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := CfgRegenerate(home, "work", src); err == nil {
+		t.Fatal("sin poder guardar la copia, CfgRegenerate tenía que fallar")
+	}
+}
+
+// Una copia vieja que no se puede sustituir se borra: la siguiente
+// regeneración no debe comparar contra una línea base desfasada. Un directorio
+// vacío en su lugar hace fallar el rename (no se pisa un directorio con un
+// archivo) pero deja que os.Remove lo quite, que es justo el camino a probar.
+func TestCfgRegenerateBorraLaCopiaQueNoPuedeSustituir(t *testing.T) {
+	home, src := t.TempDir(), t.TempDir()
+	t.Setenv("CCP_CLAUDE_SRC", src)
+	if err := ProfileAddOfficial(home, "work"); err != nil {
+		t.Fatal(err)
+	}
+	p := lastSettingsPath(home, "work")
+	if !fileExists(p) {
+		t.Fatalf("el alta no dejó la copia en %s", p)
+	}
+	if err := os.Remove(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(p, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := CfgRegenerate(home, "work", src); err == nil {
+		t.Fatal("sin poder sustituir la copia, CfgRegenerate tenía que fallar")
+	}
+	if pathExists(p) {
+		t.Errorf("la copia que no se pudo sustituir sigue en %s", p)
+	}
+	if entries, _ := os.ReadDir(profileStateDir(home, "work")); len(entries) != 0 {
+		t.Errorf("quedó basura en state/: %v", entries)
+	}
+	// Y la siguiente regeneración vuelve a dejar la línea base.
+	if err := CfgRegenerate(home, "work", src); err != nil {
+		t.Fatalf("CfgRegenerate: %v", err)
+	}
+	if !isRegularFile(p) {
+		t.Errorf("la regeneración siguiente no rehízo la copia en %s", p)
 	}
 }
