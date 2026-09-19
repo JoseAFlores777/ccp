@@ -88,13 +88,23 @@
   que añadiste o cambiaste. Pasa en todo lo que regenera: `profile sync`, `profile config`, `instruct add`,
   los restores, el rename y la app de escritorio.
   - Lo que quitaste solo se avisa: el overlay no puede expresar un borrado.
-  - Si la clave cambió también en el overlay, gana el overlay y se avisa.
-  - Si el archivo no es JSON válido, no se adopta nada y queda una copia en `profiles/<perfil>/state/`.
+  - Si la clave cambió también en el overlay desde la última regeneración (incluido borrarla), gana el
+    overlay y se avisa.
+  - `env` nunca se adopta: suele llevar tokens, y el overlay va en claro en los backups «sin secretos» y
+    en los snapshots. Se avisa, y se pone a mano con `ccp profile config` si se quiere en el perfil.
+  - Si el overlay no se puede escribir (un enlace a un almacén de dotfiles de solo lectura), no se cuenta
+    como guardado y la regeneración sigue como antes.
+  - Nada de lo que escribiste se pierde sin rastro: lo que no pasa al overlay (un conflicto, `env`, lo que
+    no se pudo guardar, un archivo que no era JSON) queda en una copia `0600` en
+    `profiles/<perfil>/state/`, que no entra en backups ni snapshots. Dos copias distintas no se pisan.
   - Los sensores de `auto_handoff` nunca se adoptan.
-  - `ccp profile sync` y `profiles.sync` de `ccp serve` (`drift`) dicen qué se adoptó, y la app de
-    escritorio lo resume en el aviso de «Resincronizar todas».
-  - Un perfil creado antes de este arreglo no tiene esa copia: la guarda en su primer sync, que
-    `ccp upgrade` ya ejecuta, y adopta desde el siguiente.
+  - `ccp profile sync`, `ccp profile config`, `ccp instruct add` y `profiles.sync` de `ccp serve` (`drift`)
+    dicen qué se adoptó y qué no. Lo que encuentra otro camino (la TUI, los restores, el rename) queda
+    pendiente hasta el siguiente de esos. La app de escritorio enseña el detalle en el aviso de
+    «Resincronizar todas».
+  - Un perfil creado antes de este arreglo no tiene esa línea base: en su primer sync, que `ccp upgrade`
+    ya ejecuta, no se adopta nada, pero si lo que había no coincide con lo que se genera queda una copia; y
+    adopta desde el siguiente.
 - **`ccp profile rename` avisa de que hay que volver a iniciar sesión.** Claude Code guarda la credencial
   de un perfil official con un nombre que sale de la ruta de su cc-home (ADR 0016, M4), y el rename cambia
   esa ruta. ccp no toca el Llavero: dice que hace falta `ccp profile login <nuevo>`, también cuando lo que
