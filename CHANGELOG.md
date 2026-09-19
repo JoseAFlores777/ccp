@@ -4,6 +4,29 @@
 
 ### Added
 
+- **`ccp snapshot`** — el historial de toda la configuración, no solo la de ccp. Entran `ccp.yaml`, los
+  overlays, `~/.claude` (settings, CLAUDE.md, agentes, comandos, skills, hooks, plugins), la parte de MCP de
+  cada `.claude.json`, la config de cada ventana de Desktop y los archivos locales de cada carpeta con regla.
+  Ver el [ADR 0012](docs/adr/0012-snapshots-content-addressed.md).
+  - `create [-m <etiqueta>]`, `list`, `show`, `diff <id> [<id>]`, `restore <id> [--only <ruta>]`,
+    `prune`, `pin`/`unpin`, `export <id> <archivo> [--with-secrets]` e `import <archivo>`. Todos aceptan
+    `--json` salvo `pin`, `export` e `import`.
+  - Almacén direccionado por contenido en `~/.config/ccp/snapshots`: lo que no cambia entre dos snapshots se
+    guarda una vez. Los secretos (keys de proveedor, MCP, config de Desktop) van sellados con una clave local
+    `0600`.
+  - **`restore` sin `--yes` solo enseña el plan.** Con `--yes`, primero guarda un snapshot del estado actual y
+    sin él no escribe; después regenera los perfiles afectados. De un `.claude.json` solo se fusiona su
+    configuración, nunca la sesión.
+  - **Snapshot de seguridad antes de `ccp profile rm` y `ccp backup restore`** (también desde la app de
+    escritorio). Si no se puede guardar, no se borra ni se restaura nada.
+  - **Un snapshot diario**, lo toma el primer comando de gestión pasadas 20 horas. Los comandos de scripting y
+    el hook del prompt no lo disparan. `CCP_NO_AUTO_SNAPSHOT=1` apaga el diario y el de seguridad.
+  - `prune` conserva 7 días, 4 semanas y 6 meses, el último y todo lo fijado o etiquetado.
+  - Un `.ccpsnap` solo lleva secretos con `--with-secrets`, sellados con una frase de al menos 12 caracteres
+    (Argon2id + XChaCha20-Poly1305).
+- **`ccp serve`: métodos `snapshot.*`** (`list`, `show`, `diff`, `create`, `restore`, `prune`, `pin`,
+  `export`, `import`) para la app de escritorio. El protocolo sigue en `1`.
+
 - **App de escritorio (`gui/`, Tauri + React)** — todo ccp desde una ventana: qué cuenta usa cada carpeta,
   el uso que le queda a cada una, las reglas con un probador, las conversaciones de todas las cuentas (de
   terminal y de Desktop) y un asistente para moverlas, los préstamos, la rotación y un **mapa de cuentas**
