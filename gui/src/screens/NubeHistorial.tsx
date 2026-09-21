@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import type { CloudProjectMap, CloudRestore, CloudSnapshot, SnapStep } from '../lib/api';
 import { api } from '../lib/api';
+import { pickFolder } from '../lib/bridge';
 import { ago, bytes, clock, tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
@@ -56,18 +57,29 @@ function taskLabel(kind: string, name: string, where?: string): string {
 /** Cómo cae cada proyecto aquí. El que no está se dice en voz alta: sus
  *  archivos no se escriben, y callarlo dejaría una restauración a medias
  *  pareciendo completa. */
-function Proyectos({ ps }: { ps: CloudProjectMap[] }) {
+function Proyectos({ ps, onPick }: { ps: CloudProjectMap[]; onPick: (key: string, path: string) => void }) {
   const raros = ps.filter((p) => p.source !== 'snapshot');
   if (raros.length === 0) return null;
+  const elegir = async (key: string) => {
+    const dir = await pickFolder();
+    if (dir) onPick(key, dir);
+  };
   return (
     <div style={{ marginTop: 10 }}>
       <div className="label" style={{ marginBottom: 6 }}>{t('Proyectos')}</div>
       {raros.map((p) => (
-        <div key={p.key} style={{ fontSize: 12, padding: '3px 0', color: p.source === 'missing' ? 'var(--warn)' : 'var(--ink-3)' }}>
-          <span className="mono">{p.remote || short(p.key)}</span>
-          {p.source === 'missing'
-            ? ` — ${t('no está aquí: se saltan sus {n} archivos', { n: String(p.files.length) })}`
-            : ` → ${tilde(p.path)}`}
+        <div key={p.key} style={{ fontSize: 12, padding: '3px 0', display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+          <span className="mono" style={{ color: p.source === 'missing' ? 'var(--warn)' : 'var(--ink-3)' }}>
+            {p.remote || short(p.key)}
+          </span>
+          <span style={{ color: p.source === 'missing' ? 'var(--warn)' : 'var(--ink-3)', flex: 1 }}>
+            {p.source === 'missing'
+              ? t('no está aquí: se saltan sus {n} archivos', { n: String(p.files.length) })
+              : `→ ${tilde(p.path)}`}
+          </span>
+          {/* El mapeo se hace AQUÍ y no en el portal: es el único sitio donde
+              hay un disco que mirar (spec §11). */}
+          <button className="btn sm" onClick={() => void elegir(p.key)}>{t('Elegir carpeta…')}</button>
         </div>
       ))}
     </div>
@@ -78,11 +90,14 @@ function Proyectos({ ps }: { ps: CloudProjectMap[] }) {
  *  quedará por hacer a mano. Se marca por elementos sueltos o se aplica todo. */
 function Plan({ snap, onDone }: { snap: CloudSnapshot; onDone: () => void }) {
   const { openModal } = useApp();
-  const plan = useCall(() => api.cloudRestorePlan(snap.id), [snap.id]);
+  // El mapeo de proyectos entra en el plan: cambiarlo cambia lo que se
+  // escribiría, así que se recalcula en vez de enseñar un plan de antes.
+  const [map, setMap] = useState<Record<string, string>>({});
+  const plan = useCall(() => api.cloudRestorePlan(snap.id, { projects: map }), [snap.id, map]);
   const [sel, setSel] = useState<Record<string, boolean>>({});
   const [out, setOut] = useState<CloudRestore | null>(null);
 
-  useEffect(() => { setSel({}); setOut(null); }, [snap.id]);
+  useEffect(() => { setSel({}); setOut(null); setMap({}); }, [snap.id]);
 
   if (plan.error) return <ErrorNote error={plan.error} onRetry={plan.reload} />;
   if (!plan.data) return <Loading rows={3} />;
@@ -99,7 +114,7 @@ function Plan({ snap, onDone }: { snap: CloudSnapshot; onDone: () => void }) {
     confirmLabel: t('Restaurar'),
     cli: () => `ccp cloud restore ${snap.id.slice(0, 12)} --yes`,
     onConfirm: async () => {
-      const rep = await api.cloudRestore(snap.id, { only });
+      const rep = await api.cloudRestore(snap.id, { only, projects: map });
       setOut(rep);
       plan.reload();
       onDone();
@@ -128,7 +143,7 @@ function Plan({ snap, onDone }: { snap: CloudSnapshot; onDone: () => void }) {
           <span className="mono">{s.lpath}</span>: {reasonLabel(s.reason ?? '')}
         </div>
       ))}
-      <Proyectos ps={r.projects} />
+      <Proyectos ps={r.projects} onPick={(key, path) => setMap({ ...map, [key]: path })} />
       {r.pending.length > 0 && (
         <div style={{ marginTop: 10 }}>
           <div className="label" style={{ marginBottom: 6 }}>{t('Quedará por hacer a mano')}</div>

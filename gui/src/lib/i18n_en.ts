@@ -1292,4 +1292,5 @@ export const en: Record<string, string> = {
   "Quedarán {n} cosas por hacer a mano": "{n} things will be left to do by hand",
   "Restaurado: {n} cambios": "Restored: {n} changes",
   "Lo que no marques se queda como está.": "Whatever you leave unchecked stays as it is.",
+  "Elegir carpeta…": "Choose folder…",
 };
