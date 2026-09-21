@@ -39,6 +39,7 @@ export function navGroups(): [string, NavItem[]][] {
     ]],
     [t('Sistema'), [
       { label: t('Desktop'), id: 'desktop' },
+      { label: t('Nube'), id: 'nube' },
       { label: t('Diagnóstico'), id: 'diag' },
       { label: t('Memoria'), id: 'memoria' },
       { label: t('Ajustes'), id: 'ajustes' },
@@ -72,6 +73,7 @@ export function screenHead(s: Screen, selected: string, selectedType: string): [
     case 'ajustes': return [t('Ajustes'), t('Lo que se configura una vez y se revisa rara vez.')];
     case 'copias': return [t('Copias de seguridad'), t('Exportar con o sin secretos, y restaurar viendo antes qué trae el archivo.')];
     case 'snapshots': return [t('Snapshots'), t('La historia de toda la configuración: qué había, qué cambió desde entonces y cómo volver, viendo antes el plan.')];
+    case 'nube': return [t('Nube'), t('La cuenta, la bóveda y tus equipos. El portal propone y esta máquina aplica: lo que ejecuta código espera aquí a que lo confirmes.')];
     case 'bienvenida': return [t('Detectar esta máquina'), t('Todo lo de Claude que hay aquí, dónde aplica cada cosa y el plan para traer a ccp lo que vive fuera.')];
   }
 }
