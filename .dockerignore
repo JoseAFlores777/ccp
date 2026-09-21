@@ -1,0 +1,14 @@
+# Contexto del build de deploy/ccp-cloud/Dockerfile. Sin esto se mandarían al
+# daemon los node_modules de la GUI (89 MB) y los worktrees de .claude (142 MB y
+# subiendo), que no entran en la imagen: el build tarda de más y el caché se
+# invalida cada vez que alguien toca un worktree.
+.git
+.gitignore
+.claude
+gui/node_modules
+gui/dist
+gui/src-tauri/target
+legacy
+testdata
+docs
+*.md
