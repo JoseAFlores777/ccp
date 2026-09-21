@@ -814,6 +814,25 @@ Montar el servidor (Postgres + Keycloak + almacenamiento S3 + el API `ccp-cloud`
 están en `deploy/ccp-cloud/`. **El despliegue público está pendiente de que el dueño lo autorice**, así que
 hasta entonces `ccp cloud` apunta al servidor que levantes tú.
 
+### El portal web
+
+El portal lo sirve el propio `ccp-cloud`, en la raíz del mismo host que el API. Entras con Keycloak y te pide
+la **frase de la bóveda**: la clave de cuenta se deriva **en la pestaña**, con Argon2id, y no sale del
+navegador —el servidor sigue guardando cosas que no sabe abrir—. La olvida al cerrar la pestaña o tras 15
+minutos sin tocar nada.
+
+- **Dispositivos**: último contacto, versión de ccp, los perfiles que tiene cada equipo y su estado frente a
+  la revisión que se le publicó, con cuántas rutas difieren.
+- **Línea de tiempo** de cada máquina, con la firma de cada snapshot comprobada contra la clave derivada
+  aquí, y un **diff entre dos cualesquiera**, agrupado por área y filtrable por ruta.
+- La firma tiene tres respuestas, no dos: válida, alterada y *este navegador no sabe verificar Ed25519*, que
+  no es lo mismo que válida.
+
+No hay paso de compilación: módulos ES empotrados en el binario, una CSP estricta y ningún script de
+terceros, así que desplegar el API es desplegar el portal. Publicar revisiones desde el portal es F3; hoy
+lee. Cómo se construye, qué necesita Keycloak y cómo mirarlo sin desplegar nada están en
+[`docs/portal.md`](docs/portal.md).
+
 ## Detectar la máquina — `ccp scan` y `ccp adopt`
 
 `ccp scan` lista todo lo de Claude que hay en esta máquina: tu `~/.claude` global, cada perfil, los MCP de cada

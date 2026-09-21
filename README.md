@@ -851,6 +851,25 @@ Setting up the server (Postgres + Keycloak + S3 storage + the `ccp-cloud` API) i
 live in `deploy/ccp-cloud/`. **The public deployment is pending the owner's authorization**, so until then
 `ccp cloud` points at whatever server you run yourself.
 
+### The web portal
+
+`ccp-cloud` serves the portal itself, at the root of the same host as the API. You log in with Keycloak and it
+asks for the **vault passphrase**: the account key is derived from it **in the tab**, with Argon2id, and never
+leaves the browser — the server keeps holding things it cannot open. It forgets the key when you close the tab
+or after 15 minutes without touching anything.
+
+- **Devices**: last contact, ccp version, the profiles each machine has and its state against the revision
+  published for it, with how many paths differ.
+- **Timeline** of each machine, with the signature of every snapshot checked against the key derived here, and
+  a **diff between any two of them**, grouped by area and filterable by path.
+- Signatures have three answers, not two: valid, altered, and *this browser cannot verify Ed25519* — which is
+  not the same as valid.
+
+There is no build step: plain ES modules embedded in the binary, a strict CSP and no third-party script, so
+deploying the API deploys the portal. Publishing revisions from the portal is F3; today it reads. How it is
+built, what Keycloak needs and how to look at it without deploying anything are in
+[`docs/portal.md`](docs/portal.md).
+
 ## Detect the machine — `ccp scan` and `ccp adopt`
 
 `ccp scan` lists everything Claude-related on this machine: your global `~/.claude`, each profile, the MCP
