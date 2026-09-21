@@ -7,8 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/snapshot"
 )
 
 // snapEnv monta un CCP_HOME con el perfil official «work» y un ~/.claude falso
@@ -281,4 +283,51 @@ func snapLabel(t *testing.T) string {
 		t.Fatalf("list --json: %q", out)
 	}
 	return list[0].Label
+}
+
+// Un snapshot de otra máquina reescribe las rutas absolutas al restaurar, y el
+// plan lo dice: si no, quien lo lee cree que va a escribir lo que el snapshot
+// guardó, y no es lo mismo.
+func TestSnapshotRestoreAvisaDeLaTraduccionDeHome(t *testing.T) {
+	home, _ := snapEnv(t)
+	st, err := core.OpenSnapshotStore(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := `{"theme":"dark","hook":"/Users/ana/bin/x"}`
+	h, err := st.PutBlob([]byte(data), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := &snapshot.Manifest{
+		Format: snapshot.FormatVersion, Created: time.Now(), Machine: "mac-de-ana",
+		Home: "/Users/ana", CCPVersion: core.Version, Trigger: "manual",
+		Items: []snapshot.Item{{
+			LPath: "claude/settings.json", Hash: h, Size: int64(len(data)),
+			Mode: 0o644, Class: snapshot.ClassAuthored,
+		}},
+	}
+	if err := st.SaveManifest(m); err != nil {
+		t.Fatal(err)
+	}
+	code, out, errs := snapRun(t, "snapshot", "restore", m.ID[:12], "--dry-run")
+	if code != 0 || !strings.Contains(out, "Rutas de /Users/ana reescritas a") {
+		t.Fatalf("plan: %d %q %q", code, out, errs)
+	}
+	// El HOME de esta máquina no se anuncia: no hay nada que traducir.
+	snapRun(t, "snapshot", "create")
+	_, out, _ = snapRun(t, "snapshot", "list", "--json")
+	var list []snapSummary
+	if err := json.Unmarshal([]byte(out), &list); err != nil {
+		t.Fatal(err)
+	}
+	var propio string
+	for _, s := range list {
+		if s.ID != m.ID {
+			propio = s.ID[:12]
+		}
+	}
+	if code, out, _ = snapRun(t, "snapshot", "restore", propio, "--dry-run"); code != 0 || strings.Contains(out, "reescritas") {
+		t.Fatalf("sin traducción: %d %q", code, out)
+	}
 }
