@@ -313,15 +313,23 @@ func (s *Store) Snapshot(ctx context.Context, id string) (api.Snapshot, error) {
 // en cada registro, que es inmutable, y eso no se desincroniza—. Un registro
 // son unos kilobytes y los snapshots de una cuenta se cuentan por decenas.
 //
-// Un registro ilegible NO tumba el listado: se cuenta como eslabón que falta
-// (no aparece) y el que lo note será la verificación de la cadena, que es
-// quien sabe decir que hay un hueco. Tirar aquí dejaría sin ver los buenos.
+// Un registro ilegible NO tumba el listado mientras quede alguno bueno: se
+// cuenta como eslabón que falta y tirar por él dejaría sin ver —ni bajar— todo
+// lo demás. Pero «ilegible» y «no está» dejan de ser lo mismo cuando no
+// sobrevive ninguno: una cadena vacía con registros que existen se le cuenta
+// al usuario como destino recién elegido («todavía no tiene snapshots»), y
+// nadie lo desmiente —`ccp sync` no tiene ninguna verificación de cadena, y la
+// de la nube consume esta lista YA filtrada, así que el hueco se borra aguas
+// arriba—. Además el push siguiente tomaría el padre de esa cadena vacía y
+// bifurcaría en silencio la historia compartida. Por eso ahí sí se avisa.
 func (s *Store) Chain(ctx context.Context) ([]api.ChainLink, error) {
 	keys, err := s.o.List(ctx, prefixSnaps)
 	if err != nil {
 		return nil, err
 	}
 	links := make([]api.ChainLink, 0, len(keys))
+	var ilegibles int
+	var primerFallo error
 	for _, key := range keys {
 		id := strings.TrimSuffix(strings.TrimPrefix(key, prefixSnaps+"/"), ".json")
 		if !strings.HasSuffix(key, ".json") || !api.ValidID(id) {
@@ -329,6 +337,12 @@ func (s *Store) Chain(ctx context.Context) ([]api.ChainLink, error) {
 		}
 		rec, ok, err := s.record(ctx, key)
 		if err != nil || !ok || rec.ID != id {
+			if err != nil {
+				ilegibles++
+				if primerFallo == nil {
+					primerFallo = err
+				}
+			}
 			continue
 		}
 		links = append(links, api.ChainLink{ID: rec.ID, Parent: rec.Parent, Created: rec.Created,
@@ -345,5 +359,9 @@ func (s *Store) Chain(ctx context.Context) ([]api.ChainLink, error) {
 		}
 		return links[i].Created.Before(links[j].Created)
 	})
+	if len(links) == 0 && ilegibles > 0 {
+		return nil, fmt.Errorf("no se pudo leer ninguno de los %d registros de %s: %w",
+			ilegibles, s.Name(), primerFallo)
+	}
 	return links, nil
 }
