@@ -552,6 +552,10 @@ func srvProfilesSync(s *server, raw json.RawMessage) (any, error) {
 		Rescued        string   `json:"rescued"`
 		Unattributed   bool     `json:"unattributed"`
 		NotRegenerated bool     `json:"not_regenerated"`
+		// mcp: lo que la regeneración proyectó a cada destino (Fase B), y su
+		// error si falló. Aditivo: un cliente viejo lo ignora.
+		MCP    []core.MCPProjection `json:"mcp"`
+		MCPErr string               `json:"mcp_error"`
 	}
 	nz := func(v []string) []string {
 		if v == nil {
@@ -559,12 +563,21 @@ func srvProfilesSync(s *server, raw json.RawMessage) (any, error) {
 		}
 		return v
 	}
+	nzMCP := func(v []core.MCPProjection) []core.MCPProjection {
+		out := make([]core.MCPProjection, 0, len(v))
+		for _, p := range v {
+			p.Written, p.Removed, p.Conflicts, p.RemoteSkipped = nz(p.Written), nz(p.Removed), nz(p.Conflicts), nz(p.RemoteSkipped)
+			out = append(out, p)
+		}
+		return out
+	}
 	out := []row{}
 	for _, d := range drifts {
 		out = append(out, row{
 			Profile: d.Profile, Adopted: nz(d.Adopted), Removed: nz(d.Removed), Conflicts: nz(d.Conflicts), Invalid: d.Invalid,
 			Skipped: nz(d.Skipped), Unsaved: nz(d.Unsaved), UnsavedError: d.UnsavedErr, Rescued: d.Rescued,
 			Unattributed: d.Unattributed, NotRegenerated: d.NotRegenerated,
+			MCP: nzMCP(d.MCP), MCPErr: d.MCPErr,
 		})
 	}
 	return map[string]any{"ok": true, "drift": out}, nil

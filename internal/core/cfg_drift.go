@@ -211,6 +211,11 @@ type SettingsDrift struct {
 	// guardado o, con Unattributed, que no había línea base con la que atribuirlo).
 	Rescued      string `json:"rescued,omitempty"`
 	Unattributed bool   `json:"unattributed,omitempty"`
+	// MCP son las proyecciones de MCP que hizo esta regeneración (mcp_project.go),
+	// una por destino con algo que contar. MCPErr las explica si alguna falló:
+	// una proyección rota no impide regenerar, pero tiene que decirse.
+	MCP    []MCPProjection `json:"mcp,omitempty"`
+	MCPErr string          `json:"mcp_error,omitempty"`
 	// NotRegenerated: la regeneración falló después de mirar la deriva, así que
 	// cc-home/settings.json sigue como estaba. No cuenta para Empty: el error ya
 	// lo dice; solo cambia cómo se enseña lo demás.
@@ -220,7 +225,8 @@ type SettingsDrift struct {
 // Empty dice si no hay nada que contar.
 func (d SettingsDrift) Empty() bool {
 	return len(d.Adopted) == 0 && len(d.Removed) == 0 && len(d.Conflicts) == 0 &&
-		len(d.Skipped) == 0 && len(d.Unsaved) == 0 && d.Invalid == "" && d.Rescued == ""
+		len(d.Skipped) == 0 && len(d.Unsaved) == 0 && d.Invalid == "" && d.Rescued == "" &&
+		len(d.MCP) == 0 && d.MCPErr == ""
 }
 
 // adoptSettingsDrift compara el cc-home/settings.json de ahora con la línea base

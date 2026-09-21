@@ -171,6 +171,25 @@ func printSettingsDrift(w io.Writer, lang i18n.Lang, drifts []core.SettingsDrift
 			}
 			fmt.Fprintln(w, warnLine(w, i18n.T(lang, key, d.Profile, d.Invalid)))
 		}
+		for _, m := range d.MCP {
+			dest := i18n.T(lang, "cli.profile.mcp_dest_"+m.Target)
+			if len(m.Written)+len(m.Removed) > 0 {
+				fmt.Fprintln(w, okLine(w, i18n.T(lang, "cli.profile.mcp_written", d.Profile, dest,
+					strings.Join(append(append([]string{}, m.Written...), m.Removed...), ", "))))
+			}
+			if len(m.Conflicts) > 0 {
+				fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.mcp_conflict", d.Profile, dest, strings.Join(m.Conflicts, ", "))))
+			}
+			if len(m.RemoteSkipped) > 0 {
+				fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.mcp_remote", d.Profile, strings.Join(m.RemoteSkipped, ", "))))
+			}
+			if m.Deferred {
+				fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.mcp_pending", d.Profile)))
+			}
+		}
+		if d.MCPErr != "" {
+			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.mcp_error", d.Profile, d.MCPErr)))
+		}
 		switch {
 		case d.Rescued != "" && d.Unattributed:
 			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.sync_unattributed", d.Profile, d.Rescued)))

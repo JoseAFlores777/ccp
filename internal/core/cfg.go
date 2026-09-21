@@ -374,7 +374,64 @@ func CfgRegenerateReport(home, name, src string) (SettingsDrift, error) {
 	if err := cfgWriteClaudeMD(home, name, src); err != nil {
 		return SettingsDrift{Profile: name}, err
 	}
-	return cfgMergeSettings(home, name, src)
+	d, err := cfgMergeSettings(home, name, src)
+	if err != nil {
+		return d, err
+	}
+	// La proyección de los MCP va en TODA regeneración, por el mismo motivo que
+	// la adopción de la deriva: si solo la hiciera `profile sync`, cualquier otro
+	// camino dejaría el destino desfasado (spec §6.1).
+	projectProfileMCP(home, name, src, &d)
+	return d, nil
+}
+
+// desktopRunning dice si la ventana de un perfil está corriendo. Es una sonda de
+// procesos, así que vive fuera de core: internal/cli la inyecta (SetDesktopRunningProbe),
+// igual que SetAutoHooksBin. Sin inyectar se responde «no corre», que es lo que
+// vale en los tests y en cualquier front-end sin acceso a `ps`… salvo que el
+// llamador sepa lo contrario.
+var desktopRunning = func(home, name string) bool { return false }
+
+// SetDesktopRunningProbe inyecta la sonda de «la ventana está abierta».
+func SetDesktopRunningProbe(f func(home, name string) bool) {
+	if f != nil {
+		desktopRunning = f
+	}
+}
+
+// projectProfileMCP proyecta los MCP efectivos del perfil a sus dos destinos y
+// anota el resultado en la deriva. Un error aquí no tumba la regeneración: el
+// cc-home ya está escrito y la proyección se reintenta en la siguiente (se
+// informa en Err para que el front-end lo diga).
+func projectProfileMCP(home, name, src string, d *SettingsDrift) {
+	if name == "" || name == "default" {
+		return
+	}
+	global, profile, err := ReadMCPLayers(home, src, name)
+	if err != nil {
+		d.MCPErr = err.Error()
+		return
+	}
+	cfg, err := Load(home)
+	if err != nil {
+		d.MCPErr = err.Error()
+		return
+	}
+	eff := MCPEffective(cfg, global, profile, name)
+	cli, err := ProjectMCPToCLI(home, name, eff)
+	if err != nil {
+		d.MCPErr = err.Error()
+	}
+	if !cli.Empty() {
+		d.MCP = append(d.MCP, cli)
+	}
+	desk, err := ProjectMCPToDesktop(home, name, eff, desktopRunning(home, name))
+	if err != nil && d.MCPErr == "" {
+		d.MCPErr = err.Error()
+	}
+	if !desk.Empty() {
+		d.MCP = append(d.MCP, desk)
+	}
 }
 
 // CfgMigrateLegacy convierte un cc-home viejo (pre-overlay) al modelo overlay.
