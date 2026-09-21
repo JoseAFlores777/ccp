@@ -25,8 +25,10 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -214,8 +216,41 @@ func collectMembers(home string, c *Config, withSecrets bool) ([]member, []Manif
 			})
 		}
 
+		// Los artefactos del perfil (spec §6.2): markdown del usuario, sin secretos.
+		for _, d := range backupProfileDirs {
+			root := filepath.Join(cfgOverlayDir(home, name), d)
+			err := filepath.WalkDir(root, func(p string, de fs.DirEntry, err error) error {
+				if err != nil {
+					if errors.Is(err, fs.ErrNotExist) {
+						return nil
+					}
+					return err
+				}
+				if !de.Type().IsRegular() {
+					return nil // ni directorios ni symlinks: solo el contenido propio
+				}
+				rel, err := filepath.Rel(profileDirPath(home, name), p)
+				if err != nil {
+					return err
+				}
+				data, err := os.ReadFile(p)
+				if err != nil {
+					return err
+				}
+				members = append(members, member{name: tarPath("profiles", name, filepath.ToSlash(rel)), data: data, mode: 0o644})
+				return nil
+			})
+			if err != nil {
+				return nil, nil, fmt.Errorf("no se pudo leer %s: %w", root, err)
+			}
+		}
+
 		if !withSecrets {
 			continue
+		}
+		// overlay/mcp.json: los MCP del perfil llevan env y headers.
+		if data, err := os.ReadFile(mcpProfileFile(home, name)); err == nil {
+			members = append(members, member{name: tarPath("profiles", name, "overlay/mcp.json"), data: data, mode: 0o600})
 		}
 		// api_key de deepseek.
 		if p.Type == "deepseek" {
@@ -479,8 +514,31 @@ func applyProfile(home string, ba *backupArchive, bc *Config, name string, cur *
 var backupProfileFiles = map[string]bool{
 	"overlay/CLAUDE.md":             true,
 	"overlay/settings.overlay.json": true,
+	"overlay/mcp.json":              true,
 	"api_key":                       true,
 	"cc-home/.claude.json":          true,
+}
+
+// backupProfileDirs son los directorios de artefactos del perfil (spec §6.2) que
+// un backup lleva enteros. Su contenido entra en la lista cerrada por prefijo,
+// con la ruta comprobada: ni «..», ni absoluta.
+var backupProfileDirs = []string{"agents", "commands", "skills", "output-styles"}
+
+// backupProfileAllowed dice si rel (relativa a profiles/<n>/) es algo que un
+// backup puede escribir.
+func backupProfileAllowed(rel string) bool {
+	if backupProfileFiles[rel] {
+		return true
+	}
+	if !filepath.IsLocal(filepath.FromSlash(rel)) || strings.Contains(rel, "..") {
+		return false
+	}
+	for _, d := range backupProfileDirs {
+		if strings.HasPrefix(rel, "overlay/"+d+"/") && len(rel) > len("overlay/"+d+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // validateBackupPaths rechaza el backup entero si un nombre de perfil del
@@ -502,7 +560,7 @@ func validateBackupPaths(ba *backupArchive) error {
 		}
 		rest, ok := strings.CutPrefix(name, "profiles/")
 		prof, rel, ok2 := strings.Cut(rest, "/")
-		if !ok || !ok2 || !known[prof] || prof == "default" || !backupProfileFiles[rel] {
+		if !ok || !ok2 || !known[prof] || prof == "default" || !backupProfileAllowed(rel) {
 			return fmt.Errorf("el backup trae %q, que ccp no restaura; archivo manipulado o de otra herramienta", name)
 		}
 	}

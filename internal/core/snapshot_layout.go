@@ -95,7 +95,14 @@ func SnapshotSources(home, src string, o SnapshotSourceOpts) ([]snapshot.Source,
 	sort.Strings(names)
 	for _, n := range names {
 		base := "ccp/profiles/" + n
-		keep(treeSources(base+"/overlay", cfgOverlayDir(home, n), snapshot.ClassAuthored))
+		ov, err := treeSources(base+"/overlay", cfgOverlayDir(home, n), snapshot.ClassAuthored)
+		// overlay/mcp.json lleva env y headers de los MCP del perfil: se sella.
+		for i := range ov {
+			if ov[i].LPath == base+"/overlay/mcp.json" {
+				ov[i].Class, ov[i].Mode = snapshot.ClassSecret, 0o600
+			}
+		}
+		keep(ov, err)
 		file(base+"/api_key", apiKeyPath(home, n), snapshot.ClassSecret)
 		keep(claudeJSONSource(base+"/cc-home/.claude.json", filepath.Join(ccHomePath(home, n), ".claude.json")))
 		file("desktop/"+n+"/claude_desktop_config.json", filepath.Join(DesktopDataDir(home, n), "claude_desktop_config.json"), snapshot.ClassSecret)
