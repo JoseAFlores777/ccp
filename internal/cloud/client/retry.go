@@ -105,6 +105,10 @@ func retryWait(attempt int, hint time.Duration) time.Duration {
 	return max(time.Duration(1<<attempt)*retryBase, hint)
 }
 
+// retryTimer es time.After con un nombre propio para que los tests midan las
+// esperas sin dormirlas.
+var retryTimer = time.After
+
 // retry ejecuta fn hasta retryAttempts veces mientras diga que el fallo es
 // reintentable. hint es lo que el servidor propuso esperar; 0 = solo el
 // retroceso exponencial.
@@ -116,10 +120,15 @@ func retry(ctx context.Context, fn func() (retryable bool, hint time.Duration, e
 		if again, hint, err = fn(); err == nil || !again {
 			return err
 		}
+		// Detrás del último intento no queda ninguna petición: esperar ahí es
+		// tiempo muerto delante del usuario antes de un error ya decidido.
+		if attempt == retryAttempts-1 {
+			break
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(retryWait(attempt, hint)):
+		case <-retryTimer(retryWait(attempt, hint)):
 		}
 	}
 	return err

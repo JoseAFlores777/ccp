@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -254,3 +255,43 @@ func TestPutVaultNoSeReintenta(t *testing.T) {
 		t.Fatalf("intentos = %d, quería 1 (crear la bóveda no se repite)", b.vistas)
 	}
 }
+
+// La última vuelta no espera a nadie: detrás de ella ya no queda ninguna
+// petición, así que dormir ahí es tiempo muerto delante del usuario —hasta 30 s
+// con un Retry-After apretado— antes de enseñarle un error que ya estaba
+// decidido. Se afirma por las esperas y no por el reloj para que el test no
+// dure lo que dura el retroceso.
+func TestRetryNoDuermeTrasElUltimoIntento(t *testing.T) {
+	var esperas []time.Duration
+	orig := retryTimer
+	retryTimer = func(d time.Duration) <-chan time.Time {
+		esperas = append(esperas, d)
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
+	defer func() { retryTimer = orig }()
+
+	llamadas := 0
+	err := retry(context.Background(), func() (bool, time.Duration, error) {
+		llamadas++
+		return true, 0, errAlways
+	})
+	if err != errAlways {
+		t.Fatalf("retry = %v, quería errAlways", err)
+	}
+	if llamadas != retryAttempts {
+		t.Fatalf("llamadas = %d, quería %d", llamadas, retryAttempts)
+	}
+	want := []time.Duration{retryBase, 2 * retryBase, 4 * retryBase}
+	if len(esperas) != len(want) {
+		t.Fatalf("esperas = %v, quería %v", esperas, want)
+	}
+	for i := range want {
+		if esperas[i] != want[i] {
+			t.Fatalf("esperas = %v, quería %v", esperas, want)
+		}
+	}
+}
+
+var errAlways = errors.New("siempre falla")
