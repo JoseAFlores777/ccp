@@ -608,8 +608,9 @@ y restaura como una unidad.
 > **Estado en F1 (implementado).** La bóveda tiene **dos** envolturas, no tres: la frase y el código de
 > recuperación. Cada equipo guarda la AK ya desbloqueada en `<CCP_HOME>/cloud/vault.key` (0600, dentro de un
 > directorio 0700) — para un mismo usuario de macOS, un archivo 0600 y un Keychain que abre `security`
-> protegen lo mismo. La **envoltura X25519 por dispositivo llega en F3**, junto con aprobar un equipo desde
-> otro; hasta entonces, dar de alta una máquina pasa siempre por escribir la frase (o el código). Ver el
+> protegen lo mismo. La **envoltura X25519 por dispositivo se aplaza a F4** (estaba planeada para F3, y F3 se
+> fue entera a los tres caminos de restauración), junto con aprobar un equipo desde otro; hasta entonces, dar
+> de alta una máquina pasa siempre por escribir la frase (o el código). Ver el
 > [ADR 0015](../../adr/0015-identity-keycloak-vault-separate.md).
 
 ### 10.3 Control desde el portal: «el portal propone, la máquina aplica»
@@ -792,6 +793,15 @@ y la máquina ejecuta (ADR 0014).
 >   `hooks` y `statusLine` de sus archivos. Un blob que no está no produce pendientes: inventar uno sobre un
 >   archivo que no se ha leído es mandar a instalar algo que quizá ya está.
 
+> **Estado en F3-4 (documentado).** Lo de este apartado se le cuenta al usuario en el README —`## Nube — el
+> mismo historial, en tu propio servidor`, en los dos idiomas: la cadena y `ccp cloud verify`, la retención que
+> poda el contenido y deja el eslabón, los tres caminos de restauración, el mapeo de §11 y la descarga a
+> archivo— y a quien vaya a tocar el código, en `CLAUDE.md` (sección *Cloud* y *Restoring from the cloud, by
+> three roads that end in one engine*). El CHANGELOG lleva una entrada por subtarea. La regla de esta fase es
+> que **cada afirmación de los estados de arriba se pueda señalar en el código**: lo que el plan daba por hecho
+> y no lo está —la envoltura X25519 por dispositivo, el selector `machines:` y `ccp.local.yaml`— se dice como
+> pendiente en §10.2, §11 y la tabla de §12 en vez de callarse. Un plan que se lee como si estuviera todo hecho
+> es el que hace perder una tarde buscando un comando que no existe.
 
 ### 10.4 Pila recomendada
 
@@ -956,6 +966,33 @@ Dokploy v0.30.4, un solo servidor.
     en el portátil del trabajo.
   - Los ajustes puramente locales viven en `ccp.local.yaml`, que **no** se sincroniza.
 
+> **Estado en F3-4 (implementado lo que usa la restauración).** El mapeo de este apartado existe y corre **en la
+> máquina que recibe** (`core.SnapshotProjects`, `ProjectMapInputsFor`), que es la única con un disco que mirar;
+> lo usan los tres caminos de §10.3.1, incluida la revisión que llega del portal (`applyRevision`), que es
+> donde más falta hace: la orden se dio en una máquina donde el repo cuelga de otra ruta. Cinco precisiones
+> que el código fijó:
+>
+> - **La identidad portable de un proyecto es `projectKey`**: 12 hex del sha256 del remoto normalizado
+>   (`git@github.com:Org/App.git`, `https://github.com/org/app` y `ssh://…` son el mismo), o de su ruta cuando no
+>   hay remoto. Una carpeta sin git viaja atada a su ruta: en otra máquina no se encuentra sola y se coloca con
+>   `--map`, que es exactamente el «a mano o se descarta» de arriba.
+> - **El asistente no clona.** Propone la ruta que traía (traducida a este HOME) si existe y, si no, una carpeta
+>   con el mismo remoto entre las de las reglas, los `projects` de los `.claude.json` y las raíces habituales; lo
+>   demás es `--map` o saltárselo. Clonar sería la primera vez que ccp trae código de la red al disco del
+>   usuario, y una restauración de configuración no es el sitio para estrenar eso.
+> - **Los comandos que faltan se nombran, pero no frenan la restauración.** `SnapshotPending` los calcula antes
+>   de escribir, sobre lo que el snapshot TRAE, y el plan los enseña; lo que no hace es cancelar por ellos. Parar
+>   por un binario que falta dejaría la configuración a medio poner y sin forma de terminarla: las instrucciones,
+>   las reglas y los perfiles se quieren aunque falte un `npx`.
+> - **El SO no se ignora, se traduce.** El `claude_desktop_config.json` de la ventana `default` se captura y se
+>   restaura en la ruta que toca en cada sistema (`~/Library/Application Support/Claude` en macOS,
+>   `$XDG_CONFIG_HOME/Claude` o `~/.config/Claude` si no), y el de cada perfil vive dentro de `CCP_HOME`, así que
+>   es portable de por sí. Lo que no viaja sigue sin viajar: tokens OAuth, `machineID`, la sesión de Desktop y
+>   los lanzadores, que se reconstruyen con `ccp desktop app`.
+> - **Las excepciones por máquina siguen sin existir**: ni el selector `machines: [<id>…]` ni `ccp.local.yaml`
+>   están en el código. Hoy lo que es de esta máquina se resuelve por omisión —`--only` al restaurar y `review`
+>   al recibir una revisión— y la pieza queda para F4, donde viven los grupos.
+
 ## 12. Orden de entrega
 
 | Fase | Entrega | Depende de | Tamaño | Sale cuando… |
@@ -968,8 +1005,8 @@ Dokploy v0.30.4, un solo servidor.
 | I | Infra: stack `ccp-cloud` en Dokploy (Postgres + Keycloak en `ccp-auth.joseiz.com` con realm `ccp` + Alarik en `ccp-s3.joseiz.com`), desde `deploy/ccp-cloud/` | — | S | Un login de prueba por flujo de dispositivo obtiene un token con `aud: ccp-api` |
 | F1 | **Implementado.** Bóveda, dispositivos, push/pull de snapshots (`ccp cloud`), el backend `ccp-cloud` y la traducción del HOME al restaurar. Falta **desplegar el API**, pendiente de autorización del usuario | D, I | L | Una segunda Mac se desbloquea con la frase de bóveda y trae el historial de la primera |
 | F2 | **Implementado.** Portal: dispositivos, historial, diff, editor y «Aplicar a…»; P-21 Nube en la app | F1 | M | Desde el portal se edita la configuración de un snapshot, se aplica a una máquina y ésta confirma allí lo ejecutable |
-| F3 | **Implementado.** Restaurar desde el portal. **F3-1**: cadena firmada comprobable (`ccp cloud verify`) y retención en el servidor. **F3-2**: descarga `.ccpsnap` / `.tar.gz` desde el CLI y desde el portal. **F3-3**: los tres caminos de restauración (app, portal, máquina nueva) con el mapeo de §11 | F2 | L | «Restaurar en <máquina>» en el portal deja la máquina en ese snapshot, con lo ejecutable confirmado en local |
-| F4 | Grupos, auditoría, rotación de AK | F3 | M | Un cambio aplicado a un grupo aparece como `aplicada` en cada máquina |
+| F3 | **Implementado.** Restaurar desde el portal. **F3-1**: cadena firmada comprobable (`ccp cloud verify`) y retención en el servidor. **F3-2**: descarga `.ccpsnap` / `.tar.gz` desde el CLI y desde el portal. **F3-3**: los tres caminos de restauración (app, portal, máquina nueva) con el mapeo de §11. **F3-4**: documentación (README, README.es, CHANGELOG, CLAUDE.md y §10.3.1 · §11 · §12 de este spec) | F2 | L | «Restaurar en <máquina>» en el portal deja la máquina en ese snapshot, con lo ejecutable confirmado en local |
+| F4 | Grupos, auditoría, rotación de AK, envoltura X25519 por dispositivo (aplazada de F3) y las excepciones por máquina de §11 (`machines:`, `ccp.local.yaml`) | F3 | M | Un cambio aplicado a un grupo aparece como `aplicada` en cada máquina |
 | E | (aplazado, D10) `ccp sync` sobre carpeta o S3 | D | M | — |
 
 **Dos vías en paralelo tras la Fase 0 (D10):**

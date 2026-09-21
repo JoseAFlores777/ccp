@@ -770,14 +770,14 @@ ccp cloud push                            # sube lo que la nube no tiene
 # la otra máquina
 ccp cloud login https://ccp.example.com
 ccp cloud unlock                          # la frase de la bóveda (no la contraseña de la cuenta)
-ccp cloud pull latest                     # lo baja al almacén local; te dice el id
-ccp snapshot restore <id>                 # el id que acaba de decir el pull, NO `latest`:
-                                          # `latest` es el más reciente por fecha de creación,
-                                          # y el bajado conserva la fecha de la otra máquina.
-                                          # enseña el plan; con --yes lo aplica
+ccp cloud restore latest                  # baja el más reciente EN LA NUBE y enseña el plan:
+                                          # qué escribiría, dónde cae aquí cada proyecto y
+                                          # qué queda por hacer a mano. Con --yes lo aplica
+ccp cloud restore <id> --only claude/settings.json --yes   # …o solo esas rutas
 
 ccp cloud status      # servidor, cuenta, equipo, bóveda y cuántos quedan por subir
 ccp cloud list        # snapshots en la nube, de todos los equipos
+ccp cloud verify      # la historia firmada entera: nadie ha quitado, reordenado ni reescrito un eslabón
 ccp cloud devices     # tus equipos; `ccp cloud revoke <id>` echa a uno
 ccp cloud logout      # revoca este equipo y borra su token y su bóveda local
 ```
@@ -799,6 +799,39 @@ puede recuperar —tus snapshots locales siguen siendo la fuente primaria—.
 - **Las firmas se comprueban con tu propia clave.** Cada snapshot va firmado con una clave derivada de la de
   la bóveda, y `pull` la verifica con la pública derivada aquí, nunca con una que diga el servidor. Un
   servidor comprometido puede negarte el servicio; colar, alterar o reordenar un snapshot, no.
+- **La historia es una cadena, y `ccp cloud verify` la recorre entera.** La firma de cada snapshot cubre el id
+  de su padre, así que `verify` caza un eslabón reescrito (`bad_signature`), uno sacado de en medio
+  (`broken_link`), uno cortado por la cabeza (`dropped` —sabe lo que subió esta máquina—), una fecha que
+  contradice a los padres (`out_of_order`) e ids repetidos o en bucle. Sale 1 si algo no cuadra, que es lo que
+  un cron necesita.
+- **La retención no rompe la cadena.** Un servidor se puede configurar para podar snapshots viejos
+  (`CCP_CLOUD_RETENTION_DAILY` / `_WEEKLY` / `_MONTHLY`; sin ninguna, que es lo de serie, lo guarda todo).
+  Podar se lleva el manifiesto y los blobs —todo lo que ocupa— y deja el eslabón: id, padre, fecha, digest y
+  firma. Es a propósito: un hueco dejado por la retención sería idéntico al que deja un servidor comprometido,
+  y entonces `verify` sería un aviso que se aprende a ignorar. Un snapshot podado no se puede bajar (el CLI lo
+  dice); el tuyo sigue en la máquina que lo hizo. **Los fijados no se podan nunca**: `ccp snapshot pin <id>`
+  (o ponerle una etiqueta) sube en el siguiente `push`.
+- **Restaurar llega a esta máquina por tres caminos, y los tres terminan en el mismo motor** (el `snapshot
+  restore` de §8.3: planifica, toma antes una foto de seguridad, aplica selectivamente y regenera la
+  proyección). Desde la app (Nube → Historial: los snapshots de todas tus máquinas, el diff contra lo que hay
+  vivo aquí, entero o por elementos sueltos); desde el portal («Restaurar en <máquina>», que publica una
+  revisión firmada y esta máquina aplica cuando su agente vuelve a asomarse, confirmando aquí lo ejecutable);
+  y en una máquina recién puesta, `ccp cloud restore`. El portal no restaura nunca por sí mismo: no hay
+  conexión entrante a tus máquinas.
+- **Una máquina nueva mapea sus propias rutas.** Un snapshot de otra máquina nombra los proyectos por su
+  remoto de git normalizado, así que `ccp cloud restore` busca aquí cada repo: la ruta que traía (traducida a
+  este HOME) y, si no está, cualquier carpeta con ese mismo remoto entre las de tus reglas, los `projects` de
+  tus `.claude.json` y las raíces habituales (`~/code`, `~/src`, `~/Documents/GitHub`…). Lo que no encuentra se
+  **salta, nunca lo adivina**, y `--map <clave>=<carpeta absoluta>` dice dónde vive (la app trae un selector de
+  carpeta). Además enseña lo que queda por hacer a mano: los tokens OAuth no viajan nunca, así que cada perfil
+  `official` necesita su `ccp profile login`, y un MCP o un hook cuyo comando no esté en esta máquina se dice
+  por su nombre antes de escribir nada.
+- **Un snapshot también se puede bajar a un archivo**, sin tocar el almacén de esta máquina —que puede ni
+  existir—: `ccp cloud pull <id> -o copia.ccpsnap` escribe el archivo portátil (`ccp snapshot import` y su
+  frase lo abren al otro lado) y `-o copia.tar.gz --decrypted` escribe los archivos tal cual, en claro,
+  legibles con cualquier `tar`. Si el snapshot lleva claves, el segundo se niega a escribirse hasta que lo
+  repitas con `--yes`: el aviso va *antes* de que el archivo exista, porque un archivo con tus claves dentro no
+  se desescribe con un mensaje.
 - **Los blobs no pasan por el API.** Van directos entre este equipo y el almacenamiento, con URLs
   prefirmadas. Lo que pase de 64 MiB se queda fuera y `push` dice qué fue.
 - **Las rutas se traducen entre máquinas.** Un snapshot hecho bajo `/Users/ana` y restaurado donde el HOME es
@@ -809,6 +842,44 @@ puede recuperar —tus snapshots locales siguen siendo la fuente primaria—.
   si temes una filtración, lo que toca es rotar la clave de cuenta, que todavía no está.
 - **Los archivos de la nube de este equipo** viven en `~/.config/ccp/cloud` (0700, cada archivo 0600): la
   sesión, el token del dispositivo, la clave desbloqueada y qué snapshots están ya subidos.
+
+### El portal propone, esta máquina aplica
+
+Nada se conecta nunca *hacia dentro* de tu Mac. El portal publica una **revisión deseada** —«llega a este
+snapshot»— firmada con la clave de cuenta, que el servidor no tiene; esta máquina se la baja, comprueba esa
+firma con su propia clave y decide qué escribe.
+
+```bash
+ccp cloud agent --once                # una pasada: bajar, reconciliar, aplicar
+ccp cloud agent                       # se queda mirando (cada 5 min; --interval 30s)
+ccp cloud review                      # confirma lo que ejecuta código aquí (--yes / --reject / --json)
+ccp cloud policy manual               # esta máquina: no se aplica nada sin confirmarlo
+```
+
+- **Merge a tres bandas, por ruta lógica**: la base (el `base` de la propia revisión, el último snapshot
+  aplicado), lo que hay vivo aquí y lo que la revisión quiere. Lo que solo cambió arriba se aplica; lo que
+  cambió en los dos lados es un **conflicto** y se deja exactamente como está; lo que solo cambió aquí se
+  conserva. Una revisión sin base es una orden absoluta («llega a este snapshot») y se aplica como una
+  restauración.
+- **Un snapshot antes de escribir**, siempre —el mismo motor que `ccp snapshot restore`—, así que el estado
+  anterior tiene un id al que volver. El agente lo dice.
+- **Lo que ejecuta código no se aplica solo** (`auto` es la política de serie): hooks, el `command`/`args` de
+  un MCP, `statusLine`, plugins, una skill con script y los permisos que **amplían** (`permissions.allow`,
+  `defaultMode`) esperan a `ccp cloud review` en esta máquina. Una cuenta robada no basta para ejecutar código
+  en tus Macs. Lo que solo *describe* configuración —instrucciones, reglas, env, permisos que restringen— se
+  aplica solo; un `settings.json` que únicamente cambia `model` no pregunta, porque preguntar por todo enseña
+  a decir que sí sin leer.
+- **La revisión sigue abierta mientras te espera.** Un resultado se informa una sola vez, así que el agente no
+  la cierra con «parcial, esperando»; quien informa del estado final (`aplicada`, `parcial`, `conflicto`,
+  `fallida`) es `ccp cloud review`, cuando ya has contestado. Hasta entonces el portal la enseña como
+  pendiente, que es lo que es.
+- **La política vive aquí, no en la nube** (`~/.config/ccp/cloud/config.json`): es la defensa de esta máquina
+  frente a su propia cuenta, y una defensa que se pudiera cambiar desde donde estaría el atacante no defiende
+  nada.
+
+**Dejarlo en segundo plano es opcional y lo instalas tú.** ccp no escribe nunca en tus `LaunchAgents`: algo
+que se despierta solo y reescribe tu configuración es decisión tuya, no de un instalador. El plist está en
+[`docs/launchagent-cloud-agent.md`](docs/launchagent-cloud-agent.md).
 
 Montar el servidor (Postgres + Keycloak + almacenamiento S3 + el API `ccp-cloud`) es otra faena; las piezas
 están en `deploy/ccp-cloud/`. **El despliegue público está pendiente de que el dueño lo autorice**, así que
@@ -830,6 +901,13 @@ minutos sin tocar nada.
   publica lo editado como revisión deseada firmada a las máquinas que elijas. Ni restaura ni crea ni borra
   elementos: el portal propone, e inventar una ruta lógica desde el navegador es fabricar un archivo que nadie
   sabe dónde poner.
+- **Descarga** de cualquier snapshot, armada en la propia pestaña: un `.ccpsnap` sellado con una frase que se
+  escribe ahí (el mismo archivo que abre `ccp snapshot import`) o un `.tar.gz` legible. El legible solo se
+  ofrece tras marcar una casilla que dice, con esas palabras, que tus claves van en claro —y sin frase el
+  `.ccpsnap` deja los secretos fuera en vez de llevarlos en claro dentro de algo que se llama «cifrado»—.
+- **«Restaurar en <máquina>»**, desde la línea de tiempo: publica una revisión firmada **sin base**, que es lo
+  que la convierte en una restauración en vez de en un merge. No sube nada, porque el snapshot ya está arriba,
+  y la máquina la aplica en cuanto su agente contacta, confirmando allí lo ejecutable.
 - La firma tiene tres respuestas, no dos: válida, alterada y *este navegador no sabe verificar Ed25519*, que
   no es lo mismo que válida.
 
@@ -1095,7 +1173,7 @@ Con comandos: `ccp config show` · `ccp config set <clave> <valor>` · `ccp conf
 | Estado / diagnóstico | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
 | Snapshots | `ccp snapshot create\|list\|diff\|restore\|export\|import` |
-| Nube | `ccp cloud login\|init\|unlock\|push\|pull\|list\|devices` |
+| Nube | `ccp cloud login\|init\|unlock\|push\|pull\|restore\|list\|verify\|devices\|agent\|review\|policy` |
 | Dar de alta o de baja un servidor MCP | `ccp mcp add\|rm <n>` · `ccp mcp list` |
 | Apagar un MCP heredado en un perfil | `ccp mcp disable <n> --profile <perfil>` |
 | Actualizar | `ccp upgrade` |
