@@ -6221,7 +6221,7 @@ servicio `api` al compose del stack `ccp-cloud` y se sirve en
 - Modify: `deploy/ccp-cloud/docker-compose.yml` (servicio `api`)
 - Modify: `deploy/ccp-cloud/README.md` (API, dominio, pasos)
 
-- [ ] **Step 1: `deploy/ccp-cloud/Dockerfile`**
+- [x] **Step 1: `deploy/ccp-cloud/Dockerfile`**
 
 ```dockerfile
 # syntax=docker/dockerfile:1
@@ -6247,7 +6247,13 @@ ENTRYPOINT ["/ccp-cloud"]
 Run: `docker build -f deploy/ccp-cloud/Dockerfile -t ccp-cloud:local .`
 Expected: la imagen se construye.
 
-- [ ] **Step 2: `.github/workflows/cloud-image.yml`**
+Hecho el 2026-09-21: 23,3 MB, `nonroot`, y arranca nombrando las variables que le
+faltan. Hizo falta un `.dockerignore` que el plan no preveía: sin él el contexto
+se llevaba los `node_modules` de la GUI y los worktrees de `.claude` —unos 250 MB
+que no entran en la imagen— y cualquier cambio en un worktree invalidaba el caché.
+Con él, 24 MB.
+
+- [x] **Step 2: `.github/workflows/cloud-image.yml`**
 
 ```yaml
 # Publica la imagen del API al etiquetar cloud-vX.Y.Z. Separado de release.yml:
@@ -6281,7 +6287,7 @@ jobs:
           tags: ghcr.io/joseaflores777/ccp-cloud:${{ github.ref_name }}
 ```
 
-- [ ] **Step 3: El servicio `api` en `deploy/ccp-cloud/docker-compose.yml`**
+- [x] **Step 3: El servicio `api` en `deploy/ccp-cloud/docker-compose.yml`**
 
 Añade al comentario de cabecera la línea
 `#   api       backend /v1 (cmd/ccp-cloud); https://ccp.joseiz.com` y este
