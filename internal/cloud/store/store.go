@@ -48,6 +48,20 @@ type Device struct {
 	SessionID string
 }
 
+// Group es un grupo de dispositivos: un nombre («todas mis Macs») y sus
+// miembros. Es una etiqueta y nada más — no autoriza: una revisión sigue
+// yendo FIRMADA a una máquina concreta, y publicar «al grupo» es publicar N
+// órdenes, una por miembro. Si el grupo mandara, cambiar quién está dentro
+// (algo que el servidor sí puede hacer, porque no va firmado) cambiaría a
+// quién obedece una orden ya firmada.
+type Group struct {
+	ID      string
+	Name    string
+	Members []string
+	Created time.Time
+	Updated time.Time
+}
+
 // Blob es un blob sellado ya verificado en el almacenamiento.
 type Blob struct {
 	ID   string
@@ -98,6 +112,12 @@ type Revision struct {
 	Updated    time.Time
 	// By es el dispositivo que la publicó.
 	By string
+	// Group es el grupo al que se publicó esta orden, si se publicó a uno.
+	// NO entra en la firma a propósito: lo firmado ata la orden a SU máquina
+	// (Revision.DeviceID), que es lo que impide desviarla. La etiqueta solo
+	// sirve para contar después el resultado por dispositivo dentro del
+	// grupo, así que un servidor que la cambiara solo estropearía un listado.
+	Group string
 }
 
 // Store es lo que el servidor necesita persistir. Toda operación va acotada a
@@ -112,6 +132,18 @@ type Store interface {
 	// revocado se devuelve igualmente, con Revoked=true: decide quien llama.
 	SeenDevice(ctx context.Context, userID, deviceID string, at time.Time) (Device, error)
 	RevokeDevice(ctx context.Context, userID, deviceID string, at time.Time) error
+	// CreateGroup crea un grupo. Los miembros tienen que ser dispositivos de
+	// esta cuenta (ErrNotFound si no) y el nombre no se puede repetir
+	// (ErrConflict): en el CLI el nombre ES el asa del grupo.
+	CreateGroup(ctx context.Context, userID string, g Group) (Group, error)
+	Groups(ctx context.Context, userID string) ([]Group, error)
+	Group(ctx context.Context, userID, id string) (Group, error)
+	// UpdateGroup cambia nombre y miembros de golpe, con las mismas reglas.
+	// Quedarse con el nombre propio no es un choque consigo mismo.
+	UpdateGroup(ctx context.Context, userID string, g Group) (Group, error)
+	// DeleteGroup borra el grupo, nunca las revisiones que se publicaron con
+	// su etiqueta: esas órdenes pasaron de verdad y su historia no cambia.
+	DeleteGroup(ctx context.Context, userID, id string) error
 	// KnownBlobs devuelve, de ids, los que ya están registrados, con su tamaño.
 	KnownBlobs(ctx context.Context, userID string, ids []string) (map[string]int64, error)
 	// CommitSnapshot publica un snapshot de forma atómica: registra newBlobs, el
@@ -162,6 +194,13 @@ type Store interface {
 	// Revisions lista de la más nueva a la más vieja, filtrando por
 	// dispositivo si deviceID no está vacío. Sin Body ni Sig.
 	Revisions(ctx context.Context, userID, deviceID string, limit int) ([]Revision, error)
+	// GroupRevisions lista las revisiones publicadas con la etiqueta de un
+	// grupo, de la más nueva a la más vieja y sin Body ni Sig. Es con lo que
+	// se cuenta el estado por dispositivo dentro del grupo, y por eso un
+	// limit <= 0 las devuelve TODAS: ese estado es la última de CADA equipo, y
+	// una ventana dejaría fuera justo la del que lleva más tiempo sin recibir
+	// nada — que es el que más falta hace mirar.
+	GroupRevisions(ctx context.Context, userID, groupID string, limit int) ([]Revision, error)
 	// SetRevisionState anota el resultado. Va acotada al dispositivo
 	// destinatario a propósito: que otro equipo cierre una orden ajena sería
 	// contar por él lo que no ha hecho. ErrNotFound si no es suya, ErrConflict

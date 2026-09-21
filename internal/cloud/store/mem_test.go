@@ -62,3 +62,6 @@ func TestMemCommitSnapshotDispositivoDesconocido(t *testing.T) {
 		t.Fatalf("CommitSnapshot con dispositivo ajeno = %v", err)
 	}
 }
+
+// TestMemGroupContract: los grupos de dispositivos y su etiqueta en las revisiones.
+func TestMemGroupContract(t *testing.T) { runGroupContract(t, NewMem()) }

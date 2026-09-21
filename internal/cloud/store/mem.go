@@ -29,6 +29,7 @@ type Mem struct {
 	basura  map[string]map[string]bool      // usuario -> blob liberado que aún ocupa el bucket
 	revs    map[string]map[string]Revision  // usuario -> id de revisión
 	heads   map[string]map[string]string    // usuario -> dispositivo -> cabeza de su cadena
+	groups  map[string]map[string]Group     // usuario -> id de grupo
 	audit   []string
 }
 
@@ -39,6 +40,7 @@ func NewMem() *Mem {
 		blobs: map[string]map[string]int64{}, snaps: map[string]map[string]Snapshot{}, refs: map[string]map[string][]string{},
 		blobAt: map[string]map[string]time.Time{}, basura: map[string]map[string]bool{},
 		revs: map[string]map[string]Revision{}, heads: map[string]map[string]string{},
+		groups: map[string]map[string]Group{},
 	}
 }
 
@@ -391,6 +393,31 @@ func (m *Mem) Revisions(_ context.Context, userID, deviceID string, limit int) (
 	out := []Revision{}
 	for _, r := range m.revs[userID] {
 		if deviceID != "" && r.DeviceID != deviceID {
+			continue
+		}
+		r.Body, r.Sig = nil, nil
+		out = append(out, r)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].Created.Equal(out[j].Created) {
+			return out[i].Created.After(out[j].Created)
+		}
+		return out[i].ID > out[j].ID
+	})
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+// GroupRevisions filtra por la etiqueta del grupo. Un groupID vacío no
+// devuelve «todas»: devolvería las sueltas, que no son de ningún grupo.
+func (m *Mem) GroupRevisions(_ context.Context, userID, groupID string, limit int) ([]Revision, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := []Revision{}
+	for _, r := range m.revs[userID] {
+		if r.Group != groupID {
 			continue
 		}
 		r.Body, r.Sig = nil, nil

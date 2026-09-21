@@ -45,6 +45,8 @@ func TestPGContract(t *testing.T) { runContract(t, openTestPG(t)) }
 
 func TestPGRevisionContract(t *testing.T) { runRevisionContract(t, openTestPG(t)) }
 
+func TestPGGroupContract(t *testing.T) { runGroupContract(t, openTestPG(t)) }
+
 // El mismo desempate que el Store de memoria: dos snapshots del mismo instante
 // tienen que salir siempre en el mismo orden, o `limit` se queda con cualquiera.
 func TestPGSnapshotsDesempataPorID(t *testing.T) {

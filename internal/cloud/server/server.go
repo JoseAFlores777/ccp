@@ -86,6 +86,14 @@ func New(c Config) http.Handler {
 	mux.Handle("POST /v1/devices", s.authed(s.createDevice, false))
 	mux.Handle("GET /v1/devices", s.authed(s.listDevices, true))
 	mux.Handle("DELETE /v1/devices/{id}", s.authed(s.revokeDevice, true))
+	// Grupos de dispositivos: una etiqueta con miembros, no una autorización
+	// (ver groups.go).
+	mux.Handle("POST /v1/groups", s.authed(s.createGroup, true))
+	mux.Handle("GET /v1/groups", s.authed(s.listGroups, true))
+	mux.Handle("GET /v1/groups/{id}", s.authed(s.getGroup, true))
+	mux.Handle("GET /v1/groups/{id}/status", s.authed(s.groupStatus, true))
+	mux.Handle("PUT /v1/groups/{id}", s.authed(s.updateGroup, true))
+	mux.Handle("DELETE /v1/groups/{id}", s.authed(s.deleteGroup, true))
 	mux.Handle("GET /v1/vault", s.authed(s.getVault, true))
 	mux.Handle("PUT /v1/vault", s.authed(s.putVault, true))
 	mux.Handle("POST /v1/blobs/presign", s.authed(s.presign, true))

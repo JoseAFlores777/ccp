@@ -475,13 +475,13 @@ func (p *PG) Snapshot(ctx context.Context, userID, id string) (Snapshot, error) 
 }
 
 const revCols = `r.id, r.prev, r.device_id::text, d.name, r.snapshot, r.base, r.created,
-	r.state, r.reason, r.updated, r.created_by::text`
+	r.state, r.reason, r.updated, r.created_by::text, r.group_id`
 
 // scanRevision lee revCols (+ body y sig si se piden) en una Revision.
 func scanRevision(row pgx.Row, full bool) (Revision, error) {
 	var r Revision
 	dst := []any{&r.ID, &r.Prev, &r.DeviceID, &r.DeviceName, &r.Snapshot, &r.Base, &r.Created,
-		&r.State, &r.Reason, &r.Updated, &r.By}
+		&r.State, &r.Reason, &r.Updated, &r.By, &r.Group}
 	if full {
 		dst = append(dst, &r.Body, &r.Sig)
 	}
@@ -533,9 +533,9 @@ func (p *PG) PublishRevision(ctx context.Context, userID string, r Revision) (Re
 		}
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO revisions
-		(user_id, id, prev, device_id, snapshot, base, body, sig, created, state, reason, updated, created_by)
-		VALUES ($1::uuid, $2, $3, $4::uuid, $5, $6, $7, $8, $9, $10, '', $9, $11::uuid)`,
-		userID, r.ID, r.Prev, r.DeviceID, r.Snapshot, r.Base, r.Body, r.Sig, r.Created, api.RevPending, r.By)
+		(user_id, id, prev, device_id, snapshot, base, body, sig, created, state, reason, updated, created_by, group_id)
+		VALUES ($1::uuid, $2, $3, $4::uuid, $5, $6, $7, $8, $9, $10, '', $9, $11::uuid, $12)`,
+		userID, r.ID, r.Prev, r.DeviceID, r.Snapshot, r.Base, r.Body, r.Sig, r.Created, api.RevPending, r.By, r.Group)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
