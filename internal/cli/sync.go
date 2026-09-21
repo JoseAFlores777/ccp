@@ -486,6 +486,18 @@ func (c syncCmd) pullOne(r *remote.Store, acct *crypt.Account, st *snapshot.Stor
 	return remote.Pull(c.ctx, r, acct, st, remote.FilesFor(c.home, e.Name), target)
 }
 
+// noneOut cuenta «el destino todavía no tiene snapshots» por el canal que
+// toque. Lo comparten `pull` y `apply` porque es el mismo estado: bajar es lo
+// primero que hace aplicar, y dos formas de contarlo se separarían con el uso.
+func (c syncCmd) noneOut(jsonOut bool, name string) int {
+	if jsonOut {
+		fmt.Fprintln(c.err, i18n.T(c.lang, "cli.sync.pull_none", name))
+		return snapJSON(c.out, c.err, nil)
+	}
+	fmt.Fprintln(c.out, i18n.T(c.lang, "cli.sync.pull_none", name))
+	return 0
+}
+
 func (c syncCmd) pull(args []string) int {
 	a, ok := c.args(args, []string{"--json"}, nil, 1)
 	if !ok {
@@ -503,8 +515,10 @@ func (c syncCmd) pull(args []string) int {
 	if errors.Is(err, remote.ErrNoSnapshots) {
 		// Que el destino esté vacío no es un fallo: es una carpeta recién
 		// elegida, y quien la eligió tiene que poder distinguirlo de un error.
-		fmt.Fprintln(c.out, i18n.T(c.lang, "cli.sync.pull_none", e.Name))
-		return 0
+		// Con --json el stdout es el protocolo, así que ahí va `null` (no hay
+		// snapshot que resumir) y la frase se cuenta por stderr: la prosa en
+		// stdout rompía a cualquiera que canalizara la salida a jq.
+		return c.noneOut(a.flags["--json"], e.Name)
 	}
 	if err != nil {
 		return c.fail(err)
@@ -553,8 +567,7 @@ func (c syncCmd) apply(args []string) int {
 	}
 	m, missing, err := c.pullOne(r, acct, st, e, ref)
 	if errors.Is(err, remote.ErrNoSnapshots) {
-		fmt.Fprintln(c.out, i18n.T(c.lang, "cli.sync.pull_none", e.Name))
-		return 0
+		return c.noneOut(a.flags["--json"], e.Name)
 	}
 	if err != nil {
 		return c.fail(err)
