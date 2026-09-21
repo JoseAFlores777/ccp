@@ -27,7 +27,9 @@ var catalogCloud = map[string]map[Lang]string{
   audit [--device <n>] [--json]       who did what and when (never what the config said)
        [--action <a>] [--since <d>]
   groups [--json]                     device groups («all my Macs»)
-  groups add <name> <machine>…        create one; set/rm change or delete it
+  groups add <name> <machine>…        create one; rm deletes it
+  groups set <group> [<machine>…]     rewrite its members; --name renames without
+       [--name <new>] [--empty]       touching them, --empty leaves it with nobody
   groups status <group> [--json]      how the last revision went on each machine
   agent [--once] [--interval <d>]     apply the revisions the portal publishes for this machine
   review [--yes|--reject] [--json]    confirm what runs code here before it is applied
@@ -55,7 +57,9 @@ CCP_CLOUD_PASSPHRASE, CCP_CLOUD_NEW_PASSPHRASE and CCP_CLOUD_RECOVERY give the s
   audit [--device <n>] [--json]       quién hizo qué y cuándo (nunca qué decía la configuración)
        [--action <a>] [--since <f>]
   groups [--json]                     grupos de dispositivos («todas mis Macs»)
-  groups add <nombre> <equipo>…       crea uno; set/rm lo cambian o lo borran
+  groups add <nombre> <equipo>…       crea uno; rm lo borra
+  groups set <grupo> [<equipo>…]      reescribe sus miembros; --name renombra sin
+       [--name <nuevo>] [--empty]     tocarlos, --empty lo deja sin nadie
   groups status <grupo> [--json]      cómo le fue a cada equipo la última revisión
   agent [--once] [--interval <d>]     aplica las revisiones que el portal publica para este equipo
   review [--yes|--reject] [--json]    confirma lo que ejecuta código aquí antes de aplicarlo
@@ -280,6 +284,10 @@ var catalogCloudGroups = map[string]map[Lang]string{
 	"cli.cloud.group_needed": {
 		En: "which group? ccp cloud groups lists them.",
 		Es: "¿qué grupo? ccp cloud groups los enseña.",
+	},
+	"cli.cloud.group_set_needs_members": {
+		En: "cloud groups set: which machines? Pass the full list, or --name <new> to rename without touching it, or --empty to leave it with nobody.",
+		Es: "cloud groups set: ¿qué equipos? Pasa la lista entera, o --name <nuevo> para renombrarlo sin tocarlos, o --empty para dejarlo sin nadie.",
 	},
 	"cli.cloud.group_unknown": {En: "There is no group called «%s».", Es: "No hay ningún grupo que se llame «%s»."},
 	"cli.cloud.group_added":   {En: "Group «%s» created with %d machines.", Es: "Grupo «%s» creado con %d equipos."},

@@ -127,9 +127,13 @@ func (c cloudCmd) groupsAdd(args []string) int {
 
 // groupsSet reescribe los miembros ENTEROS, no por diferencias: mandar la
 // lista que se ve es lo único que no depende de qué versión del grupo tenía
-// delante quien la manda.
+// delante quien la manda. Pero omitir la lista NO es mandar una lista vacía:
+// `set <grupo> --name <nuevo>` es el comando natural para renombrar y el
+// único que existe, así que vaciar el grupo ahí era destruir la membresía sin
+// que nadie lo pidiera. Sin posicionales: con --name se conserva lo que había,
+// y vaciarlo de verdad se pide con --empty.
 func (c cloudCmd) groupsSet(args []string) int {
-	a, ok := c.args(args, nil, []string{"--name"}, 1+api.MaxGroupMembers)
+	a, ok := c.args(args, []string{"--empty"}, []string{"--name"}, 1+api.MaxGroupMembers)
 	if !ok {
 		return 1
 	}
@@ -144,9 +148,15 @@ func (c cloudCmd) groupsSet(args []string) int {
 	if err != nil {
 		return c.fail(err)
 	}
-	members, err := c.groupMembers(cl, a.pos[1:])
-	if err != nil {
-		return c.fail(err)
+	members := g.Members
+	switch {
+	case len(a.pos) > 1 || a.flags["--empty"]:
+		members, err = c.groupMembers(cl, a.pos[1:])
+		if err != nil {
+			return c.fail(err)
+		}
+	case a.val("--name") == "":
+		return c.usage("cli.cloud.group_set_needs_members")
 	}
 	name := g.Name
 	if n := a.val("--name"); n != "" {
