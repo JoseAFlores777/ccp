@@ -22,7 +22,13 @@ func TestIdempotenteSoloDondeRepetirNoCrea(t *testing.T) {
 		{http.MethodGet, "/v1/me", true},
 		{http.MethodGet, "/v1/snapshots/chain", true},
 		{http.MethodHead, "/v1/blobs/abc", true},
-		{http.MethodPut, "/v1/vault", true},
+		// Crear la bóveda NO se reintenta aunque sea un PUT: el servidor la
+		// INSERTA y contesta 409 a la segunda llamada, así que una respuesta
+		// perdida tras el alta se convertiría en «ya tienes bóveda» y el
+		// código de recuperación —que no se reemite jamás— no lo vería nadie.
+		{http.MethodPut, "/v1/vault", false},
+		{http.MethodPut, "/v1/vault/wraps", true},
+		{http.MethodPut, "/v1/groups/uno", true},
 		{http.MethodDelete, "/v1/devices/uno", true},
 		// Los dos POST que se pueden repetir, y por qué: presign es una
 		// lectura disfrazada y el commit contesta 200 en vez de 201 cuando el
@@ -207,5 +213,44 @@ func TestPresignIncompletoFalla(t *testing.T) {
 	a := NewAPI(srv.URL, http.DefaultClient, "dev")
 	if _, err := a.Presign(context.Background(), "get", []string{"aa", "bb"}); err == nil {
 		t.Fatal("una respuesta a medias pasó como buena")
+	}
+}
+
+// bovedaFrágil imita lo que de verdad pasa: el servidor CREA la bóveda en el
+// primer PUT y la respuesta se pierde por el camino (un 502 de un proxy después
+// del commit, o un corte de conexión). Si el cliente reintenta, la segunda
+// llamada choca con un 409 y `cloud init` muere antes de enseñar el código de
+// recuperación, con la bóveda ya creada.
+type bovedaFrágil struct {
+	vistas int
+	creada bool
+}
+
+func (b *bovedaFrágil) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	b.vistas++
+	if b.creada {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"code":"conflict","message":"esta cuenta ya tiene bóveda"}`))
+		return
+	}
+	b.creada = true
+	w.WriteHeader(http.StatusBadGateway)
+	_, _ = w.Write([]byte(`{"code":"internal","message":"bad gateway"}`))
+}
+
+func TestPutVaultNoSeReintenta(t *testing.T) {
+	b := &bovedaFrágil{}
+	srv := httptest.NewServer(b)
+	t.Cleanup(srv.Close)
+	a := NewAPI(srv.URL, http.DefaultClient, "dev")
+	err := a.PutVault(context.Background(), api.Vault{})
+	if err == nil {
+		t.Fatal("PutVault devolvió nil con el servidor contestando 502")
+	}
+	if strings.Contains(err.Error(), "409") {
+		t.Fatalf("el reintento convirtió el fallo en un 409: %v", err)
+	}
+	if b.vistas != 1 {
+		t.Fatalf("intentos = %d, quería 1 (crear la bóveda no se repite)", b.vistas)
 	}
 }
