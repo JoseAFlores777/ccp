@@ -180,6 +180,20 @@ func modeRank(v any) int {
 // que Claude Code ejecuta.
 var settingsExecKeys = []string{"apiKeyHelper", "awsAuthRefresh", "awsCredentialExport"}
 
+// permsGrew dice si `permissions.<key>` de `to` trae alguna entrada que no
+// estaba en `from`. Se usa en los dos sentidos: crecer en `allow` amplía, y
+// crecer al revés (de `to` a `from`) en `deny`/`ask` significa que `to` las
+// perdió, que también amplía.
+func permsGrew(from, to map[string]any, key string) bool {
+	was := strList(dig(from, "permissions", key))
+	for s := range strList(dig(to, "permissions", key)) {
+		if !was[s] {
+			return true
+		}
+	}
+	return false
+}
+
 func settingsDangers(from, to []byte) []Danger {
 	a, okA := jsonDoc(from)
 	b, okB := jsonDoc(to)
@@ -213,14 +227,23 @@ func settingsDangers(from, to []byte) []Danger {
 			}
 		}
 	}
-	was := strList(dig(a, "permissions", "allow"))
-	now := strList(dig(b, "permissions", "allow"))
 	wider := modeRank(dig(b, "permissions", "defaultMode")) > modeRank(dig(a, "permissions", "defaultMode"))
-	for s := range now {
-		if !was[s] {
-			wider = true
-			break
-		}
+	// Ampliar no es solo añadir `allow`. En Claude Code `deny` gana
+	// precedencia sobre `allow`, así que quitar un `deny` con un `allow`
+	// amplio ya puesto deja ejecución directa sin prompt: es la ampliación de
+	// mayor consecuencia, y no mirarla dejaba que una revisión firmada
+	// borrase las reglas de bloqueo del usuario en silencio. Quitar un `ask`
+	// es lo mismo un escalón más abajo, y añadir `additionalDirectories` abre
+	// rutas nuevas a las herramientas. Al revés —añadir deny/ask, cerrar
+	// directorios— sigue aplicándose solo: restringir no se pregunta.
+	if !wider && permsGrew(a, b, "allow") {
+		wider = true
+	}
+	if !wider && permsGrew(a, b, "additionalDirectories") {
+		wider = true
+	}
+	if !wider && (permsGrew(b, a, "deny") || permsGrew(b, a, "ask")) {
+		wider = true
 	}
 	if wider {
 		out = append(out, DangerPermissions)
