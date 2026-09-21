@@ -160,15 +160,21 @@ func Once(ctx context.Context, o Opts) (*Outcome, error) {
 func LoadReview(files client.Files) (Review, bool, error) {
 	var r Review
 	ok, err := files.LoadJSON(ReviewFile, &r)
-	return r, ok, err
+	return NormalizeReview(r), ok, err
 }
 
-// saveReview normaliza las listas antes de guardar: `review.json` lo lee
-// `ccp cloud review --json` y, por la misma regla que el resto del CLI, una
-// lista vacía es [] y nunca null — quien lo consuma hace `.conflicts | length`.
-func saveReview(files client.Files, r Review) error {
+// NormalizeReview deja todas las listas de la revisión como [] y nunca nil,
+// incluido el `why` de cada pendiente — que es el que se escapaba, porque la
+// política manual deja pendientes sin motivos y la pantalla Nube los recorre
+// (`p.why.map`), así que un null ahí no era un hueco: era la ventana en blanco.
+func NormalizeReview(r Review) Review {
 	if r.Pending == nil {
 		r.Pending = []Pending{}
+	}
+	for i := range r.Pending {
+		if r.Pending[i].Why == nil {
+			r.Pending[i].Why = []Danger{}
+		}
 	}
 	if r.Conflicts == nil {
 		r.Conflicts = []Decision{}
@@ -179,7 +185,14 @@ func saveReview(files client.Files, r Review) error {
 	if r.Skipped == nil {
 		r.Skipped = []Skipped{}
 	}
-	return files.SaveJSON(ReviewFile, r)
+	return r
+}
+
+// saveReview normaliza las listas antes de guardar: `review.json` lo lee
+// `ccp cloud review --json` y, por la misma regla que el resto del CLI, una
+// lista vacía es [] y nunca null — quien lo consuma hace `.conflicts | length`.
+func saveReview(files client.Files, r Review) error {
+	return files.SaveJSON(ReviewFile, NormalizeReview(r))
 }
 
 // ClearReview olvida lo que esperaba confirmación.
@@ -310,7 +323,9 @@ func applyRevision(ctx context.Context, o Opts, rev api.Revision, out *Outcome) 
 				continue
 			}
 			if o.Policy == PolicyManual && len(why) == 0 {
-				why = nil // en manual se confirma todo, sin inventarle un motivo
+				// En manual se confirma todo, sin inventarle un motivo. Pero la
+				// lista viaja vacía, jamás nil: quien la pinta la recorre.
+				why = []Danger{}
 			}
 			pending = append(pending, Pending{LPath: d.LPath, Why: why})
 		}

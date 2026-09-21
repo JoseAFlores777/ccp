@@ -113,19 +113,9 @@ func srvCloudReview(s *server, _ json.RawMessage) (any, error) {
 	if !ok {
 		r = agent.Review{}
 	}
-	if r.Pending == nil {
-		r.Pending = []agent.Pending{}
-	}
-	if r.Conflicts == nil {
-		r.Conflicts = []agent.Decision{}
-	}
-	if r.Applied == nil {
-		r.Applied = []string{}
-	}
-	if r.Skipped == nil {
-		r.Skipped = []agent.Skipped{}
-	}
-	return r, nil
+	// Una sola definición de «listas vacías, nunca null» (incluido el `why` de
+	// cada pendiente): repetirla aquí fue lo que dejó ese campo fuera.
+	return agent.NormalizeReview(r), nil
 }
 
 // srvCloudReviewResolve cierra la revisión: aplica las rutas confirmadas y
