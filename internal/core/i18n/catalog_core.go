@@ -85,8 +85,8 @@ func init() {
 			Es: "Perfil '%s': la config del chat de su Desktop tiene %s sin declarar, así que ccp no los lleva a ninguna otra parte (ccp instruct add profile mcp … --profile %s).",
 		},
 		"doctor.cc_home_symlink_nonleaf": {
-			En: "Profile '%s': %s are directory symlinks under its cc-home and Desktop rejects them, so its Code tab will not open (ccp profile sync %s).",
-			Es: "Perfil '%s': %s son symlinks de directorio bajo su cc-home y Desktop los rechaza, así que su pestaña Code no abre (ccp profile sync %s).",
+			En: "Profile '%s': %s are directory symlinks under its cc-home and Desktop rejects them, so its Code tab will not open (ccp desktop prepare %s).",
+			Es: "Perfil '%s': %s son symlinks de directorio bajo su cc-home y Desktop los rechaza, así que su pestaña Code no abre (ccp desktop prepare %s).",
 		},
 	})
 }

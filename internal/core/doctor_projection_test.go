@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/JoseAFlores777/ccp/internal/core/i18n"
@@ -133,5 +134,47 @@ func TestDoctorMCPOnlyDesktopCallaSiNoPudoLeerLasCapas(t *testing.T) {
 	}
 	if c, ok := findCode(checks, "mcp_unmanaged_only_desktop"); ok {
 		t.Fatalf("con la capa del perfil rota no se puede acusar de sin declarar: %q", c.Label)
+	}
+}
+
+// El remedio que el hallazgo nombra tiene que ser el que lo arregla. `profile
+// sync` solo convierte los artefactos que el perfil declara en su overlay
+// (`profileArtifactDirs`), así que con `plugins` —que `seedCCHome` siembra como
+// symlink por contrato del oráculo bash— el sync no cambia nada y el aviso se
+// queda para siempre. Quien lo arregla es el espejo de Desktop.
+func TestDoctorCCHomeSymlinkNonLeafNombraElRemedioQueLoArregla(t *testing.T) {
+	home, src := mcpFixture(t)
+	mustWrite(t, filepath.Join(src, "plugins", "p", "plugin.json"), "{}\n")
+	if err := seedCCHome(home, "work"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(DesktopDataDir(home, "work"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	finding := func() (DoctorCheck, bool) {
+		checks, err := Doctor(i18n.Es, home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return findCode(checks, "cc_home_symlink_nonleaf")
+	}
+	c, ok := finding()
+	if !ok {
+		t.Fatalf("sin hallazgo no hay nada que comprobar: %+v", c)
+	}
+	if !strings.Contains(c.Label, "ccp desktop prepare work") {
+		t.Errorf("el remedio no nombra el espejo de Desktop: %q", c.Label)
+	}
+	if err := ProfileSync(home, "work"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := finding(); !ok {
+		t.Fatal("si el sync lo arreglara, el remedio viejo valdría")
+	}
+	if _, err := MirrorForDesktop(home, "work"); err != nil {
+		t.Fatal(err)
+	}
+	if c, ok := finding(); ok {
+		t.Errorf("tras el espejo el hallazgo sigue: %+v", c)
 	}
 }

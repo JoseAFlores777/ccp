@@ -151,7 +151,11 @@ func doctorOnlyDesktopMCP(home, src, name string, cfg *Config) []string {
 // que Desktop rechaza («symlink at a non-leaf component»), y con él la pestaña
 // Code de ese perfil no abre. Solo se mira en un perfil que tiene ventana: sin
 // ella esa es la forma que siembra `profile add` y que el oráculo bash exige,
-// así que acusarla sería acusar al contrato.
+// así que acusarla sería acusar al contrato. El remedio que nombra el aviso es
+// `ccp desktop prepare`, no `profile sync`: el sync solo convierte los
+// artefactos que el perfil declara en su overlay (`profileArtifactDirs`), y
+// `plugins`/`hooks` no están ahí, así que un sync los dejaría igual y el aviso
+// sería eterno. Quien los convierte es `MirrorForDesktop`.
 func doctorCCHomeNonLeafLinks(home, name string) []string {
 	dir := DesktopDataDir(home, name)
 	if dir == "" {
