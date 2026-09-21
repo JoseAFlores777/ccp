@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -157,6 +158,30 @@ func readCloudSecret(c cloudCmd, env, promptKey string, confirm bool) (string, e
 	return v, nil
 }
 
+// cloudServerSecure decide si se puede hablar con este servidor sin TLS. Mirar
+// prefijos de cadena no vale: «http://127.0.0.1.atacante.tld» empieza por
+// «http://127.0.0.1» y «http://127.0.0.1:1@atacante.tld» esconde el host real
+// detrás del userinfo, así que el token del dispositivo acabaría en claro en
+// una máquina ajena justo por la puerta que existe para impedirlo. Se parsea y
+// se mira el host de verdad, y el userinfo descalifica por sí solo.
+func cloudServerSecure(server string) bool {
+	u, err := url.Parse(server)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	if u.Scheme == "https" {
+		return true
+	}
+	if u.Scheme != "http" || u.User != nil {
+		return false
+	}
+	switch u.Hostname() {
+	case "127.0.0.1", "::1", "localhost":
+		return true
+	}
+	return false
+}
+
 func (c cloudCmd) login(args []string) int {
 	a, ok := c.args(args, nil, []string{"--name"}, 1)
 	if !ok {
@@ -176,8 +201,7 @@ func (c cloudCmd) login(args []string) int {
 	}
 	// http solo para localhost: en cualquier otro sitio el token del
 	// dispositivo viajaría en claro.
-	local := strings.HasPrefix(server, "http://127.0.0.1") || strings.HasPrefix(server, "http://localhost")
-	if !strings.HasPrefix(server, "https://") && !local {
+	if !cloudServerSecure(server) {
 		fmt.Fprintln(c.err, i18n.T(c.lang, "cli.cloud.need_https"))
 		return 1
 	}
