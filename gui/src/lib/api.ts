@@ -85,6 +85,9 @@ export interface EffRow {
   value: string;
   origin: 'global' | 'overlay' | 'auto' | 'claude-json';
   shadowed: boolean;
+  /** Dónde se lee de verdad esta fila (ADR 0016): cli · desktop-code ·
+   *  desktop-chat. Opcional: un ccp anterior a la Fase B no lo manda. */
+  applies_to?: string[];
 }
 
 export interface EffSection {
@@ -362,6 +365,106 @@ export interface AdoptReport {
   pending: AdoptStep[];
 }
 
+/** Una capa de configuración (spec §7, C1): dónde se declara lo que se está
+ *  mirando. `name` es el perfil, la ruta del proyecto o la ventana de Desktop;
+ *  vacío en global. Viaja SIEMPRE en los parámetros: serve no tiene terminal
+ *  de la que sacar un perfil activo. */
+export interface ConfigLayer {
+  level: 'global' | 'profile' | 'project' | 'desktop';
+  name?: string;
+}
+
+/** Los tipos de la columna izquierda de P-20. `settings` no está en el diseño:
+ *  recoge el resto de claves de settings.json (model, outputStyle…), que son
+ *  justo las que el usuario toca con /config. */
+export type CfgType =
+  | 'instructions' | 'mcp' | 'skills' | 'agents' | 'commands' | 'hooks'
+  | 'permissions' | 'env' | 'plugins' | 'styles' | 'statusline' | 'settings';
+
+/** `text` = el elemento ES un archivo · `json` = una clave dentro de uno ·
+ *  `entry` = una entrada suelta de una lista (un permiso). Decide qué editor
+ *  abre la pantalla y cómo viaja el valor. */
+export type CfgFormat = 'text' | 'json' | 'entry';
+
+/** La dirección de escritura de un elemento. Con `source` vacío es core quien
+ *  decide el archivo: la pantalla no tiene que saber la ruta de cada tipo en
+ *  cada capa, y por eso «subir a global» es el mismo ref con otra capa. */
+export interface ConfigRef {
+  layer: ConfigLayer;
+  type: CfgType | string;
+  name?: string;
+  source?: string;
+  key?: string;
+  entry?: string;
+}
+
+export interface ConfigItem {
+  ref: ConfigRef;
+  name: string;
+  /** La procedencia real, que no siempre es la capa mirada: un MCP de plugin
+   *  se ve en la global y viene del plugin. */
+  scope: { level: string; name?: string };
+  format: CfgFormat;
+  editable: boolean;
+  why?: string;
+  applies_to: string[];
+  managed?: boolean;
+  enabled?: boolean;
+  missing?: string;
+}
+
+export interface ConfigList {
+  layer: ConfigLayer;
+  items: ConfigItem[];
+  probes: { source: string; status: 'ok' | 'missing' | 'unknown'; error?: string }[];
+}
+
+/** El valor de un elemento. `exists` falso no es un error: el editor abre en
+ *  blanco en vez de fallar. */
+export interface ConfigValue {
+  format: CfgFormat;
+  text?: string;
+  json?: unknown;
+  exists: boolean;
+}
+
+/** Lo que devuelve una escritura del editor. `restart_pending` son los perfiles
+ *  cuya ventana de Desktop se queda con los MCP de antes hasta reiniciarla: con
+ *  la ventana viva la proyección se aplaza y el chat no la relee (ADR 0016). */
+export interface ConfigWrite {
+  ok: boolean;
+  file: string;
+  regenerated: string[];
+  restart_pending: string[];
+  mcp?: {
+    profile: string;
+    target: string;
+    file: string;
+    written: string[];
+    removed: string[];
+    conflicts: string[];
+    remote_skipped: string[];
+    deferred: boolean;
+  }[];
+  mcp_error?: string;
+}
+
+/** Una fila de `ccp mcp list`: el mismo servidor que pinta la terminal, con su
+ *  capa, sus destinos y si está apagado en el perfil que se mira. */
+export interface McpRow {
+  scope: string;
+  name: string;
+  type: string;
+  detail?: string;
+  source: string;
+  targets: string[];
+  applies_to: string[];
+  editable: boolean;
+  disabled?: boolean;
+  why?: string;
+  missing?: string;
+}
+
 export const api = {
   info: () => ccpCall<AppInfo>('app.info'),
   setLang: (lang: string) => ccpCall('app.setLang', { lang }),
@@ -432,6 +535,23 @@ export const api = {
   diag: () => ccpCall<Finding[]>('diag.run'),
   backupExport: (dest: string, with_secrets: boolean) => ccpCall('backup.export', { dest, with_secrets }),
   backupRestore: (archive: string, mode: 'merge' | 'overwrite' | 'force') => ccpCall<RestoreReport>('backup.restore', { archive, mode }),
+  // El editor de configuración (P-20, C4). La capa va siempre explícita, y las
+  // escrituras devuelven a quién regeneraron y qué ventana queda pendiente de
+  // reiniciar: la proyección la hace la propia escritura, no una llamada aparte.
+  configItems: (layer: ConfigLayer) => ccpCall<ConfigList>('config.items', { layer }),
+  configItem: (ref: ConfigRef) => ccpCall<ConfigValue>('config.item.get', { ref }),
+  configItemPut: (ref: ConfigRef, value: ConfigValue) => ccpCall<ConfigWrite>('config.item.put', { ref, value }),
+  configItemDelete: (ref: ConfigRef) => ccpCall<ConfigWrite>('config.item.delete', { ref }),
+  mcpList: (layer: ConfigLayer) => ccpCall<McpRow[]>('mcp.list', { layer }),
+  mcpPut: (layer: ConfigLayer, name: string, def: Record<string, unknown>) =>
+    ccpCall<ConfigWrite>('mcp.put', { layer, name, def }),
+  mcpDelete: (layer: ConfigLayer, name: string) => ccpCall<ConfigWrite>('mcp.delete', { layer, name }),
+  mcpSetTargets: (name: string, targets: string[]) => ccpCall<ConfigWrite>('mcp.setTargets', { name, targets }),
+  // Un solo método para el conmutador: `enabled` permite volver atrás sin una
+  // segunda ruta (mcp.enable) que mantener para la misma escritura.
+  mcpSetEnabled: (profile: string, name: string, enabled: boolean) =>
+    ccpCall<ConfigWrite>('mcp.disable', { profile, name, enabled }),
+
   inventoryScan: () => ccpCall<Inventory>('inventory.scan'),
   adoptPlan: () => ccpCall<{ steps: AdoptStep[] }>('adopt.plan'),
   // only es obligatorio aquí a propósito: [] no aplica nada; la GUI siempre dice qué pasos.

@@ -31,7 +31,7 @@ function FieldInput({ f, value, onChange, autoFocus }: { f: Field; value: string
       return (
         <textarea
           className="input"
-          rows={4}
+          rows={f.rows ?? 4}
           value={value}
           placeholder={f.placeholder}
           autoFocus={autoFocus}

@@ -9,34 +9,11 @@ import { tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, CliBar, Empty, ErrorNote, Loading, Note, Row, Segmented, TableHead } from '../components/ui';
+// Los nombres de sección y la etiqueta de procedencia son los mismos que usa
+// P-20: una sola definición, o las dos pantallas acaban contando cosas distintas.
+import { EFFECTIVE_ORDER, EFF_SECTION_NAMES, effOriginLabel } from './ConfiguracionEfectivo';
 
 type Tab = 'instructions' | 'env' | 'effective';
-
-function originLabel(r: EffRow): { label: string; color: string } {
-  if (r.shadowed) return { label: t('{o} · tapado', { o: r.origin === 'global' ? t('global') : r.origin === 'overlay' ? t('perfil') : t('sensores') }), color: 'var(--ink-4)' };
-  if (r.origin === 'overlay') return { label: t('perfil'), color: 'var(--accent)' };
-  if (r.origin === 'auto') return { label: t('sensores'), color: 'var(--warn)' };
-  if (r.origin === 'claude-json') return { label: '.claude.json', color: 'var(--ink-3)' };
-  return { label: t('global'), color: 'var(--ink-3)' };
-}
-
-const SECTION_NAMES: Record<EffSection['kind'], string> = {
-  instructions: 'Instrucciones',
-  env: 'Variables de entorno',
-  permissions: 'Permisos permitidos',
-  deny: 'Permisos denegados',
-  ask: 'Permisos que preguntan',
-  settings: 'Ajustes',
-  mcp: 'Servidores MCP (del .claude.json del perfil)',
-  hooks: 'Hooks y barra de estado',
-  plugins: 'Plugins',
-  sensors: 'Sensores',
-  other: 'Otros',
-};
-
-// El motor manda las secciones nuevas al final para no mover las de antes; aquí
-// se enseñan agrupadas: los tres tipos de permiso juntos, luego lo demás.
-const EFFECTIVE_ORDER: EffSection['kind'][] = ['env', 'permissions', 'deny', 'ask', 'settings', 'mcp', 'hooks', 'plugins', 'sensors', 'other'];
 
 const COLS = '1.2fr 1.6fr .8fr 118px';
 
@@ -52,7 +29,7 @@ export function Config() {
 
   const renderRows = (rows: EffRow[], kind: EffSection['kind']) =>
     rows.map((r, i) => {
-      const o = originLabel(r);
+      const o = effOriginLabel(r);
       const own = r.origin === 'overlay' && !isDefault;
       let overlayIdx = 0;
       if (kind === 'instructions' && own) overlayIdx = rows.slice(0, i + 1).filter((x) => x.origin === 'overlay').length;
@@ -147,7 +124,7 @@ export function Config() {
         <Card key={sec.kind} pad={false} clip shadow style={{ marginBottom: 14 }}>
           {tab === 'effective' && (
             <div style={{ padding: '12px 18px 0', display: 'flex', gap: 10, alignItems: 'baseline', minWidth: 0 }}>
-              <span className="label" style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}>{t(SECTION_NAMES[sec.kind])}</span>
+              <span className="label" style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}>{t(EFF_SECTION_NAMES[sec.kind])}</span>
               {sec.file && <span className="mono ellipsis" style={{ fontSize: 10.5, color: 'var(--ink-4)' }}>{tilde(sec.file)}</span>}
             </div>
           )}
