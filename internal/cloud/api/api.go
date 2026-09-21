@@ -6,7 +6,11 @@
 package api
 
 import (
+	"crypto/ed25519"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -70,6 +74,16 @@ type Vault struct {
 	PassphraseWrap []byte          `json:"passphrase_wrap"`
 	RecoveryWrap   []byte          `json:"recovery_wrap"`
 	SignPub        []byte          `json:"sign_pub"`
+}
+
+// VaultRewrap es lo que llega a PUT /v1/vault/wraps: las envolturas nuevas y
+// la firma que prueba que quien las sube tiene la AK. La clave pública de
+// firma no basta —el servidor la sirve en claro en GET /v1/vault—, así que sin
+// esta firma cualquier dispositivo autenticado podría pisar la bóveda y dejar
+// sin abrir todo lo publicado.
+type VaultRewrap struct {
+	Vault
+	Sig []byte `json:"sig"`
 }
 
 // DeviceIn registra un dispositivo (POST /v1/devices).
@@ -314,3 +328,43 @@ type RevisionStateIn struct {
 // MaxReasonLen es el tope del motivo de un estado. Es un mensaje para una
 // persona, no un volcado de log.
 const MaxReasonLen = 2000
+
+// RewrapParts es lo que ata una rotación de envolturas: las dos que se
+// reemplazan y las tres cosas que llegan en su lugar.
+//
+// Las envolturas ANTERIORES entran en la firma a propósito: cada rotación
+// queda atada a la bóveda exacta que sustituye, y como cada rotación estrena
+// sal, una petición firmada no vuelve a encajar nunca. Sin eso, una rotación
+// capturada podría reponerse más tarde y devolver la cuenta a una frase vieja.
+type RewrapParts struct {
+	PrevPassphraseWrap []byte
+	PrevRecoveryWrap   []byte
+	KDF                []byte
+	PassphraseWrap     []byte
+	RecoveryWrap       []byte
+}
+
+// RewrapSigned es lo que se firma en una rotación. Prefijo de dominio propio
+// —una firma de rotación no puede pasar por la de un snapshot ni por la de una
+// revisión— y los campos como hashes hexadecimales, que no pueden llevar
+// dentro el separador.
+func RewrapSigned(p RewrapParts) []byte {
+	h := func(b []byte) string {
+		sum := sha256.Sum256(b)
+		return hex.EncodeToString(sum[:])
+	}
+	return []byte("ccp/v1/vault-rewrap\n" + h(p.PrevPassphraseWrap) + "\n" + h(p.PrevRecoveryWrap) +
+		"\n" + h(p.KDF) + "\n" + h(p.PassphraseWrap) + "\n" + h(p.RecoveryWrap))
+}
+
+// VerifyRewrap comprueba esa firma con la clave pública que el servidor ya
+// tenía guardada. Vive aquí y no en crypt porque quien verifica —el servidor—
+// no tiene la AK ni importa ese paquete.
+func VerifyRewrap(signPub []byte, p RewrapParts, sig []byte) error {
+	// ed25519.Verify entra en pánico con una clave de otro tamaño, y esta
+	// viene del almacén: se comprueba antes de mirarla.
+	if len(signPub) != ed25519.PublicKeySize || !ed25519.Verify(ed25519.PublicKey(signPub), RewrapSigned(p), sig) {
+		return errors.New("api: la rotación no viene firmada con la clave de la cuenta")
+	}
+	return nil
+}

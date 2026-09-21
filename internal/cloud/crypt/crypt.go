@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/JoseAFlores777/ccp/internal/cloud/api"
 	"github.com/JoseAFlores777/ccp/internal/snapshot"
 	"github.com/JoseAFlores777/ccp/internal/vault"
 )
@@ -316,4 +317,14 @@ func checkAK(ak []byte, w Wraps) ([]byte, error) {
 		return nil, errors.New("crypt: la bóveda abre, pero su clave no corresponde a la cuenta")
 	}
 	return ak, nil
+}
+
+// SignRewrap firma una rotación de envolturas con la clave de la cuenta. Es la
+// única prueba que el servidor puede pedir de que quien rota tiene la AK: no
+// sabe abrir ninguna envoltura, y la clave pública de firma la sirve él mismo
+// en claro, así que copiarla no demuestra nada. Qué se firma exactamente lo
+// define api.RewrapSigned, que es formato de cable y lo comparten los dos
+// lados; aquí solo está la mitad que necesita la clave privada.
+func (a *Account) SignRewrap(p api.RewrapParts) []byte {
+	return ed25519.Sign(a.sign, api.RewrapSigned(p))
 }
