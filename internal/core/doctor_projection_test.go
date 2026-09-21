@@ -118,3 +118,20 @@ func TestDoctorCCHomeSymlinkNonLeafSoloConDesktop(t *testing.T) {
 		t.Fatalf("con ventana de Desktop el symlink es un hallazgo: %+v", checks)
 	}
 }
+
+// Una capa rota no convierte en «sin declarar» a lo que sí lo está: si no se
+// pudo mirar, se calla (regla del ADR 0009, cabecera de doctor_projection.go).
+func TestDoctorMCPOnlyDesktopCallaSiNoPudoLeerLasCapas(t *testing.T) {
+	home, _ := mcpFixture(t)
+	dd := DesktopDataDir(home, "work")
+	mustWrite(t, filepath.Join(dd, "claude_desktop_config.json"),
+		`{"mcpServers":{"github":{"command":"npx","args":["gh"]},"fs":{"command":"npx","args":["fs"]}}}`)
+	mustWrite(t, mcpProfileFile(home, "work"), `{"mcpServers":{`)
+	checks, err := Doctor(i18n.Es, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c, ok := findCode(checks, "mcp_unmanaged_only_desktop"); ok {
+		t.Fatalf("con la capa del perfil rota no se puede acusar de sin declarar: %q", c.Label)
+	}
+}
