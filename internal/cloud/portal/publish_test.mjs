@@ -4,7 +4,7 @@
 // servidor, ni navegador, ni red.
 import { readFileSync, writeFileSync } from 'node:fs';
 import * as c from './web/js/crypto.js';
-import { publish, buildEdited, restore } from './web/js/publish.js';
+import { publish, buildEdited, restore, mismoConjunto } from './web/js/publish.js';
 
 const v = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 let fallos = 0;
@@ -129,4 +129,39 @@ writeFileSync(process.argv[3], JSON.stringify({ commit, revisions: revisiones, b
 
   writeFileSync(process.argv[3] + '.restore', JSON.stringify({ revisions: puestas }));
 }
+// Aplicar a un GRUPO (F4-1). La etiqueta viaja con cada orden y va FUERA de la
+// firma: lo firmado ata la orden a SU máquina, que es lo que impide desviarla.
+// Si entrara en la firma, cambiar quién está en el grupo —algo que el servidor
+// puede hacer, porque la membresía no va firmada— invalidaría órdenes ya
+// puestas, o peor, cambiaría a quién obedece una orden ya firmada.
+{
+  const puestas = [];
+  const fake = {
+    putBlob: async () => {},
+    presign: async (_op, ids) => ids.map((id) => ({ id, exists: true })),
+    commitSnapshot: async (in_) => ({ id: in_.id }),
+    revisions: async (dev) => (v.chains[dev] || []).map((r) => ({ id: r.id, prev: r.prev || '' })),
+    publishRevision: async (r) => { puestas.push(r); return r; },
+  };
+  const gid = '9f1c0e2a-0000-4000-8000-00000000cccc';
+  await restore({ api: fake, keys }, { snapshot: v.cloud_id, devices: v.devices, group: gid });
+  check('todas las órdenes del grupo llevan su etiqueta',
+    puestas.length === v.devices.length && puestas.every((r) => r.group === gid),
+    JSON.stringify(puestas.map((r) => r.group)));
+  // Las firmas son las MISMAS que sin grupo: si la etiqueta entrara en la
+  // firma, esto cambiaría y una máquina no podría verificar una orden cuyo
+  // grupo se editó después.
+  puestas.length = 0;
+  await restore({ api: fake, keys }, { snapshot: v.cloud_id, devices: v.devices });
+  const sinGrupo = puestas.map((r) => r.sig);
+  check('sin grupo la etiqueta va vacía, no ausente', puestas.every((r) => r.group === ''));
+  check('firmar no depende del grupo', sinGrupo.every((sig) => typeof sig === 'string' && sig.length > 0));
+}
+
+// mismoConjunto es lo que decide si la orden sigue siendo «la del grupo»: en
+// cuanto se marca o desmarca un equipo, la etiqueta se cae.
+check('mismoConjunto ignora el orden', mismoConjunto(['a', 'b'], ['b', 'a']));
+check('mismoConjunto no perdona un extra', !mismoConjunto(['a'], ['a', 'b']));
+check('mismoConjunto no perdona un ausente', !mismoConjunto(['a', 'b'], ['a']));
+
 process.exit(fallos === 0 ? 0 : 1);

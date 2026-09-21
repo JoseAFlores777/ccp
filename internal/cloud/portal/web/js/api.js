@@ -105,3 +105,12 @@ export const snapshots = (dev, limit = 200) =>
 export const snapshot = (id) => req('GET', '/v1/snapshots/' + encodeURIComponent(id));
 export const revisions = (dev, limit = 20) =>
   req('GET', '/v1/revisions?limit=' + limit + (dev ? '&device=' + encodeURIComponent(dev) : ''));
+
+// Grupos de dispositivos («todas mis Macs», §10.3). Un grupo es una etiqueta
+// con miembros y no autoriza nada: aplicar a un grupo sigue siendo publicar
+// una revisión FIRMADA por miembro.
+export const groups = () => req('GET', '/v1/groups');
+export const createGroup = (in_) => req('POST', '/v1/groups', in_);
+export const updateGroup = (id, in_) => req('PUT', '/v1/groups/' + encodeURIComponent(id), in_);
+export const deleteGroup = (id) => req('DELETE', '/v1/groups/' + encodeURIComponent(id));
+export const groupStatus = (id) => req('GET', '/v1/groups/' + encodeURIComponent(id) + '/status');
