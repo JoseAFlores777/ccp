@@ -22,8 +22,6 @@ package core
 import (
 	"fmt"
 	"net/url"
-	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
@@ -296,9 +294,8 @@ func mcpDeclaredLayer(r InventoryRoots, layer ConfigLayer) (ConfigLayer, error) 
 			return ConfigLayer{}, fmt.Errorf("no existe el perfil %q: su overlay no lo leería nadie", write.Name)
 		}
 	case "project":
-		dir := filepath.Clean(write.Name)
-		if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
-			return ConfigLayer{}, fmt.Errorf("no existe la carpeta del proyecto %s", dir)
+		if err := cfgRequireProjectDir(write); err != nil {
+			return ConfigLayer{}, err
 		}
 	}
 	return write, nil
