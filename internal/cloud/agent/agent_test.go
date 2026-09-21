@@ -405,9 +405,12 @@ func TestElBucleInformaYSeParaAlCancelar(t *testing.T) {
 	visto := make(chan *Outcome, 4)
 	done := make(chan struct{})
 	go func() {
-		Loop(ctx, m.o, 10*time.Millisecond, func(out *Outcome, err error) {
+		Loop(ctx, m.o, 10*time.Millisecond, func(out *Outcome, err error, recovered bool) {
 			if err != nil {
 				t.Errorf("no esperaba error: %v", err)
+			}
+			if recovered || out == nil {
+				return // nada que mirar: aquí nunca falló nada
 			}
 			select {
 			case visto <- out:

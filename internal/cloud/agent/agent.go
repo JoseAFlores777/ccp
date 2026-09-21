@@ -439,23 +439,58 @@ func tally(rep *core.SnapshotRestoreReport, skipped []Skipped) ([]string, []Skip
 // coste de enterarse tarde es esperar un rato, no perder nada.
 const DefaultInterval = 5 * time.Minute
 
+// loopNotes recuerda lo último que se contó, para no contarlo otra vez. Con la
+// nube caída el bucle SIGUE preguntando —es lo que pide §10.5.8: la nube no
+// bloquea a ccp— y sin esto escribiría la misma línea cada cinco minutos hasta
+// tapar todo lo demás. Callar del todo tampoco vale: entonces nadie sabría
+// cuándo volvió, así que la vuelta también se dice, una vez.
+type loopNotes struct{ last string }
+
+// step dice qué hay que contar de una pasada: el error cuando es nuevo (o
+// cuando llega tras una pasada buena, porque eso es otro corte), y la vuelta
+// cuando una pasada va bien después de haber fallado.
+func (n *loopNotes) step(err error) (report, recovered bool) {
+	if err != nil {
+		if s := err.Error(); s != n.last {
+			n.last = s
+			return true, false
+		}
+		return false, false
+	}
+	if n.last != "" {
+		n.last = ""
+		return false, true
+	}
+	return false, false
+}
+
 // Loop pregunta cada `every` hasta que se cancela el contexto. report recibe
 // cada pasada con algo que contar; ErrNothing no se informa, que es el caso
 // normal. Un error NO para el bucle: la nube nunca bloquea a ccp (§10.5.3), y
 // un agente que se muere con el primer corte de red deja de aplicar para
-// siempre sin que nadie se entere.
-func Loop(ctx context.Context, o Opts, every time.Duration, report func(*Outcome, error)) {
+// siempre sin que nadie se entere. Un error repetido tampoco se repite
+// (loopNotes), y `recovered` marca la pasada en la que la nube volvió.
+func Loop(ctx context.Context, o Opts, every time.Duration, report func(out *Outcome, err error, recovered bool)) {
 	if every <= 0 {
 		every = DefaultInterval
 	}
+	var notes loopNotes
 	for {
 		out, err := Once(ctx, o)
+		nada := errors.Is(err, ErrNothing)
+		if nada {
+			err = nil
+		}
+		di, vuelta := notes.step(err)
 		switch {
-		case errors.Is(err, ErrNothing):
 		case ctx.Err() != nil:
 			return
-		default:
-			report(out, err)
+		case err != nil && di:
+			report(nil, err, false)
+		case err == nil && vuelta:
+			report(out, nil, true)
+		case err == nil && !nada:
+			report(out, nil, false)
 		}
 		t := time.NewTimer(every)
 		select {

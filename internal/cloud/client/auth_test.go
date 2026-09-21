@@ -56,3 +56,36 @@ func TestDiscoverRechazaEndpointsAjenos(t *testing.T) {
 		})
 	}
 }
+
+// Las versiones incompatibles no son una sola situación, son dos, y mandan a
+// actualizar cosas distintas. Decirle a quien tiene el ccp nuevo que actualice
+// ccp es mandarlo a repetir lo que ya hizo.
+func TestDiscoverDistingueQuienVaAtrasado(t *testing.T) {
+	info := func(v int) string {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/info", func(w http.ResponseWriter, r *http.Request) {
+			_ = json.NewEncoder(w).Encode(api.Info{APIVersion: v, Issuer: "https://x/realms/ccp", ClientID: "ccp"})
+		})
+		srv := httptest.NewServer(mux)
+		t.Cleanup(srv.Close)
+		return srv.URL
+	}
+	t.Run("el servidor va por delante", func(t *testing.T) {
+		_, err := Discover(context.Background(), http.DefaultClient, info(api.Version+1))
+		if err == nil || !strings.Contains(err.Error(), "actualiza ccp") {
+			t.Fatalf("err = %v", err)
+		}
+	})
+	t.Run("el servidor va por detrás", func(t *testing.T) {
+		_, err := Discover(context.Background(), http.DefaultClient, info(api.Version-1))
+		if err == nil {
+			t.Fatal("una versión vieja del servidor pasó")
+		}
+		if strings.Contains(err.Error(), "actualiza ccp") {
+			t.Fatalf("manda a actualizar lo que ya está al día: %v", err)
+		}
+		if !strings.Contains(err.Error(), "servidor") {
+			t.Fatalf("no dice qué hay que actualizar: %v", err)
+		}
+	})
+}
