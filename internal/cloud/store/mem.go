@@ -30,7 +30,8 @@ type Mem struct {
 	revs    map[string]map[string]Revision  // usuario -> id de revisión
 	heads   map[string]map[string]string    // usuario -> dispositivo -> cabeza de su cadena
 	groups  map[string]map[string]Group     // usuario -> id de grupo
-	audit   []string
+	audit   map[string][]AuditEntry         // usuario -> registro, en orden de llegada
+	auditN  int64                           // el id de la próxima entrada
 }
 
 // NewMem devuelve un Store vacío.
@@ -40,7 +41,7 @@ func NewMem() *Mem {
 		blobs: map[string]map[string]int64{}, snaps: map[string]map[string]Snapshot{}, refs: map[string]map[string][]string{},
 		blobAt: map[string]map[string]time.Time{}, basura: map[string]map[string]bool{},
 		revs: map[string]map[string]Revision{}, heads: map[string]map[string]string{},
-		groups: map[string]map[string]Group{},
+		groups: map[string]map[string]Group{}, audit: map[string][]AuditEntry{},
 	}
 }
 
@@ -448,13 +449,6 @@ func (m *Mem) SetRevisionState(_ context.Context, userID, deviceID, id, state, r
 	r.State, r.Reason, r.Updated = state, reason, at
 	m.revs[userID][id] = r
 	return cloneRevision(r), nil
-}
-
-func (m *Mem) Audit(_ context.Context, userID, deviceID, action string, _ map[string]any) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.audit = append(m.audit, userID+" "+deviceID+" "+action)
-	return nil
 }
 
 func (m *Mem) Ping(context.Context) error { return nil }

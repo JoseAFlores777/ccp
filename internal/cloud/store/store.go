@@ -206,7 +206,14 @@ type Store interface {
 	// contar por él lo que no ha hecho. ErrNotFound si no es suya, ErrConflict
 	// si ya no estaba pendiente.
 	SetRevisionState(ctx context.Context, userID, deviceID, id, state, reason string, at time.Time) (Revision, error)
+	// Audit apunta una acción. Solo inserta, y el detalle pasa por
+	// SanitizeAuditDetail: el registro dice QUÉ pasó, nunca qué
+	// configuración había dentro — el servidor no la puede leer.
 	Audit(ctx context.Context, userID, deviceID, action string, detail map[string]any) error
+	// AuditLog lee el registro de una cuenta, del más nuevo al más viejo. Un
+	// Limit <= 0 devuelve DefaultAuditLimit, no todas: el registro crece sin
+	// fin. ErrNotFound si el usuario no es un id de esta casa.
+	AuditLog(ctx context.Context, userID string, f AuditFilter) ([]AuditEntry, error)
 	Ping(ctx context.Context) error
 }
 

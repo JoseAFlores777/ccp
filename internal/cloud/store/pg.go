@@ -620,19 +620,3 @@ func (p *PG) SetRevisionState(ctx context.Context, userID, deviceID, id, state, 
 	}
 	return p.Revision(ctx, userID, id)
 }
-
-// Audit solo inserta. user_id y device_id admiten NULL a propósito: hay cosas
-// que apuntar (un login que no llegó a cuajar) sin una cuenta o un equipo aún.
-func (p *PG) Audit(ctx context.Context, userID, deviceID, action string, detail map[string]any) error {
-	if detail == nil {
-		detail = map[string]any{}
-	}
-	d, err := json.Marshal(detail)
-	if err != nil {
-		return err
-	}
-	_, err = p.pool.Exec(ctx, `INSERT INTO audit_log (user_id, device_id, action, detail)
-		VALUES (NULLIF($1, '')::uuid, NULLIF($2, '')::uuid, $3, $4::jsonb)`,
-		userID, deviceID, action, string(d))
-	return err
-}
