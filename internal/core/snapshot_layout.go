@@ -51,6 +51,11 @@ type SnapshotSourceOpts struct {
 	// WithState añade conversaciones (cc-home/projects) y handoffs.yaml. Pesan y
 	// son sensibles, por eso no van por defecto (spec D4).
 	WithState bool
+	// ProjectDirs son carpetas de proyecto a capturar además de las que tienen
+	// regla. Existe por el snapshot de seguridad del restore: un mapeo puede
+	// apuntar a un clon sin regla en ccp, y sin esto su contenido anterior no
+	// entraría en la foto previa — se pisaría sin copia.
+	ProjectDirs []string
 }
 
 // Del ~/.claude global, la configuración del usuario. De plugins/ entran solo
@@ -122,7 +127,7 @@ func SnapshotSources(home, src string, o SnapshotSourceOpts) ([]snapshot.Source,
 	if dir, err := DesktopUserDataDir(home, "default"); err == nil {
 		file("desktop/default/claude_desktop_config.json", filepath.Join(dir, "claude_desktop_config.json"), snapshot.ClassSecret)
 	}
-	keep(projectSources(cfg.Rules))
+	keep(projectSources(cfg.Rules, o.ProjectDirs))
 
 	if firstErr != nil {
 		return nil, firstErr
@@ -218,25 +223,32 @@ func claudeJSONSource(lpath, abs string) ([]snapshot.Source, error) {
 // otra máquina es el mismo proyecto) o, sin remoto, de la ruta. Si dos clones
 // del mismo remoto tienen regla, el segundo se identifica por su ruta para que
 // no choquen.
-func projectSources(rules []Rule) ([]snapshot.Source, error) {
+func projectSources(rules []Rule, extra []string) ([]snapshot.Source, error) {
 	var out []snapshot.Source
-	used := map[string]string{} // clave -> ruta que la usa
+	paths := make([]string, 0, len(rules)+len(extra))
 	for _, r := range rules {
-		remote := gitOriginURL(r.Path)
-		key := projectKey(r.Path, remote)
-		if owner, taken := used[key]; taken && owner != r.Path {
-			key = projectKey(r.Path, "")
+		paths = append(paths, r.Path)
+	}
+	// Las carpetas sin regla van después: si una ya venía por regla, la clave
+	// está tomada por esa misma ruta y se salta sola.
+	paths = append(paths, extra...)
+	used := map[string]string{} // clave -> ruta que la usa
+	for _, path := range paths {
+		remote := gitOriginURL(path)
+		key := projectKey(path, remote)
+		if owner, taken := used[key]; taken && owner != path {
+			key = projectKey(path, "")
 		}
 		if _, dup := used[key]; dup {
 			continue
 		}
-		used[key] = r.Path
-		meta := map[string]string{"path": r.Path}
+		used[key] = path
+		meta := map[string]string{"path": path}
 		if remote != "" {
 			meta["remote"] = remote
 		}
 		for _, rel := range projectLocalFiles {
-			ss, err := fileSource("project/"+key+"/"+rel, filepath.Join(r.Path, filepath.FromSlash(rel)), snapshot.ClassAuthored, meta)
+			ss, err := fileSource("project/"+key+"/"+rel, filepath.Join(path, filepath.FromSlash(rel)), snapshot.ClassAuthored, meta)
 			if err != nil {
 				return nil, err
 			}
@@ -307,12 +319,14 @@ type SnapshotCaptureOpts struct {
 	Force     bool // captura aunque no haya cambios
 	Now       time.Time
 	Machine   string
+	// ProjectDirs: carpetas de proyecto sin regla que también hay que fotografiar.
+	ProjectDirs []string
 }
 
 // SnapshotCapture toma un snapshot del estado vivo. Si no cambió nada desde el
 // último devuelve ese último y snapshot.ErrNoChanges (salvo Force).
 func SnapshotCapture(home, src string, st *snapshot.Store, o SnapshotCaptureOpts) (*snapshot.Manifest, error) {
-	srcs, err := SnapshotSources(home, src, SnapshotSourceOpts{WithState: o.WithState})
+	srcs, err := SnapshotSources(home, src, SnapshotSourceOpts{WithState: o.WithState, ProjectDirs: o.ProjectDirs})
 	if err != nil {
 		return nil, err
 	}
