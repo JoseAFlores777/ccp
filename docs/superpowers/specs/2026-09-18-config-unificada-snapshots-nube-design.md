@@ -267,6 +267,15 @@ Tamaño: **M**.
 
 ## 6. Subproyecto B: capas unificadas y proyección (incluido Desktop)
 
+> **Implementado (plan 2026-09-19-fase-b-proyeccion; [ADR 0011](../../adr/0011-una-fuente-declarada-varias-proyecciones.md)).**
+> Motor en `core/mcp_layers.go`, `core/mcp_project.go`, `core/profile_artifacts.go`,
+> `core/settings_layers.go`, `core/projection_check.go` y `core/doctor_projection.go`; la proyección entra
+> en `CfgRegenerateReport`, no solo en `profile sync`. Dos ajustes respecto a lo escrito aquí:
+> el registro de nombres gestionados del chat es `<data-dir>/.ccp-managed-mcp.json` (el del CLI sí es
+> `cc-home/.ccp-managed.json`: son dos destinos distintos y cada uno lleva el suyo), y `desktop_default`
+> queda **declarado y sin efecto** — `default` no se proyecta — para no volver a tocar la forma de
+> `ccp.yaml` cuando se active (D8).
+
 ### 6.1 MCP
 
 - **Global**: los `mcpServers` de `~/.claude.json`, que es el scope user oficial de `default`.
@@ -803,8 +812,8 @@ Dokploy v0.30.4, un solo servidor.
 | Fase | Entrega | Depende de | Tamaño | Sale cuando… |
 |---|---|---|---|---|
 | 0 | M1–M6 medidos + ADR de Desktop; B1–B8 | — | S | Cada «?» de §3 tiene respuesta |
-| A | `ccp scan`, `ccp adopt`, P-19 | 0 | M | En esta máquina aparecen los 6 MCP de Desktop y se proponen como global |
-| B | Proyección de MCP a CLI y a Desktop; skills y agents por perfil; hooks y permisos editables; deriva | 0, A | L | Un MCP añadido al perfil `work` aparece en `claude` y en la ventana de `work` tras `profile sync` |
+| A | **Implementado.** `ccp scan`, `ccp adopt`, P-19 | 0 | M | En esta máquina aparecen los 6 MCP de Desktop y se proponen como global |
+| B | **Implementado.** Proyección de MCP a CLI y a Desktop; skills y agents por perfil; hooks y permisos editables; deriva | 0, A | L | Un MCP añadido al perfil `work` aparece en `claude` y en la ventana de `work` tras `profile sync` |
 | C | P-20 + editores + serve y CLI `ccp mcp` | B | L | Todo lo de §3 se puede leer desde la GUI, y editar lo que es editable |
 | D | `ccp snapshot *`, retención, restore selectivo, P-17 → Snapshots | A (clasificación) | M | Un restore selectivo de un solo MCP deja la proyección al día |
 | I | Infra: stack `ccp-cloud` en Dokploy (Postgres + Keycloak en `ccp-auth.joseiz.com` con realm `ccp` + Alarik en `ccp-s3.joseiz.com`), desde `deploy/ccp-cloud/` | — | S | Un login de prueba por flujo de dispositivo obtiene un token con `aud: ccp-api` |
@@ -837,8 +846,8 @@ La vía nube puede empezar en cuanto D tenga el formato, y la I (infra) no depen
 
 ## 14. ADRs que salen de aquí
 
-- **0011** — Una fuente declarada y varias proyecciones. MCP por capas; ccp solo toca los nombres que
-  gestiona; destino chat de Desktop.
+- **0011** — [Una fuente declarada y varias proyecciones](../../adr/0011-una-fuente-declarada-varias-proyecciones.md)
+  (escrita). MCP por capas; ccp solo toca los nombres que gestiona; destino chat de Desktop.
 - **0012** — Snapshots direccionados por contenido con rutas lógicas y clases de elemento.
 - **0013** — Nube con cifrado de extremo a extremo: el servidor no lee la configuración.
 - **0014** — El portal propone y la máquina aplica: pull, revisiones firmadas y confirmación local de
