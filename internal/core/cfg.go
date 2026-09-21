@@ -227,6 +227,16 @@ func cfgWriteClaudeMD(home, name, src string) error {
 			return fmt.Errorf("no se pudo quitar symlink viejo %s: %w", dst, err)
 		}
 	}
+	if err := os.WriteFile(dst, cfgBuildClaudeMD(name, src, overlay), 0o644); err != nil {
+		return fmt.Errorf("no se pudo escribir %s: %w", dst, err)
+	}
+	return nil
+}
+
+// cfgBuildClaudeMD es el contenido de cc-home/CLAUDE.md sin escribirlo: lo
+// comparte la escritura con el modo check de la proyección, para que «lo que un
+// sync cambiaría» salga del mismo sitio que lo que el sync escribe.
+func cfgBuildClaudeMD(name, src, overlay string) []byte {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "# %s — generado por ccp (no editar a mano; usa: ccp profile config %s)\n\n", name, name)
 	globalMD := filepath.Join(src, "CLAUDE.md")
@@ -234,10 +244,7 @@ func cfgWriteClaudeMD(home, name, src string) error {
 		fmt.Fprintf(&buf, "@%s\n", globalMD)
 	}
 	fmt.Fprintf(&buf, "@%s\n", overlay)
-	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
-		return fmt.Errorf("no se pudo escribir %s: %w", dst, err)
-	}
-	return nil
+	return buf.Bytes()
 }
 
 // cfgBuildUserSettings es global ⊕ overlay: lo que sale de las capas del

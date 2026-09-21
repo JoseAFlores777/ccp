@@ -142,7 +142,12 @@ El modo *check* es **el mismo motor con `dry=true`** (`CheckMCPToCLI`, `CheckMCP
 cosa que la escritura — el mismo bug que evita compartir `traceMove` en el supervisor.
 
 `ProjectionCheck.Stale()` cuenta lo que un `sync` **arreglaría** (escrituras, retiradas, artefactos sin
-espejar, lo aplazado). **No** cuentan los conflictos ni lo que el chat no puede cargar: son estados
+espejar, lo aplazado, y los dos archivos generados: `cc-home/settings.json` y `cc-home/CLAUDE.md`, que se
+construyen con los mismos `cfgBuildSettings`/`cfgBuildClaudeMD` de la escritura y se comparan sin adoptar
+ni escribir nada — el settings **por valor**, porque `/config` reescribe el archivo con `JSON.stringify` y
+`30.0` → `30` no es algo que un sync arregle). Dejarlos fuera era el agujero que hacía decir «todo lo
+declarado está donde lo leen las apps» con el perfil desfasado por el caso más común de todos: cambiar el
+global o el overlay y olvidar el sync. **No** cuentan los conflictos ni lo que el chat no puede cargar: son estados
 permanentes que decide el usuario, y meterlos en el `Stale` dejaría `ccp profile sync --check` en 1 para
 siempre por algo que ningún sync cambia.
 

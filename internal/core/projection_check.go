@@ -10,6 +10,7 @@ package core
 // hay reglas nuevas, solo las llamadas Check* y el recorrido de artefactos.
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -22,7 +23,14 @@ type ProjectionCheck struct {
 	// Artifacts son los directorios declarados por el perfil (overlay/<dir>) que
 	// todavía no están espejados en el cc-home.
 	Artifacts []string `json:"artifacts"`
-	Err       string   `json:"error,omitempty"`
+	// Settings e Instructions son la otra mitad de lo que escribe una
+	// regeneración: cc-home/settings.json (global ⊕ overlay ⊕ auto) y
+	// cc-home/CLAUDE.md. Son la deriva más común —cambiar el global o el overlay
+	// y olvidar el sync— y sin ellas el check decía «todo al día» con el perfil
+	// desfasado.
+	Settings     bool   `json:"settings"`
+	Instructions bool   `json:"instructions"`
+	Err          string `json:"error,omitempty"`
 }
 
 // Stale dice si hace falta regenerar. Cuenta lo que un `ccp profile sync`
@@ -32,7 +40,7 @@ type ProjectionCheck struct {
 // decide el usuario, y hacerlos «desfasado» dejaría el check en 1 para siempre
 // por algo que ningún sync cambia.
 func (c ProjectionCheck) Stale() bool {
-	if len(c.Artifacts) > 0 || c.Err != "" {
+	if len(c.Artifacts) > 0 || c.Settings || c.Instructions || c.Err != "" {
 		return true
 	}
 	for _, p := range c.MCP {
@@ -77,6 +85,7 @@ func ProfileProjectionCheck(home, name string) (ProjectionCheck, error) {
 		}
 	}
 	c.Artifacts = artifactsPending(home, name, src)
+	c.Settings, c.Instructions = generatedPending(home, name, src)
 	return c, nil
 }
 
@@ -133,4 +142,60 @@ func leavesMissing(src, dst string) bool {
 		}
 	}
 	return false
+}
+
+// generatedPending dice si cc-home/settings.json y cc-home/CLAUDE.md difieren
+// de lo que la regeneración escribiría. No adopta ni escribe nada: construye el
+// contenido con los mismos cfgBuildSettings/cfgBuildClaudeMD del sync y lo
+// compara. Un cc-home que todavía no existe no cuenta como deriva (no hay
+// perfil que proyectar), igual que en artifactsPending.
+func generatedPending(home, name, src string) (settings, instructions bool) {
+	cch := ccHomePath(home, name)
+	if _, err := os.Stat(cch); err != nil {
+		return false, false
+	}
+	return settingsPending(home, name, src, cch), claudeMDPending(home, name, src, cch)
+}
+
+// settingsPending compara el settings.json generado con el que hay. La
+// comparación es por VALOR (jsonEqual), no por bytes: Claude Code reescribe el
+// archivo con JSON.stringify al tocar /config, y 30.0 → 30 no es algo que un
+// sync vaya a arreglar. Si el overlay no se puede leer no hay nada que afirmar,
+// y si el destino falta o es JSON inválido sí: la regeneración lo rehace.
+func settingsPending(home, name, src, cch string) bool {
+	overlayData, err := os.ReadFile(cfgSettingsFile(home, name))
+	if err != nil {
+		return false
+	}
+	want, err := cfgBuildSettings(home, name, src, overlayData)
+	if err != nil {
+		return false
+	}
+	got, err := os.ReadFile(filepath.Join(cch, "settings.json"))
+	if err != nil {
+		return true
+	}
+	if bytes.Equal(want, got) {
+		return false
+	}
+	w, werr := decodeJSONObject(want)
+	g, gerr := decodeJSONObject(got)
+	if werr != nil || gerr != nil {
+		return true
+	}
+	return !jsonEqual(w, g)
+}
+
+// claudeMDPending compara cc-home/CLAUDE.md con el que saldría. Un symlink
+// viejo cuenta siempre: la regeneración lo quita antes de escribir.
+func claudeMDPending(home, name, src, cch string) bool {
+	dst := filepath.Join(cch, "CLAUDE.md")
+	if isSymlink(dst) {
+		return true
+	}
+	got, err := os.ReadFile(dst)
+	if err != nil {
+		return true
+	}
+	return !bytes.Equal(got, cfgBuildClaudeMD(name, src, cfgInstrFile(home, name)))
 }

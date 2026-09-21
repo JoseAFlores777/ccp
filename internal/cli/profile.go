@@ -513,6 +513,12 @@ func printProjectionCheck(w io.Writer, lang i18n.Lang, c core.ProjectionCheck) {
 			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.mcp_pending", c.Profile)))
 		}
 	}
+	if c.Settings {
+		fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.check_settings", c.Profile)))
+	}
+	if c.Instructions {
+		fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.check_instructions", c.Profile)))
+	}
 	if len(c.Artifacts) > 0 {
 		fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.check_artifacts", c.Profile, strings.Join(c.Artifacts, ", "))))
 	}
