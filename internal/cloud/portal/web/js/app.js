@@ -218,7 +218,8 @@ async function render() {
   vault.touch();
   const partes = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
   try {
-    if (partes[0] === 'equipo' && partes[1]) await renderTimeline(partes[1]);
+    if (partes[0] === 'auditoria') await renderAudit(partes[1] || '');
+    else if (partes[0] === 'equipo' && partes[1]) await renderTimeline(partes[1]);
     else if (partes[0] === 'config' && partes[1]) await renderConfig(partes[1], partes[2] || '');
     else if (partes[0] === 'diff' && partes[2]) await renderDiff(partes[1], partes[2]);
     else await renderDevices();
@@ -293,7 +294,75 @@ async function renderDevices() {
         ['Equipo', 'Plataforma', 'ccp', 'Último contacto', 'Perfiles', 'Snapshots', 'Estado'].map((h) => el('th', {}, h)))),
       el('tbody', {}, filas)),
     devs.length === 0 ? el('p', {}, 'Aún no hay equipos dados de alta.') : null,
-    seccionGrupos(devs, grupos));
+    seccionGrupos(devs, grupos),
+    el('p', {}, el('a', { href: '#/auditoria' }, 'Ver la auditoría'),
+      el('span', { class: 'flojo' }, ' — quién hizo qué y cuándo.')));
+}
+
+// ---------------------------------------------------------------- auditoría
+
+// ACCIONES traduce lo que apunta el servidor. Una acción que no esté aquí sale
+// con su nombre crudo en vez de desaparecer: el registro es de solo inserción
+// y esconder una línea porque el portal no la conoce sería justo lo contrario.
+const ACCIONES = {
+  'device.create': 'dio de alta un equipo',
+  'device.revoke': 'revocó un equipo',
+  'vault.create': 'creó la bóveda',
+  'vault.rewrap': 'rotó las claves de acceso',
+  'snapshot.commit': 'publicó un snapshot',
+  'snapshot.pin': 'fijó o soltó un snapshot',
+  'blob.put': 'subió un contenido',
+  'revision.publish': 'publicó una revisión',
+  'revision.state': 'informó del resultado de una revisión',
+  'group.create': 'creó un grupo',
+  'group.update': 'cambió un grupo',
+  'group.delete': 'borró un grupo',
+};
+
+// detalle pinta lo apuntado, ordenado por clave para que dos líneas se puedan
+// comparar de un vistazo. Son ids y contadores: el servidor no guarda nada más
+// (store.SanitizeAuditDetail), así que aquí no hay nada que descifrar ni que
+// esconder.
+function detalleAudit(d) {
+  const claves = Object.keys(d || {}).sort();
+  if (claves.length === 0) return el('span', { class: 'flojo' }, '—');
+  return el('span', { class: 'flojo' }, claves.map((k) => {
+    const v = String(d[k]);
+    return k + '=' + (v.length > 12 && /^[0-9a-f-]+$/.test(v) ? v.slice(0, 8) : v);
+  }).join(' '));
+}
+
+async function renderAudit(deviceID) {
+  const [log, devs] = await Promise.all([
+    api.audit({ device: deviceID, limit: 200 }), api.devices()]);
+  const nombre = (id) => (devs.find((d) => d.id === id) || {}).name || '';
+  const filas = log.map((e) => {
+    // El nombre viene del servidor; si el equipo ya no está, el id sigue ahí y
+    // decirlo es más honrado que dejar la celda vacía, que se lee como «nadie».
+    let quien = e.device_name || nombre(e.device);
+    if (!e.device) quien = '—';
+    else if (!quien) quien = 'equipo ' + e.device.slice(0, 8) + ' (ya no está)';
+    return el('tr', {},
+      el('td', { title: fecha(e.at) }, hace(e.at)),
+      el('td', {}, quien),
+      el('td', { title: e.action }, ACCIONES[e.action] || e.action),
+      el('td', {}, detalleAudit(e.detail)));
+  });
+  const filtro = deviceID
+    ? el('p', {}, 'Solo lo de ', el('b', {}, nombre(deviceID) || deviceID.slice(0, 8)), ' · ',
+      el('a', { href: '#/auditoria' }, 'ver todo'))
+    : null;
+  pantalla(
+    el('p', {}, el('a', { href: '#/' }, '← Dispositivos')),
+    el('h1', {}, 'Auditoría'),
+    el('p', { class: 'flojo' },
+      'Quién hizo qué y cuándo. Lo que hizo no está aquí ni en el servidor: de la configuración ' +
+      'solo viajan ids y contadores, y el contenido va sellado.'),
+    filtro,
+    el('table', { class: 'tabla' },
+      el('thead', {}, el('tr', {}, ['Cuándo', 'Equipo', 'Acción', 'Detalle'].map((h) => el('th', {}, h)))),
+      el('tbody', {}, filas)),
+    log.length === 0 ? el('p', {}, 'Todavía no hay nada apuntado.') : null);
 }
 
 // ------------------------------------------------------------------- grupos
@@ -482,6 +551,7 @@ async function renderTimeline(deviceID) {
     el('h1', {}, d ? d.name : deviceID),
     el('p', { class: 'flojo' },
       d ? `${d.platform || '—'} · ccp ${d.ccp_version || '—'} · último contacto ${hace(d.last_seen)}` : 'equipo desconocido'),
+    el('p', {}, el('a', { href: '#/auditoria/' + encodeURIComponent(deviceID) }, 'Auditoría de este equipo')),
     snaps.length === 0 ? el('p', {}, 'Este equipo aún no ha subido ningún snapshot.') : el('div', {},
       el('table', { class: 'tabla' },
         el('thead', {}, el('tr', {}, ['Desde', 'Hasta', 'Fecha', 'Etiqueta', 'Tamaño', 'Contenido', '', 'Id'].map((h) => el('th', {}, h)))),

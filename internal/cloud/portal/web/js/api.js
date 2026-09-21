@@ -106,6 +106,18 @@ export const snapshot = (id) => req('GET', '/v1/snapshots/' + encodeURIComponent
 export const revisions = (dev, limit = 20) =>
   req('GET', '/v1/revisions?limit=' + limit + (dev ? '&device=' + encodeURIComponent(dev) : ''));
 
+// El registro de auditoría (§10.5): quién hizo qué y cuándo. Es lo único que
+// el servidor puede contar de una configuración que no puede leer, y por eso
+// esta pantalla no descifra nada — no hay nada que descifrar.
+export const audit = (q = {}) => {
+  const v = new URLSearchParams();
+  if (q.device) v.set('device', q.device);
+  if (q.action) v.set('action', q.action);
+  if (q.limit) v.set('limit', String(q.limit));
+  const s = v.toString();
+  return req('GET', '/v1/audit' + (s ? '?' + s : ''));
+};
+
 // Grupos de dispositivos («todas mis Macs», §10.3). Un grupo es una etiqueta
 // con miembros y no autoriza nada: aplicar a un grupo sigue siendo publicar
 // una revisión FIRMADA por miembro.
