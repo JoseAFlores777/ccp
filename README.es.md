@@ -754,6 +754,63 @@ de Desktop, cada proyecto), y desde ahí se fija, se etiqueta, se exporta o se c
 - Las copias `.tar.gz` de `ccp backup` siguen en **Ajustes**: son el formato antiguo, bueno para mover una
   configuración a mano a otra máquina.
 
+## Nube — el mismo historial, en tu propio servidor
+
+`ccp snapshot` es el historial de esta máquina. `ccp cloud` es ese mismo historial en un servidor tuyo, para
+que una segunda Mac lo recoja. **Todo se cifra aquí antes de salir**: el servidor guarda texto sellado, ids
+opacos y firmas que no sabe hacer, y nunca ve la clave.
+
+```bash
+# primera máquina
+ccp cloud login https://ccp.example.com   # código de dispositivo: apruébalo en el navegador
+ccp cloud init                            # crea la bóveda; APUNTA el código de recuperación
+ccp snapshot create -m "primera subida"
+ccp cloud push                            # sube lo que la nube no tiene
+
+# la otra máquina
+ccp cloud login https://ccp.example.com
+ccp cloud unlock                          # la frase de la bóveda (no la contraseña de la cuenta)
+ccp cloud pull latest                     # lo baja al almacén local
+ccp snapshot restore latest               # enseña el plan; con --yes lo aplica
+
+ccp cloud status      # servidor, cuenta, equipo, bóveda y cuántos quedan por subir
+ccp cloud list        # snapshots en la nube, de todos los equipos
+ccp cloud devices     # tus equipos; `ccp cloud revoke <id>` echa a uno
+ccp cloud logout      # revoca este equipo y borra su token y su bóveda local
+```
+
+**Son dos secretos, y no son el mismo.** La contraseña de la cuenta se escribe en la página de acceso y
+responde a *quién eres*. La **frase de la bóveda** no llega nunca al servidor y responde a *si puedes leer
+esto*. El **código de recuperación** se enseña una sola vez, al crear la bóveda: guárdalo fuera de este
+equipo (un gestor de contraseñas, papel). Si pierdes la frase **y** el código, la copia de la nube no se
+puede recuperar —tus snapshots locales siguen siendo la fuente primaria—.
+
+**Qué ve el servidor y qué no:**
+
+| Lo ve | No lo ve |
+|---|---|
+| Cuándo se hizo cada snapshot, cuánto ocupa, qué equipo lo mandó y a cuál sigue | Qué hay dentro: blobs y manifiestos llegan sellados |
+| Ids opacos (un HMAC del hash local), lo justo para guardar cada cosa una vez | Si tienes un archivo concreto: no puede comprobar un id que no recibió |
+| Tus equipos: nombre, plataforma y último contacto | Tus claves de API, tokens de MCP, hooks ni instrucciones |
+
+- **Las firmas se comprueban con tu propia clave.** Cada snapshot va firmado con una clave derivada de la de
+  la bóveda, y `pull` la verifica con la pública derivada aquí, nunca con una que diga el servidor. Un
+  servidor comprometido puede negarte el servicio; colar, alterar o reordenar un snapshot, no.
+- **Los blobs no pasan por el API.** Van directos entre este equipo y el almacenamiento, con URLs
+  prefirmadas. Lo que pase de 64 MiB se queda fuera y `push` dice qué fue.
+- **Las rutas se traducen entre máquinas.** Un snapshot hecho bajo `/Users/ana` y restaurado donde el HOME es
+  `/Users/jose` reescribe el HOME dentro de las reglas de carpeta, de los comandos de hooks y de MCP y de la
+  ruta de cada proyecto —el restore lo dice: «Rutas de … reescritas a …»—. Las conversaciones son historia:
+  sus rutas describen dónde ocurrió algo, así que se dejan como están.
+- **Revocar un equipo** lo echa del API en su siguiente petición. No borra la clave que ese equipo ya tiene:
+  si temes una filtración, lo que toca es rotar la clave de cuenta, que todavía no está.
+- **Los archivos de la nube de este equipo** viven en `~/.config/ccp/cloud` (0700, cada archivo 0600): la
+  sesión, el token del dispositivo, la clave desbloqueada y qué snapshots están ya subidos.
+
+Montar el servidor (Postgres + Keycloak + almacenamiento S3 + el API `ccp-cloud`) es otra faena; las piezas
+están en `deploy/ccp-cloud/`. **El despliegue público está pendiente de que el dueño lo autorice**, así que
+hasta entonces `ccp cloud` apunta al servidor que levantes tú.
+
 ## Detectar la máquina — `ccp scan` y `ccp adopt`
 
 `ccp scan` lista todo lo de Claude que hay en esta máquina: tu `~/.claude` global, cada perfil, los MCP de cada
@@ -1006,6 +1063,7 @@ Con comandos: `ccp config show` · `ccp config set <clave> <valor>` · `ccp conf
 | Estado / diagnóstico | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
 | Snapshots | `ccp snapshot create\|list\|diff\|restore\|export\|import` |
+| Nube | `ccp cloud login\|init\|unlock\|push\|pull\|list\|devices` |
 | Dar de alta o de baja un servidor MCP | `ccp mcp add\|rm <n>` · `ccp mcp list` |
 | Apagar un MCP heredado en un perfil | `ccp mcp disable <n> --profile <perfil>` |
 | Actualizar | `ccp upgrade` |

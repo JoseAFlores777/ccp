@@ -605,6 +605,13 @@ y restaura como una unidad.
 - **Usuarios**: el esquema es multiusuario desde el día uno (D3). Cada usuario tiene su propia bóveda;
   no hay datos compartidos entre usuarios.
 
+> **Estado en F1 (implementado).** La bóveda tiene **dos** envolturas, no tres: la frase y el código de
+> recuperación. Cada equipo guarda la AK ya desbloqueada en `<CCP_HOME>/cloud/vault.key` (0600, dentro de un
+> directorio 0700) — para un mismo usuario de macOS, un archivo 0600 y un Keychain que abre `security`
+> protegen lo mismo. La **envoltura X25519 por dispositivo llega en F3**, junto con aprobar un equipo desde
+> otro; hasta entonces, dar de alta una máquina pasa siempre por escribir la frase (o el código). Ver el
+> [ADR 0015](../../adr/0015-identity-keycloak-vault-separate.md).
+
 ### 10.3 Control desde el portal: «el portal propone, la máquina aplica»
 
 - **Sin puertos entrantes.** Cada máquina tira: `ccp cloud agent` como LaunchAgent, con long-poll o
@@ -686,8 +693,10 @@ y la máquina ejecuta (ADR 0014).
   - `revisions` (estado deseado firmado);
   - `applies` (resultado de cada aplicación en cada dispositivo);
   - `groups` y `audit_log` (solo inserción).
-  - Las migraciones son versionadas (`goose`), hacia delante, y se prueban en CI contra una base vacía
-    y contra el volcado anterior.
+  - Las migraciones son versionadas, hacia delante, y se prueban en CI contra una base vacía y contra el
+    volcado anterior. **Implementado en F1 con SQL embebido (`internal/cloud/store/migrations`) y un
+    migrador propio de unas pocas líneas, en lugar de `goose`**: una dependencia menos en el binario del
+    servidor para algo que aquí es «aplica en orden lo que falte y anótalo».
 - **Almacenamiento: [Alarik](https://alarik.io)** para los blobs, desplegado en el mismo servidor.
   - Es S3-compatible, está escrito en Swift y tiene licencia Apache 2.0. Se despliega con Docker
     Compose y admite desde un nodo hasta un clúster con erasure coding.
@@ -841,7 +850,7 @@ Dokploy v0.30.4, un solo servidor.
 | C | **Implementado.** P-20 + editores + serve y CLI `ccp mcp` | B | L | Todo lo de §3 se puede leer desde la GUI, y editar lo que es editable |
 | D | **Implementado.** `ccp snapshot *`, retención, restore selectivo, P-17 → Snapshots | A (clasificación) | M | Un restore selectivo de un solo MCP deja la proyección al día |
 | I | Infra: stack `ccp-cloud` en Dokploy (Postgres + Keycloak en `ccp-auth.joseiz.com` con realm `ccp` + Alarik en `ccp-s3.joseiz.com`), desde `deploy/ccp-cloud/` | — | S | Un login de prueba por flujo de dispositivo obtiene un token con `aud: ccp-api` |
-| F1 | Vault, dispositivos, push/pull de snapshots | D, I | L | Una segunda Mac se desbloquea con la frase de bóveda y trae el historial de la primera |
+| F1 | **Implementado.** Bóveda, dispositivos, push/pull de snapshots (`ccp cloud`), el backend `ccp-cloud` y la traducción del HOME al restaurar. Falta **desplegar el API**, pendiente de autorización del usuario | D, I | L | Una segunda Mac se desbloquea con la frase de bóveda y trae el historial de la primera |
 | F2 | Portal: dispositivos, historial, diff, descarga | F1 | M | Desde `ccp.joseiz.com` se descarga un `.ccpsnap` y se importa en otra máquina |
 | F3 | Restaurar desde el portal | F2 | L | «Restaurar en <máquina>» en el portal deja la máquina en ese snapshot, con lo ejecutable confirmado en local |
 | F4 | Grupos, auditoría, rotación de AK | F3 | M | Un cambio aplicado a un grupo aparece como `aplicada` en cada máquina |
@@ -873,10 +882,12 @@ La vía nube puede empezar en cuanto D tenga el formato, y la I (infra) no depen
 - **0011** — [Una fuente declarada y varias proyecciones](../../adr/0011-una-fuente-declarada-varias-proyecciones.md)
   (escrita). MCP por capas; ccp solo toca los nombres que gestiona; destino chat de Desktop.
 - **0012** — Snapshots direccionados por contenido con rutas lógicas y clases de elemento.
-- **0013** — Nube con cifrado de extremo a extremo: el servidor no lee la configuración.
+- **0013** — [Nube con cifrado de extremo a extremo](../../adr/0013-cloud-end-to-end-encryption.md)
+  (escrita): el servidor no lee la configuración.
 - **0014** — El portal propone y la máquina aplica: pull, revisiones firmadas y confirmación local de
   lo ejecutable.
-- **0015** — Identidad en Keycloak y cifrado en la bóveda: dos secretos con dos dueños.
+- **0015** — [Identidad en Keycloak y cifrado en la bóveda](../../adr/0015-identity-keycloak-vault-separate.md)
+  (escrita): dos secretos con dos dueños.
 - **0016** — Qué lee Claude Desktop de un perfil: las mediciones M1–M6 de la Fase 0. Enmienda a 0008
   y 0009 donde toque.
 

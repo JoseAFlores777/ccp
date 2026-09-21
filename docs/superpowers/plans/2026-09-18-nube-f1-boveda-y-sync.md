@@ -6379,6 +6379,16 @@ Mensaje propuesto: `feat(deploy): imagen del API y servicio api en el stack ccp-
 
 ### Task 15: documentación, ADRs y spec
 
+> **Hecha el 2026-09-21.** Los ADR salen con el formato de los del repo
+> (`# NN. Título` + Estado/Contexto/Decisión/Consecuencias), no con el del
+> borrador de aquí, y cuentan lo que hay implementado, no lo que se planeaba.
+> El **ADR 0014** no se escribe en F1: es el del portal que propone y la máquina
+> aplica, y sale con F3 (spec §14). El README **no enlaza** a
+> `deploy/ccp-cloud/README.md`, que lo crea la Task 14: apunta a la carpeta
+> `deploy/ccp-cloud/` y dice que **el despliegue del API queda pendiente de que
+> el usuario lo autorice**. `deploy/ccp-cloud/integration.sh` sigue sin
+> ejecutarse aquí (no hay demonio de Docker), como en la Task 13.
+
 **Files:**
 - Create: `docs/adr/0013-cloud-end-to-end-encryption.md`
 - Create: `docs/adr/0015-identity-keycloak-vault-separate.md`
@@ -6387,7 +6397,7 @@ Mensaje propuesto: `feat(deploy): imagen del API y servicio api en el stack ccp-
 - Modify: `CLAUDE.md`
 - Modify: `docs/superpowers/specs/2026-09-18-config-unificada-snapshots-nube-design.md`
 
-- [ ] **Step 1: ADR 0013**
+- [x] **Step 1: ADR 0013**
 
 ```markdown
 # ADR 0013 — La nube cifra de punta a punta: el servidor no puede leer la configuración
@@ -6427,7 +6437,7 @@ máquinas, además de una copia en claro de sus credenciales.
   padres. Se aceptan.
 ```
 
-- [ ] **Step 2: ADR 0015**
+- [x] **Step 2: ADR 0015**
 
 ```markdown
 # ADR 0015 — Identidad en Keycloak y cifrado en la bóveda: dos secretos, dos dueños
@@ -6470,7 +6480,7 @@ destruiría los datos.
   de la nube; los snapshots locales siguen siendo la fuente primaria.
 ```
 
-- [ ] **Step 3: README, CHANGELOG, CLAUDE.md, spec**
+- [x] **Step 3: README, CHANGELOG, CLAUDE.md, spec**
 
 - **README.md / README.es.md**: sección «Nube» tras «Snapshots»:
   - qué es: snapshots cifrados de punta a punta en tu propio servidor;
@@ -6502,7 +6512,7 @@ destruiría los datos.
   - §10.4: «migraciones SQL embebidas con migrador propio en lugar de goose»;
   - §12: la fila F1, **implementada**.
 
-- [ ] **Step 4: Gates finales y commit**
+- [x] **Step 4: Gates finales y commit**
 
 Todos los gates, más `bash legacy/tests/run.sh`,
 `bash testdata/golden/capture.sh --check` y, si Docker está disponible,
