@@ -124,6 +124,10 @@ type ConfigList struct {
 const (
 	cfgWhyInstalled = "lo instala Claude Code, no ccp"
 	cfgWhyProjected = "lo proyecta ccp desde %s"
+	// Cuando la capa de origen no se puede nombrar (no se pudo leer, o el
+	// servidor ya no está en ninguna): antes que señalar un archivo que no lo
+	// declara, no se señala ninguno.
+	cfgWhyProjectedOther = "lo proyecta ccp desde otra capa"
 )
 
 // cfgTypeOf clasifica un item del inventario. El segundo valor es falso para lo
@@ -416,7 +420,7 @@ func cfgMCPProjected(r InventoryRoots, look ConfigLayer, ci *ConfigItem) {
 		ci.Editable = false
 		ci.Managed = cfgMCPIsManaged(filepath.Join(ccHomePath(r.CCPHome, look.Name), ".ccp-managed.json"), ci.Name)
 		if ci.Managed {
-			ci.Why = fmt.Sprintf(cfgWhyProjected, MCPProfileFile(r.CCPHome, look.Name))
+			ci.Why = cfgMCPWhyProjected(r, look.Name, ci.Name)
 		} else {
 			ci.Why = fmt.Sprintf("lo reescribe Claude Code; declara los MCP del perfil en %s",
 				MCPProfileFile(r.CCPHome, look.Name))
@@ -427,8 +431,29 @@ func cfgMCPProjected(r InventoryRoots, look ConfigLayer, ci *ConfigItem) {
 			return
 		}
 		ci.Editable, ci.Managed = false, true
-		ci.Why = fmt.Sprintf(cfgWhyProjected, MCPProfileFile(r.CCPHome, look.Name))
+		ci.Why = cfgMCPWhyProjected(r, look.Name, ci.Name)
 	}
+}
+
+// cfgMCPWhyProjected nombra la capa de la que sale de verdad el servidor. El
+// «why» es una afirmación sobre el ORIGEN, no sobre dónde escribir: señalar
+// siempre el overlay del perfil era una pista falsa, porque la fila proyectada
+// solo llega hasta aquí cuando ese archivo NO la declara (y para la ventana de
+// `default` ese archivo ni siquiera puede existir).
+func cfgMCPWhyProjected(r InventoryRoots, profile, server string) string {
+	global, prof, err := ReadMCPLayers(r.CCPHome, r.ClaudeSrc, profile)
+	if err != nil {
+		return cfgWhyProjectedOther
+	}
+	if _, ok := prof[server]; ok {
+		return fmt.Sprintf(cfgWhyProjected, MCPProfileFile(r.CCPHome, profile))
+	}
+	if _, ok := global[server]; ok {
+		return fmt.Sprintf(cfgWhyProjected, r.ClaudeSrc+".json")
+	}
+	// Gestionado pero ya no declarado en ninguna capa: la proyección quedó
+	// atrás (projection_stale), y no hay archivo honesto que nombrar.
+	return cfgWhyProjectedOther
 }
 
 // cfgMCPIsManaged dice si ese nombre está en el registro de lo que ccp escribió

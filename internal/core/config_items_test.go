@@ -486,3 +486,53 @@ func TestConfigItemsCapaProyectoDesconocido(t *testing.T) {
 		}
 	}
 }
+
+// El «why» de un MCP proyectado es una afirmación sobre el ORIGEN, así que
+// tiene que nombrar la capa de la que sale de verdad: señalar siempre el
+// overlay del perfil era una pista falsa (el overlay no lo declara; si lo
+// declarase, la fila proyectada ni siquiera se listaría).
+func TestConfigItemsMCPProyectadoDiceSuCapaDeOrigen(t *testing.T) {
+	r := invFixture(t)
+	// «gh» solo en la global; «fs» en el overlay del perfil. Ambos proyectados
+	// al cc-home y registrados como gestionados.
+	mustWrite(t, r.ClaudeSrc+".json", `{"mcpServers":{"gh":{"command":"/bin/echo"}}}`)
+	mustWrite(t, MCPProfileFile(r.CCPHome, "work"), `{"mcpServers":{"fs":{"command":"/bin/echo"}}}`)
+	cch := filepath.Join(r.CCPHome, "profiles", "work", "cc-home")
+	mustWrite(t, filepath.Join(cch, ".claude.json"),
+		`{"mcpServers":{"gh":{"command":"/bin/echo"},"fs":{"command":"/bin/echo"}}}`)
+	mustWrite(t, filepath.Join(cch, ".ccp-managed.json"), `{"mcp":["gh","fs"]}`)
+
+	l, err := ConfigItems(r, ConfigLayer{Level: "profile", Name: "work"})
+	if err != nil {
+		t.Fatalf("ConfigItems: %v", err)
+	}
+	gh := cfgItemFind(l, CfgTypeMCP, "gh")
+	if gh == nil || gh.Editable || !gh.Managed {
+		t.Fatalf("«gh» se proyecta desde la global: se ve, no se edita aquí: %+v", gh)
+	}
+	if !strings.Contains(gh.Why, r.ClaudeSrc+".json") {
+		t.Errorf("debe nombrar la capa global, dijo %q", gh.Why)
+	}
+	if strings.Contains(gh.Why, MCPProfileFile(r.CCPHome, "work")) {
+		t.Errorf("el overlay del perfil no declara «gh»: %q", gh.Why)
+	}
+
+	// La ventana de `default` no tiene overlay de perfil: su origen solo puede
+	// ser la capa global.
+	dir := filepath.Join(r.Home, "desktop-default")
+	r.DesktopDefaultDataDir = dir
+	mustWrite(t, filepath.Join(dir, "claude_desktop_config.json"),
+		`{"mcpServers":{"gh":{"command":"/bin/echo"}}}`)
+	mustWrite(t, filepath.Join(dir, ".ccp-managed-mcp.json"), `{"mcp":["gh"]}`)
+	d, err := ConfigItems(r, ConfigLayer{Level: "desktop", Name: "default"})
+	if err != nil {
+		t.Fatalf("ConfigItems(desktop): %v", err)
+	}
+	w := cfgItemFind(d, CfgTypeMCP, "gh")
+	if w == nil {
+		t.Fatal("falta «gh» en la ventana de default")
+	}
+	if !strings.Contains(w.Why, r.ClaudeSrc+".json") {
+		t.Errorf("la ventana de default se proyecta desde la global, dijo %q", w.Why)
+	}
+}
