@@ -272,6 +272,19 @@ func mcpReport(c mcpCtx, stdout, stderr io.Writer, wr core.ConfigWrite, msg stri
 	if len(wr.Regenerated) > 0 {
 		fmt.Fprintln(stdout, mute(stdout, i18n.T(c.lang, "cli.mcp.regenerated", strings.Join(wr.Regenerated, ", "))))
 	}
+	// Una proyección descartada es el resultado de ESTA escritura, así que
+	// callarla dejaba al usuario creyendo que el perfil ya arrancaba su
+	// servidor. Se dice con las mismas frases que `ccp profile sync --check`:
+	// leerlo antes y después tiene que comparar.
+	for _, m := range wr.MCP {
+		dest := i18n.T(c.lang, "cli.profile.mcp_dest_"+m.Target)
+		if len(m.Conflicts) > 0 {
+			fmt.Fprintln(stderr, warnLine(stderr, i18n.T(c.lang, "cli.profile.mcp_conflict", m.Profile, dest, strings.Join(m.Conflicts, ", "))))
+		}
+		if len(m.RemoteSkipped) > 0 {
+			fmt.Fprintln(stderr, warnLine(stderr, i18n.T(c.lang, "cli.profile.mcp_remote", m.Profile, strings.Join(m.RemoteSkipped, ", "))))
+		}
+	}
 	for _, p := range wr.RestartPending() {
 		fmt.Fprintln(stderr, warnLine(stderr, i18n.T(c.lang, "cli.mcp.restart", p)))
 	}
