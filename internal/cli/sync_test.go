@@ -93,8 +93,15 @@ func TestSyncSinDestinos(t *testing.T) {
 func TestSyncConVariosDestinosPideCual(t *testing.T) {
 	t.Setenv("CCP_SYNC_PASSPHRASE", fraseSync)
 	snapEnv(t)
+	// Hace falta algo que subir: con el almacén local vacío cualquier push
+	// sale 0 diciendo «Nada que subir», haya elegido el destino que haya
+	// elegido, y el test no distinguiría un --remote que se ignora.
+	if code, out, errs := snapRun(t, "snapshot", "create"); code != 0 {
+		t.Fatalf("create: %d %q %q", code, out, errs)
+	}
+	carpetas := map[string]string{"icloud": t.TempDir(), "nas": t.TempDir()}
 	for _, n := range []string{"icloud", "nas"} {
-		if code, out, errs := snapRun(t, "sync", "remote", "add", n, "file://"+t.TempDir()); code != 0 {
+		if code, out, errs := snapRun(t, "sync", "remote", "add", n, "file://"+carpetas[n]); code != 0 {
 			t.Fatalf("add %s: %d %q %q", n, code, out, errs)
 		}
 	}
@@ -104,6 +111,14 @@ func TestSyncConVariosDestinosPideCual(t *testing.T) {
 	}
 	if code, out, errs := snapRun(t, "sync", "push", "--remote", "nas"); code != 0 {
 		t.Fatalf("push --remote nas: %d %q %q", code, out, errs)
+	}
+	// Lo que prueba que se honró el nombre no es el código de salida: es el
+	// snapshot en la carpeta de nas y su ausencia en la de icloud.
+	if _, err := os.Stat(filepath.Join(carpetas["nas"], "snaps")); err != nil {
+		t.Fatalf("nas no recibió el snapshot: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(carpetas["icloud"], "snaps")); err == nil {
+		t.Fatalf("el push fue a parar a icloud")
 	}
 	// Quitarlo solo olvida lo de aquí: en la carpeta no se borra nada.
 	code, out, _ := snapRun(t, "sync", "remote", "rm", "nas")
