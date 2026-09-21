@@ -227,9 +227,17 @@ func desktopPendingPath(home, name string) string {
 }
 
 // DesktopProjectionPending dice si ese perfil tiene una proyección esperando al
-// próximo arranque de su ventana.
+// próximo arranque de su ventana. Sin data dir NO hay nada pendiente aunque el
+// marcador siga en disco: `ccp desktop rm` borra la ventana y no toca state/, y
+// un marcador huérfano dejaba al check y al doctor pidiendo para siempre que se
+// reiniciara una ventana que ya no existe. Quien la borró porque dejó de usar
+// Desktop ahí no va a ejecutar la secuencia que lo limpiaba.
 func DesktopProjectionPending(home, name string) bool {
-	return fileExists(desktopPendingPath(home, name))
+	if !fileExists(desktopPendingPath(home, name)) {
+		return false
+	}
+	_, err := os.Stat(DesktopDataDir(home, name))
+	return err == nil
 }
 
 // ProjectMCPToDesktop escribe los MCP efectivos con destino desktop en el
@@ -263,7 +271,13 @@ func projectMCPToDesktop(home, name string, eff []MCPEntry, running, dry bool) (
 	}
 	dir := DesktopDataDir(home, name)
 	if _, err := os.Stat(dir); err != nil {
-		return p, nil // esa ventana no se ha usado nunca: nada que proyectar
+		// Esa ventana no se ha usado nunca (o se borró): nada que proyectar. Y
+		// si quedó un marcador de una ventana desaparecida, este es el único
+		// paso que vuelve a pasar por aquí, así que se limpia de disco.
+		if !dry {
+			_ = os.Remove(desktopPendingPath(home, name))
+		}
+		return p, nil
 	}
 	p.File = filepath.Join(dir, "claude_desktop_config.json")
 	want := mcpWant(eff, MCPTargetDesktop, &p)

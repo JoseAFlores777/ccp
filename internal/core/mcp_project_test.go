@@ -275,3 +275,35 @@ func TestApplyDesktopPendingAplicaLoAplazado(t *testing.T) {
 		t.Fatalf("sin pendiente = %v %v", applied, err)
 	}
 }
+
+// Borrar la ventana (`ccp desktop rm`) no toca state/, así que el marcador de
+// proyección aplazada sobrevivía a la ventana que lo pedía: el check y el doctor
+// se quedaban en rojo para siempre porque nadie volvía a pasar por la rama que
+// lo borra. Sin data dir no hay nada pendiente, y el siguiente sync lo limpia.
+func TestProyeccionPendienteSinVentanaNoCuentaYSeLimpia(t *testing.T) {
+	home, src := mcpFixture(t)
+	dd := DesktopDataDir(home, "work")
+	mustWrite(t, filepath.Join(dd, "claude_desktop_config.json"), `{"preferences":{}}`)
+	if _, err := ProjectMCPToDesktop(home, "work", efectivo(t, home, src, "work"), true); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(dd); err != nil { // ccp desktop rm work --yes
+		t.Fatal(err)
+	}
+	if DesktopProjectionPending(home, "work") {
+		t.Error("un marcador sin ventana sigue pidiendo reiniciarla")
+	}
+	chk, err := CheckMCPToDesktop(home, "work", efectivo(t, home, src, "work"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chk.Deferred {
+		t.Errorf("el check sigue aplazado sin ventana: %+v", chk)
+	}
+	if _, err := ProjectMCPToDesktop(home, "work", efectivo(t, home, src, "work"), false); err != nil {
+		t.Fatal(err)
+	}
+	if fileExists(desktopPendingPath(home, "work")) {
+		t.Error("el sync no limpió el marcador huérfano")
+	}
+}
