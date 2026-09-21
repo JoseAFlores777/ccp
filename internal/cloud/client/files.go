@@ -170,9 +170,13 @@ func (f Files) ForgetVault() error {
 	return nil
 }
 
-// Forget borra la credencial y la bóveda de este equipo, y olvida su dispositivo.
+// Forget borra la credencial y la bóveda de este equipo, olvida su dispositivo
+// y también lo que creía subido: el mapa de subidos solo vale contra la cuenta
+// y la bóveda con que se llenó, y tras un logout nadie garantiza que la próxima
+// sesión sea esa —volver a subir no cuesta nada, saltarse un snapshot que
+// arriba no está sí—.
 func (f Files) Forget() error {
-	for _, name := range []string{"token.json", "vault.key"} {
+	for _, name := range []string{"token.json", "vault.key", "state.json"} {
 		if err := os.Remove(f.path(name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}

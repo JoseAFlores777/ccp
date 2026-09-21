@@ -172,3 +172,45 @@ func TestCloudLoginOtraCuentaOlvidaLaBoveda(t *testing.T) {
 		t.Fatalf("push con la clave de la otra cuenta: %d %q %q", code, out, errs)
 	}
 }
+
+// Tras cambiar de cuenta, lo que este equipo ya subió a la nube anterior no
+// cuenta: la bóveda nueva sella con otra clave y arriba no hay nada. Si `push`
+// se fía del mapa de subidos sin mirar de qué cuenta era, la cuenta nueva se
+// queda sin respaldo y dice que todo está en orden.
+func TestCloudPushTrasCambiarDeCuentaSube(t *testing.T) {
+	url, iss := cloudServerIss(t)
+	t.Setenv("CCP_NO_BROWSER", "1")
+	t.Setenv("CCP_CLOUD_PASSPHRASE", "frase de la bóveda larga")
+
+	snapEnv(t)
+	for _, args := range [][]string{{"cloud", "login", url}, {"cloud", "init"}, {"snapshot", "create"}, {"cloud", "push"}} {
+		if code, out, errs := snapRun(t, args...); code != 0 {
+			t.Fatalf("%v: %d %q %q", args, code, out, errs)
+		}
+	}
+
+	iss.As("user-2", "otro@example.com")
+	for _, args := range [][]string{{"cloud", "login", url}, {"cloud", "init"}} {
+		if code, out, errs := snapRun(t, args...); code != 0 {
+			t.Fatalf("%v: %d %q %q", args, code, out, errs)
+		}
+	}
+	if code, out, errs := snapRun(t, "cloud", "push"); code != 0 || !strings.Contains(out, "Subidos 1") {
+		t.Fatalf("push en la cuenta nueva: %d %q %q", code, out, errs)
+	}
+	_, out, _ := snapRun(t, "cloud", "list", "--json")
+	var list []struct {
+		ID   string `json:"id"`
+		Here bool   `json:"here"`
+	}
+	if json.Unmarshal([]byte(out), &list) != nil || len(list) != 1 || !list[0].Here {
+		t.Fatalf("cloud list --json de la cuenta nueva = %q", out)
+	}
+	_, out, _ = snapRun(t, "cloud", "status", "--json")
+	var st struct {
+		PendingPush int `json:"pending_push"`
+	}
+	if json.Unmarshal([]byte(out), &st) != nil || st.PendingPush != 0 {
+		t.Fatalf("status --json = %q", out)
+	}
+}
