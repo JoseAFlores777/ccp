@@ -73,6 +73,8 @@ func dispatchCloud(args []string, stdout, stderr io.Writer) int {
 		return c.devices(args)
 	case "revoke":
 		return c.revoke(args)
+	case "audit":
+		return c.audit(args)
 	case "groups", "group":
 		return c.groups(args)
 	case "agent":
