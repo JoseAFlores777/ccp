@@ -11,6 +11,7 @@ package server
 // con ellos ninguna capacidad de leer nada.
 
 import (
+	"errors"
 	"io"
 	"net/http"
 
@@ -27,6 +28,14 @@ func (s *srv) getBlob(w http.ResponseWriter, r *http.Request, rc reqCtx) {
 	// La clave lleva dentro al dueño: conocer el id de un blob ajeno no da
 	// acceso a él, y por eso no hace falta preguntar de quién es.
 	data, ok, err := s.cfg.Blobs.Get(r.Context(), blobs.Key(rc.user.ID, id))
+	// Un objeto por encima del tope existe sin que nadie lo haya comprobado:
+	// la URL PUT prefirmada no ata el tamaño. Servirlo sería cargarlo entero
+	// en memoria, así que se contesta que es demasiado grande en vez de morir.
+	if errors.Is(err, blobs.ErrTooLarge) {
+		s.cfg.Log.Error("blob por encima del tope", "blob", id, "req", reqID(r))
+		writeError(w, http.StatusRequestEntityTooLarge, api.CodeTooLarge, "el blob supera el máximo")
+		return
+	}
 	if err != nil {
 		s.cfg.Log.Error("almacenamiento", "err", err, "req", reqID(r))
 		writeError(w, http.StatusServiceUnavailable, api.CodeInternal, "el almacenamiento no responde; reintenta")

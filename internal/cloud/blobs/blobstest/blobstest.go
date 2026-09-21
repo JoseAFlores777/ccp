@@ -28,6 +28,11 @@ import (
 
 // Mem es un blobs.Blobs en memoria servido por HTTP.
 type Mem struct {
+	// MaxGet es el tope que aplica Get, como lo aplicaría el bucket de
+	// verdad. Cero significa api.MaxBlobBytes; un test lo baja para probar el
+	// corte sin mover 64 MiB.
+	MaxGet int64
+
 	mu     sync.Mutex
 	data   map[string][]byte
 	secret []byte
@@ -119,10 +124,19 @@ func (m *Mem) Head(_ context.Context, key string) (int64, bool, error) {
 	return int64(len(d)), ok, nil
 }
 
-// Get lee key. Es lo que usa el camino del portal, que no pasa por URLs.
+// Get lee key. Es lo que usa el camino del portal, que no pasa por URLs. Como
+// la implementación real, no devuelve lo que pase del tope: un objeto enorme
+// puede llegar al bucket por una URL prefirmada sin que nadie lo compruebe.
 func (m *Mem) Get(_ context.Context, key string) ([]byte, bool, error) {
 	d, ok := m.Peek(key)
-	return d, ok, nil
+	if !ok {
+		return nil, false, nil
+	}
+	d, err := blobs.ReadCapped(bytes.NewReader(d), m.MaxGet)
+	if err != nil {
+		return nil, false, err
+	}
+	return d, true, nil
 }
 
 // Put guarda data en key.

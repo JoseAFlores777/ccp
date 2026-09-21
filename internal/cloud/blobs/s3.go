@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"net/http"
 	"time"
 
@@ -13,6 +12,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+
+	"github.com/JoseAFlores777/ccp/internal/cloud/api"
 )
 
 // S3Config configura el almacenamiento S3-compatible.
@@ -92,9 +93,9 @@ func (b *S3) Head(ctx context.Context, key string) (int64, bool, error) {
 	return aws.ToInt64(out.ContentLength), true, nil
 }
 
-// Get baja key entera a memoria. Solo lo llama el camino del portal, cuyos
-// blobs son configuración de kilobytes; el resto del mundo sigue yendo por URL
-// prefirmada y no pasa por aquí.
+// Get baja key entera a memoria, hasta api.MaxBlobBytes. Solo lo llama el
+// camino del portal, cuyos blobs son configuración de kilobytes; el resto del
+// mundo sigue yendo por URL prefirmada y no pasa por aquí.
 func (b *S3) Get(ctx context.Context, key string) ([]byte, bool, error) {
 	out, err := b.internal.GetObject(ctx, &s3.GetObjectInput{Bucket: &b.bucket, Key: &key})
 	if err != nil {
@@ -106,7 +107,13 @@ func (b *S3) Get(ctx context.Context, key string) ([]byte, bool, error) {
 		return nil, false, err
 	}
 	defer func() { _ = out.Body.Close() }()
-	data, err := io.ReadAll(out.Body)
+	// El tamaño no lo ata nadie antes de aquí (ver ErrTooLarge), así que se
+	// mira lo que dice el objeto y además se lee acotado: un ContentLength
+	// ausente o mentiroso no puede costar la memoria del proceso.
+	if n := aws.ToInt64(out.ContentLength); n > api.MaxBlobBytes {
+		return nil, false, ErrTooLarge
+	}
+	data, err := ReadCapped(out.Body, api.MaxBlobBytes)
 	if err != nil {
 		return nil, false, err
 	}

@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"testing"
@@ -105,5 +106,29 @@ func TestBlobRepetidoNoEsUnError(t *testing.T) {
 	e.bl.Set(blobs.Key(me.UserID, blobA), []byte("ya estaba"))
 	if code, _ := e.raw("PUT", "/v1/blobs/"+blobA, tok, dev, []byte("ya estaba")); code != http.StatusOK {
 		t.Fatalf("PUT repetido = %d", code)
+	}
+}
+
+// Un objeto por encima del tope no se sirve. Puede estar en el bucket sin
+// haber pasado por ningún control: la URL PUT prefirmada no ata el tamaño (la
+// firma no cubre Content-Length) y el tope solo se comprueba al comprometer un
+// snapshot, cosa que nadie obliga a hacer. Si el API lo leyera entero, una
+// sola petición autenticada tumbaría el proceso por OOM.
+func TestBlobPorEncimaDelTopeNoSeSirve(t *testing.T) {
+	e := newEnv(t)
+	// El tope real son 64 MiB; se baja para no mover tanto en un test.
+	e.bl.MaxGet = 32
+	e.iss.As("u-portal", "portal@example.com")
+	tok := e.iss.AccessToken()
+	dev := e.newDevice(tok, "Portal web")
+	u, err := e.st.UpsertUser(context.Background(), "u-portal", "portal@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.bl.Set(blobs.Key(u.ID, blobA), bytes.Repeat([]byte("x"), 64))
+
+	code, body := e.raw("GET", "/v1/blobs/"+blobA, tok, dev, nil)
+	if code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("GET de un blob enorme = %d, %d bytes", code, len(body))
 	}
 }
