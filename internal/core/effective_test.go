@@ -3,6 +3,7 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -295,4 +296,37 @@ func TestEffectiveSettingsStatusLineWrappedByAuto(t *testing.T) {
 		}
 	}
 	t.Fatal("falta statusLine.command")
+}
+
+// AppliesTo (ADR 0016): lo de settings llega al CLI y a la pestaña Code, nunca
+// al chat; un MCP declarado con destino desktop llega además al chat, pero solo
+// si es stdio, que es lo único que ese archivo carga (M3).
+func TestEffectiveAppliesTo(t *testing.T) {
+	home, src, name := seedEff(t, `{"env":{"A":"1"}}`, `{}`)
+	mustWrite(t, mcpProfileFile(home, name), `{"mcpServers":{"fs":{"command":"npx"},"jira":{"type":"http","url":"https://j"}}}`)
+	if err := CfgRegenerate(home, name, src); err != nil {
+		t.Fatal(err)
+	}
+
+	e, err := ProfileEffective(home, name, src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := sectionOf(t, e, EffEnv)
+	if len(env.Rows) == 0 || !reflect.DeepEqual(env.Rows[0].AppliesTo, []string{"cli", "desktop-code"}) {
+		t.Fatalf("env applies_to = %+v", env.Rows)
+	}
+	want := map[string][]string{
+		"fs":   {"cli", "desktop-code", "desktop-chat"},
+		"jira": {"cli", "desktop-code"},
+	}
+	for _, r := range sectionOf(t, e, EffMCP).Rows {
+		if w, ok := want[r.Key]; ok && !reflect.DeepEqual(r.AppliesTo, w) {
+			t.Errorf("%s applies_to = %v, quiero %v", r.Key, r.AppliesTo, w)
+		}
+		delete(want, r.Key)
+	}
+	if len(want) != 0 {
+		t.Errorf("faltan filas de MCP: %v", want)
+	}
 }

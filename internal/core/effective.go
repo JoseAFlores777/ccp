@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -68,6 +69,11 @@ type EffRow struct {
 	Value    string
 	Origin   Origin
 	Shadowed bool
+	// AppliesTo son los destinos que de verdad leen esta fila (ADR 0016):
+	// cli, desktop-code, desktop-chat. Lo de settings.json nunca llega al chat;
+	// un MCP puede llegar a los tres. Se rellena al final de ProfileEffective,
+	// así que ninguna sección tiene que acordarse.
+	AppliesTo []string
 }
 
 // EffSection lleva su propio Err: un settings.overlay.json roto no puede impedir
@@ -132,7 +138,7 @@ func ProfileEffective(home, name, src string) (Effective, error) {
 		EffSection{Kind: EffPlugins, File: settingsFile, Err: L.overlayErr,
 			Rows: effMapRows(L.docs, "enabledPlugins")},
 		effSensorsSection(cfg, name),
-		effMCPSection(home, name, src),
+		effMCPSection(home, name, src, cfg),
 		EffSection{Kind: EffDeny, File: settingsFile, Err: L.overlayErr,
 			Rows: effArrayRows(L.docs, "permissions", "deny")},
 		EffSection{Kind: EffAsk, File: settingsFile, Err: L.overlayErr,
@@ -140,7 +146,22 @@ func ProfileEffective(home, name, src string) (Effective, error) {
 		EffSection{Kind: EffSettings, File: settingsFile, Err: L.overlayErr,
 			Rows: effSettingsRows(home, name, cfg, L)},
 	)
+	effFillApplies(&e)
 	return e, nil
+}
+
+// effFillApplies pone el destino por defecto a toda fila que no lo trajera: lo
+// que sale de settings.json y de las instrucciones lo leen el CLI y la pestaña
+// Code, y nada de eso llega al chat de Desktop (ADR 0016 M1). La sección de MCP
+// sí lo trae puesto, porque es la única donde depende de la fila.
+func effFillApplies(e *Effective) {
+	for i := range e.Sections {
+		for j := range e.Sections[i].Rows {
+			if e.Sections[i].Rows[j].AppliesTo == nil {
+				e.Sections[i].Rows[j].AppliesTo = invCodeTargets()
+			}
+		}
+	}
 }
 
 // effReadLayers decodifica global y overlay. Un global ausente o inválido se
@@ -445,7 +466,7 @@ func effSensorsSection(cfg *Config, name string) EffSection {
 // .claude.json (cc-home/.claude.json; para default, el de junto a ~/.claude).
 // Los de proyecto (.mcp.json, o projects.<ruta> del mismo archivo) dependen de
 // la carpeta y no salen aquí. Sin File: ese archivo lo reescribe Claude Code.
-func effMCPSection(home, name, src string) EffSection {
+func effMCPSection(home, name, src string, cfg *Config) EffSection {
 	path := src + ".json"
 	if name != "default" {
 		path = filepath.Join(ccHomePath(home, name), ".claude.json")
@@ -482,7 +503,13 @@ func effMCPSection(home, name, src string) EffSection {
 			}
 			v = t + " " + srv.URL
 		}
-		sec.Rows = append(sec.Rows, EffRow{Key: n, Value: v, Origin: OriginClaudeJSON})
+		applies := invCodeTargets()
+		// Al chat solo llega lo que se declaró con destino desktop, y solo si es
+		// stdio: una entrada http/sse la descarta Desktop al arrancar (M3).
+		if srv.URL == "" && srv.Command != "" && slices.Contains(MCPTargets(cfg, n), MCPTargetDesktop) {
+			applies = append(applies, InvAppliesDesktopChat)
+		}
+		sec.Rows = append(sec.Rows, EffRow{Key: n, Value: v, Origin: OriginClaudeJSON, AppliesTo: applies})
 	}
 	return sec
 }
