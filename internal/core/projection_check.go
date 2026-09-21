@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // ProjectionCheck es lo que una regeneración cambiaría en un perfil.
@@ -90,9 +91,13 @@ func ProfileProjectionCheck(home, name string) (ProjectionCheck, error) {
 }
 
 // artifactsPending son los directorios que ProjectProfileArtifacts cambiaría:
-// los que el perfil declara y cuyo destino sigue siendo el symlink de la siembra
-// o al que le falta alguna hoja. mirrorTree nunca pisa lo que ya existe, así que
-// esas dos son las únicas diferencias que puede producir.
+// los que el perfil declara y cuyo destino sigue siendo el symlink de la siembra,
+// al que le falta alguna hoja, o al que le SOBRA un enlace colgado nuestro.
+// mirrorTree no pisa lo que ya existe, pero empieza por pruneDangling, así que
+// tiene una escritura que no es «crear lo que falta»: borrar un artefacto del
+// overlay (lo que hace `ccp instruct rm profile`) deja un enlace colgado en el
+// cc-home que el sync poda. Sin mirarlo, el check juraba limpio un destino que
+// el siguiente sync sí cambia.
 func artifactsPending(home, name, src string) []string {
 	cch := ccHomePath(home, name)
 	if _, err := os.Stat(cch); err != nil {
@@ -110,7 +115,9 @@ func artifactsPending(home, name, src string) []string {
 			out = append(out, d)
 			continue
 		}
-		if leavesMissing(ov, dst) || leavesMissing(filepath.Join(src, d), dst) {
+		g := filepath.Join(src, d)
+		if leavesMissing(ov, dst) || leavesMissing(g, dst) ||
+			danglingPrunable(ov, dst) || danglingPrunable(g, dst) {
 			out = append(out, d)
 		}
 	}
@@ -198,4 +205,51 @@ func claudeMDPending(home, name, src, cch string) bool {
 		return true
 	}
 	return !bytes.Equal(got, cfgBuildClaudeMD(name, src, cfgInstrFile(home, name)))
+}
+
+// danglingPrunable dice si pruneDangling borraría algo de dst, con el MISMO
+// recorrido que mirrorTree: el nivel de dst, y luego solo los subdirectorios
+// que existen en el origen (por eso un skill entero borrado del overlay no
+// cuenta aquí: el sync tampoco lo poda, y el check debe decir lo que el sync
+// hará, no lo que nos gustaría que hiciera).
+func danglingPrunable(src, dst string) bool {
+	entries, err := os.ReadDir(dst)
+	if err != nil {
+		return false
+	}
+	pfx := src + string(os.PathSeparator)
+	for _, e := range entries {
+		p := filepath.Join(dst, e.Name())
+		fi, lerr := os.Lstat(p)
+		if lerr != nil || fi.Mode()&os.ModeSymlink == 0 {
+			continue
+		}
+		if _, serr := os.Stat(p); serr == nil {
+			continue // apunta a algo vivo
+		}
+		if target, rerr := os.Readlink(p); rerr == nil && strings.HasPrefix(target, pfx) {
+			return true
+		}
+	}
+	for _, e := range mustReadDir(src) {
+		sp := filepath.Join(src, e.Name())
+		info, serr := os.Stat(sp)
+		if serr != nil || !info.IsDir() {
+			continue
+		}
+		if danglingPrunable(sp, filepath.Join(dst, e.Name())) {
+			return true
+		}
+	}
+	return false
+}
+
+// mustReadDir es ReadDir sin error: un origen ilegible no espeja nada, así que
+// tampoco poda nada.
+func mustReadDir(dir string) []os.DirEntry {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	return entries
 }
