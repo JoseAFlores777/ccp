@@ -8,12 +8,14 @@ package agent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/JoseAFlores777/ccp/internal/cloud/api"
 	"github.com/JoseAFlores777/ccp/internal/cloud/blobs/blobstest"
@@ -418,5 +420,38 @@ func TestElBucleInformaYSeParaAlCancelar(t *testing.T) {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("el bucle no se paró")
+	}
+}
+
+// Un motivo larguísimo se recorta para que el servidor lo acepte: el tope es
+// de BYTES, así que contar el «…» fuera del presupuesto dejaba el motivo dos
+// bytes por encima y la revisión no se cerraba nunca.
+func TestUnMotivoLarguisimoSeRecortaYLaRevisionSeCierra(t *testing.T) {
+	ctx := context.Background()
+	m := nueva(t)
+	write(t, filepath.Join(m.o.Src, "CLAUDE.md"), "uno")
+	for i := 0; i < 60; i++ {
+		write(t, filepath.Join(m.o.Src, "hooks", fmt.Sprintf("acentuación-%02d.sh", i)), "echo 1")
+	}
+	snap := m.captura()
+	for i := 0; i < 60; i++ {
+		write(t, filepath.Join(m.o.Src, "hooks", fmt.Sprintf("acentuación-%02d.sh", i)), "echo 2")
+	}
+	m.publica(revID(9), snap, "")
+	if _, err := Once(ctx, m.o); err != nil {
+		t.Fatal(err)
+	}
+	out, err := Resolve(ctx, m.o, nil) // se rechazan todos: motivo enorme
+	if err != nil {
+		t.Fatalf("cerrar la revisión no puede fallar por la longitud del motivo: %v", err)
+	}
+	if len(out.Reason) > api.MaxReasonLen {
+		t.Fatalf("el motivo se pasa del tope: %d bytes", len(out.Reason))
+	}
+	if !utf8.ValidString(out.Reason) {
+		t.Fatal("el recorte partió una runa")
+	}
+	if st := m.estado(revID(9)); st.State != api.RevPartial {
+		t.Fatalf("el portal tiene que verla cerrada: %+v", st)
 	}
 }
