@@ -81,8 +81,8 @@ func init() {
 			Es: "Perfil '%s': el command de %s no resuelve, así que ese servidor no arranca.",
 		},
 		"doctor.mcp_only_desktop": {
-			En: "Profile '%s': %s live only in its Desktop chat config; declare them (ccp instruct add profile mcp … --profile %s) or they exist on no other machine.",
-			Es: "Perfil '%s': %s solo viven en la config del chat de su Desktop; decláralos (ccp instruct add profile mcp … --profile %s) o no existen en ninguna otra máquina.",
+			En: "Profile '%s': its Desktop chat config holds %s undeclared, so ccp takes them nowhere else (ccp instruct add profile mcp … --profile %s).",
+			Es: "Perfil '%s': la config del chat de su Desktop tiene %s sin declarar, así que ccp no los lleva a ninguna otra parte (ccp instruct add profile mcp … --profile %s).",
 		},
 		"doctor.cc_home_symlink_nonleaf": {
 			En: "Profile '%s': %s are directory symlinks under its cc-home and Desktop rejects them, so its Code tab will not open (ccp profile sync %s).",

@@ -195,8 +195,8 @@ var catalogCLI = map[string]map[Lang]string{
 		Es: "%s: su ventana de Desktop está abierta, así que sus MCP se aplican la próxima vez que arranque.",
 	},
 	"cli.profile.check_mcp": {
-		En: "%s: %s is missing %s (ccp profile sync).",
-		Es: "%s: a %s le falta %s (ccp profile sync).",
+		En: "%s: %s not projected into %s yet (ccp profile sync).",
+		Es: "%s: %s sin proyectar todavía en %s (ccp profile sync).",
 	},
 	"cli.profile.check_artifacts": {
 		En: "%s: %s are declared by the profile and are not mirrored into its cc-home yet (ccp profile sync).",
