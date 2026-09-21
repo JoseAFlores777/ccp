@@ -11,7 +11,9 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -156,7 +158,13 @@ func (s *srv) authed(h handler, needDevice bool) http.Handler {
 			writeError(w, http.StatusUnauthorized, api.CodeUnauthorized, "token inválido o caducado")
 			return
 		}
-		if !s.allow(id.Sub) {
+		if ok, espera := s.allow(id.Sub); !ok {
+			// El cliente reintenta solo, y sin esta cabecera lo hace a ciegas:
+			// su retroceso exponencial puede ser más corto que la ventana y
+			// entonces cada reintento se come la ráfaga siguiente antes de
+			// existir. Se redondea hacia arriba, porque un segundo de menos es
+			// otro 429.
+			w.Header().Set("Retry-After", strconv.Itoa(max(int(math.Ceil(espera.Seconds())), 1)))
 			writeError(w, http.StatusTooManyRequests, api.CodeRateLimited, "demasiadas peticiones; espera un momento")
 			return
 		}
@@ -190,7 +198,12 @@ func (s *srv) authed(h handler, needDevice bool) http.Handler {
 	})
 }
 
-func (s *srv) allow(sub string) bool {
+// allow dice si la petición pasa y, si no, cuánto hay que esperar. Se usa
+// Reserve y no Allow porque Allow no sabe decir cuánto: contesta que no y el
+// cliente adivina. Y la reserva se CANCELA cuando no se va a esperar —negar una
+// petición no puede gastar el permiso que no se dio—, o cada reintento
+// empujaría la ventana y el límite no se abriría nunca.
+func (s *srv) allow(sub string) (bool, time.Duration) {
 	s.mu.Lock()
 	l, ok := s.limiters[sub]
 	if !ok {
@@ -198,7 +211,16 @@ func (s *srv) allow(sub string) bool {
 		s.limiters[sub] = l
 	}
 	s.mu.Unlock()
-	return l.Allow()
+	r := l.Reserve()
+	if !r.OK() {
+		// Ni esperando: el límite es tan estrecho que esta petición no cabe.
+		return false, time.Second
+	}
+	if d := r.DelayFrom(s.cfg.Now()); d > 0 {
+		r.CancelAt(s.cfg.Now())
+		return false, d
+	}
+	return true, 0
 }
 
 type ctxKey struct{}

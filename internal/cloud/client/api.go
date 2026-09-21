@@ -57,43 +57,64 @@ func (a *API) do(ctx context.Context, method, path string, in, out any) error {
 
 // doStatus es do y además el código de la respuesta: hace falta para el 204 de
 // «no hay revisión pendiente», que no es un error y tampoco trae cuerpo.
+//
+// Reintenta lo que se puede reintentar (retry.go): un corte de red, el 429 del
+// límite por usuario o un 5xx del servidor, y solo si repetir esa petición es
+// seguro. El cuerpo se serializa UNA vez y se envuelve en un lector nuevo en
+// cada intento: reusar el de la vez anterior manda una petición vacía, que el
+// servidor contesta con un 400 que no se parece en nada al fallo real.
 func (a *API) doStatus(ctx context.Context, method, path string, in, out any) (int, error) {
-	var body io.Reader
+	var raw []byte
 	if in != nil {
-		b, err := json.Marshal(in)
-		if err != nil {
+		var err error
+		if raw, err = json.Marshal(in); err != nil {
 			return 0, err
 		}
-		body = bytes.NewReader(b)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, a.base+path, body)
-	if err != nil {
-		return 0, err
-	}
-	if in != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	if a.device != "" {
-		req.Header.Set(api.HeaderDevice, a.device)
-	}
-	resp, err := a.hc.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		var body api.Error
-		_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body)
-		e := &APIError{Status: resp.StatusCode, Code: body.Code, Message: body.Message, Missing: body.Missing}
-		if e.Message == "" {
-			e.Message = resp.Status
+	var status int
+	err := retry(ctx, func() (bool, time.Duration, error) {
+		var body io.Reader
+		if in != nil {
+			body = bytes.NewReader(raw)
 		}
-		return resp.StatusCode, e
-	}
-	if out == nil || resp.StatusCode == http.StatusNoContent {
-		return resp.StatusCode, nil
-	}
-	return resp.StatusCode, json.NewDecoder(io.LimitReader(resp.Body, 64<<20)).Decode(out)
+		req, err := http.NewRequestWithContext(ctx, method, a.base+path, body)
+		if err != nil {
+			return false, 0, err
+		}
+		if in != nil {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		if a.device != "" {
+			req.Header.Set(api.HeaderDevice, a.device)
+		}
+		resp, err := a.hc.Do(req)
+		if err != nil {
+			return idempotent(method, path), 0, err
+		}
+		defer resp.Body.Close()
+		status = resp.StatusCode
+		if resp.StatusCode >= 300 {
+			var body api.Error
+			_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body)
+			e := &APIError{Status: resp.StatusCode, Code: body.Code, Message: body.Message, Missing: body.Missing}
+			if e.Message == "" {
+				e.Message = resp.Status
+			}
+			again := idempotent(method, path) && retryableStatus(resp.StatusCode)
+			return again, parseRetryAfter(resp.Header.Get("Retry-After"), time.Now()), e
+		}
+		if out == nil || resp.StatusCode == http.StatusNoContent {
+			return false, 0, nil
+		}
+		// Un cuerpo cortado a mitad es la otra cara de «no responde», así que
+		// también se reintenta: el servidor ya dijo 200 y repetir es seguro
+		// por la misma razón que lo era la petición entera.
+		if err := json.NewDecoder(io.LimitReader(resp.Body, 64<<20)).Decode(out); err != nil {
+			return idempotent(method, path), 0, err
+		}
+		return false, 0, nil
+	})
+	return status, err
 }
 
 // Me devuelve la cuenta de este token.
@@ -141,7 +162,15 @@ func (a *API) RewrapVault(ctx context.Context, v api.Vault) error {
 // Presign pide URLs prefirmadas para subir ("put") o bajar ("get") blobs.
 func (a *API) Presign(ctx context.Context, op string, ids []string) ([]api.PresignItem, error) {
 	var out []api.PresignItem
-	return out, a.do(ctx, http.MethodPost, "/v1/blobs/presign", api.PresignReq{Op: op, IDs: ids}, &out)
+	if err := a.do(ctx, http.MethodPost, "/v1/blobs/presign", api.PresignReq{Op: op, IDs: ids}, &out); err != nil {
+		return nil, err
+	}
+	// Y tiene que contestar por todos: un id que no vuelve se quedaría fuera
+	// sin salir siquiera en la lista de lo que faltaba (presignCovers).
+	if err := presignCovers(ids, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // CommitSnapshot publica un snapshot cuyos blobs ya están subidos.
@@ -180,70 +209,54 @@ func (a *API) Snapshot(ctx context.Context, id string) (api.Snapshot, error) {
 
 // PutBlob sube body a una URL prefirmada, con reintentos ante fallos de red o 5xx.
 func (a *API) PutBlob(ctx context.Context, u string, body []byte) error {
-	return retry(ctx, func() (bool, error) {
+	return retry(ctx, func() (bool, time.Duration, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPut, u, bytes.NewReader(body))
 		if err != nil {
-			return false, err
+			return false, 0, err
 		}
 		req.ContentLength = int64(len(body))
 		resp, err := a.raw.Do(req)
 		if err != nil {
-			return true, err
+			return true, 0, err
 		}
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
 		resp.Body.Close()
 		if resp.StatusCode/100 == 2 {
-			return false, nil
+			return false, 0, nil
 		}
-		return resp.StatusCode >= 500, fmt.Errorf("el almacenamiento respondió %d al subir", resp.StatusCode)
+		return retryableStatus(resp.StatusCode), parseRetryAfter(resp.Header.Get("Retry-After"), time.Now()),
+			fmt.Errorf("el almacenamiento respondió %d al subir", resp.StatusCode)
 	})
 }
 
 // GetBlob baja de una URL prefirmada, con reintentos.
 func (a *API) GetBlob(ctx context.Context, u string) ([]byte, error) {
 	var out []byte
-	err := retry(ctx, func() (bool, error) {
+	err := retry(ctx, func() (bool, time.Duration, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 		if err != nil {
-			return false, err
+			return false, 0, err
 		}
 		resp, err := a.raw.Do(req)
 		if err != nil {
-			return true, err
+			return true, 0, err
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
-			return resp.StatusCode >= 500, fmt.Errorf("el almacenamiento respondió %d al bajar", resp.StatusCode)
+			return retryableStatus(resp.StatusCode), parseRetryAfter(resp.Header.Get("Retry-After"), time.Now()),
+				fmt.Errorf("el almacenamiento respondió %d al bajar", resp.StatusCode)
 		}
 		data, err := io.ReadAll(io.LimitReader(resp.Body, api.MaxBlobBytes+1))
 		if err != nil {
-			return true, err
+			return true, 0, err
 		}
 		if len(data) > api.MaxBlobBytes {
-			return false, fmt.Errorf("el almacenamiento devolvió un blob de más de %d bytes", api.MaxBlobBytes)
+			return false, 0, fmt.Errorf("el almacenamiento devolvió un blob de más de %d bytes", api.MaxBlobBytes)
 		}
 		out = data
-		return false, nil
+		return false, 0, nil
 	})
 	return out, err
-}
-
-// retry reintenta fn hasta 4 veces, con espera exponencial desde 500 ms,
-// mientras diga que el fallo es reintentable.
-func retry(ctx context.Context, fn func() (retryable bool, err error)) error {
-	var err error
-	for attempt := 0; attempt < 4; attempt++ {
-		var again bool
-		if again, err = fn(); err == nil || !again {
-			return err
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(time.Duration(1<<attempt) * 500 * time.Millisecond):
-		}
-	}
-	return err
 }
 
 // ErrNoRevision es «no hay nada que aplicar». El servidor responde 204 y no

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -816,5 +817,50 @@ func TestCadenaSeSirveConDigestPropio(t *testing.T) {
 	}
 	if !bytes.Equal(chain[0].Sig, dos.Sig) || chain[0].DeviceID != dev {
 		t.Fatalf("firma o dispositivo raros: %+v", chain[0])
+	}
+}
+
+// Un 429 sin Retry-After obliga al cliente a adivinar, y su retroceso
+// exponencial puede ser más corto que la ventana del límite: se pasa el rato
+// gastando la ráfaga siguiente antes de que exista. La cabecera es la mitad del
+// límite que faltaba.
+func TestRateLimitDiceCuantoEsperar(t *testing.T) {
+	iss := oidctest.New(t)
+	h := New(Config{
+		Store: store.NewMem(), Blobs: blobstest.New(t),
+		Verifier:    NewOIDCVerifier(iss.URL, iss.JWKSURL(), oidctest.Audience),
+		PerUserRate: 0.5, PerUserBurst: 1,
+	})
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	tok := iss.AccessToken()
+	get := func() (int, string) {
+		req, _ := http.NewRequest("GET", srv.URL+"/v1/me", nil)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return resp.StatusCode, resp.Header.Get("Retry-After")
+	}
+	if code, _ := get(); code != 200 {
+		t.Fatalf("primera petición = %d", code)
+	}
+	code, after := get()
+	if code != 429 {
+		t.Fatalf("ráfaga agotada = %d", code)
+	}
+	n, err := strconv.Atoi(after)
+	if err != nil || n < 1 {
+		t.Fatalf("Retry-After = %q (%v): el cliente no puede usarlo", after, err)
+	}
+	// Y negar la petición no puede gastar el permiso que no se dio: si lo
+	// gastara, cada reintento empujaría la ventana y el límite no se abriría
+	// nunca para quien sí espera lo que se le dijo.
+	time.Sleep(time.Duration(n) * time.Second)
+	if code, after := get(); code != 200 {
+		t.Fatalf("tras esperar los %d s que pidió = %d (Retry-After %q)", n, code, after)
 	}
 }
