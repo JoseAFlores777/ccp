@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // profileArtifactDirs son los cuatro tipos que un perfil puede declarar. plugins
@@ -57,6 +58,13 @@ func ProjectProfileArtifacts(home, name, src string) ([]string, error) {
 				return touched, fmt.Errorf("no se pudo quitar el symlink %s: %w", dst, err)
 			}
 		}
+		// Lo que el overlay declara manda: se retira antes el enlace al global
+		// que lo sombreaba, porque mirrorTree no pisa lo que ya existe.
+		for _, p := range overlayShadowedLeaves(ov, dst, filepath.Join(src, d)) {
+			if err := os.Remove(p); err != nil {
+				return touched, fmt.Errorf("no se pudo quitar el enlace al global %s: %w", p, err)
+			}
+		}
 		if err := mirrorTree(ov, dst); err != nil {
 			return touched, err
 		}
@@ -68,4 +76,40 @@ func ProjectProfileArtifacts(home, name, src string) ([]string, error) {
 		touched = append(touched, d)
 	}
 	return touched, nil
+}
+
+// overlayShadowedLeaves son las hojas que el overlay declara y cuyo destino
+// sigue siendo el symlink al global. Existen porque mirrorTree salta toda
+// entrada que ya está en el destino: si el global se espejó primero, declarar
+// después esa misma hoja en el perfil no cambiaba nada y el override no se
+// aplicaba nunca, contra el «si chocan, gana el perfil» de arriba. Se miran
+// SOLO los enlaces que apuntan dentro del global: un archivo real o un enlace a
+// otro sitio es del usuario y se respeta, igual que en pruneDangling.
+func overlayShadowedLeaves(ov, dst, gdir string) []string {
+	entries, err := os.ReadDir(ov)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		sp, dp := filepath.Join(ov, e.Name()), filepath.Join(dst, e.Name())
+		info, serr := os.Stat(sp)
+		if serr != nil {
+			continue // colgado en el overlay: mirrorTree tampoco lo espejaría
+		}
+		if info.IsDir() {
+			out = append(out, overlayShadowedLeaves(sp, dp, gdir)...)
+			continue
+		}
+		fi, lerr := os.Lstat(dp)
+		if lerr != nil || fi.Mode()&os.ModeSymlink == 0 {
+			continue
+		}
+		target, rerr := os.Readlink(dp)
+		if rerr != nil || !strings.HasPrefix(target, gdir+string(os.PathSeparator)) {
+			continue
+		}
+		out = append(out, dp)
+	}
+	return out
 }
