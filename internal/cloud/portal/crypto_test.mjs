@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import {
   argon2id, xopen, xseal, deriveSubkey, recoveryKey, ed25519Verify,
-  b64, hex, utf8, eq,
+  ed25519PublicFromSeed, b64, hex, utf8, eq,
 } from './web/js/crypto.js';
 
 const v = JSON.parse(readFileSync(process.argv[2], 'utf8'));
@@ -39,6 +39,11 @@ const rk = await recoveryKey(vault.recovery_code);
 const ak2 = xopen(rk, b64(vault.recovery_wrap), utf8('ccp/v1/wrap/recovery'));
 check('bóveda con el código', ak2 !== null && eq(ak2, b64(vault.ak)));
 check('frase equivocada no abre', xopen(b64(vault.sign_pub), b64(vault.passphrase_wrap), utf8('ccp/v1/wrap/passphrase')) === null);
+
+// La clave pública derivada de la AK tiene que ser la que guarda el servidor:
+// una bóveda que abre pero firma con otra clave es la de otra cuenta.
+const pub = await ed25519PublicFromSeed(await deriveSubkey(ak, 'ccp/v1/sign'));
+check('pública derivada de la AK', pub !== null && eq(pub, b64(vault.sign_pub)));
 
 // 6. El manifiesto: descifrar con la subclave de datos y verificar la firma.
 const m = v.manifest;
