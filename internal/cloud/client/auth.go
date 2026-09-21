@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -49,6 +50,14 @@ func Discover(ctx context.Context, hc *http.Client, server string) (Endpoints, e
 	if e.Info.APIVersion != api.Version {
 		return e, fmt.Errorf("el servidor habla la versión %d del protocolo y este ccp la %d; actualiza ccp", e.Info.APIVersion, api.Version)
 	}
+	// El emisor sale de la respuesta del servidor, y es quien recibe el
+	// device_code y devuelve el refresh token: en claro, la credencial de
+	// larga vida del equipo viaja a la vista y se queda apuntada en
+	// cloud/config.json para cada renovación futura. Misma excepción que la
+	// CLI hace con el servidor: http solo contra el bucle local.
+	if !secureOrLocal(e.Info.Issuer) {
+		return e, fmt.Errorf("el emisor %s no es https: el token del dispositivo viajaría en claro", e.Info.Issuer)
+	}
 	var d struct {
 		Token  string `json:"token_endpoint"`
 		Device string `json:"device_authorization_endpoint"`
@@ -59,8 +68,45 @@ func Discover(ctx context.Context, hc *http.Client, server string) (Endpoints, e
 	if d.Token == "" || d.Device == "" {
 		return e, errors.New("el emisor no ofrece la concesión de dispositivo")
 	}
+	// Y el discovery tampoco puede desviar el token a otro sitio: los dos
+	// endpoints tienen que ser del mismo origen que el emisor ya validado.
+	for _, u := range []string{d.Token, d.Device} {
+		if !sameOrigin(e.Info.Issuer, u) {
+			return e, fmt.Errorf("el emisor %s declara un endpoint de otro origen: %s", e.Info.Issuer, u)
+		}
+	}
 	e.TokenURL, e.DeviceAuthURL = d.Token, d.Device
 	return e, nil
+}
+
+// secureOrLocal dice si una URL viaja cifrada. http solo vale contra el bucle
+// local, donde no hay red que escuchar (y donde corre el emisor de los tests).
+func secureOrLocal(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	if u.Scheme == "https" {
+		return true
+	}
+	if u.Scheme != "http" {
+		return false
+	}
+	h := u.Hostname()
+	return h == "127.0.0.1" || h == "localhost" || h == "::1"
+}
+
+// sameOrigin compara esquema y host (puerto incluido) de dos URLs.
+func sameOrigin(a, b string) bool {
+	ua, err := url.Parse(a)
+	if err != nil {
+		return false
+	}
+	ub, err := url.Parse(b)
+	if err != nil {
+		return false
+	}
+	return ua.Scheme == ub.Scheme && ua.Host == ub.Host && ub.Host != ""
 }
 
 // OAuthConfig es la configuración OAuth del cliente público de la CLI. Pide

@@ -181,7 +181,9 @@ func (c cloudCmd) login(args []string) int {
 		fmt.Fprintln(c.err, i18n.T(c.lang, "cli.cloud.need_https"))
 		return 1
 	}
-	ep, err := client.Discover(c.ctx, http.DefaultClient, server)
+	// Cliente propio y con plazo: el descubrimiento es lo primero que se
+	// habla con un servidor desconocido y no debe colgar la terminal.
+	ep, err := client.Discover(c.ctx, &http.Client{Timeout: 30 * time.Second}, server)
 	if err != nil {
 		return c.fail(err)
 	}
