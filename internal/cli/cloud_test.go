@@ -610,3 +610,68 @@ func TestWriteDownloadNoSigueSymlinkDelTemporal(t *testing.T) {
 		t.Fatal("el destino quedó siendo un symlink")
 	}
 }
+
+// cloudServerRet es cloudServer con una política de retención encendida: hace
+// falta para que el servidor pode de verdad y quede una lápida que pedir.
+func cloudServerRet(t *testing.T, r cloudsrv.Retention) string {
+	t.Helper()
+	iss := oidctest.New(t)
+	srv := httptest.NewServer(cloudsrv.New(cloudsrv.Config{
+		Store: cloudstore.NewMem(), Blobs: blobstest.New(t),
+		Verifier: cloudsrv.NewOIDCVerifier(iss.URL, iss.JWKSURL(), oidctest.Audience),
+		Issuer:   iss.URL, ClientID: oidctest.ClientID, Retention: r,
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+// Un id que el usuario copió de `ccp cloud list` y que la retención podó
+// después no es un id mal escrito: el listado no enseña lápidas, así que
+// pickSnapshot no lo encontraba y decía «no hay un único snapshot…», que manda
+// a buscar el error donde no está. La cadena sí las lleva, y de ahí sale el
+// mensaje de lápida.
+func TestCloudPullDeUnPodadoDiceQueEsUnaLapida(t *testing.T) {
+	url := cloudServerRet(t, cloudsrv.Retention{Daily: 1})
+	t.Setenv("CCP_NO_BROWSER", "1")
+	t.Setenv("CCP_CLOUD_PASSPHRASE", "frase de la bóveda larga")
+	home, _ := snapEnv(t)
+	if code, out, errs := snapRun(t, "cloud", "login", url, "--name", "mac-a"); code != 0 {
+		t.Fatalf("login: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "init"); code != 0 {
+		t.Fatalf("init: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "snapshot", "create"); code != 0 {
+		t.Fatalf("create 1: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "push"); code != 0 {
+		t.Fatalf("push 1: %d %q %q", code, out, errs)
+	}
+	_, out, _ := snapRun(t, "cloud", "list", "--json")
+	var lista []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(out), &lista); err != nil || len(lista) != 1 {
+		t.Fatalf("cloud list --json = %q (%v)", out, err)
+	}
+	viejo := lista[0].ID
+
+	// Un segundo snapshot del mismo día: con daily=1 el servidor se lleva el
+	// contenido del primero y deja su eslabón.
+	if err := core.ProfileAddDeepseek(home, "deep", core.BuiltinDefaults()); err != nil {
+		t.Fatal(err)
+	}
+	if code, out, errs := snapRun(t, "snapshot", "create"); code != 0 {
+		t.Fatalf("create 2: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "push"); code != 0 {
+		t.Fatalf("push 2: %d %q %q", code, out, errs)
+	}
+	code, out, errs := snapRun(t, "cloud", "pull", viejo[:12])
+	if code != 1 {
+		t.Fatalf("pull de un podado = %d, quiero 1 (%q %q)", code, out, errs)
+	}
+	if !strings.Contains(errs, i18n.T(i18n.Es, "cli.cloud.snapshot_pruned")) {
+		t.Fatalf("pull de un podado no dice que es una lápida: %q %q", out, errs)
+	}
+}

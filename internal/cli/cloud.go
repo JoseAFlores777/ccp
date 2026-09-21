@@ -632,9 +632,43 @@ func (c cloudCmd) pickSnapshot(cl *client.API, deviceRef, ref string) (string, e
 		}
 	}
 	if len(found) != 1 || len(ref) < 4 {
+		// El listado no enseña lápidas (ni Postgres ni el almacén en memoria),
+		// así que un id podado no casa con nada y salía por «no hay un único
+		// snapshot…», que manda a buscar un error de tecleo donde no lo hay:
+		// ese id lo copió el usuario de `ccp cloud list` cuando aún estaba. La
+		// cadena sí las lleva, y es la única forma de distinguir «ya no está»
+		// de «nunca estuvo».
+		if id, ok := c.prunedLink(cl, ref); ok {
+			return "", &client.APIError{Status: http.StatusGone, Code: api.CodeGone,
+				Message: "el snapshot " + id + " está podado"}
+		}
 		return "", errors.New(i18n.T(c.lang, "cli.cloud.pull_ambiguous", ref))
 	}
 	return found[0], nil
+}
+
+// prunedLink dice si el prefijo nombra —sin ambigüedad— una lápida de la
+// cadena. Es lo mejor que se pueda: si la cadena no se puede leer, quien llama
+// se queda con el mensaje de siempre en vez de cambiar un error por otro.
+func (c cloudCmd) prunedLink(cl *client.API, ref string) (string, bool) {
+	if len(ref) < 4 {
+		return "", false
+	}
+	links, err := cl.Chain(c.ctx)
+	if err != nil {
+		return "", false
+	}
+	id := ""
+	for _, l := range links {
+		if !strings.HasPrefix(l.ID, ref) {
+			continue
+		}
+		if !l.Pruned || id != "" {
+			return "", false
+		}
+		id = l.ID
+	}
+	return id, id != ""
 }
 
 // pullToFile baja un snapshot a un archivo y no al almacén: el equipo que lo
