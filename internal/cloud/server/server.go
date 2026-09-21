@@ -203,21 +203,31 @@ func (s *srv) authed(h handler, needDevice bool) http.Handler {
 // cliente adivina. Y la reserva se CANCELA cuando no se va a esperar —negar una
 // petición no puede gastar el permiso que no se dio—, o cada reintento
 // empujaría la ventana y el límite no se abriría nunca.
+//
+// El par Reserve/CancelAt va entero bajo s.mu, y ese candado es el arreglo, no
+// bookkeeping: x/time sólo restituye una reserva cancelada si sigue siendo el
+// ÚLTIMO evento del limitador, así que con dos peticiones del mismo usuario
+// solapadas (el portal abre una pantalla con cuatro llamadas a la vez) el orden
+// Reserve(A) → Reserve(B) → Cancel(A) deja el cancel de A en nada y su permiso
+// se pierde pese a que A recibió un 429. Serializándolos, cada cancelación es
+// siempre la del último evento. El reloj también entra por cfg.Now para que la
+// reserva y su cancelación midan con el mismo instante.
 func (s *srv) allow(sub string) (bool, time.Duration) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	l, ok := s.limiters[sub]
 	if !ok {
 		l = rate.NewLimiter(s.cfg.PerUserRate, s.cfg.PerUserBurst)
 		s.limiters[sub] = l
 	}
-	s.mu.Unlock()
-	r := l.Reserve()
+	now := s.cfg.Now()
+	r := l.ReserveN(now, 1)
 	if !r.OK() {
 		// Ni esperando: el límite es tan estrecho que esta petición no cabe.
 		return false, time.Second
 	}
-	if d := r.DelayFrom(s.cfg.Now()); d > 0 {
-		r.CancelAt(s.cfg.Now())
+	if d := r.DelayFrom(now); d > 0 {
+		r.CancelAt(now)
 		return false, d
 	}
 	return true, 0

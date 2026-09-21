@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/JoseAFlores777/ccp/internal/cloud/api"
 	"github.com/JoseAFlores777/ccp/internal/cloud/blobs/blobstest"
 	"github.com/JoseAFlores777/ccp/internal/cloud/crypt"
@@ -862,5 +864,38 @@ func TestRateLimitDiceCuantoEsperar(t *testing.T) {
 	time.Sleep(time.Duration(n) * time.Second)
 	if code, after := get(); code != 200 {
 		t.Fatalf("tras esperar los %d s que pidió = %d (Retry-After %q)", n, code, after)
+	}
+}
+
+// Denegar en paralelo tampoco puede gastar permisos. x/time sólo restituye una
+// reserva cancelada si sigue siendo el último evento del limitador, así que con
+// dos peticiones del mismo usuario solapadas el cancel de la primera es un
+// no-op y su permiso se pierde: el portal abre una pantalla con cuatro
+// llamadas a la vez y la ventana crecía sin que nadie la hubiera consumido.
+func TestRateLimitDenegarEnParaleloNoGastaPermisos(t *testing.T) {
+	s := &srv{
+		cfg:      Config{Now: time.Now, PerUserRate: 1, PerUserBurst: 1},
+		limiters: map[string]*rate.Limiter{},
+		swept:    map[string]time.Time{},
+	}
+	if ok, _ := s.allow("u"); !ok {
+		t.Fatal("la primera petición debería pasar")
+	}
+	for ronda := 0; ronda < 20; ronda++ {
+		var wg sync.WaitGroup
+		for i := 0; i < 16; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if ok, _ := s.allow("u"); ok {
+					t.Error("la ráfaga estaba agotada y alguien pasó")
+				}
+			}()
+		}
+		wg.Wait()
+	}
+	_, espera := s.allow("u")
+	if espera > 1200*time.Millisecond {
+		t.Fatalf("espera = %v: las peticiones rechazadas gastaron permisos", espera)
 	}
 }
