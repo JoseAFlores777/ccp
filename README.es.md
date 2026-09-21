@@ -781,6 +781,8 @@ ccp cloud verify      # la historia firmada entera: nadie ha quitado, reordenado
 ccp cloud devices     # tus equipos; `ccp cloud revoke <id>` echa a uno
 ccp cloud groups      # grupos de dispositivos; `groups add "todas mis Macs" mac-a mac-b`, `set`, `rm --yes`
 ccp cloud groups status "todas mis Macs"   # cómo le fue la última orden a cada equipo del grupo
+ccp cloud audit       # quién hizo qué y cuándo; --device, --action, --since, --json
+ccp cloud rotate      # frase de bóveda y código de recuperación nuevos (la clave de cuenta no cambia)
 ccp cloud logout      # revoca este equipo y borra su token y su bóveda local
 ```
 
@@ -830,6 +832,19 @@ puede recuperar —tus snapshots locales siguen siendo la fuente primaria—.
   dice dos cosas con cuidado: un miembro sin ninguna orden del grupo sale como *sin órdenes* y no como
   *pendiente* (no hay ninguna orden suya pendiente de nada), y un equipo que sacaste del grupo sigue saliendo
   mientras tenga una orden viva — sacarle del grupo no retira lo que ya se le publicó.
+- **La auditoría dice quién hizo qué y cuándo, y nada de qué.** `ccp cloud audit` y la pantalla Auditoría del
+  portal leen el registro de solo inserción del servidor: una línea es una acción, un equipo, una fecha y un
+  detalle hecho de ids y contadores. No puede decir más, porque el servidor no puede leer tu configuración —y
+  el almacén poda el detalle al escribirlo (un objeto anidado o una cadena larga se van) para que un descuido
+  de quien apunta no convierta el registro en la fuga que el cifrado evita.
+- **Revocar un equipo cierra también la orden que tenía pendiente.** Un equipo revocado no vuelve a
+  preguntar, así que una orden abierta saldría como *pendiente* para siempre; se cierra como *equipo
+  revocado*, que no es *fallida* (no hizo nada mal) ni *sustituida* (no la reemplazó ninguna otra).
+- **Rotar las claves de acceso no es rotar la clave de cuenta.** `ccp cloud rotate` te da una frase de bóveda
+  y un código de recuperación nuevos sobre la **misma** clave de cuenta: no hay nada que recifrar y todo lo
+  que ya subiste se sigue abriendo. No pide la frase vieja —que es justo la que puede haberse perdido— y dice
+  lo que importa: un equipo que ya estaba desbloqueado lo sigue estando, incluido uno que revocaste si se
+  quedó con su copia. Quitarle esa copia es rotar la AK, que recifra todo y todavía no está.
 - **Una máquina nueva mapea sus propias rutas.** Un snapshot de otra máquina nombra los proyectos por su
   remoto de git normalizado, así que `ccp cloud restore` busca aquí cada repo: la ruta que traía (traducida a
   este HOME) y, si no está, cualquier carpeta con ese mismo remoto entre las de tus reglas, los `projects` de
