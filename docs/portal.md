@@ -209,6 +209,18 @@ order: taking it out does not withdraw what was published to it, so hiding it wo
 nobody counting it. Deleting a group deletes no revisions either; what is lost is the name that showed them
 together.
 
+### The audit, and the one screen that decrypts nothing
+
+`#/auditoria` (linked from Devices, and per machine from a machine's timeline) lists what the server recorded:
+who did what and when. It is the only screen with nothing to decrypt, and that is the point — it is also the
+only thing the server can tell you about a configuration it cannot read.
+
+Two rules carry it. The detail of an entry is ids and counters and nothing else, because the store prunes it
+when it is written (`store.SanitizeAuditDetail`): a nested object or a long string is the shape configuration
+has, and one careless caller would otherwise turn the audit log into the leak the encryption exists to
+prevent. And an action the portal does not know is printed with its raw name rather than hidden: the log is
+insert-only, and dropping a line because this build has no label for it would be exactly the opposite.
+
 ### Why the API serves blobs
 
 `GET /v1/blobs/{id}` and `PUT /v1/blobs/{id}` exist for the portal, and only for it: everything else uploads
