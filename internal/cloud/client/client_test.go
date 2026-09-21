@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/JoseAFlores777/ccp/internal/cloud/api"
+	"github.com/JoseAFlores777/ccp/internal/cloud/blobs"
 	"github.com/JoseAFlores777/ccp/internal/cloud/blobs/blobstest"
 	"github.com/JoseAFlores777/ccp/internal/cloud/crypt"
 	"github.com/JoseAFlores777/ccp/internal/cloud/oidctest"
@@ -30,13 +31,21 @@ type rig struct {
 // en la persistencia (p. ej. un servidor que altera lo que devuelve).
 func newRig(t *testing.T, wrap func(store.Store) store.Store) *rig {
 	t.Helper()
-	iss := oidctest.New(t)
 	var st store.Store = store.NewMem()
 	if wrap != nil {
 		st = wrap(st)
 	}
+	return newRigWith(t, st, blobstest.New(t))
+}
+
+// newRigWith es el mismo API con la persistencia y el almacenamiento puestos
+// desde fuera: así los tests de integración lo montan sobre Postgres y Alarik
+// de verdad sin duplicar el montaje.
+func newRigWith(t *testing.T, st store.Store, bl blobs.Blobs) *rig {
+	t.Helper()
+	iss := oidctest.New(t)
 	h := server.New(server.Config{
-		Store: st, Blobs: blobstest.New(t), Verifier: server.NewOIDCVerifier(iss.URL, iss.JWKSURL(), oidctest.Audience),
+		Store: st, Blobs: bl, Verifier: server.NewOIDCVerifier(iss.URL, iss.JWKSURL(), oidctest.Audience),
 		Issuer: iss.URL, ClientID: oidctest.ClientID,
 	})
 	srv := httptest.NewServer(h)
