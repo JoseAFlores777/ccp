@@ -5,7 +5,7 @@ snapshot with a diff between any two of them. It is served **by the `ccp-cloud` 
 origin as the API, and it opens the vault **in the tab** — the account key is derived there from your vault
 passphrase and never leaves the browser.
 
-What it does today (F2-3 reads, F2-4 edits and publishes):
+What it does today (F2-3 reads, F2-4 edits and publishes, F3-2 downloads, F3-3 orders a restore):
 
 - **Devices**: name, platform, ccp version, last contact, the profiles that machine has, how many snapshots it
   has sent, and its state against the revision the portal published for it (`pending`, `applied`, `partial`,
@@ -19,6 +19,10 @@ What it does today (F2-3 reads, F2-4 edits and publishes):
   Shortcuts · Keys), and per item its path, where it applies (CLI · Code · Chat, [ADR 0016](adr/0016-what-desktop-reads-from-a-profile.md))
   and, when it cannot be edited here, why.
 - **«Apply to…»**, which publishes the edit as a **signed desired revision** to the machines you pick.
+- **«Restore on…»** on any snapshot of the timeline, which publishes a signed revision **with no base** to
+  the machines you pick. The base is the whole difference: with one, the machine merges three ways and what
+  it changed on its own survives; with none, the order is absolute — *reach this snapshot*. Nothing is
+  uploaded and no snapshot is created, because the one being restored is already in the cloud.
 - **Download** of any snapshot, built **in the tab**: a `.ccpsnap` sealed with a passphrase you type (the
   same file `ccp snapshot import` opens), or a readable `.tar.gz` with the files themselves. The plain one
   is only offered once you tick the box that says, in those words, that your keys go in the clear. Without
@@ -29,9 +33,11 @@ The other half is on the machine: the app's **Cloud** screen (P-21) and `ccp clo
 runs code gets confirmed, path by path, by someone sitting at that machine. A revision published here stays
 pending until then, which is exactly what the portal shows.
 
-Two things it deliberately does not do. It does not **restore**: the portal proposes and the machine applies
-([ADR 0014](adr/0014-portal-proposes-machine-applies.md)), and there is no connection from here to anything.
-And it does not **create or delete** items — an edit changes files that already exist, because `ccp` does not
+Two things it deliberately does not do. It never **restores by itself**: «Restore on…» publishes an order
+and nothing more — the portal proposes and the machine applies ([ADR 0014](adr/0014-portal-proposes-machine-applies.md)),
+there is no connection from here to anything, the machine picks the order up when its agent next checks in,
+confirms anything executable there, and maps its own project paths (spec §11), which needs a disk the browser
+does not have. And it does not **create or delete** items — an edit changes files that already exist, because `ccp` does not
 delete on restore either, and inventing a logical path from the browser is how you get a file nobody can
 place.
 
