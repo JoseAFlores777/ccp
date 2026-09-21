@@ -980,6 +980,40 @@ Qué significa «robusto» aquí, en requisitos que se pueden probar:
      inconsistente.
    - Tests de propiedad del merge a tres bandas.
 
+> **Estado en F4-3 (implementado, la robustez del cliente y del límite).** Los puntos 2, 3, 7 y 8 estaban
+> escritos como si el cliente ya supiera reaccionar, y no sabía. Cinco cosas que el código fijó:
+>
+> - **Una sola política de reintento** (`internal/cloud/client/retry.go`), porque había dos y una de ellas
+>   estaba vacía: el camino de las URLs prefirmadas reintentaba desde F1 y el camino JSON no reintentaba
+>   nada, así que un 503 del almacenamiento o un corte de red a mitad de un push tiraban la subida entera.
+>   Dos caminos que fallan igual y esperan distinto son la misma clase de error que dos formateadores para
+>   un mismo evento: se arregla uno y el otro se queda.
+> - **Reintentar solo donde repetir no crea nada** (`idempotent`). El punto 2 decía «`PUT` idempotente,
+>   porque el id es el contenido», y eso vale para los blobs; para el API hay que decirlo entero: GET, HEAD,
+>   PUT y DELETE por HTTP, y de los POST únicamente `blobs/presign` (una lectura disfrazada) y `snapshots`
+>   (contesta 200 y no 201 cuando ya estaba). `devices` y `revisions` crean una fila por llamada.
+> - **El `Retry-After` en las dos direcciones.** El servidor tenía el límite del punto 7 pero no decía
+>   cuánto esperar, así que el cliente adivinaba con un retroceso exponencial que puede ser más corto que
+>   la ventana —cada reintento comiéndose la ráfaga siguiente antes de que exista—. Y negar una petición no
+>   gasta el permiso que no se dio: la reserva se cancela, o la ventana se empuja en cada reintento y no se
+>   abre nunca. El cliente lo respeta **con techo**: una pista de un día pararía la terminal sin explicar
+>   por qué.
+> - **Una respuesta de `presign` a medias es una mentira, no media lista.** Un id que no vuelve no es «ese
+>   blob no está» —eso es `exists: false`, que sí viaja—, es el servidor contestando otra cosa; al bajar,
+>   ese elemento se quedaba fuera del almacén local sin salir siquiera en la lista de lo que faltaba. Es el
+>   único sitio donde el punto 1 no cubría: lo que llega se verifica, pero lo que NO llega no lo verificaba
+>   nadie.
+> - **Degradación con dirección** (punto 8). Un desajuste de versión decía «actualiza ccp» también cuando el
+>   ccp nuevo era el que iba por delante, que es mandar a repetir lo que ya se hizo; y el bucle del agente
+>   contaba el corte en cada pasada, una línea cada cinco minutos hasta tapar lo demás. Ahora el error se
+>   cuenta una vez por corte y **la vuelta también**: sin ese segundo aviso, el silencio de después es
+>   idéntico al de una máquina que nunca falló.
+>
+> Siguen sin estar, y no se fingen: las métricas Prometheus y las trazas del punto 6, el simulacro semanal
+> de restauración del punto 5 y la inyección de fallos del punto 9 (los tres son despliegue, no binario), y
+> las subidas multiparte del punto 3 —un snapshot de configuración pesa kilobytes y `MaxBlobBytes` es de 64
+> MiB, así que reanudar por partes resolvería un problema que todavía no existe—.
+
 > **Estado en F4-2 (implementado, lo de auditoría y revocación).** El punto 7 decía «auditoría de solo
 > inserción» y eso era la mitad: se apuntaba y nadie lo leía. Ahora se lee —`ccp cloud audit`,
 > `GET /v1/audit`, la pantalla `#/auditoria` del portal— y tres cosas las fijó el código:
@@ -1073,7 +1107,7 @@ Dokploy v0.30.4, un solo servidor.
 | F1 | **Implementado.** Bóveda, dispositivos, push/pull de snapshots (`ccp cloud`), el backend `ccp-cloud` y la traducción del HOME al restaurar. Falta **desplegar el API**, pendiente de autorización del usuario | D, I | L | Una segunda Mac se desbloquea con la frase de bóveda y trae el historial de la primera |
 | F2 | **Implementado.** Portal: dispositivos, historial, diff, editor y «Aplicar a…»; P-21 Nube en la app | F1 | M | Desde el portal se edita la configuración de un snapshot, se aplica a una máquina y ésta confirma allí lo ejecutable |
 | F3 | **Implementado.** Restaurar desde el portal. **F3-1**: cadena firmada comprobable (`ccp cloud verify`) y retención en el servidor. **F3-2**: descarga `.ccpsnap` / `.tar.gz` desde el CLI y desde el portal. **F3-3**: los tres caminos de restauración (app, portal, máquina nueva) con el mapeo de §11. **F3-4**: documentación (README, README.es, CHANGELOG, CLAUDE.md y §10.3.1 · §11 · §12 de este spec) | F2 | L | «Restaurar en <máquina>» en el portal deja la máquina en ese snapshot, con lo ejecutable confirmado en local |
-| F4 | Grupos (**F4-1, implementado**), auditoría y revocación (**F4-2, implementado**), rotación de AK, envoltura X25519 por dispositivo (aplazada de F3) y las excepciones por máquina de §11 (`machines:`, `ccp.local.yaml`) | F3 | M | Un cambio aplicado a un grupo aparece como `aplicada` en cada máquina |
+| F4 | Grupos (**F4-1, implementado**), auditoría y revocación (**F4-2, implementado**), robustez del cliente y del límite (**F4-3, implementado**: §10.5), rotación de AK, envoltura X25519 por dispositivo (aplazada de F3) y las excepciones por máquina de §11 (`machines:`, `ccp.local.yaml`) | F3 | M | Un cambio aplicado a un grupo aparece como `aplicada` en cada máquina |
 | E | (aplazado, D10) `ccp sync` sobre carpeta o S3 | D | M | — |
 
 **Dos vías en paralelo tras la Fase 0 (D10):**
