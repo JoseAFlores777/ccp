@@ -2,6 +2,9 @@ package remote_test
 
 import (
 	"bytes"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -172,5 +175,67 @@ func TestPickPorPrefijoYLatest(t *testing.T) {
 	}
 	if _, err := remote.Pick(t.Context(), r, id("otro")[:10]); err == nil {
 		t.Fatal("un prefijo que no está tendría que fallar")
+	}
+}
+
+// Un hueco en el destino —un desalojo de iCloud, una poda a mano— no lo
+// arregla nadie más: el equipo que baja solo pide lo que él no tiene, así que
+// nunca se entera. Por eso `push` no se fía de state.json y pregunta al
+// destino por el contenido de lo que ya dio por subido.
+func TestPushReponeElContenidoQueElDestinoPerdio(t *testing.T) {
+	dir := t.TempDir()
+	a := nuevoEquipo(t)
+	ra, err := remote.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ak, _, err := remote.InitVault(t.Context(), ra, []byte(frase))
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
+	a.guarda(t, "ccp/ccp.yaml", "version: 2\n", base)
+	if _, err := remote.Push(t.Context(), ra, cuenta(t, ak), a.st, a.files, ""); err != nil {
+		t.Fatal(err)
+	}
+	borraUnObjeto(t, dir)
+
+	rep, err := remote.Push(t.Context(), ra, cuenta(t, ak), a.st, a.files, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Repaired != 1 || rep.Uploaded != 1 {
+		t.Fatalf("push de reparación = %+v", rep)
+	}
+	// Y una vez repuesto, el siguiente push no repite el trabajo.
+	rep2, err := remote.Push(t.Context(), ra, cuenta(t, ak), a.st, a.files, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep2.Repaired != 0 || rep2.Uploaded != 0 {
+		t.Fatalf("push posterior = %+v", rep2)
+	}
+}
+
+// borraUnObjeto quita el primer blob que haya bajo objects/, que es lo que
+// hace una poda ajena a ccp.
+func borraUnObjeto(t *testing.T, dir string) {
+	t.Helper()
+	var hit string
+	err := filepath.WalkDir(filepath.Join(dir, "objects"), func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || hit != "" {
+			return err
+		}
+		hit = p
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hit == "" {
+		t.Fatal("no hay ningún objeto que borrar")
+	}
+	if err := os.Remove(hit); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -48,6 +48,14 @@
     solo añade al almacén local. Sin `--yes` enseña el plan y sale 1, como `ccp snapshot restore`
     —es la misma operación destructiva—; `--plan` pide solo el plan y sale 0. El plan lo pinta el
     mismo `printRestorePlan` que `snapshot restore` y `cloud restore`.
+  - **Un hueco en el destino se repara y no se restaura a medias.** `push` ya no se fía de
+    `state.json` —una creencia de esta máquina— para los snapshots que ya dio por subidos: pregunta
+    al destino por su contenido (un `Missing` en lote) y repone lo que este equipo todavía tiene, que
+    es lo único que arregla un objeto desalojado por iCloud o podado a mano, porque el equipo que
+    baja solo pide lo que él no tiene y jamás se entera del hueco. Y `apply` ya no dice «Restaurado»
+    saliendo 0 habiéndose saltado rutas: si el plan omite alguna porque el destino perdió su
+    contenido —una de ellas puede ser `ccp/ccp.yaml`— para antes de tocar nada, dice cuáles y sale 1;
+    `--force` lo aplica igual.
   - **Con más de un destino no se adivina cuál**: se pide `--remote <nombre>`. Adivinar es publicar
     en la carpeta equivocada.
   - Los destinos se guardan en `<CCP_HOME>/sync/remotes.json`, **no** en `ccp.yaml`: `ccp.yaml` es la

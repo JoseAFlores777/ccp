@@ -308,3 +308,59 @@ func TestSyncDestinoVacioSigueSiendoJSON(t *testing.T) {
 		}
 	}
 }
+
+// Un hueco en el destino —un objeto que iCloud desalojó o que alguien podó—
+// no puede acabar en un «Restaurado» con código 0: lo que no llegó se salta,
+// y una de esas rutas puede ser ccp/ccp.yaml. `apply` para antes de tocar
+// nada y lo dice; --force es para quien ya lo sabe.
+func TestSyncApplyNoRestauraAMediasSinDecirlo(t *testing.T) {
+	t.Setenv("CCP_SYNC_PASSPHRASE", fraseSync)
+	destino := t.TempDir()
+	snapEnv(t)
+	if code, out, errs := snapRun(t, "snapshot", "create"); code != 0 {
+		t.Fatalf("create: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "sync", "remote", "add", "icloud", "file://"+destino); code != 0 {
+		t.Fatalf("remote add: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "sync", "push"); code != 0 {
+		t.Fatalf("push: %d %q %q", code, out, errs)
+	}
+	borraUnObjetoDe(t, destino)
+
+	// La otra máquina: solo tiene la carpeta, así que el hueco es suyo.
+	t.Setenv("CCP_HOME", t.TempDir())
+	if code, out, errs := snapRun(t, "sync", "remote", "add", "icloud", "file://"+destino); code != 0 {
+		t.Fatalf("remote add en la otra máquina: %d %q %q", code, out, errs)
+	}
+	code, out, errs := snapRun(t, "sync", "apply", "latest", "--yes")
+	if code != 1 {
+		t.Fatalf("apply con un hueco salió %d: %q %q", code, out, errs)
+	}
+	if strings.Contains(out, "Restaurado") || !strings.Contains(errs, "no se pueden restaurar") {
+		t.Fatalf("apply con un hueco dijo: %q %q", out, errs)
+	}
+	// Y con --force se aplica lo que sí llegó, que es lo que el mensaje ofrece.
+	if code, out, errs = snapRun(t, "sync", "apply", "latest", "--yes", "--force"); code != 0 {
+		t.Fatalf("apply --force: %d %q %q", code, out, errs)
+	}
+}
+
+// borraUnObjetoDe quita el primer blob que haya bajo objects/ del destino.
+func borraUnObjetoDe(t *testing.T, destino string) {
+	t.Helper()
+	var hit string
+	err := filepath.WalkDir(filepath.Join(destino, "objects"), func(p string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || hit != "" {
+			return err
+		}
+		hit = p
+		return nil
+	})
+	if err != nil || hit == "" {
+		t.Fatalf("no hay objeto que borrar: %v %q", err, hit)
+	}
+	if err := os.Remove(hit); err != nil {
+		t.Fatal(err)
+	}
+}
