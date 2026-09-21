@@ -55,10 +55,13 @@ func (a *API) GroupStatus(ctx context.Context, id string) (api.GroupStatus, erro
 	return st, a.do(ctx, http.MethodGet, "/v1/groups/"+url.PathEscape(id)+"/status", nil, &st)
 }
 
-// ResolveGroup busca un grupo por id o por nombre, que es como lo escribe una
-// persona en el CLI. El nombre se compara sin distinguir mayúsculas porque
-// quien teclea «macs» está nombrando «Macs»; si dos grupos empatan así, se
-// dice, en vez de elegir uno por el orden en que vinieron.
+// ResolveGroup busca un grupo por id, por prefijo de id o por nombre, que es
+// como lo escribe una persona en el CLI. El prefijo hace falta porque
+// `ccp cloud groups` pinta la columna «ID» recortada a 8 caracteres: sin él, lo
+// que el usuario copia de la pantalla es justo lo que el CLI rechaza (igual que
+// findDevice, que sí acepta prefijo). El nombre se compara sin distinguir
+// mayúsculas porque quien teclea «macs» está nombrando «Macs»; si dos grupos
+// empatan así, se dice, en vez de elegir uno por el orden en que vinieron.
 func ResolveGroup(ctx context.Context, a *API, ref string) (api.Group, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
@@ -68,7 +71,7 @@ func ResolveGroup(ctx context.Context, a *API, ref string) (api.Group, error) {
 	if err != nil {
 		return api.Group{}, err
 	}
-	var porNombre []api.Group
+	var porNombre, porPrefijo []api.Group
 	for _, g := range gs {
 		if g.ID == ref {
 			return g, nil
@@ -76,12 +79,21 @@ func ResolveGroup(ctx context.Context, a *API, ref string) (api.Group, error) {
 		if strings.EqualFold(g.Name, ref) {
 			porNombre = append(porNombre, g)
 		}
+		if strings.HasPrefix(g.ID, ref) {
+			porPrefijo = append(porPrefijo, g)
+		}
 	}
-	switch len(porNombre) {
-	case 0:
-		return api.Group{}, ErrGroupNotFound
-	case 1:
+	// El nombre manda sobre el prefijo: es lo que la persona eligió para el
+	// grupo, mientras que el id lo puso la nube.
+	switch {
+	case len(porNombre) == 1:
 		return porNombre[0], nil
+	case len(porNombre) > 1:
+		return api.Group{}, fmt.Errorf("hay %d grupos que se llaman %q: usa su id", len(porNombre), ref)
+	case len(porPrefijo) == 1:
+		return porPrefijo[0], nil
+	case len(porPrefijo) > 1:
+		return api.Group{}, fmt.Errorf("hay %d grupos cuyo id empieza por %q: escribe más caracteres", len(porPrefijo), ref)
 	}
-	return api.Group{}, fmt.Errorf("hay %d grupos que se llaman %q: usa su id", len(porNombre), ref)
+	return api.Group{}, ErrGroupNotFound
 }
