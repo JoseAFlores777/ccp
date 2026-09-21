@@ -238,3 +238,25 @@ func TestFilesPermissions(t *testing.T) {
 		t.Fatalf("el directorio de la nube tiene permisos %o", di.Mode().Perm())
 	}
 }
+
+// Olvidar el equipo olvida también lo que creía subido: el mapa de subidos
+// solo vale contra la bóveda y la cuenta con que se llenó, y tras un logout
+// nadie garantiza que la próxima sesión sea esa. Dejarlo vivo haría que un
+// `push` posterior se saltara snapshots que arriba no están.
+func TestForgetOlvidaLoSubido(t *testing.T) {
+	files := NewFiles(t.TempDir())
+	if err := files.SaveConfig(Config{Server: "https://x", UserID: "user-1", DeviceID: "d1"}); err != nil {
+		t.Fatal(err)
+	}
+	st, _ := files.LoadState()
+	st.Pushed["local-1"] = "nube-1"
+	if err := files.SaveState(st); err != nil {
+		t.Fatal(err)
+	}
+	if err := files.Forget(); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := files.LoadState(); err != nil || len(got.Pushed) != 0 {
+		t.Fatalf("tras Forget, el estado = %+v, %v", got, err)
+	}
+}
