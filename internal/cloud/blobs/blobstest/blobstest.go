@@ -77,7 +77,7 @@ func (m *Mem) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		m.Set(key, body)
 	case http.MethodGet:
-		data, ok := m.Get(key)
+		data, ok := m.Peek(key)
 		if !ok {
 			http.NotFound(w, r)
 			return
@@ -95,8 +95,8 @@ func (m *Mem) Set(key string, data []byte) {
 	m.data[key] = bytes.Clone(data)
 }
 
-// Get lee key saltándose las URLs.
-func (m *Mem) Get(key string) ([]byte, bool) {
+// Peek lee key saltándose las URLs (para comprobar un test).
+func (m *Mem) Peek(key string) ([]byte, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	d, ok := m.data[key]
@@ -115,8 +115,20 @@ func (m *Mem) PresignGet(_ context.Context, key string, ttl time.Duration) (stri
 
 // Head dice si key existe y cuánto mide.
 func (m *Mem) Head(_ context.Context, key string) (int64, bool, error) {
-	d, ok := m.Get(key)
+	d, ok := m.Peek(key)
 	return int64(len(d)), ok, nil
+}
+
+// Get lee key. Es lo que usa el camino del portal, que no pasa por URLs.
+func (m *Mem) Get(_ context.Context, key string) ([]byte, bool, error) {
+	d, ok := m.Peek(key)
+	return d, ok, nil
+}
+
+// Put guarda data en key.
+func (m *Mem) Put(_ context.Context, key string, data []byte) error {
+	m.Set(key, data)
+	return nil
 }
 
 // Ping siempre va: la memoria no se cae.
@@ -171,6 +183,22 @@ func RunContract(t *testing.T, b blobs.Blobs) {
 		if resp.StatusCode == 200 {
 			t.Fatal("una URL de subida sirvió para bajar")
 		}
+	}
+	// Get y Put son el camino del portal: los mismos bytes sin URL de por
+	// medio. Se comprueban contra lo que dejó el PUT prefirmado, porque ambos
+	// caminos tienen que ver el mismo objeto y no dos copias.
+	if got, ok, err := b.Get(ctx, key); err != nil || !ok || !bytes.Equal(got, body) {
+		t.Fatalf("Get = %q %v %v", got, ok, err)
+	}
+	otra := blobs.Key("00000000-0000-4000-8000-000000000000", strings.Repeat("cd", 32))
+	if _, ok, err := b.Get(ctx, otra); err != nil || ok {
+		t.Fatalf("Get de algo que no está = %v, %v", ok, err)
+	}
+	if err := b.Put(ctx, otra, body); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok, err := b.Get(ctx, otra); err != nil || !ok || !bytes.Equal(got, body) {
+		t.Fatalf("Get tras Put = %q %v %v", got, ok, err)
 	}
 	if err := b.Ping(ctx); err != nil {
 		t.Fatalf("Ping: %v", err)
