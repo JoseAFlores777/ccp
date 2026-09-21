@@ -343,6 +343,10 @@ export interface SnapStep {
   lpath: string;
   action: 'write' | 'merge' | 'same' | 'skip';
   reason?: string;
+  /** Lo que el manifiesto sabía del elemento. En un proyecto trae `path` (la
+   *  carpeta donde se escribirá) y `remote`: sin ellos la ruta lógica es solo
+   *  12 hex y dos repos con regla no se distinguen. */
+  meta?: Record<string, string>;
 }
 
 export interface SnapPlan {

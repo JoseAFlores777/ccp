@@ -1116,6 +1116,8 @@ export const en: Record<string, string> = {
   "~/.claude · la configuración global": "~/.claude \u00b7 the global configuration",
   "Ventana de Desktop · {n}": "Desktop window \u00b7 {n}",
   "Proyecto · {n}": "Project \u00b7 {n}",
+  "Proyecto · {w}": "Project \u00b7 {w}",
+  "clave {k}": "key {k}",
   "{n} · {b}": "{n} \u00b7 {b}",
   "escrito por ti": "written by you",
   "secreto": "secret",

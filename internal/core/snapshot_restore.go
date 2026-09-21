@@ -112,6 +112,11 @@ type SnapshotRestoreStep struct {
 	LPath  string `json:"lpath"`
 	Action string `json:"action"`           // write | merge | same | skip
 	Reason string `json:"reason,omitempty"` // missing_blob | project_missing | invalid | unreadable
+	// Meta viaja tal cual desde el elemento del manifiesto. Un paso de proyecto
+	// solo se nombra con 12 hex de su clave, así que sin la ruta (y el remoto)
+	// quien enseña el plan no puede decir en qué repo se va a escribir: dos
+	// proyectos con regla serían dos casillas iguales.
+	Meta map[string]string `json:"meta,omitempty"`
 }
 
 // SnapshotRestoreReport resume una restauración (o su plan, en dry-run).
@@ -161,7 +166,7 @@ func SnapshotRestore(home, src string, st *snapshot.Store, ref string, o Snapsho
 	rep := &SnapshotRestoreReport{Snapshot: m.ID, Steps: []SnapshotRestoreStep{}, Regenerated: []string{}}
 	var todo []pending
 	for _, it := range items {
-		step := SnapshotRestoreStep{LPath: it.LPath}
+		step := SnapshotRestoreStep{LPath: it.LPath, Meta: it.Meta}
 		tgt, err := snapshotTarget(home, src, it)
 		switch {
 		case errors.Is(err, errProjectMissing):
