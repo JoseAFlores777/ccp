@@ -10,7 +10,7 @@ import {
 } from '../lib/api';
 import { backupName } from '../lib/actions';
 import { pickOpenFile, pickSaveFile } from '../lib/bridge';
-import { ago, bytes, clock, tilde } from '../lib/format';
+import { ago, bytes, clock, shellPath, shellQuote, tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, CardHead, CliBar, Empty, ErrorNote, KV, Loading, Note, Pill } from '../components/ui';
@@ -301,7 +301,7 @@ function Detalle({ s, onPlan }: { s: SnapSummary; onPlan: (p: SnapPlan) => void 
       confirmLabel: t('Guardar'),
       // `pin`/`unpin` según cómo esté AHORA: etiquetar no cambia el fijado, y
       //  ofrecer siempre `pin` fijaría un snapshot que la GUI deja sin fijar.
-      cli: (f) => `ccp snapshot ${s.pinned ? 'pin' : 'unpin'} ${short(s.id)} -m ${JSON.stringify(f.label ?? '')}`,
+      cli: (f) => `ccp snapshot ${s.pinned ? 'pin' : 'unpin'} ${short(s.id)} -m ${shellQuote(f.label ?? '')}`,
       onConfirm: async (f) => {
         await api.snapshotPin(s.id, s.pinned, f.label ?? '');
         return t('Etiqueta guardada');
@@ -330,7 +330,7 @@ function Detalle({ s, onPlan }: { s: SnapSummary; onPlan: (p: SnapPlan) => void 
         : [t('Al importarlo, los elementos con secretos faltarán y se dirá cuáles.')]),
       canConfirm: (f) => f.secrets !== 'si' || (f.pass ?? '').trim().length >= MIN_PASS,
       confirmLabel: t('Exportar'),
-      cli: (f) => `ccp snapshot export ${short(s.id)} ${tilde(dest)}${f.secrets === 'si' ? ' --with-secrets' : ''}`,
+      cli: (f) => `ccp snapshot export ${short(s.id)} ${shellPath(dest)}${f.secrets === 'si' ? ' --with-secrets' : ''}`,
       onConfirm: async (f) => {
         await api.snapshotExport(s.id, dest, f.secrets === 'si' ? (f.pass ?? '') : '');
         return t('Exportado a {f}', { f: tilde(dest) });
@@ -411,7 +411,7 @@ export function Snapshots() {
         },
       ],
       confirmLabel: t('Crear'),
-      cli: (f) => `ccp snapshot create${f.label ? ` -m ${JSON.stringify(f.label)}` : ''}${f.state === 'si' ? ' --with-state' : ''}`,
+      cli: (f) => `ccp snapshot create${f.label ? ` -m ${shellQuote(f.label)}` : ''}${f.state === 'si' ? ' --with-state' : ''}`,
       onConfirm: async (f) => {
         const r = await api.snapshotCreate(f.label ?? '', f.state === 'si');
         setPick(r.id);
@@ -457,7 +457,7 @@ export function Snapshots() {
       initial: { pass: '' },
       fields: [{ key: 'pass', label: t('Frase, si el archivo se exportó con secretos'), kind: 'secret' }],
       confirmLabel: t('Importar'),
-      cli: () => `ccp snapshot import ${tilde(archive)}`,
+      cli: () => `ccp snapshot import ${shellPath(archive)}`,
       onConfirm: async (f) => {
         const r = await api.snapshotImport(archive, f.pass ?? '');
         setPick(r.snapshot.id);
