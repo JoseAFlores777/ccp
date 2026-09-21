@@ -17,6 +17,8 @@ var catalogCloud = map[string]map[Lang]string{
   push [<snapshot>] [--json]          upload the local snapshots the cloud does not have
   pull [<id>|latest] [--device <n>]   download a snapshot into the local store
        [-o <file>] [--decrypted]      …or into a file: .ccpsnap, or a readable .tar.gz with --yes
+  restore [<id>|latest] [--yes]       bring this machine to that snapshot (any machine's)
+       [--only <lpath>] [--map k=dir] …or only those paths; --map says where a project lives here
   list [--json]                       snapshots in the cloud, from every machine
   verify [--json]                     check the whole signed history for tampering
   devices [--json]                    machines of the account
@@ -37,6 +39,8 @@ CCP_CLOUD_PASSPHRASE and CCP_CLOUD_RECOVERY give the secrets without asking.`,
   push [<snapshot>] [--json]          sube los snapshots locales que la nube no tiene
   pull [<id>|latest] [--device <n>]   baja un snapshot al almacén local
        [-o <archivo>] [--decrypted]   …o a un archivo: .ccpsnap, o un .tar.gz legible con --yes
+  restore [<id>|latest] [--yes]       deja esta máquina en ese snapshot (de cualquier equipo)
+       [--only <ruta>] [--map c=dir]  …o solo esas rutas; --map dice dónde vive aquí un proyecto
   list [--json]                       snapshots en la nube, de todos los equipos
   verify [--json]                     comprueba que nadie ha tocado la historia firmada
   devices [--json]                    equipos de la cuenta
@@ -191,4 +195,42 @@ var catalogCloudDownload = map[string]map[Lang]string{
 	"cli.cloud.pulled_file":       {En: "Snapshot %s downloaded to %s (encrypted).", Es: "Snapshot %s bajado a %s (cifrado)."},
 	"cli.cloud.pulled_file_plain": {En: "Snapshot %s downloaded to %s IN THE CLEAR.", Es: "Snapshot %s bajado a %s EN CLARO."},
 	"cli.cloud.pull_file_hint":    {En: "To open it on another machine: ccp snapshot import %s", Es: "Para abrirlo en otra máquina: ccp snapshot import %s"},
+}
+
+func init() { register(catalogCloudRestore) }
+
+// catalogCloudRestore — `ccp cloud restore` (spec §10.3.1, caminos 1 y 3).
+var catalogCloudRestore = map[string]map[Lang]string{
+	"cli.cloud.restore_bad_map": {
+		En: "--map takes <project-key>=<absolute path>; %q is not one. `ccp cloud restore --dry-run` lists the keys.",
+		Es: "--map lleva <clave-de-proyecto>=<ruta absoluta>; %q no lo es. `ccp cloud restore --dry-run` enseña las claves.",
+	},
+	"cli.cloud.restore_confirm": {
+		En: "Nothing was written. Repeat with --yes to apply it (a snapshot of the current state is taken first).",
+		Es: "No se ha escrito nada. Repite con --yes para aplicarlo (antes se toma un snapshot del estado actual).",
+	},
+	"cli.cloud.restore_project_at": {
+		En: "  project %s → %s",
+		Es: "  proyecto %s → %s",
+	},
+	"cli.cloud.restore_project_missing": {
+		En: "  project %s is not on this machine: its %d files are skipped (map it with --map)",
+		Es: "  el proyecto %s no está en esta máquina: se saltan sus %d archivos (mapéalo con --map)",
+	},
+	"cli.cloud.restore_pending": {
+		En: "Left to do by hand:",
+		Es: "Queda por hacer a mano:",
+	},
+	"cli.cloud.pending_login": {
+		En: "log in to profile %s: ccp profile login %[1]s",
+		Es: "inicia sesión en el perfil %s: ccp profile login %[1]s",
+	},
+	"cli.cloud.pending_command": {
+		En: "command %s is not on this machine (named by %s)",
+		Es: "el comando %s no está en esta máquina (lo nombra %s)",
+	},
+	"cli.cloud.pending_project": {
+		En: "project %s is not here; clone %s and repeat with --map",
+		Es: "el proyecto %s no está aquí; clona %s y repite con --map",
+	},
 }
