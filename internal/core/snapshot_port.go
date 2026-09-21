@@ -162,13 +162,11 @@ func ProjectMapInputsFor(home, src string) ProjectMapInputs {
 		seen[p] = true
 		in.Candidates = append(in.Candidates, p)
 	}
+	jsons := []string{src + ".json"}
 	if cfg, err := Load(home); err == nil {
 		for _, r := range cfg.Rules {
 			add(r.Path)
 		}
-	}
-	jsons := []string{src + ".json"}
-	if cfg, err := Load(home); err == nil {
 		for n := range cfg.Profiles {
 			if n != "default" {
 				jsons = append(jsons, filepath.Join(ccHomePath(home, n), ".claude.json"))

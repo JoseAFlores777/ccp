@@ -111,3 +111,15 @@ func TestCloudRestoreRechazaUnMapeoMalEscrito(t *testing.T) {
 		t.Fatalf("un --map con ruta relativa tiene que explicarse: %d %q", code, errs)
 	}
 }
+
+// Una cuenta recién creada no tiene snapshots: eso es un estado, no un fallo,
+// y lo dice con las mismas palabras que `pull`.
+func TestCloudRestoreSinNadaArribaNoEsUnFallo(t *testing.T) {
+	url := cloudServer(t)
+	snapEnv(t)
+	cloudUp(t, url)
+	code, out, errs := snapRun(t, "cloud", "restore", "latest")
+	if code != 0 || !strings.Contains(out, "no tiene snapshots") {
+		t.Fatalf("restore con la nube vacía: %d %q %q", code, out, errs)
+	}
+}
