@@ -48,10 +48,12 @@
     «fallida» culparía a la máquina de algo que no hizo y «sustituida» diría que otra orden la reemplazó,
     que tampoco pasó. Va en la misma transacción que la revocación, y la cascada por sesión la arrastra.
   - **`ccp cloud rotate` rota las claves de ACCESO, no la clave de cuenta**: frase y código de recuperación
-    nuevos sobre la MISMA AK, así que no hay nada que recifrar y todo lo publicado se sigue abriendo. El
-    servidor exige que la clave pública de firma sea la misma —su única forma de ver que la AK no cambió sin
-    poder abrir nada—, no pide la frase vieja (que es justo la que puede haberse perdido) y la nueva va por
-    `CCP_CLOUD_NEW_PASSPHRASE`, porque reutilizar `CCP_CLOUD_PASSPHRASE` sería «rotar» a la misma frase sin
+    nuevos sobre la MISMA AK, así que no hay nada que recifrar y todo lo publicado se sigue abriendo. La
+    rotación va firmada con la clave de la cuenta, que sale de la AK, e incluye las envolturas que reemplaza:
+    el servidor comprueba esa firma contra el `sign_pub` que ya guarda antes de pisar nada —el `sign_pub` por
+    sí solo no frenaba a nadie, lo sirve en claro `GET /v1/vault`— y sigue exigiendo que ese `sign_pub` no
+    cambie, porque una AK distinta es otra caja. No pide la frase vieja (que es justo la que puede haberse
+    perdido) y la nueva va por `CCP_CLOUD_NEW_PASSPHRASE`, porque reutilizar `CCP_CLOUD_PASSPHRASE` sería «rotar» a la misma frase sin
     enterarse. Y lo dice: rotar las llaves no cambia la caja, así que un equipo ya desbloqueado —incluido uno
     revocado que se quedara con su copia— la sigue teniendo. Rotar la AK sigue pendiente.
 

@@ -212,13 +212,19 @@ func vaultInput(w http.ResponseWriter, r *http.Request) (api.Vault, bool) {
 	if !decode(w, r, 64<<10, &in) {
 		return in, false
 	}
+	return in, vaultShapeOK(w, in)
+}
+
+// vaultShapeOK es esa comprobación de forma sobre una bóveda ya decodificada:
+// la rotación llega envuelta en otro tipo (lleva firma) y necesita la misma.
+func vaultShapeOK(w http.ResponseWriter, in api.Vault) bool {
 	okWrap := func(b []byte) bool { return len(b) > 0 && len(b) <= 4096 }
 	if len(in.KDF) == 0 || in.KDF[0] != '{' || !json.Valid(in.KDF) || !okWrap(in.PassphraseWrap) ||
 		!okWrap(in.RecoveryWrap) || len(in.SignPub) != 32 {
 		writeError(w, http.StatusBadRequest, api.CodeBadRequest, "bóveda inválida")
-		return in, false
+		return false
 	}
-	return in, true
+	return true
 }
 
 // rewrapVault rota las claves de ACCESO a la bóveda (§10.2): frase y código de
@@ -226,17 +232,40 @@ func vaultInput(w http.ResponseWriter, r *http.Request) (api.Vault, bool) {
 // que recifrar: lo que cambia son las dos envolturas. Rotar la AK —la caja, no
 // las llaves— obliga a recifrar todo lo publicado y es otra operación.
 //
-// El almacén exige que la clave pública de firma sea la que ya había, y ese es
-// el único freno posible desde este lado: el servidor no puede abrir una
-// envoltura para comprobar que dentro sigue la misma AK, pero sí ver que la
-// identidad de firma no se mueve. Sin eso, una petición podría sustituir la
-// bóveda entera y dejar sin abrir todo lo publicado hasta hoy.
+// Que la clave pública de firma sea la que ya había NO es un freno: el
+// servidor la sirve en claro en GET /v1/vault a cualquier dispositivo
+// autenticado, así que copiarla es gratis, y esta operación es destructiva —
+// pisa las dos envolturas y no queda copia de las viejas. Por eso se exige
+// además la FIRMA de la rotación con la clave de la cuenta, que sí sale de la
+// AK: sin la AK no se puede fabricar, y con ella se es el dueño. La firma
+// incluye las envolturas que se reemplazan, de modo que solo encaja contra la
+// bóveda que hay ahora mismo y no se puede reponer una rotación vieja.
 func (s *srv) rewrapVault(w http.ResponseWriter, r *http.Request, rc reqCtx) {
-	in, ok := vaultInput(w, r)
-	if !ok {
+	var in api.VaultRewrap
+	if !decode(w, r, 64<<10, &in) {
 		return
 	}
-	err := s.cfg.Store.RewrapVault(r.Context(), rc.user.ID, store.Vault{
+	if !vaultShapeOK(w, in.Vault) {
+		return
+	}
+	cur, err := s.cfg.Store.Vault(r.Context(), rc.user.ID)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, api.CodeNotFound, "esta cuenta aún no tiene bóveda")
+		return
+	}
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	if err := api.VerifyRewrap(cur.SignPub, api.RewrapParts{
+		PrevPassphraseWrap: cur.PassphraseWrap, PrevRecoveryWrap: cur.RecoveryWrap,
+		KDF: in.KDF, PassphraseWrap: in.PassphraseWrap, RecoveryWrap: in.RecoveryWrap,
+	}, in.Sig); err != nil {
+		writeError(w, http.StatusForbidden, api.CodeForbidden,
+			"esta rotación no viene firmada con la clave de la cuenta; solo un equipo con la bóveda abierta puede rotarla")
+		return
+	}
+	err = s.cfg.Store.RewrapVault(r.Context(), rc.user.ID, store.Vault{
 		KDF: in.KDF, PassphraseWrap: in.PassphraseWrap, RecoveryWrap: in.RecoveryWrap, SignPub: in.SignPub})
 	switch {
 	case errors.Is(err, store.ErrNotFound):

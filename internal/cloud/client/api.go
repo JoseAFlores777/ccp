@@ -152,10 +152,12 @@ func (a *API) PutVault(ctx context.Context, v api.Vault) error {
 }
 
 // RewrapVault rota las claves de ACCESO: sube envolturas nuevas sobre la
-// misma clave de cuenta. El servidor rechaza la rotación si la clave pública
-// de firma no es la que ya tenía, que es su única forma de ver que la AK no
-// cambió sin poder abrir nada.
-func (a *API) RewrapVault(ctx context.Context, v api.Vault) error {
+// misma clave de cuenta. Van firmadas con la clave de la cuenta —que sale de
+// la AK— y la firma incluye las envolturas que reemplazan: el servidor no
+// puede abrir nada, así que esa firma es lo único que distingue al dueño de
+// cualquier otro equipo con sesión, y esta operación borra las envolturas
+// viejas sin dejar copia.
+func (a *API) RewrapVault(ctx context.Context, v api.VaultRewrap) error {
 	return a.do(ctx, http.MethodPut, "/v1/vault/wraps", v, nil)
 }
 

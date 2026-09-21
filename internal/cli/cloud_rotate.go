@@ -17,6 +17,7 @@ import (
 
 	"github.com/mattn/go-isatty"
 
+	"github.com/JoseAFlores777/ccp/internal/cloud/api"
 	"github.com/JoseAFlores777/ccp/internal/cloud/client"
 	"github.com/JoseAFlores777/ccp/internal/cloud/crypt"
 	"github.com/JoseAFlores777/ccp/internal/core/i18n"
@@ -82,11 +83,26 @@ func (c cloudCmd) rotate(args []string) int {
 	if err != nil {
 		return c.fail(err)
 	}
+	// La rotación va FIRMADA con la clave de la cuenta, que sale de la AK, y
+	// la firma incluye las envolturas que se reemplazan. El servidor no sabe
+	// abrir ninguna: sin esa prueba, cualquier equipo con sesión podría pisar
+	// la bóveda y dejar sin abrir todo lo publicado.
+	acct, err := crypt.NewAccount(ak)
+	if err != nil {
+		return c.fail(err)
+	}
+	prev, err := cl.Vault(c.ctx)
+	if err != nil {
+		return c.fail(err)
+	}
+	rot := api.VaultRewrap{Vault: v, Sig: acct.SignRewrap(api.RewrapParts{
+		PrevPassphraseWrap: prev.PassphraseWrap, PrevRecoveryWrap: prev.RecoveryWrap,
+		KDF: v.KDF, PassphraseWrap: v.PassphraseWrap, RecoveryWrap: v.RecoveryWrap})}
 	// El código se enseña DESPUÉS de subir, al revés que en `init`: allí la
 	// bóveda ya estaba creada de forma irrepetible y el código solo vivía en
 	// memoria; aquí, si la subida falla, las envolturas viejas siguen en pie
 	// y enseñar un código que no abre nada sería peor que no enseñarlo.
-	if err := cl.RewrapVault(c.ctx, v); err != nil {
+	if err := cl.RewrapVault(c.ctx, rot); err != nil {
 		return c.fail(err)
 	}
 	fmt.Fprintln(c.out, boldLine(c.out, i18n.T(c.lang, "cli.cloud.recovery_title")))
