@@ -139,7 +139,10 @@ func TestCloudGruposRenombrarConservaMiembros(t *testing.T) {
 	if code, out, errs = snapRun(t, "cloud", "groups", "set", "Mis Macs", "--empty"); code != 0 {
 		t.Fatalf("groups set --empty: %d %q %q", code, out, errs)
 	}
-	code, out, _ = snapRun(t, "cloud", "groups", "--json")
+	code, out, errs = snapRun(t, "cloud", "groups", "--json")
+	if code != 0 {
+		t.Fatalf("groups --json tras vaciar: %d %q %q", code, out, errs)
+	}
 	gs = gs[:0]
 	if json.Unmarshal([]byte(out), &gs) != nil || len(gs) != 1 || len(gs[0].Members) != 0 {
 		t.Fatalf("grupo vaciado = %q", out)
