@@ -4,6 +4,30 @@
 
 ### Added
 
+- **P-21 Nube en la app: la cuenta, la bóveda, tus equipos y lo que espera tu confirmación** (spec §10.3,
+  F2-5, [ADR 0014](docs/adr/0014-portal-proposes-machine-applies.md)). Es el otro extremo del portal: lo que
+  éste propone acaba aquí, y lo que ejecuta código no entra hasta que alguien de esta máquina lo mira.
+  - **Nada viene marcado.** Los cambios que esperan —hooks, el `command` de un MCP, la `statusLine`, plugins,
+    un script, los permisos que amplían— se aprueban **ruta a ruta**, con el motivo de cada uno al lado; lo
+    que no marcas se rechaza y se informa al portal. Confirmar por omisión es justo lo que esta barrera
+    existe para evitar (D6). Antes de escribir se guarda un snapshot de seguridad, y la pantalla enseña su id.
+  - **Un secreto de la bóveda no cruza el puente.** Iniciar sesión, crear la bóveda y desbloquearla abren
+    **Terminal** con el comando, como el `/login` de una cuenta: la frase de bóveda desenvuelve la clave de
+    cuenta, y el cifrado de extremo a extremo vale exactamente lo que valga el sitio por el que pasa esa
+    frase. La app no tiene ningún campo donde escribirla.
+  - **La política de este equipo se elige aquí** (`auto` · `manual`, `ccp cloud policy`), con la diferencia
+    dicha en la pantalla: ninguna de las dos aplica sola lo ejecutable; lo que cambia es si un `CLAUDE.md` o
+    una regla entran sin preguntar. Los choques se listan pero no se resuelven desde aquí, porque el portal
+    es quien publica sobre el snapshot actual.
+  - **`ccp serve` gana los métodos de nube**: `cloud.status`, `cloud.devices`, `cloud.review`,
+    `cloud.reviewResolve`, `cloud.setPolicy` y `cloud.revoke`. `cloud.status` funciona sin sesión y sin red
+    —es el estado en el que la pantalla se abre la primera vez— y nunca se cuelga. Login, `init` y `unlock`
+    **no** están: no hay forma de pedirle a `serve` que maneje la frase. El equipo propio no se revoca desde
+    la app: se dejaría sin nube y sin forma de arreglarlo desde ahí.
+  - `cloudAgentOpts` sale de `cloudCmd` para que el CLI y `serve` monten **el mismo** agente: dos
+    construcciones con distinta política o distinto almacén serían dos máquinas distintas aplicando la misma
+    revisión.
+
 - **El portal edita la configuración y la publica: «Aplicar a…»** (spec §10.3, F2-4,
   [`docs/portal.md`](docs/portal.md)). El mismo modelo de **P-20** sobre el manifiesto de un snapshot —capa
   (ccp · global · cada perfil · cada proyecto · cada ventana de Desktop), tipo (Instrucciones · MCP · Ajustes ·

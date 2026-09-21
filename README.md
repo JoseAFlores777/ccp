@@ -62,7 +62,7 @@ No TTY, or prefer the terminal? Everything is in the CLI, with the same palette:
 <img src="docs/screenshots/cli-help.png" alt="ccp help — colored CLI" width="620">
 </div>
 
-Prefer a window? There is also a **desktop app** (`gui/`, Tauri, beta): the same accounts, folders, conversations, rotation and Desktop windows, a **Configuration** screen where every layer of your Claude config is read and edited in one place, a **Snapshots** screen with the history of that configuration — including the plan of any restore, before it writes — and an **account map** where fallbacks are wired by dragging arrows and nothing is written until you review and apply. It runs the engine you already have (`ccp serve --stdio`), shows the CLI equivalent of every screen, and opens a Terminal for the things only a terminal can do (a `/login`, a handoff, a supervised session). Build and development notes: [gui/README.md](gui/README.md).
+Prefer a window? There is also a **desktop app** (`gui/`, Tauri, beta): the same accounts, folders, conversations, rotation and Desktop windows, a **Configuration** screen where every layer of your Claude config is read and edited in one place, a **Snapshots** screen with the history of that configuration — including the plan of any restore, before it writes — a **Cloud** screen where you confirm what the portal proposed that runs code, and an **account map** where fallbacks are wired by dragging arrows and nothing is written until you review and apply. It runs the engine you already have (`ccp serve --stdio`), shows the CLI equivalent of every screen, and opens a Terminal for the things only a terminal can do (a `/login`, a handoff, a supervised session). Build and development notes: [gui/README.md](gui/README.md).
 
 ---
 
@@ -862,13 +862,23 @@ or after 15 minutes without touching anything.
   published for it, with how many paths differ.
 - **Timeline** of each machine, with the signature of every snapshot checked against the key derived here, and
   a **diff between any two of them**, grouped by area and filterable by path.
+- **Editor** of a snapshot's configuration, in the same model as the app's Configuration screen — layer, type,
+  where each item applies and, when it cannot be edited there, why — and **«Apply to…»**, which publishes the
+  edit as a signed desired revision to the machines you pick. It does not restore and it does not create or
+  delete items: the portal proposes, and inventing a logical path from a browser is how you get a file nobody
+  can place.
 - Signatures have three answers, not two: valid, altered, and *this browser cannot verify Ed25519* — which is
   not the same as valid.
 
 There is no build step: plain ES modules embedded in the binary, a strict CSP and no third-party script, so
-deploying the API deploys the portal. Publishing revisions from the portal is F3; today it reads. How it is
-built, what Keycloak needs and how to look at it without deploying anything are in
-[`docs/portal.md`](docs/portal.md).
+deploying the API deploys the portal. How it is built, what Keycloak needs and how to look at it without
+deploying anything are in [`docs/portal.md`](docs/portal.md).
+
+The other end of that is the app's **Cloud** screen: the account, the vault, your devices and — the point —
+what the agent left waiting here because it runs code. Nothing comes pre-checked: you approve path by path,
+and whatever you leave unchecked is rejected and reported back. Signing in and opening the vault are not done
+from the app: it opens a Terminal, because the vault passphrase unwraps the account key and end-to-end
+encryption is worth exactly as much as the place that passphrase travels through.
 
 ## Detect the machine — `ccp scan` and `ccp adopt`
 

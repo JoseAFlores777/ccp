@@ -88,6 +88,23 @@ configuración a mano.
   comparten entre snapshots, y la pantalla lo dice en vez de dejar creer que cada
   snapshot es una copia entera.
 
+### La pantalla Nube (P-21)
+
+Es el extremo de esta máquina del portal: la cuenta, la bóveda, los equipos, la
+política de este dispositivo y lo que el agente dejó esperando porque ejecuta
+código. Lo que el portal propone acaba aquí.
+
+- **Nada viene marcado.** Cada cambio pendiente se aprueba por su ruta lógica,
+  con el motivo al lado (hooks, el `command` de un MCP, la barra de estado,
+  plugins, un script, permisos que amplían), y lo que no se marca se rechaza y se
+  informa al portal. Confirmar por omisión convierte la barrera en un botón de
+  «sí».
+- **La frase de bóveda no pasa por la app.** Iniciar sesión, crear la bóveda y
+  desbloquearla abren la hoja de terminal, como un `/login`: no hay ningún campo
+  donde escribirla, porque desenvuelve la clave de cuenta.
+- **Los choques se ven, no se resuelven aquí**, y el equipo propio no se revoca
+  desde la app: se quedaría sin nube y sin forma de arreglarlo desde ella.
+
 ## Desarrollo
 
 Requisitos: Node 20+, Go (el del repo) y Rust estable (`rustup`).
@@ -142,7 +159,7 @@ gui/
 │   │                 operaciones compartidas (actions.ts), editores de configuración
 │   │                 (config_edit.ts), textos de diagnóstico (findings.ts), i18n
 │   ├── components/   marco (Shell), modal de confirmación, hoja de terminal, avisos, piezas de UI
-│   └── screens/      una pantalla por archivo (P-01 … P-20). P-20 Configuración se reparte
+│   └── screens/      una pantalla por archivo (P-01 … P-21). P-20 Configuración se reparte
 │                     en tres: la pantalla, su tabla de MCP y su vista efectiva; las copias
 │                     `.tar.gz` (`Copias`) viven dentro de `Ajustes.tsx`, y P-17 Snapshots
 │                     tiene el suyo

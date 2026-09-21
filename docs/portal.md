@@ -20,6 +20,10 @@ What it does today (F2-3 reads, F2-4 edits and publishes):
   and, when it cannot be edited here, why.
 - **«Apply to…»**, which publishes the edit as a **signed desired revision** to the machines you pick.
 
+The other half is on the machine: the app's **Cloud** screen (P-21) and `ccp cloud review` are where what
+runs code gets confirmed, path by path, by someone sitting at that machine. A revision published here stays
+pending until then, which is exactly what the portal shows.
+
 Two things it deliberately does not do. It does not **restore**: the portal proposes and the machine applies
 ([ADR 0014](adr/0014-portal-proposes-machine-applies.md)), and there is no connection from here to anything.
 And it does not **create or delete** items — an edit changes files that already exist, because `ccp` does not

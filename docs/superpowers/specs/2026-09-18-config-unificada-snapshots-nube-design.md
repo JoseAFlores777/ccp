@@ -641,6 +641,20 @@ y restaura como una unidad.
   dispositivo muestra «login pendiente» por perfil y abre Terminal con `ccp profile login <n>`, igual
   que hoy.
 
+> **Estado en F2-5 (implementado).** La pantalla **Nube** de la app (P-21, `gui/src/screens/Nube.tsx`) es el
+> otro extremo del portal: cuenta, bóveda, equipos, la política de este dispositivo y lo que el agente dejó en
+> `review.json`. Tres cosas que el código fijó:
+>
+> - **Lo ejecutable se aprueba ruta a ruta y nada viene marcado.** La lista que se envía es la que se enseñó
+>   —el motor compara contra lo que guardó el agente, no contra una reconciliación nueva—, y lo que no se marca
+>   se rechaza y se informa al portal. Confirmar por omisión convertiría la barrera de D6 en un botón de «sí».
+> - **La frase de bóveda no cruza el puente.** `login`, `init` y `unlock` no son métodos de `serve`: la app abre
+>   Terminal con el comando, como con `/login`. Un campo en la GUI metería la clave de cuenta en el proceso de
+>   la app y en su puente, que es justo lo que el cifrado de extremo a extremo evita.
+> - **Los choques se ven pero no se resuelven aquí.** Resolverlos es publicar sobre el snapshot actual, y eso
+>   es del portal; una segunda vía de resolución en la máquina sería una segunda verdad sobre la misma ruta. El
+>   equipo propio tampoco se revoca desde la app: se quedaría sin nube y sin forma de arreglarlo desde ahí.
+
 > **Estado en F2-4 (implementado).** El portal ya edita y publica: el modelo de P-20 sobre el manifiesto de
 > un snapshot (capa · tipo · procedencia · dónde aplica · por qué algo no se edita) y «Aplicar a…», que sube
 > lo editado, publica el snapshot sellado y firma **una revisión por equipo**, encadenada sobre la cabeza de
@@ -887,7 +901,7 @@ Dokploy v0.30.4, un solo servidor.
 | D | **Implementado.** `ccp snapshot *`, retención, restore selectivo, P-17 → Snapshots | A (clasificación) | M | Un restore selectivo de un solo MCP deja la proyección al día |
 | I | Infra: stack `ccp-cloud` en Dokploy (Postgres + Keycloak en `ccp-auth.joseiz.com` con realm `ccp` + Alarik en `ccp-s3.joseiz.com`), desde `deploy/ccp-cloud/` | — | S | Un login de prueba por flujo de dispositivo obtiene un token con `aud: ccp-api` |
 | F1 | **Implementado.** Bóveda, dispositivos, push/pull de snapshots (`ccp cloud`), el backend `ccp-cloud` y la traducción del HOME al restaurar. Falta **desplegar el API**, pendiente de autorización del usuario | D, I | L | Una segunda Mac se desbloquea con la frase de bóveda y trae el historial de la primera |
-| F2 | Portal: dispositivos, historial, diff, descarga | F1 | M | Desde `ccp.joseiz.com` se descarga un `.ccpsnap` y se importa en otra máquina |
+| F2 | **Implementado.** Portal: dispositivos, historial, diff, editor y «Aplicar a…»; P-21 Nube en la app. Falta la **descarga** de §10.3.1 | F1 | M | Desde el portal se edita la configuración de un snapshot, se aplica a una máquina y ésta confirma allí lo ejecutable |
 | F3 | Restaurar desde el portal | F2 | L | «Restaurar en <máquina>» en el portal deja la máquina en ese snapshot, con lo ejecutable confirmado en local |
 | F4 | Grupos, auditoría, rotación de AK | F3 | M | Un cambio aplicado a un grupo aparece como `aplicada` en cada máquina |
 | E | (aplazado, D10) `ccp sync` sobre carpeta o S3 | D | M | — |

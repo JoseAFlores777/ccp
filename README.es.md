@@ -62,7 +62,7 @@ Pulsa `e` sobre un perfil para su **vista de perfil**: qué configuración aplic
 <img src="docs/screenshots/cli-help.png" alt="ccp help — CLI coloreado" width="620">
 </div>
 
-¿Prefieres una ventana? También hay una **app de escritorio** (`gui/`, Tauri, beta): las mismas cuentas, carpetas, conversaciones, rotación y ventanas de Desktop, una pantalla **Configuración** donde se lee y se edita en un solo sitio toda la configuración de Claude, capa por capa, una pantalla **Snapshots** con el historial de esa configuración —y el plan de cualquier restauración antes de escribir nada— y un **mapa de cuentas** donde los respaldos se conectan arrastrando flechas y nada se escribe hasta revisar y aplicar. Usa el motor que ya tienes (`ccp serve --stdio`), enseña el comando equivalente de cada pantalla y abre una Terminal para lo que solo puede hacerse en una terminal (un `/login`, un handoff, una sesión supervisada). Cómo compilarla y desarrollarla: [gui/README.md](gui/README.md).
+¿Prefieres una ventana? También hay una **app de escritorio** (`gui/`, Tauri, beta): las mismas cuentas, carpetas, conversaciones, rotación y ventanas de Desktop, una pantalla **Configuración** donde se lee y se edita en un solo sitio toda la configuración de Claude, capa por capa, una pantalla **Snapshots** con el historial de esa configuración —y el plan de cualquier restauración antes de escribir nada—, una pantalla **Nube** donde se confirma lo que el portal propuso y ejecuta código, y un **mapa de cuentas** donde los respaldos se conectan arrastrando flechas y nada se escribe hasta revisar y aplicar. Usa el motor que ya tienes (`ccp serve --stdio`), enseña el comando equivalente de cada pantalla y abre una Terminal para lo que solo puede hacerse en una terminal (un `/login`, un handoff, una sesión supervisada). Cómo compilarla y desarrollarla: [gui/README.md](gui/README.md).
 
 ---
 
@@ -825,13 +825,23 @@ minutos sin tocar nada.
   la revisión que se le publicó, con cuántas rutas difieren.
 - **Línea de tiempo** de cada máquina, con la firma de cada snapshot comprobada contra la clave derivada
   aquí, y un **diff entre dos cualesquiera**, agrupado por área y filtrable por ruta.
+- **Editor** de la configuración de un snapshot, con el mismo modelo que la pantalla Configuración de la app
+  —capa, tipo, dónde aplica cada elemento y, cuando no se puede editar ahí, por qué— y **«Aplicar a…»**, que
+  publica lo editado como revisión deseada firmada a las máquinas que elijas. Ni restaura ni crea ni borra
+  elementos: el portal propone, e inventar una ruta lógica desde el navegador es fabricar un archivo que nadie
+  sabe dónde poner.
 - La firma tiene tres respuestas, no dos: válida, alterada y *este navegador no sabe verificar Ed25519*, que
   no es lo mismo que válida.
 
 No hay paso de compilación: módulos ES empotrados en el binario, una CSP estricta y ningún script de
-terceros, así que desplegar el API es desplegar el portal. Publicar revisiones desde el portal es F3; hoy
-lee. Cómo se construye, qué necesita Keycloak y cómo mirarlo sin desplegar nada están en
-[`docs/portal.md`](docs/portal.md).
+terceros, así que desplegar el API es desplegar el portal. Cómo se construye, qué necesita Keycloak y cómo
+mirarlo sin desplegar nada están en [`docs/portal.md`](docs/portal.md).
+
+El otro extremo de eso es la pantalla **Nube** de la app: la cuenta, la bóveda, tus equipos y —lo importante—
+lo que el agente dejó esperando aquí porque ejecuta código. Nada viene marcado: se aprueba ruta a ruta, y lo
+que no marcas se rechaza y se informa al portal. Iniciar sesión y abrir la bóveda no se hacen desde la app:
+abre una Terminal, porque la frase de bóveda desenvuelve la clave de cuenta y el cifrado de extremo a extremo
+vale exactamente lo que valga el sitio por el que pasa esa frase.
 
 ## Detectar la máquina — `ccp scan` y `ccp adopt`
 
