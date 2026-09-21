@@ -140,3 +140,42 @@ func TestSyncRechazaNombresImposibles(t *testing.T) {
 		t.Fatalf("add repetido con otra URL: %d %q", code, errs)
 	}
 }
+
+// TestSyncDestinoRehechoVuelveASubir fija la regla que faltaba: si la bóveda
+// del destino ya no es la que abre la clave guardada —la carpeta se vació, la
+// perdió iCloud, la rehizo otra máquina— `remote add` olvida también el estado
+// local. Sin eso la clave se reemplazaba pero el mapa de «ya subido» seguía
+// intacto, y el siguiente push decía «Nada que subir» contra un destino vacío:
+// el usuario creía publicada una configuración que no estaba en ninguna parte.
+func TestSyncDestinoRehechoVuelveASubir(t *testing.T) {
+	t.Setenv("CCP_SYNC_PASSPHRASE", fraseSync)
+	destino := t.TempDir()
+	snapEnv(t)
+	if code, out, errs := snapRun(t, "snapshot", "create"); code != 0 {
+		t.Fatalf("create: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "sync", "remote", "add", "icloud", "file://"+destino); code != 0 {
+		t.Fatalf("remote add: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "sync", "push"); code != 0 || strings.Contains(out, "Nada que subir") {
+		t.Fatalf("push: %d %q %q", code, out, errs)
+	}
+
+	// El destino se vacía por completo: ya no hay bóveda ninguna.
+	entradas, err := os.ReadDir(destino)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entradas {
+		if err := os.RemoveAll(filepath.Join(destino, e.Name())); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if code, out, errs := snapRun(t, "sync", "remote", "add", "icloud", "file://"+destino); code != 0 {
+		t.Fatalf("remote add tras vaciar: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "sync", "push"); code != 0 || strings.Contains(out, "Nada que subir") {
+		t.Fatalf("push tras vaciar: %d %q %q", code, out, errs)
+	}
+}
