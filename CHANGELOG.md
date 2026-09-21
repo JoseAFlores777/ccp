@@ -16,6 +16,11 @@
     restituye al guardar—, el destino por servidor y el conmutador de apagarlo en un perfil), skills,
     agentes, comandos y estilos como archivo, hooks por evento, permisos con sus tres listas y
     CLAUDE.md con vista previa de sus `@import`.
+  - **Los hooks se editan y se quitan por evento**, no solo se añaden: la unidad que ccp sabe escribir es el
+    array del evento, así que la pantalla lo reescribe entero (la TUI sigue solo añadiendo, porque ahí no hay
+    id estable al que agarrarse).
+  - La capa de una **ventana de Desktop es de solo lectura**: enseña lo que la ventana recibe y dice dónde
+    declararlo, porque escribir ahí lo desharía la siguiente regeneración sin avisar.
   - **Acciones de capa**: llevar un elemento a la global, a otro perfil o a un proyecto, dejándolo o
     quitándolo del origen. Es el mismo elemento con otra capa: core decide el archivo, así que no hay
     una ruta nueva por destino.

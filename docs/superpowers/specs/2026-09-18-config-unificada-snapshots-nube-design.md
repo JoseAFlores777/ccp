@@ -366,6 +366,29 @@ Tamaño: **L**.
 
 ## 7. Subproyecto C: editor en la GUI
 
+> **Implementado (Fase C, C1–C6).** Motor en `core/config_items.go` (qué hay en una capa, con su
+> procedencia y su «dónde aplica», partiendo de `BuildInventory` para no recorrer el disco dos veces),
+> `core/config_edit.go` (leer y escribir por referencia, con la regeneración decidida en un solo sitio) y
+> `core/mcp_crud.go` (alta, baja, destinos y apagado, con la validación de forma antes de escribir y la
+> negativa al secreto en claro del `.mcp.json`). Serve en `internal/cli/serve_config.go`, terminal en
+> `internal/cli/mcp.go`, pantalla en `gui/src/screens/Configuracion*.tsx` con sus editores en
+> `gui/src/lib/config_edit.ts`. Cuatro ajustes respecto a lo escrito aquí:
+>
+> - La capa **Desktop es de solo lectura**: una ventana es destino de la proyección (§6.1), así que se
+>   enseña lo que recibe y se dice dónde declararlo, en vez de dejar escribir algo que el siguiente sync
+>   borraría sin avisar.
+> - Aparece un tipo que no estaba en la columna, **Ajustes**: el resto de claves de `settings.json`
+>   (`model`, `outputStyle`…) es editable y tenía que caer en algún sitio, o desaparecerían de la pantalla
+>   justo las que el usuario toca con `/config`. `permissions.defaultMode` cae en Permisos junto a las tres
+>   listas, y `enabledPlugins` en Plugins.
+> - Skills, agentes, comandos y estilos se editan **como archivo entero**, frontmatter incluido, en vez de
+>   con un editor de frontmatter aparte; los archivos anexos de una skill quedan fuera.
+> - El CLI equivalente acabó siendo `ccp mcp … --scope global|profile[:<n>]|project[:<ruta>]|desktop[:<n>]`
+>   —y **sin `--scope`, el perfil activo de la terminal**, no la global— y, como `backup`, `serve` y
+>   `snapshot`, no entra en la completion, que es contrato golden.
+>
+> P-17 → Snapshots y P-21 · Nube siguen fuera de esta fase: pertenecen a §8 y §10.
+
 Las pantallas siguen la convención de siempre: cada una muestra su equivalente de CLI, y todo lo que
 hace pasa por `core`.
 
@@ -814,7 +837,7 @@ Dokploy v0.30.4, un solo servidor.
 | 0 | M1–M6 medidos + ADR de Desktop; B1–B8 | — | S | Cada «?» de §3 tiene respuesta |
 | A | **Implementado.** `ccp scan`, `ccp adopt`, P-19 | 0 | M | En esta máquina aparecen los 6 MCP de Desktop y se proponen como global |
 | B | **Implementado.** Proyección de MCP a CLI y a Desktop; skills y agents por perfil; hooks y permisos editables; deriva | 0, A | L | Un MCP añadido al perfil `work` aparece en `claude` y en la ventana de `work` tras `profile sync` |
-| C | P-20 + editores + serve y CLI `ccp mcp` | B | L | Todo lo de §3 se puede leer desde la GUI, y editar lo que es editable |
+| C | **Implementado.** P-20 + editores + serve y CLI `ccp mcp` | B | L | Todo lo de §3 se puede leer desde la GUI, y editar lo que es editable |
 | D | `ccp snapshot *`, retención, restore selectivo, P-17 → Snapshots | A (clasificación) | M | Un restore selectivo de un solo MCP deja la proyección al día |
 | I | Infra: stack `ccp-cloud` en Dokploy (Postgres + Keycloak en `ccp-auth.joseiz.com` con realm `ccp` + Alarik en `ccp-s3.joseiz.com`), desde `deploy/ccp-cloud/` | — | S | Un login de prueba por flujo de dispositivo obtiene un token con `aud: ccp-api` |
 | F1 | Vault, dispositivos, push/pull de snapshots | D, I | L | Una segunda Mac se desbloquea con la frase de bóveda y trae el historial de la primera |
@@ -863,10 +886,12 @@ La vía nube puede empezar en cuanto D tenga el formato, y la I (infra) no depen
   - La adopción por referencia (D5, no recomendada de entrada) cambiaría el valor de
     `CLAUDE_CONFIG_DIR` que emite `_env`. Obligaría a enseñárselo al oráculo bash y a regenerar el
     golden.
-  - Los subcomandos nuevos (`scan`, `adopt`, `mcp`, `snapshot`, `sync`, `cloud`) cambian
-    `completion bash|zsh`, que **sí** está en el golden. Hay que actualizar `legacy/` y ejecutar
-    `capture.sh`, como se hizo con `desktop`. Llegan a través de la ruta genérica `*) command ccp`,
-    así que no hace falta reinstalar el rc; basta `ccp install` para refrescar el completado.
+  - Los subcomandos nuevos (`scan`, `adopt`, `mcp`, `snapshot`, `sync`, `cloud`) cambiarían
+    `completion bash|zsh`, que **sí** está en el golden. **Al implementarlos se decidió que no
+    entren**: como `backup` y `serve`, llegan por la ruta genérica `*) command ccp` y funcionan sin
+    tocar el contrato, así que ninguna fase hasta la C ha regenerado el golden. El día que uno entre
+    hay que enseñárselo al oráculo `legacy/` y ejecutar `capture.sh`, como se hizo con `desktop`; no
+    hace falta reinstalar el rc, basta `ccp install` para refrescar el completado.
 - **`ccp.yaml`**: los bloques `mcp:`, `sync:` y `cloud:` son aditivos. `version` sigue en `2`, viajan
   por `Config.Extra`, y cada bloque lleva su `Extra` inline con su `strip*KnownKeys`, igual que
   `auto_handoff`.

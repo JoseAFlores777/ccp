@@ -62,7 +62,7 @@ No TTY, or prefer the terminal? Everything is in the CLI, with the same palette:
 <img src="docs/screenshots/cli-help.png" alt="ccp help — colored CLI" width="620">
 </div>
 
-Prefer a window? There is also a **desktop app** (`gui/`, Tauri, beta): the same accounts, folders, conversations, rotation and Desktop windows, plus an **account map** where fallbacks are wired by dragging arrows and nothing is written until you review and apply. It runs the engine you already have (`ccp serve --stdio`), shows the CLI equivalent of every screen, and opens a Terminal for the things only a terminal can do (a `/login`, a handoff, a supervised session). Build and development notes: [gui/README.md](gui/README.md).
+Prefer a window? There is also a **desktop app** (`gui/`, Tauri, beta): the same accounts, folders, conversations, rotation and Desktop windows, a **Configuration** screen where every layer of your Claude config is read and edited in one place, and an **account map** where fallbacks are wired by dragging arrows and nothing is written until you review and apply. It runs the engine you already have (`ccp serve --stdio`), shows the CLI equivalent of every screen, and opens a Terminal for the things only a terminal can do (a `/login`, a handoff, a supervised session). Build and development notes: [gui/README.md](gui/README.md).
 
 ---
 
@@ -831,6 +831,15 @@ ccp mcp targets [<name> [cli|desktop|cli,desktop|none]]
 The layer is `global`, `profile[:<name>]`, `project[:<path>]` or `desktop[:<name>]` (read-only), and **without `--scope` it is the terminal's active profile**. `--env KEY=value` goes with the stdio form, `--header KEY=value` with the remote one, and the three forms (the command after `--`, `--url`, the JSON) never mix.
 
 Two refusals are the point of the command: the **Desktop window** receives a profile's MCPs but does not declare them — writing there would be undone by the next sync, so it tells you to declare it in the profile instead; and a **secret in the clear in a project's `.mcp.json`** — a file that travels in the repo — is refused, pointing at `${VARIABLE}`. After each write it says who it regenerated and which window keeps the previous MCPs until you restart it.
+
+#### The **Configuration** screen — the same layers, in the app
+
+The desktop app edits all of this from one screen: the layer on top (global · profile · project · window), the types on the left (instructions, MCP, skills, agents, commands, hooks, permissions, env, plugins, styles, status line and the rest of `settings.json`), and in the middle every item with **where it came from** and **where it applies** (CLI · Code · Chat). An **Effective** toggle shows one account's merged result, with whatever is shadowed marked as such.
+
+- What you see but cannot edit says why, in the same words as the terminal: a plugin brings it, `managed-settings` fixes it, `ccp` projects it from the overlay.
+- MCP secrets are shown **masked**, and whatever you leave masked is restored on save — the editor never has to reveal a token to let you change the argument next to it.
+- **Layer actions** ("take it to…") move an item to the global layer, to another profile or to a project. It is the same item with another layer, so it lands in the file `core` picks; copying does not delete the original, because the more specific layer still wins.
+- After each write it reports where it landed, who it regenerated and which Desktop window keeps the previous MCP servers until you restart it. Every screen shows its CLI equivalent, which is exactly the commands above.
 
 ### Editing `ccp.yaml` — `ccp config edit`
 
