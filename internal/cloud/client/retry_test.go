@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,7 +29,12 @@ func TestIdempotenteSoloDondeRepetirNoCrea(t *testing.T) {
 		// snapshot ya estaba.
 		{http.MethodPost, "/v1/blobs/presign", true},
 		{http.MethodPost, "/v1/snapshots", true},
-		// Los que no: cada repetición es una fila más.
+		// Fijar es poner un valor, no alternarlo: repetirlo deja lo mismo.
+		{http.MethodPost, "/v1/snapshots/" + strings.Repeat("a", 64) + "/pin", true},
+		// Los que no: cada repetición es una fila más. Informar el resultado
+		// de una revisión tampoco, aunque lo parezca: el servidor solo lo
+		// acepta mientras siga pendiente, así que el segundo intento choca.
+		{http.MethodPost, "/v1/revisions/" + strings.Repeat("a", 36) + "/state", false},
 		{http.MethodPost, "/v1/devices", false},
 		{http.MethodPost, "/v1/revisions", false},
 		{http.MethodPost, "/v1/groups", false},

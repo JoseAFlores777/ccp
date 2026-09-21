@@ -47,7 +47,15 @@ func idempotent(method, path string) bool {
 	case http.MethodGet, http.MethodHead, http.MethodPut, http.MethodDelete:
 		return true
 	case http.MethodPost:
-		return postRepetible[strings.SplitN(path, "?", 2)[0]]
+		p := strings.SplitN(path, "?", 2)[0]
+		// `snapshots/<id>/pin` PONE un valor, no lo alterna, así que repetirlo
+		// deja lo mismo. Va por forma y no por nombre exacto porque lleva el id
+		// dentro; el id no se mira, que lo valide el servidor.
+		if rest, ok := strings.CutPrefix(p, "/v1/snapshots/"); ok {
+			id, esPin := strings.CutSuffix(rest, "/pin")
+			return esPin && id != "" && !strings.Contains(id, "/")
+		}
+		return postRepetible[p]
 	}
 	return false
 }
