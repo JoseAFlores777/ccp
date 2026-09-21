@@ -501,7 +501,7 @@ func printProjectionCheck(w io.Writer, lang i18n.Lang, c core.ProjectionCheck) {
 	for _, m := range c.MCP {
 		dest := i18n.T(lang, "cli.profile.mcp_dest_"+m.Target)
 		if pend := append(append([]string{}, m.Written...), m.Removed...); len(pend) > 0 {
-			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.check_mcp", c.Profile, dest, strings.Join(pend, ", "))))
+			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.check_mcp", c.Profile, strings.Join(pend, ", "), dest)))
 		}
 		if len(m.Conflicts) > 0 {
 			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.mcp_conflict", c.Profile, dest, strings.Join(m.Conflicts, ", "))))
