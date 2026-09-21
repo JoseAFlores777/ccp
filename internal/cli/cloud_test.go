@@ -361,3 +361,27 @@ func TestCloudLoginConservaLaPoliticaDelDispositivo(t *testing.T) {
 		t.Fatalf("la política se perdió al cambiar de cuenta: %q", out)
 	}
 }
+
+// La política se puede decidir ANTES de dar de alta la máquina: es la defensa
+// del equipo frente a la cuenta, y exigir una sesión para ponerla obliga a
+// pasar por el estado que se quiere evitar —dado de alta en `auto`—. `serve`
+// ya lo permitía (srvCloudSetPolicy tolera ErrNotLoggedIn); el CLI no, así que
+// lo que la GUI anuncia no se podía hacer desde la terminal.
+func TestCloudPolicySinSesionYSobreviveAlAlta(t *testing.T) {
+	url, _ := cloudServerIss(t)
+	t.Setenv("CCP_NO_BROWSER", "1")
+
+	snapEnv(t)
+	if code, out, errs := snapRun(t, "cloud", "policy", "manual"); code != 0 || !strings.Contains(out, "manual") {
+		t.Fatalf("policy sin sesión: %d %q %q", code, out, errs)
+	}
+	if code, out, _ := snapRun(t, "cloud", "policy"); code != 0 || !strings.Contains(out, "manual") {
+		t.Fatalf("policy no se guardó sin sesión: %d %q", code, out)
+	}
+	if code, out, errs := snapRun(t, "cloud", "login", url); code != 0 {
+		t.Fatalf("login: %d %q %q", code, out, errs)
+	}
+	if _, out, _ := snapRun(t, "cloud", "policy"); !strings.Contains(out, "manual") {
+		t.Fatalf("el alta tiró la política decidida de antemano: %q", out)
+	}
+}
