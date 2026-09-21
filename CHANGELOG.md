@@ -4,6 +4,14 @@
 
 ### Added
 
+- **`ccp serve`: los métodos del editor de configuración** (spec §7): `config.items`,
+  `config.item.get|put|delete`, `config.effective` y `mcp.list|put|delete|setTargets|disable`. Son altas en
+  el registro, así que el protocolo sigue en `1`. La capa viaja SIEMPRE en los parámetros —serve no tiene
+  terminal de la que sacar el perfil activo— y las escrituras devuelven, junto a `ok`, el archivo tocado,
+  los perfiles regenerados y `restart_pending`: qué ventana de Desktop se queda con los MCP de antes hasta
+  que se reinicie. `config.effective` es el mismo resultado que `profiles.effective`, registrado con el
+  nombre que usa la pantalla.
+
 - **`ccp mcp`: alta, baja y destinos de los servidores MCP desde la terminal** (spec §7). La cara de
   terminal del editor: `list`, `add`, `rm`, `enable`, `disable` y `targets`, con `--json` en todos y
   `--scope global | profile[:<n>] | project[:<ruta>] | desktop[:<n>]`. Sin `--scope` se edita el perfil
