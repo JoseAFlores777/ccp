@@ -1201,4 +1201,5 @@ export const en: Record<string, string> = {
   "Escritos": "Written",
   "Perfiles regenerados": "Profiles regenerated",
   "Si esto no era lo que querías, la foto previa {id} deja el estado anterior a un restore de distancia.": "If this was not what you wanted, the prior snapshot {id} leaves the previous state one restore away.",
+  "No se escribió nada: lo que había ya coincidía con el snapshot, así que no hizo falta foto previa.": "Nothing was written: what was there already matched the snapshot, so no prior snapshot was needed.",
 };
