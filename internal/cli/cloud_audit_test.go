@@ -72,3 +72,23 @@ func TestCloudAudit(t *testing.T) {
 		t.Fatalf("aceptó una fecha que no lo es: %q %q", out, errs)
 	}
 }
+
+// Un contador de bytes se lee como un contador de bytes: el detalle llega
+// decodificado de JSON (todo número es float64) y el portal, que lee el MISMO
+// registro, lo imprime entero. Dos lectores del mismo log tienen que coincidir.
+func TestAuditDetalleNumerosGrandes(t *testing.T) {
+	var d map[string]any
+	if err := json.Unmarshal([]byte(`{"id":"abc","blobs":12,"size":1048576}`), &d); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := auditDetail(d), "blobs=12 id=abc size=1048576"; got != want {
+		t.Errorf("auditDetail = %q, quiero %q", got, want)
+	}
+	var b map[string]any
+	if err := json.Unmarshal([]byte(`{"bytes":1500000}`), &b); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := auditDetail(b), "bytes=1500000"; got != want {
+		t.Errorf("auditDetail = %q, quiero %q", got, want)
+	}
+}

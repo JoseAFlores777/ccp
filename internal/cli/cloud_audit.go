@@ -111,13 +111,25 @@ func auditDetail(d map[string]any) string {
 	sort.Strings(keys)
 	parts := make([]string, 0, len(keys))
 	for _, k := range keys {
-		v := fmt.Sprintf("%v", d[k])
+		v := auditValue(d[k])
 		if len(v) > 12 && isHexID(v) {
 			v = v[:8]
 		}
 		parts = append(parts, k+"="+v)
 	}
 	return strings.Join(parts, " ")
+}
+
+// auditValue pinta un valor del detalle. El detalle llega decodificado de
+// JSON, así que todo número es un float64 y "%v" lo imprimiría en notación
+// exponencial a partir del millón (size=1.048576e+06). El portal lee el MISMO
+// registro y lo imprime entero, y el log existe justo para comparar líneas:
+// un contador de bytes tiene que leerse como un contador de bytes.
+func auditValue(v any) string {
+	if f, ok := v.(float64); ok {
+		return strconv.FormatFloat(f, 'f', -1, 64)
+	}
+	return fmt.Sprintf("%v", v)
 }
 
 // isHexID dice si v parece un id (blob, snapshot, revisión): solo entonces se
