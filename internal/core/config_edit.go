@@ -639,7 +639,7 @@ func cfgRegenerateAll(r InventoryRoots, file string, names []string) (ConfigWrit
 	for _, n := range names {
 		d, err := CfgRegenerateReport(r.CCPHome, n, r.ClaudeSrc)
 		for _, p := range d.MCP {
-			w.MCP = append(w.MCP, MCPProjected{Profile: n, MCPProjection: p})
+			w.MCP = append(w.MCP, MCPProjected{Profile: n, MCPProjection: p.normalized()})
 		}
 		if d.MCPErr != "" && w.MCPErr == "" {
 			w.MCPErr = d.MCPErr
