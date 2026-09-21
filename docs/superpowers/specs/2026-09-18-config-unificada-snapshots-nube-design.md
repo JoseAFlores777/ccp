@@ -505,9 +505,11 @@ Tamaño: **M**.
 
 ## 9. Subproyecto E: sincronización sin servidor
 
-> **Aplazado (2026-09-18).** Se decidió ir directo al backend (D10), así que F1 sustituye a este
-> subproyecto. La abstracción de «remoto» se conserva en el cliente: una carpeta o un bucket puede
-> añadirse más tarde como segundo remoto sin tocar el formato.
+> **Aplazado el 2026-09-18, retomado el 2026-09-21 (implementado).** Se fue directo al backend (D10)
+> y F1 sustituyó a este subproyecto; la abstracción de «remoto» se conservó en el cliente, y eso es
+> exactamente lo que permitió añadirlo después **sin tocar el formato**: una carpeta o un bucket son
+> un segundo remoto detrás de la misma interfaz. E1 (almacén y bóveda), E2 (`ccp sync`) y E3
+> (documentación) están hechos; los estados de cada uno, al final de la sección.
 
 Antes del backend conviene un paso que da el 80 % de «replicar en varias máquinas» sin operar ningún
 servicio:
@@ -556,6 +558,23 @@ Tamaño: **M**.
 >   al almacén) y **sin `--yes` sale 1** enseñando el plan, que es la regla de `snapshot restore`.
 > - **Los destinos no van en `ccp.yaml`** sino en `<CCP_HOME>/sync/remotes.json`: `ccp.yaml` viaja
 >   dentro de los snapshots, y un `pull` traería la lista de carpetas de otra máquina.
+>
+> **Estado en E3 (implementado).** La documentación: la sección «Sincronizar sin servidor» de
+> `README.es.md` y su gemela en `README.md`, las entradas E1/E2/E3 del CHANGELOG y, en `CLAUDE.md`,
+> los dos apartados del motor (`internal/cloud/remote`, `internal/cli/sync.go`), el directorio
+> `<CCP_HOME>/sync/` y la superficie JSON. Escribirla dejó tres cosas anotadas que el código ya hacía
+> y nadie había dicho:
+>
+> - **`ccp sync remote list` dice si el destino está ABIERTO aquí** (`unlocked`), que es lo único que
+>   decide si un `push` o un `pull` van a funcionar. Una carpeta compartida aparece en las dos
+>   máquinas; en la que no ha escrito la frase está cerrada, y eso no es un error que haya que
+>   descubrir a mitad de un push.
+> - **Lo que al destino le falta se dice en voz alta** (`missing`, `too_large`, y el aviso del `pull`):
+>   un historial con un agujero es peor que un push fallido, porque parece terminado.
+> - **La comparación honesta con la nube es lo que una carpeta NO puede dar**: cuentas, dispositivos
+>   revocables, auditoría y el agente del portal necesitan a alguien llevando la cuenta, y una carpeta
+>   no sabe quién escribió en ella. Lo que sí comparten es el formato, así que elegir carpeta hoy no
+>   cierra la puerta al servidor mañana. Y quien la opera ve tamaños y horas aunque no pueda leer nada.
 
 ## 10. Subproyecto F: backend, cuentas y portal
 
@@ -1142,7 +1161,7 @@ Dokploy v0.30.4, un solo servidor.
 | F2 | **Implementado.** Portal: dispositivos, historial, diff, editor y «Aplicar a…»; P-21 Nube en la app | F1 | M | Desde el portal se edita la configuración de un snapshot, se aplica a una máquina y ésta confirma allí lo ejecutable |
 | F3 | **Implementado.** Restaurar desde el portal. **F3-1**: cadena firmada comprobable (`ccp cloud verify`) y retención en el servidor. **F3-2**: descarga `.ccpsnap` / `.tar.gz` desde el CLI y desde el portal. **F3-3**: los tres caminos de restauración (app, portal, máquina nueva) con el mapeo de §11. **F3-4**: documentación (README, README.es, CHANGELOG, CLAUDE.md y §10.3.1 · §11 · §12 de este spec) | F2 | L | «Restaurar en <máquina>» en el portal deja la máquina en ese snapshot, con lo ejecutable confirmado en local |
 | F4 | Grupos (**F4-1, implementado**), auditoría y revocación (**F4-2, implementado**), robustez del cliente y del límite (**F4-3, implementado**: §10.5), rotación de AK, envoltura X25519 por dispositivo (aplazada de F3) y las excepciones por máquina de §11 (`machines:`, `ccp.local.yaml`) | F3 | M | Un cambio aplicado a un grupo aparece como `aplicada` en cada máquina |
-| E | (aplazado, D10) `ccp sync` sobre carpeta o S3 | D | M | — |
+| E | **Implementado** (retomado el 2026-09-21, después de F). `ccp sync` sobre carpeta o S3: **E1** almacén y bóveda de un destino sin servidor (`internal/cloud/remote`), **E2** `ccp sync remote add\|list\|rm` · `push\|pull\|apply` (`internal/cli/sync.go`), **E3** documentación (README, README.es, CHANGELOG, CLAUDE.md y §9 · §12 de este spec) | D | M | Una segunda Mac registra la misma carpeta con la misma frase, hace `ccp sync pull` y `ccp sync apply latest --yes`, y queda en la configuración de la primera — sin ningún servidor de por medio |
 
 **Dos vías en paralelo tras la Fase 0 (D10):**
 - **nube**: A (solo la clasificación) → D → I → F1 → F2 → F3 → F4;
@@ -1163,7 +1182,7 @@ La vía nube puede empezar en cuanto D tenga el formato, y la I (infra) no depen
 | D7 | Proyección de MCP al CLI | **`.claude.json`** (técnica A): M6 confirmó que Claude Code conserva lo escrito desde fuera (ADR 0016) | Plugin local: sin carreras, pero los nombres cambian a `mcp__plugin_…` |
 | D8 | Ventana `default` | **Solo inventariar**, proyectar con opt-in | Proyectar siempre: ccp gestionaría tu Claude principal |
 | D9 | Autenticación | **Keycloak propio del stack `ccp-cloud` (realm `ccp`) para la identidad + frase de bóveda aparte para el cifrado** | Derivar la clave de la contraseña: imposible con Keycloak, porque la contraseña no pasa por `ccp`, y un reset borraría los datos. Quitar el E2E para usar solo Keycloak: el servidor leería tus claves y podría ordenar comandos |
-| D10 | Orden | **La nube antes que el editor**: dos vías en paralelo; E aplazado | El orden original (A→B→C→D→E→F) retrasaba el backend hasta el final |
+| D10 | Orden | **La nube antes que el editor**: dos vías en paralelo; E aplazado (y retomado el 2026-09-21, ya con el formato probado contra la nube) | El orden original (A→B→C→D→E→F) retrasaba el backend hasta el final |
 
 ## 14. ADRs que salen de aquí
 

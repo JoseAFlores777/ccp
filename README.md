@@ -991,6 +991,24 @@ ccp sync apply latest --yes            # apply it (it takes a snapshot first)
   removing a remote must not be the accidental way to lose every machine's configuration.
 - With more than one destination, say which with `--remote <name>` — `ccp` will not guess and publish into the
   wrong folder.
+- **`ccp sync remote list`** shows the destinations this machine knows and marks the ones it cannot open (a
+  folder you copied from another Mac is there, but locked until you unlock it with the passphrase).
+  `--json` gives `name`/`url`/`added`/`unlocked` for a script. Unlocking one again is
+  `ccp sync remote add <name>` with no URL: re-adding a destination it already knows is re-opening it.
+- **`ccp sync push <snapshot>`** uploads just that one instead of everything pending, and `--json` gives the
+  report (`snapshots`/`uploaded`/`bytes`). What the destination is missing — a blob that never got there, or
+  one too large for it — is **said out loud**, never silently skipped: a history with a hole in it is worse
+  than a failed push, because it looks finished.
+- **The destinations are this machine's**, in `~/.config/ccp/sync/` (`remotes.json` plus one directory per
+  destination with its key and what this machine believes is already up there). They deliberately do **not**
+  live in `ccp.yaml`, which travels inside the snapshots: a `pull` would otherwise bring you another machine's
+  folder list, with paths that don't exist here. Losing that directory costs nothing but unlocking again.
+
+**Sync or cloud?** Same format and same sealed blobs, so a folder today doesn't close the door on a server
+tomorrow. What a folder cannot give you is everything that needs someone to be keeping count: accounts,
+devices you can revoke, an audit log, and the agent that applies a change proposed from the portal. And
+whoever runs that folder — iCloud, Dropbox, your NAS — sees the sizes and the times even though the contents
+are unreadable. If that's fine, you never need to operate a thing.
 
 ## Detect the machine — `ccp scan` and `ccp adopt`
 

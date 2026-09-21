@@ -55,6 +55,15 @@
     `pull` traería si no la lista de destinos de otro equipo, con rutas que aquí no existen.
   - Como `cloud`, `snapshot`, `backup` y `serve`, `sync` **no** entra en la completion: ese texto es
     contrato golden. Sí entra en `ccp help`.
+  - **Documentado (E3)**: «Sincronizar sin servidor — `ccp sync`» en `README.es.md` y en `README.md`,
+    con lo que el camino corto no contaba —que `remote list` dice si el destino está **abierto aquí**
+    (`unlocked`), que es lo único que decide si un `push` o un `pull` van a funcionar; que lo que al
+    destino le falta se dice en voz alta (`missing`, `too_large`), porque un historial con un agujero
+    parece terminado y es peor que un push fallido; y la comparación honesta con la nube: el formato
+    es el mismo, así que elegir carpeta hoy no cierra la puerta al servidor mañana, pero una carpeta
+    no puede dar cuentas, dispositivos revocables, auditoría ni el agente del portal, y quien la opera
+    ve tamaños y horas aunque no pueda leer nada—. Además, `CLAUDE.md` (los dos apartados del motor,
+    `<CCP_HOME>/sync/` y la superficie JSON estable) y §9 · §12 del spec.
 
 - **Robustez de la nube (F4-3)**: lo que hace que un servidor apretado, caído o simplemente viejo no se
   lleve por delante un push ni llene la pantalla de ruido. Nada de esto cambia la forma de ningún mensaje:
