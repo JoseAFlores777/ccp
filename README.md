@@ -779,6 +779,43 @@ ccp config editor "code -w"                  # editor a usar (fallback: $EDITOR)
 - **Real precedence**: it's a baseline — the repo's config (`.claude/settings.json`) wins on conflict.
 - `default` has no overlay: `ccp profile config default` opens your global `~/.claude` directly.
 
+### MCP servers, agents and skills per profile
+
+A profile no longer has to borrow everything from the global `~/.claude`. What it declares for itself lives in its overlay, and every regeneration **projects** it into the files the apps actually read ([ADR 0011](docs/adr/0011-una-fuente-declarada-varias-proyecciones.md)):
+
+```bash
+ccp instruct add profile mcp 'obsidian-vault={"command":"npx","args":["-y","obsidian-mcp"]}'
+ccp instruct add profile rule "..."       # plain text; a hook goes as 'id={json}'
+ccp instruct dest profile skill           # the directory to write an agent/command/skill into
+ccp profile sync <perfil>                 # re-project everything by hand
+ccp profile sync --check [<perfil>]       # what it WOULD change; exits 1 if anything is stale
+```
+
+| Layer | File | Reaches |
+|---|---|---|
+| Global | `~/.claude.json` (`mcpServers`) | every profile, through its projection |
+| Profile | `profiles/<n>/overlay/mcp.json` (the shape of `.mcp.json`) | that profile only |
+| Project | `<repo>/.mcp.json` | any profile, inside that repo (Claude Code reads it; `ccp` does not project it) |
+
+**Effective = global ⊕ profile − disabled**, and the profile wins a name clash. Where each server goes is declared in `ccp.yaml`:
+
+```yaml
+mcp:
+  targets:                     # per server; the default is both
+    obsidian-vault: [cli, desktop]
+    jira: [cli]
+  disabled:                    # this profile turns an inherited one off without deleting it
+    work: [finance-os]
+```
+
+- **`cli`** writes into the profile's `cc-home/.claude.json`, which is what your terminal `claude` **and** the Code tab of that profile's window read.
+- **`desktop`** writes into that window's `claude_desktop_config.json`, which is the **chat** half. Two limits are the app's, not ours: only `stdio` entries (an `http`/`sse` one is discarded on start-up, so it is reported instead of written), and the file is not re-read while the window runs — so with the window open the change is left **pending** and applied on the next launch. `ccp` never closes a window on you.
+- **`ccp` only touches the names it registered as its own.** Anything you added by hand to those files stays; if a name you declared already existed there by hand, it is reported as a conflict rather than overwritten.
+- Your **main Desktop window (`default`) is never written to** — it is your own Claude, same reason its updates are left alone.
+- `overlay/{agents,commands,skills,output-styles}/` work the same way: as soon as the profile has something of its own, its `cc-home` directory becomes global ∪ profile (real directories, symlinks only at the file leaves — the shape Desktop requires), and on a clash the profile wins.
+- **Permissions merge by replacing arrays**, as they always have. To add instead of replace, say so in the overlay: `"permissions": {"$merge": "union", "allow": ["Bash(make:*)"]}`. The mark never reaches the generated `settings.json`.
+- `ccp doctor` reports what is out of step: `projection_stale`, `desktop_restart_pending`, `mcp_command_missing`, `mcp_unmanaged_only_desktop` and `cc_home_symlink_nonleaf`.
+
 ### Editing `ccp.yaml` — `ccp config edit`
 
 ```bash

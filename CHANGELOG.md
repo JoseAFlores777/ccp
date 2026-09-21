@@ -4,6 +4,35 @@
 
 ### Added
 
+- **MCP, agentes y skills por perfil: una fuente declarada y varias proyecciones** (spec §6,
+  [ADR 0011](docs/adr/0011-una-fuente-declarada-varias-proyecciones.md)). Un perfil ya declara lo suyo en su
+  overlay y cada regeneración lo proyecta a los archivos que leen de verdad las apps: `overlay/mcp.json` →
+  el `cc-home/.claude.json` (tu `claude` y la pestaña Code) y el `claude_desktop_config.json` de su ventana
+  (el chat). Desaparecen los códigos 3 y 5 de `instruct`: `ccp instruct add profile mcp` ya tiene dónde
+  escribir, y también `agent`, `command` y `skill`.
+  - **Capas**: global (`~/.claude.json`) ⊕ perfil (`overlay/mcp.json`) − apagados; si un nombre choca, gana
+    el perfil. El bloque `mcp:` de `ccp.yaml` dice a qué destinos va cada servidor (`targets`), cuáles apaga
+    un perfil (`disabled`) y si la ventana `default` participa (`desktop_default`, reservado). Es aditivo:
+    `version` sigue en `2`.
+  - **ccp solo toca los nombres que registró como suyos.** Lo que añadiste a mano en esos archivos se queda,
+    y un nombre declarado que ya estaba ahí se informa como conflicto en vez de pisarse.
+  - **El chat de Desktop tiene dos límites, y son suyos** (ADR 0016): solo entradas `stdio` —una `http`/`sse`
+    se informa en vez de escribirse— y no se escribe con la ventana abierta, porque no la relee en caliente:
+    el cambio queda pendiente hasta el siguiente arranque. En tu ventana principal (`default`) no se escribe.
+  - **`overlay/{agents,commands,skills,output-styles}/`**: en cuanto el perfil tiene algo propio, su
+    directorio del `cc-home` pasa a ser global ∪ perfil, con directorios reales y symlinks solo en las hojas
+    (la forma que Desktop exige). `profile add` no cambia.
+  - **Permisos con unión opcional**: el merge sigue reemplazando arrays (ADR 0002); para sumar se escribe
+    `"permissions": {"$merge": "union", …}` en el overlay. La marca no llega al `settings.json` generado.
+    Los hooks se editan como el array entero de su evento, que es lo que faltaba para poder borrarlos.
+  - **`ccp profile sync --check`** dice lo que la proyección cambiaría sin escribir nada y sale 1 si algo está
+    desfasado; en `serve`, `profiles.drift`. Los conflictos y lo que el chat no puede cargar se cuentan, pero
+    no mandan en el código de salida: ningún sync los arregla.
+  - **`ccp doctor`** gana `projection_stale`, `desktop_restart_pending`, `mcp_command_missing`,
+    `mcp_unmanaged_only_desktop` y `cc_home_symlink_nonleaf`. Cada fila de la vista efectiva lleva su
+    `AppliesTo` (`cli`, `desktop-code`, `desktop-chat`).
+  - `overlay/mcp.json` lleva `env` y `headers`, así que en los snapshots viaja como `secret` (sellado), a
+    diferencia del resto del overlay.
 - **`ccp scan` y `ccp adopt`: detectar la máquina** (spec §5). `scan` hace inventario de toda la configuración de
   Claude: global, perfiles, cada ventana de Desktop, proyectos y `CLAUDE_CONFIG_DIR` sin gestionar. De cada
   elemento dice dónde aplica (CLI, Code o chat), según lo medido en el ADR 0016. Un archivo ilegible cuenta como
