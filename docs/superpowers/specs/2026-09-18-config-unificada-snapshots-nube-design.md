@@ -427,7 +427,8 @@ Tamaño: **L**.
 
 ## 8. Subproyecto D: snapshots locales
 
-> **Implementado (plan 2026-09-18-snapshots-locales).** La GUI (P-17 → Snapshots) queda para el plan de la GUI.
+> **Implementado (plan 2026-09-18-snapshots-locales).** La GUI (P-17 → Snapshots) también, en el plan
+> de la GUI: `gui/src/screens/Snapshots.tsx` sobre los métodos `snapshot.*` de serve.
 
 ### 8.1 Qué captura: todo lo `authored`, y lo demás a elección
 
