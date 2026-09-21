@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 )
@@ -472,6 +471,7 @@ func effMCPSection(home, name, src string, cfg *Config) EffSection {
 		path = filepath.Join(ccHomePath(home, name), ".claude.json")
 	}
 	sec := EffSection{Kind: EffMCP, Rows: []EffRow{}}
+	chat := effMCPToChat(home, name, src, cfg)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return sec // sin archivo: sin MCP
@@ -504,9 +504,14 @@ func effMCPSection(home, name, src string, cfg *Config) EffSection {
 			v = t + " " + srv.URL
 		}
 		applies := invCodeTargets()
-		// Al chat solo llega lo que se declaró con destino desktop, y solo si es
-		// stdio: una entrada http/sse la descarta Desktop al arrancar (M3).
-		if srv.URL == "" && srv.Command != "" && slices.Contains(MCPTargets(cfg, n), MCPTargetDesktop) {
+		// Al chat solo llega lo que la proyección lleva de verdad allí. Este
+		// archivo mezcla lo proyectado con lo que el usuario añadió a mano
+		// dentro del perfil (`claude mcp add -s user`), y eso último no está en
+		// ninguna capa: ninguna ejecución de ccp lo va a copiar al chat. Por eso
+		// la pregunta se le hace a mcpWant (misma decisión: destino desktop y
+		// stdio de verdad) y no a MCPTargets, que para un nombre sin declarar
+		// devuelve el defecto.
+		if _, toChat := chat[n]; toChat {
 			applies = append(applies, InvAppliesDesktopChat)
 		}
 		sec.Rows = append(sec.Rows, EffRow{Key: n, Value: v, Origin: OriginClaudeJSON, AppliesTo: applies})
@@ -585,4 +590,17 @@ func effSettingsRows(home, name string, cfg *Config, L effLayers) []EffRow {
 		}
 	}
 	return append(out, EffRow{Key: "statusLine.command", Value: cmd, Origin: OriginAuto})
+}
+
+// effMCPToChat son los nombres que la proyección llevaría al
+// claude_desktop_config.json de ese perfil, calculados con la misma función que
+// la escribe. Si las capas no se pueden leer no se promete nada: decir «Chat»
+// sin haber podido mirar convierte una duda en una promesa falsa.
+func effMCPToChat(home, name, src string, cfg *Config) map[string]any {
+	global, profile, err := ReadMCPLayers(home, src, name)
+	if err != nil {
+		return nil
+	}
+	var p MCPProjection
+	return mcpWant(MCPEffective(cfg, global, profile, name), MCPTargetDesktop, &p)
 }

@@ -1,9 +1,11 @@
 package core
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -328,5 +330,50 @@ func TestEffectiveAppliesTo(t *testing.T) {
 	}
 	if len(want) != 0 {
 		t.Errorf("faltan filas de MCP: %v", want)
+	}
+}
+
+// La fila solo promete el chat de Desktop si ESE servidor es de los que la
+// proyección lleva allí: declarado en alguna capa, con destino desktop y stdio
+// de verdad (la misma decisión que mcpWant). Lo que el usuario añadió a mano
+// dentro del perfil (`claude mcp add -s user`) vive solo en su .claude.json, no
+// está en ninguna capa y ninguna ejecución de ccp lo va a copiar al chat.
+func TestEffectiveAppliesToChatSoloLoDeclarado(t *testing.T) {
+	home, src, name := seedEff(t, `{}`, `{}`)
+	// Declarado con destino desktop pero malformado: type http sin url. mcpWant
+	// lo manda a RemoteSkipped, así que el chat tampoco lo carga.
+	mustWrite(t, mcpProfileFile(home, name), `{"mcpServers":{"raro":{"type":"http","command":"npx"}}}`)
+	if err := CfgRegenerate(home, name, src); err != nil {
+		t.Fatal(err)
+	}
+	// A mano dentro del perfil, después de la proyección.
+	var doc map[string]any
+	data, err := os.ReadFile(filepath.Join(ccHomePath(home, name), ".claude.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	srv, _ := doc["mcpServers"].(map[string]any)
+	if srv == nil {
+		srv = map[string]any{}
+		doc["mcpServers"] = srv
+	}
+	srv["mio"] = map[string]any{"command": "npx", "args": []any{"mio"}}
+	out, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, filepath.Join(ccHomePath(home, name), ".claude.json"), string(out))
+
+	e, err := ProfileEffective(home, name, src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range sectionOf(t, e, EffMCP).Rows {
+		if slices.Contains(r.AppliesTo, InvAppliesDesktopChat) {
+			t.Errorf("%s promete el chat y no llega: applies_to = %v", r.Key, r.AppliesTo)
+		}
 	}
 }
