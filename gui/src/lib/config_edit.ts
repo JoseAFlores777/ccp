@@ -534,6 +534,18 @@ export function moveModal(item: ConfigItem, targets: ConfigLayer[]): ModalSpec {
       if (!to) throw new Error(t('Falta la capa de destino.'));
       const v = await api.configItem(item.ref);
       if (!v.exists) throw new Error(t('No se pudo leer {n} en su capa.', { n: item.name }));
+      // Una skill es una carpeta y core solo mueve su SKILL.md: con anexos, el
+      // destino quedaría con una skill que referencia archivos que no están y
+      // el origen con esos archivos ya sin SKILL.md, invisibles para esta
+      // pantalla. Mejor negarse y decir cuáles que dejar las dos capas rotas.
+      if (v.extras && v.extras.length > 0) {
+        throw new Error(
+          t('{n} es una carpeta con más archivos y aquí solo viaja su SKILL.md: {f}. Muévela a mano y vuelve a mirar.', {
+            n: item.name,
+            f: v.extras.join(', '),
+          }),
+        );
+      }
       // La barrera vive en core (if_absent): aquí solo se decide si el usuario
       // la levantó. Preguntarle al destino desde la GUI y escribir después
       // sería una carrera, y esta ruta no deja copia de lo que reemplace.

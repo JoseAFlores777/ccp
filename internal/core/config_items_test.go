@@ -536,3 +536,30 @@ func TestConfigItemsMCPProyectadoDiceSuCapaDeOrigen(t *testing.T) {
 		t.Errorf("la ventana de default se proyecta desde la global, dijo %q", w.Why)
 	}
 }
+
+// Una skill es una carpeta, no un archivo: ConfigItemGet solo devuelve el
+// SKILL.md, así que quien la copie a otra capa tiene que saber qué se queda
+// fuera antes de tocar nada. Extras es ese dato.
+func TestConfigItemGetSkillAnexos(t *testing.T) {
+	r := invFixture(t)
+	mustWrite(t, filepath.Join(r.ClaudeSrc, "skills", "pdf", "references", "checklist.md"), "anexo\n")
+	mustWrite(t, filepath.Join(r.ClaudeSrc, "skills", "sola", "SKILL.md"), "skill\n")
+	l, err := ConfigItems(r, ConfigLayer{Level: "global"})
+	if err != nil {
+		t.Fatalf("ConfigItems: %v", err)
+	}
+	v, err := ConfigItemGet(r, cfgMustRef(t, l, CfgTypeSkills, "pdf"))
+	if err != nil {
+		t.Fatalf("Get(pdf): %v", err)
+	}
+	if !slices.Equal(v.Extras, []string{"references/checklist.md"}) {
+		t.Errorf("los anexos de la skill son %v, quería [references/checklist.md]", v.Extras)
+	}
+	v2, err := ConfigItemGet(r, cfgMustRef(t, l, CfgTypeSkills, "sola"))
+	if err != nil {
+		t.Fatalf("Get(sola): %v", err)
+	}
+	if len(v2.Extras) != 0 {
+		t.Errorf("una skill de un solo archivo no tiene anexos, dijo %v", v2.Extras)
+	}
+}

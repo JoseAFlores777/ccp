@@ -1084,4 +1084,5 @@ export const en: Record<string, string> = {
   "Llevar": "Move",
   "Falta la capa de destino.": "The destination layer is missing.",
   "No se pudo leer {n} en su capa.": "Could not read {n} in its layer.",
+  "{n} es una carpeta con más archivos y aquí solo viaja su SKILL.md: {f}. Muévela a mano y vuelve a mirar.": "{n} is a folder with more files and only its SKILL.md travels here: {f}. Move it by hand and check again.",
 };
