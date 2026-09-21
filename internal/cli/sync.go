@@ -11,6 +11,7 @@ package cli
 // carpeta mueve bultos que no sabe abrir.
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -233,15 +234,21 @@ func (c syncCmd) remoteAdd(args []string) int {
 		return c.fail(err)
 	}
 	files := remote.FilesFor(c.home, name)
-	_, err = r.Vault(c.ctx)
+	v, err := r.Vault(c.ctx)
 	switch {
 	case errors.Is(err, remote.ErrNoVault):
+		if err := forgetOtherVault(files, nil); err != nil {
+			return c.fail(err)
+		}
 		if code := c.initVault(r, files); code != 0 {
 			return code
 		}
 	case err != nil:
 		return c.fail(err)
 	default:
+		if err := forgetOtherVault(files, v.SignPub); err != nil {
+			return c.fail(err)
+		}
 		if code := c.unlockVault(r, files, a.flags["--recovery"]); code != 0 {
 			return code
 		}
@@ -253,6 +260,27 @@ func (c syncCmd) remoteAdd(args []string) int {
 	}
 	fmt.Fprintln(c.out, okLine(c.out, i18n.T(c.lang, "cli.sync.remote_added", name, url)))
 	return 0
+}
+
+// forgetOtherVault olvida el estado local cuando la bóveda que hay ahora en el
+// destino no es la que abre la clave guardada: signPub nil significa que no hay
+// bóveda ninguna (la carpeta se vació, iCloud la perdió) y una distinta, que la
+// rehizo otra máquina. Volver a añadir el destino reemplaza la clave, pero sin
+// esto `state.json` conservaba el mapa de «ya subido» de la bóveda anterior y
+// el siguiente push decía «Nada que subir» contra un destino vacío: el usuario
+// creería publicada una configuración que no está en ninguna parte. Es la misma
+// defensa que la nube aplica al cambiar de cuenta o de servidor.
+func forgetOtherVault(files client.Files, signPub []byte) error {
+	ak, err := files.LoadAK()
+	if errors.Is(err, client.ErrLocked) {
+		return nil // nada que olvidar: este equipo nunca la abrió
+	}
+	if err == nil && signPub != nil {
+		if acct, aerr := crypt.NewAccount(ak); aerr == nil && bytes.Equal(acct.SignPublic(), signPub) {
+			return nil // es la misma bóveda: el estado local sigue siendo cierto
+		}
+	}
+	return files.ForgetVault()
 }
 
 // initVault crea la bóveda del destino. El código de recuperación se enseña
