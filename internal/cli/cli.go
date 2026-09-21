@@ -135,6 +135,10 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 	// ni está en la completion, que es contrato golden.
 	case "cloud":
 		return dispatchCloud(rest, stdout, stderr)
+	// `sync` es la nube sin servidor: una carpeta o un bucket como destino
+	// (spec §9). Entra por la misma puerta y tampoco está en la completion.
+	case "sync":
+		return dispatchSync(rest, stdout, stderr)
 	case "scan":
 		return dispatchScan(rest, stdout, stderr)
 	case "adopt":
