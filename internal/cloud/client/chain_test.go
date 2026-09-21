@@ -2,11 +2,13 @@ package client
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/JoseAFlores777/ccp/internal/cloud/api"
 	"github.com/JoseAFlores777/ccp/internal/cloud/crypt"
+	"github.com/JoseAFlores777/ccp/internal/cloud/store"
 	"github.com/JoseAFlores777/ccp/internal/vault"
 )
 
@@ -228,5 +230,42 @@ func TestPushNoSueltaEnLaNubeLoQueSoloSeHaBajado(t *testing.T) {
 	}
 	if links, _ = apiB.Chain(ctx); !links[0].Pinned {
 		t.Fatalf("fijar desde B no llegó a la nube: %+v", links)
+	}
+}
+
+// pinRoto es una persistencia que sube bien y falla al fijar: el caso real de
+// un 5xx, un corte de red o un servidor viejo que no conoce la ruta de la
+// cadena. Todo ello ocurre DESPUÉS de que el snapshot ya está arriba.
+type pinRoto struct{ store.Store }
+
+func (p *pinRoto) SetPinned(context.Context, string, string, bool) error {
+	return errors.New("boom")
+}
+
+// Poner al día lo fijado es accesorio: si falla, la subida NO falla. Antes,
+// `Push` devolvía el error duro y `ccp cloud push` tiraba el informe entero
+// —salía 1 sin decir que los snapshots sí habían subido, y con --json no
+// imprimía nada, rompiendo su contrato—. Y quedaba así para siempre: el
+// siguiente push repetía el mismo error aunque no hubiera nada pendiente.
+func TestPushAvisaDelFijadoQueNoLlegaSinTumbarLaSubida(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, func(s store.Store) store.Store { return &pinRoto{Store: s} })
+	files, a, st := r.machine(t, "mac")
+	acct, _, m := seed(t, a, st)
+	if _, err := Push(ctx, a, acct, st, files, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.SetPin(m.ID, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	rep, err := Push(ctx, a, acct, st, files, "")
+	if err != nil {
+		t.Fatalf("un fijado que no llega no puede tumbar el push: %v", err)
+	}
+	if len(rep.PinFailed) != 1 || rep.Pinned != 0 {
+		t.Fatalf("Push = %+v; quiero el aviso del fijado que no llegó", rep)
+	}
+	if rep.PinError == "" {
+		t.Fatalf("el aviso tiene que decir por qué: %+v", rep)
 	}
 }
