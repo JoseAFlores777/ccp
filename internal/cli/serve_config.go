@@ -51,6 +51,10 @@ type cfgLayerParams struct {
 type cfgRefParams struct {
 	Ref   core.ConfigRef   `json:"ref"`
 	Value core.ConfigValue `json:"value"`
+	// IfAbsent lo pide la acción de capa de la GUI: escribe solo si el
+	// destino no tiene ya otro contenido. Campo añadido, no forma cambiada:
+	// una edición normal lo omite y escribe como siempre.
+	IfAbsent bool `json:"if_absent,omitempty"`
 }
 
 func srvConfigItems(s *server, raw json.RawMessage) (any, error) {
@@ -94,7 +98,7 @@ func srvConfigItemPut(s *server, raw json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	w, err := core.ConfigItemPut(r, p.Ref, p.Value)
+	w, err := core.ConfigItemPutWith(r, p.Ref, p.Value, core.ConfigItemPutOpts{IfAbsent: p.IfAbsent})
 	if err != nil {
 		return nil, err
 	}
@@ -154,6 +158,8 @@ type mcpPutParams struct {
 	Layer core.ConfigLayer `json:"layer"`
 	Name  string           `json:"name"`
 	Def   map[string]any   `json:"def"`
+	// IfAbsent: igual que en config.item.put, para la acción de capa.
+	IfAbsent bool `json:"if_absent,omitempty"`
 }
 
 func srvMCPPut(s *server, raw json.RawMessage) (any, error) {
@@ -165,7 +171,7 @@ func srvMCPPut(s *server, raw json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	w, err := core.MCPPut(r, p.Layer, p.Name, p.Def)
+	w, err := core.MCPPutWith(r, p.Layer, p.Name, p.Def, core.ConfigItemPutOpts{IfAbsent: p.IfAbsent})
 	if err != nil {
 		return nil, err
 	}

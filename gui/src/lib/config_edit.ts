@@ -432,9 +432,17 @@ export function moveModal(item: ConfigItem, targets: ConfigLayer[]): ModalSpec {
   return {
     title: t('Llevar {n} a otra capa', { n: item.name }),
     sub: t('Se copia el contenido a la capa elegida. Está ahora en {l}.', { l: layerLabel(item.ref.layer) }),
-    initial: { to: first, origin: 'keep' },
+    initial: { to: first, origin: 'keep', clash: 'stop' },
     fields: [
       { key: 'to', label: t('A dónde'), kind: 'select', options: targets.map((l) => ({ value: scopeArg(l), label: layerLabel(l) })) },
+      {
+        key: 'clash', label: t('Si el destino ya tiene algo'), kind: 'select',
+        hint: t('No hay copia de seguridad en este camino: lo que se reemplace no queda en ningún sitio.'),
+        options: [
+          { value: 'stop', label: t('Parar y no tocar nada') },
+          { value: 'overwrite', label: t('Reemplazarlo con esto') },
+        ],
+      },
       {
         key: 'origin', label: t('Y en el origen'), kind: 'select',
         options: [
@@ -450,6 +458,9 @@ export function moveModal(item: ConfigItem, targets: ConfigLayer[]): ModalSpec {
         w.push(t('Quedará declarado en las dos capas: la más específica gana.'));
       }
       if (to?.level === 'project') w.push(t('Un archivo de proyecto viaja en el repo: no lleves ahí nada con un secreto en claro.'));
+      if (f.clash === 'overwrite') {
+        w.push(t('Reemplazará lo que ya haya en el destino, y eso no se puede deshacer.'));
+      }
       return w;
     },
     cli: (f) =>
@@ -462,13 +473,17 @@ export function moveModal(item: ConfigItem, targets: ConfigLayer[]): ModalSpec {
       if (!to) throw new Error(t('Falta la capa de destino.'));
       const v = await api.configItem(item.ref);
       if (!v.exists) throw new Error(t('No se pudo leer {n} en su capa.', { n: item.name }));
+      // La barrera vive en core (if_absent): aquí solo se decide si el usuario
+      // la levantó. Preguntarle al destino desde la GUI y escribir después
+      // sería una carrera, y esta ruta no deja copia de lo que reemplace.
+      const ifAbsent = f.clash !== 'overwrite';
       // Los MCP van por mcp.put: ahí están las barreras de la capa (el secreto
       // en claro de un .mcp.json, la ventana que no declara) y repetirlas aquí
       // sería tener dos ideas de lo mismo.
       const w =
         item.ref.type === 'mcp'
-          ? await api.mcpPut(to, item.name, (v.json ?? {}) as Record<string, unknown>)
-          : await api.configItemPut({ layer: to, type: item.ref.type, name: item.name, key: item.ref.key, entry: item.ref.entry }, v);
+          ? await api.mcpPut(to, item.name, (v.json ?? {}) as Record<string, unknown>, ifAbsent)
+          : await api.configItemPut({ layer: to, type: item.ref.type, name: item.name, key: item.ref.key, entry: item.ref.entry }, v, ifAbsent);
       if (f.origin === 'remove') {
         await (item.ref.type === 'mcp' ? api.mcpDelete(item.ref.layer, item.name) : api.configItemDelete(item.ref));
       }

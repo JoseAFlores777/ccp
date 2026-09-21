@@ -308,6 +308,13 @@ func mcpDeclaredLayer(r InventoryRoots, layer ConfigLayer) (ConfigLayer, error) 
 // viaja en el repo: un secreto en claro ahí se publica con el commit, así que
 // en la capa de proyecto se niega y se dice cómo escribirlo.
 func MCPPut(r InventoryRoots, layer ConfigLayer, name string, def map[string]any) (ConfigWrite, error) {
+	return MCPPutWith(r, layer, name, def, ConfigItemPutOpts{})
+}
+
+// MCPPutWith es MCPPut con las opciones de escritura: la acción de capa
+// («llevar a…») pide IfAbsent para no reemplazar en silencio un servidor que ya
+// estuviera declarado con ese nombre en el destino.
+func MCPPutWith(r InventoryRoots, layer ConfigLayer, name string, def map[string]any, opts ConfigItemPutOpts) (ConfigWrite, error) {
 	write, err := mcpDeclaredLayer(r, layer)
 	if err != nil {
 		return ConfigWrite{}, err
@@ -322,7 +329,7 @@ func MCPPut(r InventoryRoots, layer ConfigLayer, name string, def map[string]any
 				name, strings.Join(bad, ", "))
 		}
 	}
-	return ConfigItemPut(r, ConfigRef{Layer: write, Type: CfgTypeMCP, Name: name}, ConfigValue{JSON: def})
+	return ConfigItemPutWith(r, ConfigRef{Layer: write, Type: CfgTypeMCP, Name: name}, ConfigValue{JSON: def}, opts)
 }
 
 // MCPDelete quita un servidor de la capa que lo declara y lo retira de los
