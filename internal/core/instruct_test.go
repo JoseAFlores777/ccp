@@ -2,7 +2,6 @@ package core
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,10 +32,12 @@ func TestInstructDest(t *testing.T) {
 
 		{"profile rule", "profile", "rule", "work", "/H/profiles/work/overlay/CLAUDE.md", 0},
 		{"profile hook", "profile", "hook", "work", "/H/profiles/work/overlay/settings.overlay.json", 0},
-		{"profile mcp -> rc5", "profile", "mcp", "work", "", 5},
-		{"profile agent -> rc3", "profile", "agent", "work", "", 3},
-		{"profile command -> rc3", "profile", "command", "work", "", 3},
-		{"profile skill -> rc3", "profile", "skill", "work", "", 3},
+		// Desde la Fase B el perfil tiene sus capas propias: los códigos 3 y 5 ya
+		// no existen (spec §6.1 y §6.2).
+		{"profile mcp", "profile", "mcp", "work", "/H/profiles/work/overlay/mcp.json", 0},
+		{"profile agent", "profile", "agent", "work", "/H/profiles/work/overlay/agents", 0},
+		{"profile command", "profile", "command", "work", "/H/profiles/work/overlay/commands", 0},
+		{"profile skill", "profile", "skill", "work", "/H/profiles/work/overlay/skills", 0},
 		{"profile default -> rc2", "profile", "rule", "default", "", 2},
 		{"profile vacío -> rc2", "profile", "rule", "", "", 2},
 
@@ -234,14 +235,25 @@ func TestInstructAddMCPGlobalAndRm(t *testing.T) {
 	}
 }
 
-// mcp en scope profile debe rechazarse (rc5) sin tocar disco.
-func TestInstructAddMCPProfileRechazado(t *testing.T) {
-	home := t.TempDir()
-	ctx := InstructCtx{Home: home, Src: t.TempDir(), RepoRoot: t.TempDir(), ActiveProfile: "work"}
-	_, err := InstructAdd(ctx, "profile", "mcp", `x={"command":"y"}`)
-	de, ok := err.(*DestError)
-	if !ok || de.Code != 5 {
-		t.Fatalf("quiero rc5, got %v", err)
+// Un MCP de perfil se escribe en su overlay y la regeneración lo proyecta a lo
+// que lee la CLI de ese perfil, sin tocar el ~/.claude.json global.
+func TestInstructAddMCPProfileSeProyecta(t *testing.T) {
+	home, src := mcpFixture(t)
+	ctx := InstructCtx{Home: home, Src: src, RepoRoot: t.TempDir(), ActiveProfile: "work"}
+	res, err := InstructAdd(ctx, "profile", "mcp", `notas={"command":"uvx","args":["notas"]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Dest != mcpProfileFile(home, "work") {
+		t.Fatalf("dest = %s", res.Dest)
+	}
+	cj := filepath.Join(ccHomePath(home, "work"), ".claude.json")
+	b, err := os.ReadFile(cj)
+	if err != nil || !strings.Contains(string(b), "notas") {
+		t.Fatalf("no se proyectó a %s: %s %v", cj, b, err)
+	}
+	if g, _ := os.ReadFile(src + ".json"); strings.Contains(string(g), "notas") {
+		t.Error("un MCP de perfil no puede acabar en el global")
 	}
 }
 
@@ -365,18 +377,19 @@ func TestInstructRmRulesAntesQueArtefactos(t *testing.T) {
 	}
 }
 
-// B1: «global» no llega a todos los perfiles. Va a ~/.claude.json, que solo lee
-// default; cada perfil official lee su propio cc-home/.claude.json.
-func TestInstructDestProfileMCPHintIsHonest(t *testing.T) {
-	_, err := InstructDest("profile", "mcp", t.TempDir(), "work", t.TempDir(), "")
-	var de *DestError
-	if !errors.As(err, &de) || de.Code != 5 {
-		t.Fatalf("err = %v, quiero DestError código 5", err)
-	}
-	if strings.Contains(de.Hint, "add global mcp") {
-		t.Fatalf("la pista vuelve a recomendar global como si llegara a todos los perfiles: %q", de.Hint)
-	}
-	if !strings.Contains(de.Hint, "'global' solo llega a default") || !strings.Contains(de.Hint, "project") {
-		t.Fatalf("la pista debe decir a quién llega global y ofrecer project: %q", de.Hint)
+// B1 de fondo (spec §4): «global» ya significa «proyectado a todos los perfiles»,
+// así que la pista que lo negaba desapareció con el código 5. Lo que queda por
+// fijar es que cada scope escribe donde dice.
+func TestInstructDestMCPPorScope(t *testing.T) {
+	home, src, repo := "/H", "/SRC", "/REPO"
+	for _, tc := range []struct{ scope, want string }{
+		{"global", src + ".json"},
+		{"profile", home + "/profiles/work/overlay/mcp.json"},
+		{"project", repo + "/.mcp.json"},
+	} {
+		got, err := InstructDest(tc.scope, "mcp", home, "work", src, repo)
+		if err != nil || got != tc.want {
+			t.Errorf("%s: %q %v, quiero %q", tc.scope, got, err, tc.want)
+		}
 	}
 }
