@@ -812,6 +812,41 @@ still the primary source.
 - **This machine's cloud files** live in `~/.config/ccp/cloud` (0700, every file 0600): the session, the
   device token, the unlocked key and which snapshots are already uploaded.
 
+### The portal proposes, this machine applies
+
+Nothing ever connects *into* your Mac. The portal publishes a **desired revision** — «reach this snapshot» —
+signed with the account key, which the server does not have; this machine pulls it, checks that signature
+against its own key, and decides what to write.
+
+```bash
+ccp cloud agent --once                # one pass: fetch, reconcile, apply
+ccp cloud agent                       # stay watching (every 5 min; --interval 30s)
+ccp cloud review                      # confirm what runs code here (--yes / --reject / --json)
+ccp cloud policy manual               # this machine: nothing is applied without confirming it
+```
+
+- **Three-way merge, per logical path**: base (the revision's own `base`, the last applied snapshot), what is
+  live here, and what the revision wants. What only changed up there is applied; what changed on both sides is
+  a **conflict** and is left exactly as it is; what only changed here is kept. A revision with no base is an
+  absolute order («reach this snapshot») and is applied as a restore.
+- **A snapshot before writing**, always — the same engine as `ccp snapshot restore`, so the previous state has
+  an id you can go back to. The agent prints it.
+- **What runs code is never applied on its own** (`auto` is the default policy): hooks, an MCP server's
+  `command`/`args`, `statusLine`, plugins, a skill with a script, and permissions that **widen**
+  (`permissions.allow`, `defaultMode`) wait for `ccp cloud review` on this machine. A stolen account is not
+  enough to run code on your Macs. What only *describes* configuration — instructions, rules, env, permissions
+  that restrict — applies on its own; a `settings.json` that only changes `model` does not ask, because asking
+  for everything teaches you to say yes without reading.
+- **The revision stays open while it waits for you.** A result can be reported only once, so the agent does not
+  close it with «partial, waiting»; `ccp cloud review` is what reports the final state (`applied`, `partial`,
+  `conflict`, `failed`) once you have answered. Until then the portal shows it as pending, which is what it is.
+- **The policy lives here, not in the cloud** (`~/.config/ccp/cloud/config.json`): it is this machine's defence
+  against its own account, and a defence you could flip from where an attacker would be is no defence.
+
+**Running it in the background is optional and you install it yourself.** ccp never writes to your
+`LaunchAgents`: something that wakes up and rewrites your configuration is your decision, not an installer's.
+The plist is in [`docs/launchagent-cloud-agent.md`](docs/launchagent-cloud-agent.md).
+
 Setting up the server (Postgres + Keycloak + S3 storage + the `ccp-cloud` API) is a separate job; the pieces
 live in `deploy/ccp-cloud/`. **The public deployment is pending the owner's authorization**, so until then
 `ccp cloud` points at whatever server you run yourself.
@@ -1068,7 +1103,7 @@ With commands: `ccp config show` · `ccp config set <clave> <valor>` · `ccp con
 | Status / diagnostics | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
 | Snapshots | `ccp snapshot create\|list\|diff\|restore\|export\|import` |
-| Cloud | `ccp cloud login\|init\|unlock\|push\|pull\|list\|devices` |
+| Cloud | `ccp cloud login\|init\|unlock\|push\|pull\|list\|devices\|agent\|review\|policy` |
 | Add or remove an MCP server | `ccp mcp add\|rm <n>` · `ccp mcp list` |
 | Turn an inherited MCP off in one profile | `ccp mcp disable <n> --profile <perfil>` |
 | Update | `ccp upgrade` |
