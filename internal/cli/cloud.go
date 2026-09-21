@@ -806,7 +806,14 @@ func (c cloudCmd) verify(args []string) int {
 	}
 	fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.verify_bad", len(rep.Faults), rep.Links))
 	for _, f := range rep.Faults {
-		fmt.Fprintf(c.out, "  %s  %s\n", snapshot.Short(f.ID), i18n.T(c.lang, "cli.cloud.fault."+f.Code, snapshot.Short(f.Ref)))
+		// El Ref solo viaja en las faltas que hablan de un padre; las demás
+		// no tienen verbo en su plantilla y un argumento de más las remataba
+		// con «%!(EXTRA string=)».
+		var args []any
+		if f.Ref != "" {
+			args = append(args, snapshot.Short(f.Ref))
+		}
+		fmt.Fprintf(c.out, "  %s  %s\n", snapshot.Short(f.ID), i18n.T(c.lang, "cli.cloud.fault."+f.Code, args...))
 	}
 	fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.verify_hint"))
 	return 1

@@ -23,6 +23,7 @@ import (
 	cloudsrv "github.com/JoseAFlores777/ccp/internal/cloud/server"
 	cloudstore "github.com/JoseAFlores777/ccp/internal/cloud/store"
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // cloudServer levanta el API real con persistencia y almacenamiento en memoria
@@ -451,8 +452,14 @@ func TestCloudVerifyMiraLaCadenaEntera(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("verify con un eslabón perdido = %d, quiero 1 (%q %q)", code, out, errs)
 	}
-	if !strings.Contains(out+errs, "eeeeeeee") {
-		t.Fatalf("verify no dice cuál falta: %q %q", out, errs)
+	// La línea entera, no un trozo del id: una falta sin %s en su plantilla
+	// recibía igualmente un argumento y salía con «%!(EXTRA string=)» pegado.
+	quiero := "  " + strings.Repeat("e", 12) + "  " + i18n.T(i18n.Es, "cli.cloud.fault.dropped")
+	if !strings.Contains(out, quiero+"\n") {
+		t.Fatalf("verify no dice cuál falta tal cual: quiero %q en %q %q", quiero, out, errs)
+	}
+	if strings.Contains(out+errs, "%!") {
+		t.Fatalf("verify imprime un verbo mal formateado: %q %q", out, errs)
 	}
 }
 
