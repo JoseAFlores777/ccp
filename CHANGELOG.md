@@ -4,6 +4,29 @@
 
 ### Added
 
+- **`ccp cloud agent`: el portal propone y esta máquina aplica** (spec §10.3,
+  [ADR 0014](docs/adr/0014-portal-proposes-machine-applies.md)). El portal publica una **revisión deseada**
+  firmada con la clave de cuenta —que el servidor no tiene— y dirigida a un dispositivo concreto; la máquina
+  tira de ella, verifica la firma con su propia clave y decide qué escribe. No hay ningún puerto abierto hacia
+  tu Mac.
+  - **Reconciliación a tres bandas por ruta lógica**: base (la `base` firmada de la revisión), lo vivo aquí y
+    lo deseado. Lo que solo cambió arriba se aplica; lo que cambió en los dos sitios queda como **conflicto** y
+    no se toca; lo que solo cambió aquí se conserva. Una revisión sin base es una orden absoluta y se aplica
+    como un restore. **Antes de escribir, snapshot automático** (el motor de `ccp snapshot restore`), y el
+    agente dice con qué id se deshace.
+  - **Lo que ejecuta código no se aplica solo**: hooks, `command`/`args` de un MCP, `statusLine`, plugins,
+    skills con script y los permisos que **amplían** (`permissions.allow`, `defaultMode`) esperan a
+    `ccp cloud review` en la propia máquina. Una cuenta robada no basta para ejecutar código en tus Macs. Se
+    mira el contenido y no solo la ruta: un `settings.json` que solo cambia `model` se aplica solo, porque
+    preguntar por todo enseña a decir que sí sin leer.
+  - **La revisión se queda abierta mientras espera a una persona.** El resultado se informa una sola vez, así
+    que cerrarla con «parcial, esperando confirmación» dejaría al portal un resultado incorregible; es
+    `ccp cloud review` quien la cierra (`aplicada`, `parcial`, `en conflicto`, `fallida`).
+  - `ccp cloud policy [auto|manual]` fija la política de ESTE equipo, y vive en su disco y no en la cuenta: es
+    su defensa frente a la propia cuenta. `ccp cloud status` dice la política y si hay algo esperando
+    confirmación.
+  - **En segundo plano es opcional y lo instalas tú**: ccp no escribe en tus `LaunchAgents`. El plist está en
+    [`docs/launchagent-cloud-agent.md`](docs/launchagent-cloud-agent.md).
 - **`ccp cloud`: el historial de snapshots en un servidor propio, cifrado de punta a punta** (spec §10,
   [ADR 0013](docs/adr/0013-cloud-end-to-end-encryption.md) y
   [ADR 0015](docs/adr/0015-identity-keycloak-vault-separate.md)). `login` (código de dispositivo), `init`,

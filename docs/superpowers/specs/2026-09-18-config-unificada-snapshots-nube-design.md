@@ -884,8 +884,8 @@ La vía nube puede empezar en cuanto D tenga el formato, y la I (infra) no depen
 - **0012** — Snapshots direccionados por contenido con rutas lógicas y clases de elemento.
 - **0013** — [Nube con cifrado de extremo a extremo](../../adr/0013-cloud-end-to-end-encryption.md)
   (escrita): el servidor no lee la configuración.
-- **0014** — El portal propone y la máquina aplica: pull, revisiones firmadas y confirmación local de
-  lo ejecutable.
+- **0014** — [El portal propone y la máquina aplica](../../adr/0014-portal-proposes-machine-applies.md)
+  (escrita): pull, revisiones firmadas y confirmación local de lo ejecutable.
 - **0015** — [Identidad en Keycloak y cifrado en la bóveda](../../adr/0015-identity-keycloak-vault-separate.md)
   (escrita): dos secretos con dos dueños.
 - **0016** — Qué lee Claude Desktop de un perfil: las mediciones M1–M6 de la Fase 0. Enmienda a 0008
