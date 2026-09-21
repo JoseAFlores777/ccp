@@ -229,3 +229,27 @@ func TestMCPAddNoSeTragaEnvNiHeadersDelTransporteAjeno(t *testing.T) {
 		t.Errorf("el error no nombra headers: %q", errs)
 	}
 }
+
+// El comando que crea el conflicto es justo el que lo callaba: la proyección
+// descarta el servidor porque el cc-home ya lo tenía puesto a mano, pero el
+// informe solo hablaba de regenerados. El usuario se iba creyendo que el perfil
+// arrancaba el suyo.
+func TestMCPAddAvisaDelConflictoQueAcabaDeCrear(t *testing.T) {
+	home := mcpEnv(t)
+	cj := filepath.Join(home, "profiles", "work", "cc-home", ".claude.json")
+	amano := `{"mcpServers":{"zz":{"command":"viejo","args":["a-mano"]}}}`
+	if err := os.WriteFile(cj, []byte(amano), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, out, errs := snapRun(t, "mcp", "add", "zz", "--profile", "work", "--", "npx", "nuevo")
+	if code != 0 {
+		t.Fatalf("add: %d %q %q", code, out, errs)
+	}
+	b, err := os.ReadFile(cj)
+	if err != nil || !strings.Contains(string(b), "a-mano") {
+		t.Fatalf("la proyección no debía pisar lo puesto a mano: %s %v", b, err)
+	}
+	if !strings.Contains(errs, "zz") || !strings.Contains(errs, "puesto a mano") {
+		t.Errorf("el add calló el conflicto que acababa de crear:\nstdout=%q\nstderr=%q", out, errs)
+	}
+}

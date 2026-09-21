@@ -74,6 +74,17 @@ export function writeMsg(w: ConfigWrite): string {
   const parts = [t('Guardado en {f}', { f: tilde(w.file) })];
   if (w.regenerated?.length) parts.push(t('regenerado: {p}', { p: w.regenerated.join(', ') }));
   if (w.restart_pending?.length) parts.push(t('pendiente de reiniciar la ventana de {p}', { p: w.restart_pending.join(', ') }));
+  // Un servidor que la proyección descartó es el resultado de ESTA escritura:
+  // callarlo dejaba al usuario creyendo que el perfil ya arrancaba el suyo.
+  for (const m of w.mcp ?? []) {
+    const dest = m.target === 'desktop' ? t('el chat de Desktop') : t('la CLI y la pestaña Code');
+    if (m.conflicts?.length) {
+      parts.push(t('{p}: {d} ya tenía {k} puesto a mano; ccp no lo pisa', { p: m.profile, d: dest, k: m.conflicts.join(', ') }));
+    }
+    if (m.remote_skipped?.length) {
+      parts.push(t('{p}: {k} no son stdio, y el chat de Desktop solo los carga como conector de la cuenta', { p: m.profile, k: m.remote_skipped.join(', ') }));
+    }
+  }
   if (w.mcp_error) parts.push(w.mcp_error);
   return parts.join(' · ');
 }
