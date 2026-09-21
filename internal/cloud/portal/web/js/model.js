@@ -56,7 +56,9 @@ export function areaOf(lpath) {
   if (perfil) return 'perfil ' + perfil[1];
   if (lpath.startsWith('ccp/')) return 'ccp';
   if (lpath.startsWith('claude/')) return 'global';
-  const proy = /^projects\/([^/]+)\//.exec(lpath);
+  // `project/` en singular: es como lo escribe core (snapshot_layout.go). En
+  // plural, los cambios de un repo salían en «otros» y nadie los reconocía.
+  const proy = /^project\/([^/]+)\//.exec(lpath);
   if (proy) return 'proyecto ' + proy[1];
   return 'otros';
 }
