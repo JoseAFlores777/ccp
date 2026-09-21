@@ -23,6 +23,9 @@ var catalogCloud = map[string]map[Lang]string{
   verify [--json]                     check the whole signed history for tampering
   devices [--json]                    machines of the account
   revoke <device>                     revoke another machine
+  groups [--json]                     device groups («all my Macs»)
+  groups add <name> <machine>…        create one; set/rm change or delete it
+  groups status <group> [--json]      how the last revision went on each machine
   agent [--once] [--interval <d>]     apply the revisions the portal publishes for this machine
   review [--yes|--reject] [--json]    confirm what runs code here before it is applied
   policy [auto|manual]                this machine's policy for incoming revisions
@@ -45,6 +48,9 @@ CCP_CLOUD_PASSPHRASE and CCP_CLOUD_RECOVERY give the secrets without asking.`,
   verify [--json]                     comprueba que nadie ha tocado la historia firmada
   devices [--json]                    equipos de la cuenta
   revoke <dispositivo>                revoca otro equipo
+  groups [--json]                     grupos de dispositivos («todas mis Macs»)
+  groups add <nombre> <equipo>…       crea uno; set/rm lo cambian o lo borran
+  groups status <grupo> [--json]      cómo le fue a cada equipo la última revisión
   agent [--once] [--interval <d>]     aplica las revisiones que el portal publica para este equipo
   review [--yes|--reject] [--json]    confirma lo que ejecuta código aquí antes de aplicarlo
   policy [auto|manual]                política de este equipo ante las revisiones que llegan
@@ -237,4 +243,43 @@ var catalogCloudRestore = map[string]map[Lang]string{
 		En: "project %s is not here; clone %s and repeat with --map",
 		Es: "el proyecto %s no está aquí; clona %s y repite con --map",
 	},
+}
+
+// F4-1: grupos de dispositivos («todas mis Macs», spec §10.3). Un grupo es una
+// etiqueta con miembros y no autoriza nada: aplicar a un grupo es publicar una
+// revisión firmada por miembro.
+func init() { register(catalogCloudGroups) }
+
+var catalogCloudGroups = map[string]map[Lang]string{
+	"cli.cloud.groups_unknown_sub": {
+		En: "cloud groups: unknown subcommand '%s'. Try: add, set, rm, status.",
+		Es: "cloud groups: subcomando desconocido '%s'. Prueba: add, set, rm, status.",
+	},
+	"cli.cloud.groups_header": {En: "ID\tNAME\tMEMBERS\tMACHINES", Es: "ID\tNOMBRE\tMIEMBROS\tEQUIPOS"},
+	"cli.cloud.groups_none": {
+		En: "No device groups yet. Create one with: ccp cloud groups add <name> <machine>…",
+		Es: "Todavía no hay grupos de dispositivos. Crea uno con: ccp cloud groups add <nombre> <equipo>…",
+	},
+	"cli.cloud.group_name_needed": {
+		En: "cloud groups add: which name? ccp cloud groups add <name> <machine>…",
+		Es: "cloud groups add: ¿qué nombre? ccp cloud groups add <nombre> <equipo>…",
+	},
+	"cli.cloud.group_needed": {
+		En: "which group? ccp cloud groups lists them.",
+		Es: "¿qué grupo? ccp cloud groups los enseña.",
+	},
+	"cli.cloud.group_unknown": {En: "There is no group called «%s».", Es: "No hay ningún grupo que se llame «%s»."},
+	"cli.cloud.group_added":   {En: "Group «%s» created with %d machines.", Es: "Grupo «%s» creado con %d equipos."},
+	"cli.cloud.group_set":     {En: "Group «%s» now has %d machines.", Es: "El grupo «%s» tiene ahora %d equipos."},
+	"cli.cloud.group_rm_confirm": {
+		En: "This deletes the group «%s». The revisions already published to it keep running on each machine; what is lost is the name that shows them together. Repeat with --yes.",
+		Es: "Esto borra el grupo «%s». Las revisiones ya publicadas siguen su curso en cada máquina; lo que se pierde es el nombre que las enseña juntas. Repite con --yes.",
+	},
+	"cli.cloud.group_removed":      {En: "Group «%s» deleted.", Es: "Grupo «%s» borrado."},
+	"cli.cloud.group_status_title": {En: "Group «%s» (%d machines)", Es: "Grupo «%s» (%d equipos)"},
+	"cli.cloud.group_status_header": {
+		En: "MACHINE\tSTATE\tUPDATED\tNOTE", Es: "EQUIPO\tESTADO\tACTUALIZADO\tNOTA",
+	},
+	"cli.cloud.group_state_none": {En: "no orders", Es: "sin órdenes"},
+	"cli.cloud.group_state_ex":   {En: "(no longer in the group)", Es: "(ya no está en el grupo)"},
 }
