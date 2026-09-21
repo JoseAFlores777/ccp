@@ -99,6 +99,9 @@ func New(c Config) http.Handler {
 	mux.Handle("GET /v1/audit", s.authed(s.listAudit, true))
 	mux.Handle("GET /v1/vault", s.authed(s.getVault, true))
 	mux.Handle("PUT /v1/vault", s.authed(s.putVault, true))
+	// Rotar las claves de ACCESO: envolturas nuevas sobre la misma clave de
+	// cuenta (ver handlers.go).
+	mux.Handle("PUT /v1/vault/wraps", s.authed(s.rewrapVault, true))
 	mux.Handle("POST /v1/blobs/presign", s.authed(s.presign, true))
 	// Por el mismo origen, para el portal (ver blobs_handlers.go).
 	mux.Handle("GET /v1/blobs/{id}", s.authed(s.getBlob, true))

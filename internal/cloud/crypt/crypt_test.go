@@ -181,3 +181,39 @@ func TestVerifyDigestAceptaLaFirmaDeSiempre(t *testing.T) {
 		t.Fatalf("un digest distinto tenía que fallar, dio %v", err)
 	}
 }
+
+// Rotar las claves de acceso cambia las dos envolturas y NO la AK: la clave de
+// cuenta sigue siendo la misma, así que todo lo firmado y sellado con ella
+// sigue abriéndose. Lo que deja de servir es la frase vieja y el código viejo.
+func TestRewrapVaultCambiaLasLlavesNoLaCaja(t *testing.T) {
+	ak, code, w, err := NewVault([]byte("frase vieja larga"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	code2, w2, err := RewrapVault(ak, []byte("frase nueva larga"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code2 == code {
+		t.Fatal("el código de recuperación se reemite, no se repite")
+	}
+	// La misma AK: si cambiara, todo manifiesto firmado hasta hoy dejaría de
+	// verificar y la rotación sería una pérdida de datos con otro nombre.
+	if string(w2.SignPub) != string(w.SignPub) {
+		t.Fatal("rotar las envolturas cambió la identidad de firma")
+	}
+	got, err := UnlockPassphrase(w2, []byte("frase nueva larga"))
+	if err != nil || string(got) != string(ak) {
+		t.Fatalf("la frase nueva no abre la misma AK: %v", err)
+	}
+	if got, err := UnlockRecovery(w2, code2); err != nil || string(got) != string(ak) {
+		t.Fatalf("el código nuevo no abre la misma AK: %v", err)
+	}
+	// Y las viejas ya no sirven contra las envolturas nuevas.
+	if _, err := UnlockPassphrase(w2, []byte("frase vieja larga")); err == nil {
+		t.Fatal("la frase vieja sigue abriendo")
+	}
+	if _, err := UnlockRecovery(w2, code); err == nil {
+		t.Fatal("el código viejo sigue abriendo")
+	}
+}

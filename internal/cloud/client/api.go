@@ -130,6 +130,14 @@ func (a *API) PutVault(ctx context.Context, v api.Vault) error {
 	return a.do(ctx, http.MethodPut, "/v1/vault", v, nil)
 }
 
+// RewrapVault rota las claves de ACCESO: sube envolturas nuevas sobre la
+// misma clave de cuenta. El servidor rechaza la rotación si la clave pública
+// de firma no es la que ya tenía, que es su única forma de ver que la AK no
+// cambió sin poder abrir nada.
+func (a *API) RewrapVault(ctx context.Context, v api.Vault) error {
+	return a.do(ctx, http.MethodPut, "/v1/vault/wraps", v, nil)
+}
+
 // Presign pide URLs prefirmadas para subir ("put") o bajar ("get") blobs.
 func (a *API) Presign(ctx context.Context, op string, ids []string) ([]api.PresignItem, error) {
 	var out []api.PresignItem

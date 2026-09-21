@@ -69,3 +69,5 @@ func TestMemGroupContract(t *testing.T) { runGroupContract(t, NewMem()) }
 func TestMemAuditContract(t *testing.T) { runAuditContract(t, NewMem()) }
 
 func TestMemRevokeContract(t *testing.T) { runRevokeContract(t, NewMem()) }
+
+func TestMemRewrapContract(t *testing.T) { runRewrapContract(t, NewMem()) }

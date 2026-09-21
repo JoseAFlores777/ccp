@@ -174,6 +174,39 @@ func scanDevice(row pgx.Row) (Device, error) {
 	return d, notFound(err)
 }
 
+// RewrapVault reemplaza las envolturas y nada más. El WHERE sign_pub exige
+// que la clave pública de firma sea la misma: es la prueba de que la AK no
+// cambió, y una AK nueva no es rotar las llaves sino cambiar la caja dejando
+// dentro todo lo que ya no abre. Created no se toca: la bóveda es la misma.
+func (p *PG) RewrapVault(ctx context.Context, userID string, v Vault) error {
+	if !IsUUID(userID) {
+		return ErrNotFound
+	}
+	if !json.Valid(v.KDF) {
+		return fmt.Errorf("store: KDF no es JSON")
+	}
+	tag, err := p.pool.Exec(ctx, `UPDATE vaults SET kdf = $2::jsonb, passphrase_wrap = $3, recovery_wrap = $4
+		WHERE user_id = $1::uuid AND sign_pub = $5`,
+		userID, string(v.KDF), v.PassphraseWrap, v.RecoveryWrap, v.SignPub)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		// O no hay bóveda, o la firma no cuadra: son cosas distintas y quien
+		// llama necesita distinguirlas.
+		var existe bool
+		if err := p.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM vaults WHERE user_id = $1::uuid)`,
+			userID).Scan(&existe); err != nil {
+			return err
+		}
+		if !existe {
+			return ErrNotFound
+		}
+		return ErrConflict
+	}
+	return nil
+}
+
 func (p *PG) CreateDevice(ctx context.Context, userID string, d Device) (Device, error) {
 	if !IsUUID(userID) {
 		return Device{}, ErrNotFound

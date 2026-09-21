@@ -14,6 +14,7 @@ var catalogCloud = map[string]map[Lang]string{
   status [--json]                     server, account, machine, vault, pending uploads
   init                                create the vault (first machine) and show the recovery code
   unlock [--recovery]                 unlock the vault on this machine
+  rotate                              new passphrase and recovery code (same account key)
   push [<snapshot>] [--json]          upload the local snapshots the cloud does not have
   pull [<id>|latest] [--device <n>]   download a snapshot into the local store
        [-o <file>] [--decrypted]      …or into a file: .ccpsnap, or a readable .tar.gz with --yes
@@ -33,7 +34,7 @@ var catalogCloud = map[string]map[Lang]string{
   policy [auto|manual]                this machine's policy for incoming revisions
 
 Everything is encrypted on this machine before it leaves: the server cannot read it.
-CCP_CLOUD_PASSPHRASE and CCP_CLOUD_RECOVERY give the secrets without asking.`,
+CCP_CLOUD_PASSPHRASE, CCP_CLOUD_NEW_PASSPHRASE and CCP_CLOUD_RECOVERY give the secrets without asking.`,
 		Es: `Uso: ccp cloud <subcomando>
 
   login <servidor> [--name <equipo>]  inicia sesión (código de dispositivo) y registra este equipo
@@ -41,6 +42,7 @@ CCP_CLOUD_PASSPHRASE and CCP_CLOUD_RECOVERY give the secrets without asking.`,
   status [--json]                     servidor, cuenta, equipo, bóveda, pendientes de subir
   init                                crea la bóveda (primera máquina) y enseña el código de recuperación
   unlock [--recovery]                 desbloquea la bóveda en este equipo
+  rotate                              frase y código de recuperación nuevos (misma clave de cuenta)
   push [<snapshot>] [--json]          sube los snapshots locales que la nube no tiene
   pull [<id>|latest] [--device <n>]   baja un snapshot al almacén local
        [-o <archivo>] [--decrypted]   …o a un archivo: .ccpsnap, o un .tar.gz legible con --yes
@@ -60,7 +62,7 @@ CCP_CLOUD_PASSPHRASE and CCP_CLOUD_RECOVERY give the secrets without asking.`,
   policy [auto|manual]                política de este equipo ante las revisiones que llegan
 
 Todo se cifra en este equipo antes de salir: el servidor no puede leerlo.
-CCP_CLOUD_PASSPHRASE y CCP_CLOUD_RECOVERY dan los secretos sin preguntarlos.`,
+CCP_CLOUD_PASSPHRASE, CCP_CLOUD_NEW_PASSPHRASE y CCP_CLOUD_RECOVERY dan los secretos sin preguntarlos.`,
 	},
 	"cli.cloud.verify_ok": {
 		En: "The history is intact: %d links, every signature from this account.",
@@ -311,5 +313,35 @@ var catalogCloudAudit = map[string]map[Lang]string{
 	"cli.cloud.audit_bad_limit": {
 		En: "--limit must be between 1 and %d.",
 		Es: "--limit tiene que estar entre 1 y %d.",
+	},
+}
+
+// F4-2: rotar las claves de ACCESO a la bóveda (spec §10.2). Frase y código
+// nuevos sobre la MISMA clave de cuenta: por eso no hay nada que recifrar, y
+// por eso tampoco le quita la copia a quien ya la tenía.
+func init() { register(catalogCloudRotate) }
+
+var catalogCloudRotate = map[string]map[Lang]string{
+	"cli.cloud.rotate_prompt": {
+		En: "New vault passphrase: ",
+		Es: "Frase nueva de la bóveda: ",
+	},
+	"cli.cloud.rotate_locked": {
+		En: "Rotating needs the vault open on this machine: ccp cloud unlock",
+		Es: "Rotar necesita la bóveda abierta en este equipo: ccp cloud unlock",
+	},
+	"cli.cloud.rotate_done": {
+		En: "Vault access keys rotated: the old passphrase and the old recovery code no longer work.",
+		Es: "Claves de acceso rotadas: la frase vieja y el código viejo ya no sirven.",
+	},
+	// La frase honesta: rotar las llaves no cambia la caja. Quien ya tenía
+	// una copia de la clave de cuenta la sigue teniendo.
+	"cli.cloud.rotate_scope": {
+		En: "The account key does not change, so machines already unlocked stay unlocked — including one you revoked, if it kept a copy. Rotating the account key itself (re-encrypting everything) is not implemented yet.",
+		Es: "La clave de cuenta no cambia, así que los equipos ya desbloqueados lo siguen estando —incluido uno que hayas revocado, si se quedó con una copia—. Rotar la clave de cuenta (recifrarlo todo) todavía no está.",
+	},
+	"cli.cloud.rotate_needs_pass": {
+		En: "Rotating needs a NEW passphrase in CCP_CLOUD_NEW_PASSPHRASE (or a terminal to type it).",
+		Es: "Rotar necesita una frase NUEVA en CCP_CLOUD_NEW_PASSPHRASE (o una terminal donde escribirla).",
 	},
 }

@@ -88,6 +88,23 @@ func (m *Mem) CreateVault(_ context.Context, userID string, v Vault) error {
 	return nil
 }
 
+func (m *Mem) RewrapVault(_ context.Context, userID string, v Vault) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cur, ok := m.vaults[userID]
+	if !ok {
+		return ErrNotFound
+	}
+	// La clave pública de firma es la prueba de que la AK no cambió: rotar
+	// las llaves de la caja no puede cambiar la caja.
+	if string(v.SignPub) != string(cur.SignPub) {
+		return ErrConflict
+	}
+	cur.KDF, cur.PassphraseWrap, cur.RecoveryWrap = v.KDF, v.PassphraseWrap, v.RecoveryWrap
+	m.vaults[userID] = cur
+	return nil
+}
+
 func (m *Mem) CreateDevice(_ context.Context, userID string, d Device) (Device, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
