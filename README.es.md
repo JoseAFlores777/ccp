@@ -809,7 +809,9 @@ puede recuperar —tus snapshots locales siguen siendo la fuente primaria—.
   Podar se lleva el manifiesto y los blobs —todo lo que ocupa— y deja el eslabón: id, padre, fecha, digest y
   firma. Es a propósito: un hueco dejado por la retención sería idéntico al que deja un servidor comprometido,
   y entonces `verify` sería un aviso que se aprende a ignorar. Un snapshot podado no se puede bajar (el CLI lo
-  dice); el tuyo sigue en la máquina que lo hizo. **Los fijados no se podan nunca**: `ccp snapshot pin <id>`
+  dice); el tuyo sigue en la máquina que lo hizo. **De cada equipo se conserva siempre su último snapshot
+  con contenido**, porque la poda barre la cuenta entera y una máquina apagada se quedaría sin su única copia
+  en la nube justo cuando hace falta. **Los fijados no se podan nunca**: `ccp snapshot pin <id>`
   (o ponerle una etiqueta) sube en el siguiente `push`.
 - **Restaurar llega a esta máquina por tres caminos, y los tres terminan en el mismo motor** (el `snapshot
   restore` de §8.3: planifica, toma antes una foto de seguridad, aplica selectivamente y regenera la
