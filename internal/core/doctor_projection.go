@@ -73,21 +73,27 @@ func doctorProjection(l i18n.Lang, home string, cfg *Config) []DoctorCheck {
 	return out
 }
 
-// doctorEffectiveMCP son los MCP efectivos de un perfil, o nil si alguna capa no
-// se pudo leer (ese caso ya lo cuenta projection_stale con su error).
-func doctorEffectiveMCP(home, src, name string, cfg *Config) []MCPEntry {
+// doctorEffectiveMCP son los MCP efectivos de un perfil. El error viaja con la
+// lista porque «no hay ninguno» y «no pude leer las capas» no son lo mismo: el
+// segundo no autoriza a decir que algo está sin declarar (ese caso ya lo cuenta
+// projection_stale con su error).
+func doctorEffectiveMCP(home, src, name string, cfg *Config) ([]MCPEntry, error) {
 	global, profile, err := ReadMCPLayers(home, src, name)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return MCPEffective(cfg, global, profile, name)
+	return MCPEffective(cfg, global, profile, name), nil
 }
 
 // doctorMissingCommands: un MCP stdio cuyo command no resuelve no arranca, y
 // nadie se entera hasta que falla dentro de Claude Code.
 func doctorMissingCommands(home, src, name string, cfg *Config) []string {
+	eff, err := doctorEffectiveMCP(home, src, name, cfg)
+	if err != nil {
+		return nil // no se pudo mirar; callar, no inventar
+	}
 	var out []string
-	for _, e := range doctorEffectiveMCP(home, src, name, cfg) {
+	for _, e := range eff {
 		if e.Kind() != "stdio" {
 			continue
 		}
@@ -112,7 +118,7 @@ func doctorOnlyDesktopMCP(home, src, name string, cfg *Config) []string {
 	}
 	b, err := os.ReadFile(filepath.Join(dir, "claude_desktop_config.json"))
 	if err != nil {
-		return nil
+		return nil // no existe, o no se pudo leer: tampoco hay nada que afirmar
 	}
 	var doc struct {
 		MCPServers map[string]json.RawMessage `json:"mcpServers"`
@@ -121,7 +127,14 @@ func doctorOnlyDesktopMCP(home, src, name string, cfg *Config) []string {
 		return nil // un archivo roto no es un MCP sin declarar; no se inventa
 	}
 	declared := map[string]bool{}
-	for _, e := range doctorEffectiveMCP(home, src, name, cfg) {
+	eff, err := doctorEffectiveMCP(home, src, name, cfg)
+	if err != nil {
+		// Una capa ilegible dejaría `declared` vacío y acusaría de «sin
+		// declarar» a todo lo que hay en el chat, justo lo contrario de la
+		// verdad. Sin poder mirar no hay veredicto.
+		return nil
+	}
+	for _, e := range eff {
 		declared[e.Name] = true
 	}
 	var out []string
