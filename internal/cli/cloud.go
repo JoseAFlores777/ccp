@@ -373,14 +373,22 @@ func (c cloudCmd) initVault(args []string) int {
 		}
 		return c.fail(err)
 	}
-	if err := c.files.SaveAK(ak); err != nil {
-		return c.fail(err)
-	}
-	fmt.Fprintln(c.out, okLine(c.out, i18n.T(c.lang, "cli.cloud.vault_created")))
-	fmt.Fprintln(c.out)
+	// El código se enseña ANTES de tocar el disco, y el orden no es cosmético:
+	// la bóveda ya está creada de forma irrepetible (el servidor la inserta con
+	// ON CONFLICT DO NOTHING, a partir de aquí siempre es un 409) y de ella solo
+	// guarda la envoltura, nunca el código, que hasta ahora vivía únicamente en
+	// esta memoria. Si guardar la AK falla —disco lleno, <CCP_HOME>/cloud sin
+	// escritura— lo que se pierde es el desbloqueo de este equipo, recuperable
+	// con `ccp cloud unlock`; el código no se podría reemitir jamás.
 	fmt.Fprintln(c.out, boldLine(c.out, i18n.T(c.lang, "cli.cloud.recovery_title")))
 	fmt.Fprintln(c.out, "    "+boldLine(c.out, code))
 	fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.recovery_hint"))
+	fmt.Fprintln(c.out)
+	if err := c.files.SaveAK(ak); err != nil {
+		fmt.Fprintln(c.err, i18n.T(c.lang, "cli.cloud.vault_created_locked"))
+		return c.fail(err)
+	}
+	fmt.Fprintln(c.out, okLine(c.out, i18n.T(c.lang, "cli.cloud.vault_created")))
 	return 0
 }
 

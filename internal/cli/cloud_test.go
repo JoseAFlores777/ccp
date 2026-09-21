@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -274,5 +276,42 @@ func TestCloudLoginFallidoNoRompeLaSesionAnterior(t *testing.T) {
 	}
 	if code, out, errs := snapRun(t, "cloud", "devices"); code != 0 || !strings.Contains(out, "mac-a") {
 		t.Fatalf("devices tras el login fallido: %d %q %q", code, out, errs)
+	}
+}
+
+// TestCloudInitEnsenaElCodigoAunqueNoPuedaGuardarLaAK fija el orden: la bóveda
+// se crea una sola vez (el servidor la guarda con ON CONFLICT DO NOTHING y
+// nunca guarda el código, solo su envoltura), así que si el disco falla al
+// guardar la clave de este equipo lo que NO puede perderse es el código de
+// recuperación.
+func TestCloudInitEnsenaElCodigoAunqueNoPuedaGuardarLaAK(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root escribe en un directorio sin permisos")
+	}
+	url := cloudServer(t)
+	t.Setenv("CCP_NO_BROWSER", "1")
+	t.Setenv("CCP_CLOUD_PASSPHRASE", "frase de la bóveda larga")
+
+	home, _ := snapEnv(t)
+	if code, out, errs := snapRun(t, "cloud", "login", url, "--name", "mac-a"); code != 0 {
+		t.Fatalf("login: %d %q %q", code, out, errs)
+	}
+	// El login ya creó <CCP_HOME>/cloud; dejarlo sin escritura es lo que rompe
+	// SaveAK (CreateTemp dentro del propio directorio).
+	dir := filepath.Join(home, "cloud")
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+
+	code, out, errs := snapRun(t, "cloud", "init")
+	if !recoveryRe.MatchString(out) {
+		t.Fatalf("no enseñó el código de recuperación: %d %q %q", code, out, errs)
+	}
+	if code == 0 {
+		t.Fatalf("guardar la AK falló y aun así salió 0: %q %q", out, errs)
+	}
+	if !strings.Contains(errs, "ccp cloud unlock") {
+		t.Fatalf("no dijo cómo desbloquear este equipo: %q", errs)
 	}
 }
