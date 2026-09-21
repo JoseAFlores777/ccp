@@ -52,13 +52,24 @@ func runContract(t *testing.T, s Store) {
 	}
 
 	// Dispositivos.
-	d, err := s.CreateDevice(ctx, u.ID, Device{Name: "mac", Platform: "darwin/arm64", CCPVersion: "2.19.0"})
+	d, err := s.CreateDevice(ctx, u.ID, Device{Name: "mac", Platform: "darwin/arm64", CCPVersion: "2.19.0", SessionID: "sesion-1"})
 	if err != nil || !IsUUID(d.ID) {
 		t.Fatalf("CreateDevice = %+v, %v", d, err)
 	}
 	d2, _ := s.CreateDevice(ctx, u.ID, Device{Name: "mac2", Platform: "darwin/arm64"})
 	if list, _ := s.Devices(ctx, u.ID); len(list) != 2 {
 		t.Fatalf("Devices = %d", len(list))
+	}
+	// La sesión que dio el alta tiene que volver: es con lo que el servidor
+	// decide si una revocación ya cerró esa credencial.
+	devs, _ := s.Devices(ctx, u.ID)
+	for _, got := range devs {
+		if got.ID == d.ID && got.SessionID != "sesion-1" {
+			t.Fatalf("Devices no devuelve la sesión: %+v", got)
+		}
+	}
+	if seen, _ := s.SeenDevice(ctx, u.ID, d.ID, now); seen.SessionID != "sesion-1" {
+		t.Fatalf("SeenDevice no devuelve la sesión: %+v", seen)
 	}
 	if list, _ := s.Devices(ctx, other.ID); len(list) != 0 {
 		t.Fatal("los dispositivos de un usuario se ven desde otro")

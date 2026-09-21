@@ -66,7 +66,21 @@ func (s *srv) createDevice(w http.ResponseWriter, r *http.Request, rc reqCtx) {
 		writeError(w, http.StatusBadRequest, api.CodeBadRequest, "nombre, plataforma o versión inválidos")
 		return
 	}
-	d, err := s.cfg.Store.CreateDevice(r.Context(), rc.user.ID, store.Device{Name: in.Name, Platform: in.Platform, CCPVersion: in.CCPVersion})
+	// El alta es el único camino que no exige cabecera de dispositivo, así que
+	// era también la puerta de atrás: con el token robado bastaba pedir un id
+	// nuevo para deshacer la revocación. Una sesión con algún equipo revocado
+	// no da de alta más: para volver hay que iniciar sesión otra vez, que es
+	// justo lo que el ladrón no puede hacer.
+	revoked, err := s.sessionRevoked(r.Context(), rc)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	if revoked {
+		writeError(w, http.StatusForbidden, api.CodeForbidden, "esta sesión está revocada; vuelve a iniciar sesión con ccp cloud login")
+		return
+	}
+	d, err := s.cfg.Store.CreateDevice(r.Context(), rc.user.ID, store.Device{Name: in.Name, Platform: in.Platform, CCPVersion: in.CCPVersion, SessionID: rc.session})
 	if err != nil {
 		s.internal(w, r, err)
 		return
@@ -74,6 +88,24 @@ func (s *srv) createDevice(w http.ResponseWriter, r *http.Request, rc reqCtx) {
 	rc.device = d
 	s.audit(r, rc, "device.create", map[string]any{"name": d.Name})
 	writeJSON(w, http.StatusCreated, toAPIDevice(d))
+}
+
+// sessionRevoked dice si la sesión del token ya tuvo un equipo revocado. Un
+// token sin `sid` (un emisor que no lo mande) no ata a nadie: no hay con qué.
+func (s *srv) sessionRevoked(ctx context.Context, rc reqCtx) (bool, error) {
+	if rc.session == "" {
+		return false, nil
+	}
+	ds, err := s.cfg.Store.Devices(ctx, rc.user.ID)
+	if err != nil {
+		return false, err
+	}
+	for _, d := range ds {
+		if d.Revoked && d.SessionID == rc.session {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *srv) listDevices(w http.ResponseWriter, r *http.Request, rc reqCtx) {
@@ -100,8 +132,44 @@ func (s *srv) revokeDevice(w http.ResponseWriter, r *http.Request, rc reqCtx) {
 		s.internal(w, r, err)
 		return
 	}
+	// Revocar no es quemar un id, es cortar una credencial: los equipos dados
+	// de alta desde la misma sesión de Keycloak comparten el token de refresco,
+	// así que dejar uno vivo sería dejarlos todos. Si la cascada falla se
+	// responde error aunque el principal ya haya caído: reintentar es
+	// idempotente, y decir "expulsado" con un hermano en pie es mentir.
+	if err := s.revokeSessionSiblings(r.Context(), rc.user.ID, id); err != nil {
+		s.internal(w, r, err)
+		return
+	}
 	s.audit(r, rc, "device.revoke", map[string]any{"device": id})
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// revokeSessionSiblings revoca los demás equipos de la sesión que dio de alta
+// a id. Un equipo sin sesión (alta anterior a este atado) no arrastra a nadie.
+func (s *srv) revokeSessionSiblings(ctx context.Context, userID, id string) error {
+	ds, err := s.cfg.Store.Devices(ctx, userID)
+	if err != nil {
+		return err
+	}
+	var sid string
+	for _, d := range ds {
+		if d.ID == id {
+			sid = d.SessionID
+		}
+	}
+	if sid == "" {
+		return nil
+	}
+	for _, d := range ds {
+		if d.ID == id || d.Revoked || d.SessionID != sid {
+			continue
+		}
+		if err := s.cfg.Store.RevokeDevice(ctx, userID, d.ID, s.cfg.Now()); err != nil && !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *srv) getVault(w http.ResponseWriter, r *http.Request, rc reqCtx) {
