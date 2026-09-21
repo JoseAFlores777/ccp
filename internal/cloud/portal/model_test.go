@@ -33,7 +33,7 @@ func TestDiffDelPortalIgualQueElDeGo(t *testing.T) {
 		{LPath: "ccp/profiles/work/api_key", Hash: "c1", Size: 40, Mode: 0o600, Class: snapshot.ClassState},
 		{LPath: "ccp/profiles/nuevo/overlay/settings.overlay.json", Hash: "g1", Size: 5, Mode: 0o644, Class: snapshot.ClassAuthored},
 		{LPath: "claude/settings.json", Hash: "e1", Size: 30, Mode: 0o644, Class: snapshot.ClassAuthored},
-		{LPath: "projects/github.com~acme~web/.claude/settings.json", Hash: "h1", Size: 8, Mode: 0o644, Class: snapshot.ClassAuthored},
+		{LPath: "project/github.com~acme~web/.claude/settings.json", Hash: "h1", Size: 8, Mode: 0o644, Class: snapshot.ClassAuthored},
 	}
 	payload := map[string]any{
 		"from":     map[string]any{"items": from},

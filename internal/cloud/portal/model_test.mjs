@@ -25,7 +25,7 @@ check('perfiles del manifiesto', JSON.stringify(perfiles) === JSON.stringify(v.p
 check('área de un perfil', areaOf('ccp/profiles/work/overlay/CLAUDE.md') === 'perfil work');
 check('área global', areaOf('claude/settings.json') === 'global');
 check('área de ccp', areaOf('ccp/ccp.yaml') === 'ccp');
-check('área de un proyecto', areaOf('projects/github.com~acme~web/.claude/settings.json') === 'proyecto github.com~acme~web');
+check('área de un proyecto', areaOf('project/github.com~acme~web/.claude/settings.json') === 'proyecto github.com~acme~web');
 
 const r = resumen(diff(v.from.items, v.to.items));
 check('resumen cuenta por tipo', r.added === 2 && r.removed === 2 && r.modified === 3, JSON.stringify(r));
