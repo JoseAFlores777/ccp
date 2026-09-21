@@ -157,6 +157,19 @@ func (f Files) LoadState() (State, error) {
 // SaveState guarda qué está arriba.
 func (f Files) SaveState(s State) error { return f.write("state.json", s) }
 
+// ForgetVault borra la clave de cuenta y lo que este equipo creía subido. Es
+// lo que hay que hacer al cambiar de cuenta o de servidor: la AK abre UNA
+// bóveda, y usarla contra otra cuenta sellaría y firmaría blobs que nadie —ni
+// quien los subió— podrá volver a leer, marcados además como ya subidos.
+func (f Files) ForgetVault() error {
+	for _, name := range []string{"vault.key", "state.json"} {
+		if err := os.Remove(f.path(name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+	}
+	return nil
+}
+
 // Forget borra la credencial y la bóveda de este equipo, y olvida su dispositivo.
 func (f Files) Forget() error {
 	for _, name := range []string{"token.json", "vault.key"} {
