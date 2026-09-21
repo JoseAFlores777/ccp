@@ -7,8 +7,11 @@ package cli
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/JoseAFlores777/ccp/internal/core"
 )
 
 // serveCfgEnv es serveEnv más el directorio de managed-settings, que el
@@ -236,5 +239,50 @@ func TestServeEditorMarcaLasEscrituras(t *testing.T) {
 		if e, ok := reg[m]; !ok || !e.write {
 			t.Errorf("%s debe ser escritura (ok=%v write=%v)", m, ok, e.write)
 		}
+	}
+}
+
+// Un borrado del editor de la GUI puede llevarse un archivo entero (el
+// CLAUDE.md global) con un solo modal de confirmación. Como en profiles.remove,
+// la red va antes: si el snapshot no sale, no se borra nada.
+func TestServeConfigItemDeleteTomaSnapshotDeSeguridad(t *testing.T) {
+	home := serveCfgEnv(t)
+	t.Setenv("CCP_NO_AUTO_SNAPSHOT", "")
+	md := filepath.Join(os.Getenv("CCP_CLAUDE_SRC"), "CLAUDE.md")
+	if err := os.WriteFile(md, []byte("# global\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ref := map[string]any{
+		"layer": map[string]string{"level": "global"},
+		"type":  "instructions", "name": "CLAUDE.md",
+	}
+	_, r := serveRun(t, req(1, "config.item.delete", map[string]any{"ref": ref}))
+	if r["1"].Error != nil {
+		t.Fatalf("config.item.delete: %+v", r["1"].Error)
+	}
+	if _, err := os.Stat(md); !os.IsNotExist(err) {
+		t.Fatalf("el archivo sigue ahí: %v", err)
+	}
+	st, err := core.OpenSnapshotStore(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms, err := st.List()
+	if err != nil || len(ms) == 0 || ms[0].Trigger != "pre-config-delete" {
+		t.Fatalf("tras config.item.delete: %d snapshots (%v)", len(ms), err)
+	}
+
+	// mcp.delete borra por la misma puerta (MCPDelete acaba en
+	// ConfigItemDelete), así que también deja su red.
+	_, r = serveRun(t,
+		req(2, "mcp.put", map[string]any{"layer": map[string]string{"level": "global"},
+			"name": "ctx7", "def": map[string]any{"command": "echo"}}),
+		req(3, "mcp.delete", map[string]any{"layer": map[string]string{"level": "global"}, "name": "ctx7"}),
+	)
+	if r["2"].Error != nil || r["3"].Error != nil {
+		t.Fatalf("mcp.put/delete: %+v %+v", r["2"].Error, r["3"].Error)
+	}
+	if ms, err := st.List(); err != nil || len(ms) < 2 || ms[0].Trigger != "pre-config-delete" {
+		t.Fatalf("tras mcp.delete: %d snapshots (%v)", len(ms), err)
 	}
 }
