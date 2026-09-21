@@ -183,7 +183,11 @@ export function Ajustes() {
           <button className="btn" onClick={() => openModal(upgradeModal(setRun))}>{t('Actualizar')}</button>
         </SettingRow>
 
-        <SettingRow label={t('Copias de seguridad')} desc={t('Exportar con o sin secretos, y restaurar sabiendo qué se escribe.')}>
+        <SettingRow label={t('Snapshots')} desc={t('La historia de toda la configuración: crear, comparar, restaurar viendo antes el plan, y exportar a .ccpsnap.')}>
+          <button className="btn" onClick={() => go('snapshots')}>{t('Abrir')}</button>
+        </SettingRow>
+
+        <SettingRow label={t('Copias de seguridad')} desc={t('El formato antiguo (.tar.gz) de ccp backup: sigue valiendo para mover a mano una configuración a otra máquina.')}>
           <button className="btn" onClick={() => go('copias')}>{t('Abrir')}</button>
         </SettingRow>
 

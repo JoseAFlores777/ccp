@@ -71,6 +71,7 @@ export function screenHead(s: Screen, selected: string, selectedType: string): [
     case 'memoria': return [t('Memoria de Claude'), t('Las instrucciones y artefactos que ccp gestiona, por alcance.')];
     case 'ajustes': return [t('Ajustes'), t('Lo que se configura una vez y se revisa rara vez.')];
     case 'copias': return [t('Copias de seguridad'), t('Exportar con o sin secretos, y restaurar viendo antes qué trae el archivo.')];
+    case 'snapshots': return [t('Snapshots'), t('La historia de toda la configuración: qué había, qué cambió desde entonces y cómo volver, viendo antes el plan.')];
     case 'bienvenida': return [t('Detectar esta máquina'), t('Todo lo de Claude que hay aquí, dónde aplica cada cosa y el plan para traer a ccp lo que vive fuera.')];
   }
 }
@@ -264,7 +265,7 @@ function Sidebar() {
             {label}
           </div>
           {items.map((it) => {
-            const on = screen === it.id || (it.id === 'ajustes' && screen === 'copias');
+            const on = screen === it.id || (it.id === 'ajustes' && (screen === 'copias' || screen === 'snapshots'));
             return (
               <button key={it.id} className={`nav-item ${on ? 'on' : ''}`} onClick={() => go(it.id)} aria-current={on ? 'page' : undefined}>
                 <span style={{ fontSize: 13, color: on ? 'var(--accent)' : 'var(--ink-2)', fontWeight: on ? 500 : 400, flex: 1, letterSpacing: '-.005em' }}>

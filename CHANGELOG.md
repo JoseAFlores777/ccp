@@ -4,6 +4,24 @@
 
 ### Added
 
+- **La app: P-17 evoluciona de «Copias» a Snapshots** (spec §8). La historia de toda la
+  configuración en una pantalla: línea de tiempo con etiqueta, disparador, fecha, tamaño y fijados;
+  el detalle de qué captura cada snapshot, agrupado por el mismo prefijo que entiende `--only`;
+  diff contra otro snapshot o **contra lo que hay ahora mismo**, que es la pregunta de verdad; y
+  exportar/importar `.ccpsnap` pidiendo la frase solo cuando los secretos viajan.
+  - **Restaurar va en dos pasos y el primero no escribe nada**: se calcula el plan (dry-run), se
+    marca qué partes se quieren y se confirma escribiendo la palabra, igual que la CLI exige
+    `--yes`. Cada paso dice si escribe, fusiona, ya coincide o se salta —y por qué—, y al terminar
+    se enseña la foto previa, que es por dónde se vuelve atrás.
+  - **Podar enseña antes qué se llevaría por delante**: cuántos quedan, cuántos blobs se liberan y
+    los ids que se van. La retención es una política (7 diarios, 4 semanales, 6 mensuales, más los
+    fijados y los etiquetados), no una intuición.
+  - Las copias `.tar.gz` de `ccp backup` siguen en Ajustes: son el formato viejo, bueno para mover
+    una configuración a mano a otra máquina.
+  - El resumen de un snapshot (`snapshot.list`/`create`, y `ccp snapshot list --json`) gana `bytes`:
+    lo que captura, que no es lo que ocupa —los blobs se comparten entre snapshots—. Es un campo
+    añadido, no una forma cambiada, así que el protocolo sigue en `1`.
+
 - **La app: P-20 Configuración, el editor unificado** (spec §7). Una pantalla para toda la
   configuración de Claude: arriba la capa (global · perfil · proyecto · ventana), a la izquierda los
   tipos (instrucciones, MCP, skills, agentes, comandos, hooks, permisos, variables, plugins, estilos,

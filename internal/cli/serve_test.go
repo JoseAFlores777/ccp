@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/snapshot"
 )
 
 // serveEnv monta un CCP_HOME con el perfil official «work», un HOME falso y los
@@ -468,5 +469,99 @@ func TestServeSnapshotListLlevaTamano(t *testing.T) {
 	}
 	if list[0].Bytes != created.Bytes {
 		t.Errorf("list y create deben contar igual: %d vs %d", list[0].Bytes, created.Bytes)
+	}
+}
+
+// La pantalla de snapshots llama a estos métodos con estas formas exactas: un
+// `to` ausente compara contra lo vivo, `label` null deja la etiqueta como está
+// y la poda en seco no borra nada. Si alguna cambiara, la pantalla fallaría al
+// pulsar, no al compilar.
+func TestServeSnapshotLoQueLlamaLaGui(t *testing.T) {
+	serveEnv(t)
+	src := os.Getenv("CCP_CLAUDE_SRC")
+	os.WriteFile(filepath.Join(src, "settings.json"), []byte(`{"a":1}`), 0o644)
+
+	_, r := serveRun(t, req(1, "snapshot.create", map[string]any{"label": "", "with_state": false}))
+	var s snapSummary
+	mustResult(t, r["1"], &s)
+
+	// Fijar sin tocar la etiqueta, y etiquetar sin tocar el fijado. Van en dos
+	// sesiones porque serve atiende una tanda en paralelo y aquí el orden es
+	// justo lo que se comprueba.
+	var pinned, labelled snapSummary
+	_, r = serveRun(t, req(2, "snapshot.pin", map[string]any{"id": s.ID, "pinned": true, "label": nil}))
+	mustResult(t, r["2"], &pinned)
+	_, r = serveRun(t, req(3, "snapshot.pin", map[string]any{"id": s.ID, "pinned": true, "label": "antes de los MCP"}))
+	mustResult(t, r["3"], &labelled)
+	if !pinned.Pinned || pinned.Label != "" {
+		t.Errorf("label null no debe inventar etiqueta: %+v", pinned)
+	}
+	if !labelled.Pinned || labelled.Label != "antes de los MCP" {
+		t.Errorf("etiquetar no debe desfijar: %+v", labelled)
+	}
+
+	// Diff contra lo vivo: el archivo cambió después de capturar.
+	os.WriteFile(filepath.Join(src, "settings.json"), []byte(`{"a":2}`), 0o644)
+	_, r = serveRun(t, req(4, "snapshot.diff", map[string]any{"from": s.ID}))
+	var changes []snapshot.Change
+	mustResult(t, r["4"], &changes)
+	if len(changes) == 0 {
+		t.Errorf("un cambio en vivo tiene que salir en el diff: %s", r["4"].Result)
+	}
+
+	// La poda en seco solo cuenta: el snapshot sigue ahí después.
+	_, r = serveRun(t,
+		req(5, "snapshot.prune", map[string]any{"dry_run": true}),
+		req(6, "snapshot.list", nil),
+	)
+	var prune struct {
+		Deleted []string `json:"deleted"`
+		Kept    int      `json:"kept"`
+	}
+	mustResult(t, r["5"], &prune)
+	var list []snapSummary
+	mustResult(t, r["6"], &list)
+	if len(list) != 1 {
+		t.Errorf("la poda en seco no borra: quedan %d", len(list))
+	}
+}
+
+// Exportar e importar desde la GUI: la frase viaja vacía cuando no hay que
+// sellar nada, y un .ccpsnap sin secretos se importa sin pedir nada.
+func TestServeSnapshotExportaEImporta(t *testing.T) {
+	serveEnv(t)
+	os.WriteFile(filepath.Join(os.Getenv("CCP_CLAUDE_SRC"), "settings.json"), []byte(`{"a":1}`), 0o644)
+	dest := filepath.Join(t.TempDir(), "uno.ccpsnap")
+
+	_, r := serveRun(t, req(1, "snapshot.create", map[string]any{"label": "para exportar", "with_state": false}))
+	var s snapSummary
+	mustResult(t, r["1"], &s)
+
+	_, r = serveRun(t, req(2, "snapshot.export", map[string]any{"id": s.ID, "dest": dest, "passphrase": ""}))
+	var exp struct {
+		Dest        string `json:"dest"`
+		WithSecrets bool   `json:"with_secrets"`
+	}
+	mustResult(t, r["2"], &exp)
+	if exp.Dest != dest || exp.WithSecrets {
+		t.Fatalf("export sin frase no sella nada: %+v", exp)
+	}
+	if _, err := os.Stat(dest); err != nil {
+		t.Fatalf("el archivo tiene que quedar en su sitio, no en el .tmp: %v", err)
+	}
+
+	// Importarlo en un almacén limpio: el mismo id vuelve a estar.
+	serveEnv(t)
+	_, r = serveRun(t, req(3, "snapshot.import", map[string]any{"archive": dest, "passphrase": ""}))
+	var imp struct {
+		Snapshot snapSummary `json:"snapshot"`
+		Missing  []string    `json:"missing"`
+	}
+	mustResult(t, r["3"], &imp)
+	if imp.Snapshot.ID != s.ID || imp.Snapshot.Label != "para exportar" {
+		t.Errorf("importar tiene que devolver el snapshot tal cual: %+v", imp.Snapshot)
+	}
+	if len(imp.Missing) != 0 {
+		t.Errorf("sin secretos no falta nada: %v", imp.Missing)
 	}
 }

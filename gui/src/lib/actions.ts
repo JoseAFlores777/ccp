@@ -210,10 +210,10 @@ export function syncMsg(r: { drift?: SettingsDrift[] }): string {
   return msg;
 }
 
-export function backupName(prefix = 'ccp-backup'): string {
+export function backupName(prefix = 'ccp-backup', ext = '.tar.gz'): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${prefix}-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.tar.gz`;
+  return `${prefix}-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${ext}`;
 }
 
 export function deleteProfileModal(app: Ctx, p: Profile): ModalSpec {
