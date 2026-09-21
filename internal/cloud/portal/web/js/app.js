@@ -7,6 +7,7 @@ import * as vault from './vault.js';
 import * as model from './model.js';
 import * as config from './config.js';
 import * as publicar from './publish.js';
+import * as descarga from './download.js';
 
 const root = document.getElementById('app');
 let cfg = null;
@@ -338,7 +339,8 @@ async function renderTimeline(deviceID) {
       el('td', {}, s.label || '—', s.pinned ? el('span', { class: 'etiqueta' }, 'fijado') : null),
       el('td', {}, tamano(s.size)),
       el('td', {}, detalle),
-      el('td', {}, el('a', { class: 'lig', href: '#/config/' + s.id }, 'configurar')),
+      el('td', {}, el('a', { class: 'lig', href: '#/config/' + s.id }, 'configurar'), ' ',
+        el('a', { class: 'lig', href: '#', onclick: (e) => { e.preventDefault(); dialogoDescargar(s); } }, 'descargar')),
       el('td', { class: 'mono flojo', title: s.id }, s.id.slice(0, 12)));
   });
   sinc();
@@ -353,6 +355,109 @@ async function renderTimeline(deviceID) {
         el('tbody', {}, filas)),
       el('div', { class: 'pie' }, comparar,
         el('span', { class: 'flojo' }, 'El diff se calcula aquí: los dos manifiestos se descifran en la pestaña.'))));
+}
+
+// --------------------------------------------------------------- descargar
+
+// guardaArchivo entrega los bytes al navegador. Va por <a download> con una
+// URL de objeto: la CSP no lleva `sandbox`, que es lo que bloquearía una
+// descarga, y así el archivo nunca pasa por el servidor ni por disco ajeno.
+function guardaArchivo(nombre, bytes) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+  const a = el('a', { href: url, download: nombre });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// bajaContenidos trae y descifra lo que nombra el manifiesto. Un 404 es «la
+// nube ya no lo tiene» y se cuenta; cualquier otro fallo —incluido un
+// contenido que llega alterado— sube y para la descarga: un archivo al que le
+// falta algo por una razón que nadie miró no es una copia.
+async function bajaContenidos(manifest, paso) {
+  const blobs = new Map();
+  const faltan = [];
+  const items = manifest.items || [];
+  let n = 0;
+  for (const it of items) {
+    paso.textContent = `Bajando y descifrando ${++n} de ${items.length}…`;
+    if (blobs.has(it.hash)) continue;
+    try {
+      blobs.set(it.hash, await vault.blobOf(it));
+    } catch (e) {
+      if (!(e instanceof api.ApiError) || e.status !== 404) throw e;
+      faltan.push(it.lpath);
+    }
+  }
+  return { blobs, faltan };
+}
+
+function dialogoDescargar(s) {
+  const caja = el('div', { class: 'caja' });
+  const fondo = el('div', { class: 'dialogo', onclick: (e) => { if (e.target === fondo) fondo.remove(); } }, caja);
+  document.body.append(fondo);
+  const paso = el('p', { class: 'flojo' }, 'Descifrando el manifiesto…');
+  rellena(caja, el('h2', {}, 'Descargar'), paso);
+  vault.snapshotOf(s.id).then((abierto) => {
+    const secretos = descarga.hasSecrets(abierto.manifest);
+    const frase = el('input', { type: 'password', placeholder: 'frase para el archivo (12 o más)', autocomplete: 'new-password' });
+    const claro = el('input', { type: 'checkbox' });
+    const forma = el('select', {},
+      el('option', { value: 'cifrado' }, 'Cifrado (.ccpsnap) — se abre con ccp snapshot import'),
+      el('option', { value: 'claro' }, 'Descifrado (.tar.gz) — se lee con cualquier tar'));
+    const aceptar = el('button', { class: 'grande' }, 'Descargar');
+    const sincroniza = () => {
+      const plano = forma.value === 'claro';
+      frase.hidden = plano;
+      claro.parentElement.hidden = !plano || !secretos;
+      aceptar.disabled = !descarga.downloadReady({
+        plain: plano, secrets: secretos, confirmed: claro.checked, passphrase: frase.value });
+    };
+    for (const n of [forma, frase, claro]) n.addEventListener('change', sincroniza);
+    frase.addEventListener('input', sincroniza);
+    rellena(caja,
+      el('h2', {}, 'Descargar'),
+      el('p', { class: 'flojo' },
+        `${fecha(s.created)} · ${plural(model.itemsCount(abierto.manifest), 'archivo', 'archivos')}` +
+        (secretos ? ' · contiene claves' : '')),
+      forma, frase,
+      el('label', { class: 'aviso' }, claro,
+        el('span', {}, 'Sí: escribe mis claves EN CLARO en un archivo que puede acabar en cualquier sitio.')),
+      el('p', { class: 'flojo' }, 'El archivo se arma en esta pestaña. Nada de esto pasa por el servidor.'),
+      el('div', { class: 'botones' },
+        el('button', { class: 'lig', onclick: () => fondo.remove() }, 'Cancelar'), aceptar));
+    sincroniza();
+    aceptar.addEventListener('click', () => armaDescarga(caja, abierto, forma.value === 'claro', frase.value));
+  }).catch((e) => rellena(caja, el('h2', {}, 'Descargar'), el('p', { class: 'mal' }, e.message)));
+}
+
+async function armaDescarga(caja, abierto, plano, frase) {
+  const paso = el('p', { class: 'flojo' }, 'Empezando…');
+  rellena(caja, el('h2', {}, 'Descargando'), paso);
+  try {
+    const { blobs, faltan } = await bajaContenidos(abierto.manifest, paso);
+    const corto = abierto.manifest.id.slice(0, 12);
+    if (plano) {
+      paso.textContent = 'Armando el .tar.gz…';
+      const out = await descarga.plainTarGz(abierto.manifest, blobs);
+      guardaArchivo('ccp-' + corto + '.tar.gz', out.bytes);
+      faltan.push(...out.missing);
+    } else {
+      // Argon2id son varios segundos y el navegador no pinta mientras: el
+      // progreso es lo único que distingue «derivando» de «colgado».
+      const onProgress = (p) => { paso.textContent = `Derivando la clave del archivo… ${Math.round(p * 100)}%`; };
+      const bytes = await descarga.ccpsnap(abierto.manifest, blobs, { passphrase: frase, onProgress });
+      guardaArchivo('ccp-' + corto + '.ccpsnap', bytes);
+    }
+    rellena(caja, el('h2', {}, 'Descargado'),
+      el('p', {}, plano ? 'El .tar.gz lleva los archivos en claro.' : 'Se abre con: ccp snapshot import <archivo>'),
+      faltan.length ? el('p', { class: 'mal' }, plural(faltan.length, 'archivo sin datos en la nube', 'archivos sin datos en la nube') + ': no van dentro.') : null,
+      el('div', { class: 'botones' }, el('button', { class: 'lig', onclick: () => caja.parentElement.remove() }, 'Cerrar')));
+  } catch (e) {
+    rellena(caja, el('h2', {}, 'Descargar'), el('p', { class: 'mal' }, e.message),
+      el('div', { class: 'botones' }, el('button', { class: 'lig', onclick: () => caja.parentElement.remove() }, 'Cerrar')));
+  }
 }
 
 async function cargaDetalle(s, celda) {
