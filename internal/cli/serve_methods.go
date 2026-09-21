@@ -593,10 +593,12 @@ func srvProfilesDrift(s *server, raw json.RawMessage) (any, error) {
 		// Stale es la misma regla que decide el exit code del CLI: lo que un
 		// sync arreglaría. La GUI no la recalcula sumando listas, que es como se
 		// desincronizan dos front-ends sobre el mismo dato.
-		Stale     bool                 `json:"stale"`
-		MCP       []core.MCPProjection `json:"mcp"`
-		Artifacts []string             `json:"artifacts"`
-		Error     string               `json:"error"`
+		Stale        bool                 `json:"stale"`
+		MCP          []core.MCPProjection `json:"mcp"`
+		Artifacts    []string             `json:"artifacts"`
+		Settings     bool                 `json:"settings"`
+		Instructions bool                 `json:"instructions"`
+		Error        string               `json:"error"`
 	}
 	out := []row{}
 	for _, n := range names {
@@ -605,7 +607,8 @@ func srvProfilesDrift(s *server, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 		out = append(out, row{Profile: c.Profile, Stale: c.Stale(),
-			MCP: nzMCPProjections(c.MCP), Artifacts: nzStrings(c.Artifacts), Error: c.Err})
+			MCP: nzMCPProjections(c.MCP), Artifacts: nzStrings(c.Artifacts),
+			Settings: c.Settings, Instructions: c.Instructions, Error: c.Err})
 	}
 	return map[string]any{"drift": out}, nil
 }

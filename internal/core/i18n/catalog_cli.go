@@ -202,6 +202,14 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "%s: %s are declared by the profile and are not mirrored into its cc-home yet (ccp profile sync).",
 		Es: "%s: %s los declara el perfil y todavía no están espejados en su cc-home (ccp profile sync).",
 	},
+	"cli.profile.check_settings": {
+		En: "%s: its cc-home/settings.json is not what the layers (global + overlay) generate any more (ccp profile sync).",
+		Es: "%s: su cc-home/settings.json ya no es lo que generan las capas (global + overlay) (ccp profile sync).",
+	},
+	"cli.profile.check_instructions": {
+		En: "%s: its cc-home/CLAUDE.md is not what the layers generate any more (ccp profile sync).",
+		Es: "%s: su cc-home/CLAUDE.md ya no es lo que generan las capas (ccp profile sync).",
+	},
 	"cli.profile.check_stale": {
 		En: "Something is out of date: run ccp profile sync.",
 		Es: "Hay algo desfasado: pasa un ccp profile sync.",

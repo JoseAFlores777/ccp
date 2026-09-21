@@ -26,7 +26,8 @@
     `"permissions": {"$merge": "union", …}` en el overlay. La marca no llega al `settings.json` generado.
     Los hooks se editan como el array entero de su evento, que es lo que faltaba para poder borrarlos.
   - **`ccp profile sync --check`** dice lo que la proyección cambiaría sin escribir nada y sale 1 si algo está
-    desfasado; en `serve`, `profiles.drift`. Los conflictos y lo que el chat no puede cargar se cuentan, pero
+    desfasado: MCP, artefactos y los dos archivos generados del perfil (`cc-home/settings.json` y
+    `cc-home/CLAUDE.md`); en `serve`, `profiles.drift`. Los conflictos y lo que el chat no puede cargar se cuentan, pero
     no mandan en el código de salida: ningún sync los arregla.
   - **`ccp doctor`** gana `projection_stale`, `desktop_restart_pending`, `mcp_command_missing`,
     `mcp_unmanaged_only_desktop` y `cc_home_symlink_nonleaf`. Cada fila de la vista efectiva lleva su
