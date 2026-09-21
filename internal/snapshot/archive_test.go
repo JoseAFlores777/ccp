@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 )
 
@@ -132,4 +133,101 @@ func rewriteArchive(t *testing.T, data []byte, edit func(string, []byte) (string
 	tw.Close()
 	gzw.Close()
 	return out.Bytes()
+}
+
+// blobsDe saca a un mapa el contenido de un manifiesto: es lo que tiene quien
+// baja un snapshot de la nube, que no tiene almacén local donde mirar.
+func blobsDe(t *testing.T, st *Store, m *Manifest) BlobGetter {
+	t.Helper()
+	mem := map[string][]byte{}
+	for _, it := range m.Items {
+		data, err := st.GetBlob(it.Hash)
+		if err != nil {
+			t.Fatal(err)
+		}
+		mem[it.Hash] = data
+	}
+	return func(hash string) ([]byte, error) {
+		data, ok := mem[hash]
+		if !ok {
+			return nil, ErrNotFound
+		}
+		return data, nil
+	}
+}
+
+// Un .ccpsnap se puede armar sin almacén: es el camino de `ccp cloud pull -o`,
+// que tiene los blobs en memoria y ningún snapshot guardado aquí.
+func TestExportFromSinAlmacen(t *testing.T) {
+	st, m := archiveFixture(t)
+	var buf bytes.Buffer
+	if err := ExportFrom(m, blobsDe(t, st, m), &buf, []byte("frase de prueba larga")); err != nil {
+		t.Fatalf("ExportFrom: %v", err)
+	}
+	if bytes.Contains(gunzipAll(t, buf.Bytes()), []byte("sk-muy-secreto")) {
+		t.Fatal("el secreto viaja en claro")
+	}
+	dst := openTemp(t)
+	rep, err := Import(dst, &buf, pass("frase de prueba larga"))
+	if err != nil || len(rep.Missing) != 0 {
+		t.Fatalf("Import = %+v, %v", rep, err)
+	}
+	for _, it := range m.Items {
+		if _, err := dst.GetBlob(it.Hash); err != nil {
+			t.Fatalf("%s no llegó: %v", it.LPath, err)
+		}
+	}
+}
+
+// El .tar.gz descifrado se lee con cualquier tar: el manifiesto y los archivos
+// con su ruta lógica y su contenido en claro.
+func TestExportPlainLegible(t *testing.T) {
+	st, m := archiveFixture(t)
+	var buf bytes.Buffer
+	missing, err := ExportPlain(m, blobsDe(t, st, m), &buf)
+	if err != nil || len(missing) != 0 {
+		t.Fatalf("ExportPlain = %v, %v", missing, err)
+	}
+	got := map[string]string{}
+	tr := tar.NewReader(bytes.NewReader(gunzipAll(t, buf.Bytes())))
+	for {
+		h, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := io.ReadAll(tr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got[h.Name] = string(data)
+	}
+	if got["files/ccp/ccp.yaml"] != "version: 2\n" {
+		t.Fatalf("files/ccp/ccp.yaml = %q", got["files/ccp/ccp.yaml"])
+	}
+	if got["files/ccp/profiles/deep/api_key"] != "sk-muy-secreto" {
+		t.Fatal("el secreto no está en claro: descifrado es descifrado")
+	}
+	if !strings.Contains(got["manifest.json"], m.ID) {
+		t.Fatalf("falta el manifiesto: %q", got["manifest.json"])
+	}
+}
+
+// Lo que no está no se inventa: un contenido que no bajó sale nombrado, no
+// como un archivo vacío que parecería el archivo de verdad.
+func TestExportPlainCuentaLoQueFalta(t *testing.T) {
+	_, m := archiveFixture(t)
+	var buf bytes.Buffer
+	missing, err := ExportPlain(m, func(string) ([]byte, error) { return nil, ErrNotFound }, &buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(missing) != len(m.Items) {
+		t.Fatalf("missing = %v", missing)
+	}
+	if !HasSecrets(m) {
+		t.Fatal("este snapshot tiene una clave: HasSecrets tiene que decirlo")
+	}
 }

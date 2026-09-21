@@ -201,25 +201,9 @@ func pushOne(ctx context.Context, a *API, acct *crypt.Account, st *snapshot.Stor
 // Pull baja el snapshot cloudID de la nube al almacén local. Devuelve el
 // manifiesto y las rutas que no tenían datos en la nube.
 func Pull(ctx context.Context, a *API, acct *crypt.Account, st *snapshot.Store, files Files, cloudID string) (*snapshot.Manifest, []string, error) {
-	sn, err := a.Snapshot(ctx, cloudID)
+	m, err := openSnapshot(ctx, a, acct, cloudID)
 	if err != nil {
 		return nil, nil, err
-	}
-	// La clave pública sale de la AK: un servidor comprometido no puede colar
-	// un snapshot ni cambiar su padre.
-	if err := acct.Verify(sn.ID, sn.Parent, sn.Manifest, sn.Sig); err != nil {
-		return nil, nil, err
-	}
-	js, err := acct.OpenManifest(sn.ID, sn.Manifest)
-	if err != nil {
-		return nil, nil, fmt.Errorf("no se pudo abrir el manifiesto: %w", err)
-	}
-	var m snapshot.Manifest
-	if err := json.Unmarshal(js, &m); err != nil {
-		return nil, nil, fmt.Errorf("manifiesto ilegible: %w", err)
-	}
-	if acct.SnapshotID(m.ID) != sn.ID {
-		return nil, nil, errors.New("el manifiesto no corresponde a su id en la nube")
 	}
 	need := map[string][]snapshot.Item{} // id en la nube -> elementos que lo usan
 	for _, it := range m.Items {
@@ -228,52 +212,27 @@ func Pull(ctx context.Context, a *API, acct *crypt.Account, st *snapshot.Store, 
 			need[bid] = append(need[bid], it)
 		}
 	}
-	var missing []string
-	ids := sortedKeys(need)
-	for start := 0; start < len(ids); start += api.MaxPresignIDs {
-		items, err := a.Presign(ctx, "get", ids[start:min(start+api.MaxPresignIDs, len(ids))])
-		if err != nil {
-			return nil, nil, err
+	missing, err := fetchBlobs(ctx, a, acct, need, func(its []snapshot.Item, data []byte) error {
+		secret := false
+		for _, it := range its {
+			secret = secret || it.Class == snapshot.ClassSecret
 		}
-		for _, pi := range items {
-			its := need[pi.ID]
-			if len(its) == 0 {
-				continue
-			}
-			if !pi.Exists {
-				for _, it := range its {
-					missing = append(missing, it.LPath)
-				}
-				continue
-			}
-			body, err := a.GetBlob(ctx, pi.URL)
-			if err != nil {
-				return nil, nil, err
-			}
-			data, err := acct.OpenBlob(pi.ID, body)
-			if err != nil || snapshot.Hash(data) != its[0].Hash {
-				return nil, nil, fmt.Errorf("el blob de %s llegó alterado", its[0].LPath)
-			}
-			secret := false
-			for _, it := range its {
-				secret = secret || it.Class == snapshot.ClassSecret
-			}
-			if _, err := st.PutBlob(data, secret); err != nil {
-				return nil, nil, err
-			}
-		}
+		_, err := st.PutBlob(data, secret)
+		return err
+	})
+	if err != nil {
+		return nil, nil, err
 	}
-	if err := st.SaveManifest(&m); err != nil {
+	if err := st.SaveManifest(m); err != nil {
 		return nil, nil, err
 	}
 	state, err := files.LoadState()
 	if err != nil {
 		return nil, nil, err
 	}
-	state.Pushed[m.ID] = sn.ID // ya está arriba: no se vuelve a subir
+	state.Pushed[m.ID] = acct.SnapshotID(m.ID) // ya está arriba: no se vuelve a subir
 	if err := files.SaveState(state); err != nil {
 		return nil, nil, err
 	}
-	sort.Strings(missing)
-	return &m, missing, nil
+	return m, missing, nil
 }

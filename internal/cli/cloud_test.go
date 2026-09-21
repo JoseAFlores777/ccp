@@ -5,7 +5,10 @@ package cli
 // desbloquea con la frase o con el código de recuperación.
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,6 +22,7 @@ import (
 	"github.com/JoseAFlores777/ccp/internal/cloud/oidctest"
 	cloudsrv "github.com/JoseAFlores777/ccp/internal/cloud/server"
 	cloudstore "github.com/JoseAFlores777/ccp/internal/cloud/store"
+	"github.com/JoseAFlores777/ccp/internal/core"
 )
 
 // cloudServer levanta el API real con persistencia y almacenamiento en memoria
@@ -450,4 +454,94 @@ func TestCloudVerifyMiraLaCadenaEntera(t *testing.T) {
 	if !strings.Contains(out+errs, "eeeeeeee") {
 		t.Fatalf("verify no dice cuál falta: %q %q", out, errs)
 	}
+}
+
+// F3-2: bajar a un archivo. El .ccpsnap se lleva el snapshot entero a otra
+// máquina sin dejarlo en ésta, y el .tar.gz descifrado no sale sin que alguien
+// diga que sí a escribir las claves en claro.
+func TestCloudPullAArchivo(t *testing.T) {
+	url := cloudServer(t)
+	t.Setenv("CCP_NO_BROWSER", "1")
+	t.Setenv("CCP_CLOUD_PASSPHRASE", "frase de la bóveda larga")
+	t.Setenv("CCP_SNAPSHOT_PASSPHRASE", "frase del archivo larga")
+
+	home, _ := snapEnv(t)
+	if err := core.ProfileAddDeepseek(home, "deep", core.BuiltinDefaults()); err != nil {
+		t.Fatal(err)
+	}
+	if err := core.ProfileSetKey(home, "deep", "sk-muy-secreto"); err != nil {
+		t.Fatal(err)
+	}
+	if code, out, errs := snapRun(t, "cloud", "login", url, "--name", "mac-a"); code != 0 {
+		t.Fatalf("login: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "init"); code != 0 {
+		t.Fatalf("init: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "snapshot", "create"); code != 0 {
+		t.Fatalf("create: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "push"); code != 0 {
+		t.Fatalf("push: %d %q %q", code, out, errs)
+	}
+
+	// Máquina B: sin snapshots propios. Lo que baja va al archivo y a ningún
+	// almacén.
+	snapEnv(t)
+	if code, out, errs := snapRun(t, "cloud", "login", url, "--name", "mac-b"); code != 0 {
+		t.Fatalf("login B: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "unlock"); code != 0 {
+		t.Fatalf("unlock: %d %q %q", code, out, errs)
+	}
+	dest := filepath.Join(t.TempDir(), "copia.ccpsnap")
+	code, out, errs := snapRun(t, "cloud", "pull", "-o", dest)
+	if code != 0 || !strings.Contains(out, "copia.ccpsnap") {
+		t.Fatalf("pull -o: %d %q %q", code, out, errs)
+	}
+	if _, out, _ := snapRun(t, "snapshot", "list", "--json"); !strings.Contains(out, "[]") {
+		t.Fatalf("pull -o dejó rastro en el almacén: %q", out)
+	}
+	if code, out, errs := snapRun(t, "snapshot", "import", dest); code != 0 {
+		t.Fatalf("import: %d %q %q", code, out, errs)
+	}
+	raw, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "sk-muy-secreto") {
+		t.Fatal("el .ccpsnap lleva la clave en claro")
+	}
+
+	// El .tar.gz descifrado: con secretos dentro hay que decirlo en voz alta.
+	plain := filepath.Join(t.TempDir(), "copia.tar.gz")
+	code, out, errs = snapRun(t, "cloud", "pull", "-o", plain, "--decrypted")
+	if code != 1 || !strings.Contains(errs, "claro") {
+		t.Fatalf("descifrado sin confirmar: %d %q %q", code, out, errs)
+	}
+	if _, err := os.Stat(plain); err == nil {
+		t.Fatal("se escribió el archivo que no se confirmó")
+	}
+	if code, out, errs = snapRun(t, "cloud", "pull", "-o", plain, "--decrypted", "--yes"); code != 0 {
+		t.Fatalf("descifrado: %d %q %q", code, out, errs)
+	}
+	if raw, err = os.ReadFile(plain); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(gunzipCLI(t, raw)), "sk-muy-secreto") {
+		t.Fatal("el .tar.gz descifrado no trae el contenido en claro")
+	}
+}
+
+func gunzipCLI(t *testing.T, raw []byte) []byte {
+	t.Helper()
+	zr, err := gzip.NewReader(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := io.ReadAll(zr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
 }

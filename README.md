@@ -814,6 +814,12 @@ still the primary source.
   compromised server, and then `verify` would be a warning you learn to ignore. A pruned snapshot cannot be
   downloaded (the CLI says so); yours is still on the machine that made it. **Pinned snapshots are never
   pruned**: `ccp snapshot pin <id>` (or giving one a label) travels up on the next `push`.
+- **A snapshot can also come down as a file**, without touching this machine's store — which may not even
+  have one: `ccp cloud pull <id> -o copia.ccpsnap` writes the portable archive (`ccp snapshot import` and its
+  passphrase open it on the other side), and `-o copia.tar.gz --decrypted` writes the files themselves, in
+  the clear, readable with any `tar`. If the snapshot holds keys, the plain one refuses to be written until
+  you repeat it with `--yes`: the warning comes *before* the file exists, because a file with your keys
+  inside is not un-written by a message.
 - **Blobs never pass through the API.** They go straight between this machine and the storage, with
   pre-signed URLs. Anything over 64 MiB is left behind and `push` says which.
 - **Paths are translated between machines.** A snapshot taken under `/Users/ana` and restored where HOME is
