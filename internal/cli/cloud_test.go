@@ -326,3 +326,38 @@ func TestCloudInitEnsenaElCodigoAunqueNoPuedaGuardarLaAK(t *testing.T) {
 		t.Fatalf("no dijo cómo desbloquear este equipo: %q", errs)
 	}
 }
+
+// La política de este dispositivo es suya, no de la cuenta: volver a entrar
+// —porque caducó el refresh token o porque se cambia de cuenta— no puede
+// devolver a `auto` un equipo que su dueño puso en `manual`. Si `login`
+// reescribe config.json entero sin copiar la política anterior, la defensa
+// desaparece sin decir nada y el agente vuelve a aplicar solo.
+func TestCloudLoginConservaLaPoliticaDelDispositivo(t *testing.T) {
+	url, iss := cloudServerIss(t)
+	t.Setenv("CCP_NO_BROWSER", "1")
+
+	snapEnv(t)
+	if code, out, errs := snapRun(t, "cloud", "login", url); code != 0 {
+		t.Fatalf("login 1: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "policy", "manual"); code != 0 {
+		t.Fatalf("policy manual: %d %q %q", code, out, errs)
+	}
+
+	// Misma cuenta, misma máquina: re-autenticación normal.
+	if code, out, errs := snapRun(t, "cloud", "login", url); code != 0 {
+		t.Fatalf("login 2: %d %q %q", code, out, errs)
+	}
+	if _, out, _ := snapRun(t, "cloud", "policy"); !strings.Contains(out, "manual") {
+		t.Fatalf("la política se perdió al re-entrar: %q", out)
+	}
+
+	// Y al cambiar de cuenta también: la máquina sigue siendo la misma.
+	iss.As("user-2", "otro@example.com")
+	if code, out, errs := snapRun(t, "cloud", "login", url); code != 0 {
+		t.Fatalf("login 3: %d %q %q", code, out, errs)
+	}
+	if _, out, _ := snapRun(t, "cloud", "policy"); !strings.Contains(out, "manual") {
+		t.Fatalf("la política se perdió al cambiar de cuenta: %q", out)
+	}
+}
