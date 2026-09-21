@@ -162,7 +162,24 @@ func LoadReview(files client.Files) (Review, bool, error) {
 	return r, ok, err
 }
 
-func saveReview(files client.Files, r Review) error { return files.SaveJSON(ReviewFile, r) }
+// saveReview normaliza las listas antes de guardar: `review.json` lo lee
+// `ccp cloud review --json` y, por la misma regla que el resto del CLI, una
+// lista vacía es [] y nunca null — quien lo consuma hace `.conflicts | length`.
+func saveReview(files client.Files, r Review) error {
+	if r.Pending == nil {
+		r.Pending = []Pending{}
+	}
+	if r.Conflicts == nil {
+		r.Conflicts = []Decision{}
+	}
+	if r.Applied == nil {
+		r.Applied = []string{}
+	}
+	if r.Skipped == nil {
+		r.Skipped = []Skipped{}
+	}
+	return files.SaveJSON(ReviewFile, r)
+}
 
 // ClearReview olvida lo que esperaba confirmación.
 func ClearReview(files client.Files) error { return files.RemoveJSON(ReviewFile) }

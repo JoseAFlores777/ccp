@@ -111,12 +111,17 @@ func TestCloudAgentAplicaYReviewConfirma(t *testing.T) {
 			LPath string   `json:"lpath"`
 			Why   []string `json:"why"`
 		} `json:"pending"`
+		Conflicts []any `json:"conflicts"`
 	}
 	if err := json.Unmarshal([]byte(out), &r); err != nil {
 		t.Fatalf("%v: %q", err, out)
 	}
 	if len(r.Pending) != 1 || r.Pending[0].LPath != "claude/hooks/x.sh" || len(r.Pending[0].Why) == 0 {
 		t.Fatalf("esperaba el hook con su motivo: %+v", r)
+	}
+	// Una lista vacía es [] y nunca null, como en el resto del CLI.
+	if r.Conflicts == nil || !strings.Contains(out, `"conflicts": []`) {
+		t.Fatalf("sin choques, conflicts tiene que ser una lista vacía: %q", out)
 	}
 
 	// Sin terminal y sin decir si sí o si no, no se inventa la respuesta.
