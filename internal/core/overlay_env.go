@@ -14,20 +14,31 @@ import (
 // OverlayEnvSet fija env.<key> = val en el overlay del perfil y regenera su
 // cc-home.
 func OverlayEnvSet(home, name, key, val string) error {
+	return overlayEnvSet(home, name, "", key, val)
+}
+
+// overlayEnvSet es OverlayEnvSet con el global inyectado: el editor (C1) trabaja
+// con raíces explícitas y no puede resolverlo por entorno.
+func overlayEnvSet(home, name, src, key, val string) error {
 	if key == "" {
 		return fmt.Errorf("la variable no puede estar vacía")
 	}
-	return overlayEnvMutate(home, name, func(env map[string]any) {
+	return overlayEnvMutate(home, name, src, func(env map[string]any) {
 		env[key] = val
 	})
 }
 
 // OverlayEnvDel quita env.<key>. Borrar una clave que no está es un no-op.
 func OverlayEnvDel(home, name, key string) error {
+	return overlayEnvDel(home, name, "", key)
+}
+
+// overlayEnvDel es OverlayEnvDel con el global inyectado.
+func overlayEnvDel(home, name, src, key string) error {
 	if key == "" {
 		return fmt.Errorf("la variable no puede estar vacía")
 	}
-	return overlayEnvMutate(home, name, func(env map[string]any) {
+	return overlayEnvMutate(home, name, src, func(env map[string]any) {
 		delete(env, key)
 	})
 }
@@ -35,7 +46,7 @@ func OverlayEnvDel(home, name, key string) error {
 // overlayEnvMutate es el camino común: lee, muta, VALIDA, escribe y regenera.
 // El orden importa — mismo invariante que ProfileConfig: si el resultado no
 // valida, el último overlay bueno no se toca.
-func overlayEnvMutate(home, name string, fn func(map[string]any)) error {
+func overlayEnvMutate(home, name, src string, fn func(map[string]any)) error {
 	if name == "default" {
 		return fmt.Errorf("'default' = tu config GLOBAL; edítala directamente, no tiene overlay")
 	}
@@ -82,9 +93,10 @@ func overlayEnvMutate(home, name string, fn func(map[string]any)) error {
 		return fmt.Errorf("no se pudo escribir el overlay de %q: %w", name, err)
 	}
 
-	src, err := claudeSrc()
-	if err != nil {
-		return err
+	if src == "" {
+		if src, err = claudeSrc(); err != nil {
+			return err
+		}
 	}
 	return CfgRegenerate(home, name, src)
 }

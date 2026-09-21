@@ -118,6 +118,14 @@ func SettingsLayerSet(home, src string, layer SettingsLayer, path []string, valu
 	if err != nil {
 		return "", err
 	}
+	return jsonFileSet(file, path, value, del)
+}
+
+// jsonFileSet es la escritura de una clave en un archivo JSON de configuración,
+// suelta de la noción de capa: la usan SettingsLayerSet y el editor (C1), que
+// escribe también en archivos que no son de ninguna capa de settings (el
+// .mcp.json de un repo, el claude_desktop_config.json de una ventana).
+func jsonFileSet(file string, path []string, value any, del bool) (string, error) {
 	b, err := os.ReadFile(file)
 	if err != nil && !os.IsNotExist(err) {
 		return "", err
