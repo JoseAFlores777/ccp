@@ -121,6 +121,16 @@ func serveRegistry() map[string]serveMethod {
 		"snapshot.export":  w(srvSnapshotExport),
 		"snapshot.import":  w(srvSnapshotImport),
 
+		// La nube (P-21). Lo que pide una frase por teclado —login, init,
+		// unlock— no está aquí: la GUI abre Terminal, porque un secreto de la
+		// bóveda no debe cruzar el puente.
+		"cloud.status":        r(srvCloudStatus),
+		"cloud.devices":       r(srvCloudDevices),
+		"cloud.review":        r(srvCloudReview),
+		"cloud.reviewResolve": w(srvCloudReviewResolve),
+		"cloud.setPolicy":     w(srvCloudSetPolicy),
+		"cloud.revoke":        w(srvCloudRevoke),
+
 		"system.run": w(srvSystemRun),
 	}
 }
