@@ -45,6 +45,10 @@ type Config struct {
 	// PerUserRate y PerUserBurst limitan las peticiones por usuario (0 = por defecto).
 	PerUserRate  rate.Limit
 	PerUserBurst int
+	// Retention es la política de retención. El cero es guardar todo, que es
+	// lo que dice §10.3.1: con deduplicación un snapshot de configuración pesa
+	// kilobytes, así que podar es la excepción que enciende el despliegue.
+	Retention Retention
 }
 
 const presignTTL = 15 * time.Minute
@@ -53,6 +57,7 @@ type srv struct {
 	cfg      Config
 	mu       sync.Mutex
 	limiters map[string]*rate.Limiter
+	swept    map[string]time.Time // último barrido de retención por usuario
 	readyMu  sync.Mutex
 	readyAt  time.Time
 	readyErr error
@@ -72,7 +77,7 @@ func New(c Config) http.Handler {
 	if c.PerUserBurst == 0 {
 		c.PerUserBurst = 200
 	}
-	s := &srv{cfg: c, limiters: map[string]*rate.Limiter{}}
+	s := &srv{cfg: c, limiters: map[string]*rate.Limiter{}, swept: map[string]time.Time{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	mux.HandleFunc("GET /readyz", s.readyz)
@@ -94,6 +99,7 @@ func New(c Config) http.Handler {
 	// recordar (un id son 64 hex, así que tampoco podría ser «chain»).
 	mux.Handle("GET /v1/snapshots/chain", s.authed(s.chain, true))
 	mux.Handle("GET /v1/snapshots/{id}", s.authed(s.getSnapshot, true))
+	mux.Handle("POST /v1/snapshots/{id}/pin", s.authed(s.pinSnapshot, true))
 	// `pending` es literal y `{id}` comodín: el ServeMux de Go prefiere el
 	// patrón más específico, así que conviven sin orden que recordar.
 	mux.Handle("POST /v1/revisions", s.authed(s.publishRevision, true))

@@ -498,6 +498,7 @@ func (b *blobsLentos) Get(context.Context, string) ([]byte, bool, error) {
 	return nil, false, nil
 }
 func (b *blobsLentos) Put(context.Context, string, []byte) error { return nil }
+func (b *blobsLentos) Delete(context.Context, string) error      { return nil }
 func (b *blobsLentos) Head(context.Context, string) (int64, bool, error) {
 	select { // avisar solo si alguien escucha; si no, no bloquear
 	case b.entrada <- struct{}{}:

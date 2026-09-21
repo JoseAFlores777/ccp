@@ -159,6 +159,11 @@ func (a *API) Chain(ctx context.Context) ([]api.ChainLink, error) {
 	return out, a.do(ctx, http.MethodGet, "/v1/snapshots/chain", nil, &out)
 }
 
+// PinSnapshot fija o suelta un snapshot ya publicado.
+func (a *API) PinSnapshot(ctx context.Context, id string, pinned bool) error {
+	return a.do(ctx, http.MethodPost, "/v1/snapshots/"+url.PathEscape(id)+"/pin", api.PinIn{Pinned: pinned}, nil)
+}
+
 // Snapshot baja un snapshot con su manifiesto sellado y su firma.
 func (a *API) Snapshot(ctx context.Context, id string) (api.Snapshot, error) {
 	var s api.Snapshot

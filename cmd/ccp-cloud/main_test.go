@@ -94,3 +94,38 @@ func TestPortalPorDefectoYApagado(t *testing.T) {
 		t.Fatalf("con CCP_CLOUD_PORTAL=0: %v, %v", h, err)
 	}
 }
+
+// La retención se apaga sola: §10.3.1 dice que el servidor guarda TODOS por
+// defecto, y con deduplicación un snapshot de configuración pesa kilobytes.
+// Podar es una decisión del despliegue, y tiene que ser explícita.
+func TestRetencionApagadaPorDefecto(t *testing.T) {
+	for _, k := range []string{"CCP_CLOUD_DB_PASSWORD", "CCP_CLOUD_S3_ENDPOINT", "CCP_CLOUD_S3_PUBLIC_ENDPOINT",
+		"CCP_CLOUD_S3_ACCESS_KEY", "CCP_CLOUD_S3_SECRET_KEY"} {
+		t.Setenv(k, "x")
+	}
+	t.Setenv("CCP_CLOUD_OIDC_ISSUER", "https://auth/realms/ccp")
+	c, err := loadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.retention.Enabled() {
+		t.Fatalf("sin variables, la retención tiene que estar apagada: %+v", c.retention)
+	}
+	t.Setenv("CCP_CLOUD_RETENTION_DAILY", "7")
+	t.Setenv("CCP_CLOUD_RETENTION_WEEKLY", "4")
+	t.Setenv("CCP_CLOUD_RETENTION_MONTHLY", "6")
+	c, err = loadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.retention.Enabled() || c.retention.Daily != 7 || c.retention.Weekly != 4 || c.retention.Monthly != 6 {
+		t.Fatalf("retención = %+v", c.retention)
+	}
+	if c.retention.Grace <= 0 || c.retention.Every <= 0 {
+		t.Fatalf("la gracia y el intervalo tienen que traer valor: %+v", c.retention)
+	}
+	t.Setenv("CCP_CLOUD_RETENTION_DAILY", "siete")
+	if _, err := loadConfig(); err == nil {
+		t.Fatal("un número que no es número tiene que parar el arranque, no podar de más")
+	}
+}

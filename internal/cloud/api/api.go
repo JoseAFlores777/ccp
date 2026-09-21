@@ -114,6 +114,19 @@ type SnapshotIn struct {
 	Manifest []byte    `json:"manifest"`
 	Sig      []byte    `json:"sig"`
 	Blobs    []string  `json:"blobs"`
+	// Pinned dice que este snapshot no se poda nunca. Lo manda el cliente
+	// porque el servidor no puede saberlo: «fijado» es la bandera del
+	// manifiesto o el hecho de tener etiqueta, y el manifiesto viaja sellado.
+	// Campo nuevo; un cliente viejo lo omite y el snapshot queda sin fijar,
+	// que es lo que pasaba antes.
+	Pinned bool `json:"pinned,omitempty"`
+}
+
+// PinIn cambia si un snapshot está fijado (POST /v1/snapshots/{id}/pin). Fijar
+// y soltar viven aquí y no en el manifiesto porque fijar DESPUÉS de subirlo es
+// el caso normal: uno se da cuenta de que ese snapshot importa más tarde.
+type PinIn struct {
+	Pinned bool `json:"pinned"`
 }
 
 // SnapshotMeta son los metadatos visibles de un snapshot.
@@ -156,6 +169,12 @@ type ChainLink struct {
 	Created  time.Time `json:"created"`
 	Digest   string    `json:"digest"`
 	Sig      []byte    `json:"sig"`
+	Pinned   bool      `json:"pinned"`
+	// Pruned marca una lápida: la retención del servidor se llevó su
+	// manifiesto y sus blobs, pero el eslabón sigue ahí y sigue verificando.
+	// Un snapshot podado NO se puede bajar; borrarlo entero dejaría un hueco
+	// idéntico al que deja un servidor que te quita uno.
+	Pruned bool `json:"pruned"`
 }
 
 // Error es el cuerpo de toda respuesta de error. Missing solo aparece cuando
@@ -172,6 +191,10 @@ const (
 	CodeUnauthorized = "unauthorized"
 	CodeForbidden    = "forbidden"
 	CodeNotFound     = "not_found"
+	// CodeGone: existió y la retención del servidor se llevó su contenido. Es
+	// distinto de not_found a propósito: «ya no está» y «nunca estuvo» piden
+	// cosas distintas de quien lo busca.
+	CodeGone         = "gone"
 	CodeConflict     = "conflict"
 	CodeMissingBlobs = "missing_blobs"
 	CodeTooLarge     = "too_large"

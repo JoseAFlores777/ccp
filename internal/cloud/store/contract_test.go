@@ -143,16 +143,37 @@ func runContract(t *testing.T, s Store) {
 		t.Fatal("un snapshot se ve desde otro usuario")
 	}
 
+	// Podar: se va el contenido, se queda el eslabón. Y un blob que otro
+	// snapshot vivo sigue usando no se toca.
+	if libres, err := s.PruneSnapshots(ctx, u.ID, []string{s1.ID}, now.Add(-time.Hour)); err != nil || len(libres) != 0 {
+		t.Fatalf("la gracia protege a un blob recién subido: %v, %v", libres, err)
+	}
+	libres, err := s.PruneSnapshots(ctx, u.ID, []string{s1.ID}, now.Add(time.Hour))
+	if err != nil || len(libres) != 1 || libres[0] != bb {
+		t.Fatalf("PruneSnapshots = %v, %v; quiero solo %s", libres, err, bb)
+	}
+	if known, _ := s.KnownBlobs(ctx, u.ID, []string{ba, bb}); len(known) != 1 || known[ba] == 0 {
+		t.Fatalf("el blob que aún usa otro snapshot no se borra: %v", known)
+	}
+	lapida, err := s.Snapshot(ctx, u.ID, s1.ID)
+	if err != nil || !lapida.Pruned || len(lapida.Manifest) != 0 {
+		t.Fatalf("la lápida = %+v, %v", lapida, err)
+	}
+	if vivos, _ := s.Snapshots(ctx, u.ID, "", 10); len(vivos) != 1 || vivos[0].ID != s2.ID {
+		t.Fatalf("un podado no se lista como snapshot: %+v", vivos)
+	}
+
 	// La cadena: todo, del más nuevo al más viejo, con el digest que calcula
 	// el ALMACÉN sobre el manifiesto que guarda. Que lo calcule aquí y no
-	// quien llama es lo que ata el digest a los bytes escritos.
+	// quien llama es lo que ata el digest a los bytes escritos, y es lo que
+	// sobrevive a la poda: sin él, una lápida no podría verificarse.
 	chain, err := s.Chain(ctx, u.ID, 10)
 	if err != nil || len(chain) != 2 || chain[0].ID != s2.ID || chain[1].Parent != "" {
 		t.Fatalf("Chain = %+v, %v", chain, err)
 	}
 	sum := sha256.Sum256([]byte("m1"))
-	if chain[1].Digest != hex.EncodeToString(sum[:]) || string(chain[1].Sig) != "s1" {
-		t.Fatalf("el digest o la firma de la cadena no son los del manifiesto: %+v", chain[1])
+	if chain[1].Digest != hex.EncodeToString(sum[:]) || string(chain[1].Sig) != "s1" || !chain[1].Pruned {
+		t.Fatalf("la lápida perdió lo que sostiene la cadena: %+v", chain[1])
 	}
 	if chain[0].Manifest != nil {
 		t.Fatalf("la cadena no lleva manifiestos: %+v", chain[0])

@@ -312,7 +312,7 @@ func (s *srv) commitSnapshot(w http.ResponseWriter, r *http.Request, rc reqCtx) 
 		total += size
 	}
 	snap := store.Snapshot{ID: in.ID, Parent: in.Parent, DeviceID: rc.device.ID, Created: in.Created.UTC(),
-		Manifest: in.Manifest, Sig: in.Sig, Size: total}
+		Manifest: in.Manifest, Sig: in.Sig, Size: total, Pinned: in.Pinned}
 	created, err := s.cfg.Store.CommitSnapshot(ctx, rc.user.ID, snap, newBlobs, ids)
 	if err != nil {
 		s.internal(w, r, err)
@@ -322,6 +322,9 @@ func (s *srv) commitSnapshot(w http.ResponseWriter, r *http.Request, rc reqCtx) 
 	if created {
 		status = http.StatusCreated
 		s.audit(r, rc, "snapshot.commit", map[string]any{"id": in.ID, "blobs": len(ids), "size": total})
+		// Publicar es lo único que hace crecer la historia, así que es el
+		// momento de mirar si sobra algo (retention.go).
+		s.sweep(ctx, r, rc.user.ID)
 	}
 	writeJSON(w, status, api.SnapshotMeta{ID: in.ID, Parent: in.Parent, DeviceID: rc.device.ID, DeviceName: rc.device.Name,
 		Created: snap.Created, Size: total})
@@ -440,7 +443,7 @@ func (s *srv) chain(w http.ResponseWriter, r *http.Request, rc reqCtx) {
 	out := make([]api.ChainLink, 0, len(list))
 	for _, sn := range list {
 		out = append(out, api.ChainLink{ID: sn.ID, Parent: sn.Parent, DeviceID: sn.DeviceID,
-			Created: sn.Created, Digest: sn.Digest, Sig: sn.Sig})
+			Created: sn.Created, Digest: sn.Digest, Sig: sn.Sig, Pinned: sn.Pinned, Pruned: sn.Pruned})
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -460,5 +463,36 @@ func (s *srv) getSnapshot(w http.ResponseWriter, r *http.Request, rc reqCtx) {
 		s.internal(w, r, err)
 		return
 	}
+	if sn.Pruned {
+		writeError(w, http.StatusGone, api.CodeGone, "la retención del servidor se llevó este snapshot; su eslabón sigue en la cadena")
+		return
+	}
 	writeJSON(w, http.StatusOK, api.Snapshot{SnapshotMeta: toAPIMeta(sn), Manifest: sn.Manifest, Sig: sn.Sig})
+}
+
+// pinSnapshot fija o suelta un snapshot. Fijar DESPUÉS de subirlo es el caso
+// normal —uno se da cuenta de que ese importa más tarde—, y sin esto la única
+// forma de marcarlo sería volver a publicarlo, que no cambia nada porque el id
+// ya está.
+func (s *srv) pinSnapshot(w http.ResponseWriter, r *http.Request, rc reqCtx) {
+	id := r.PathValue("id")
+	if !api.ValidID(id) {
+		writeError(w, http.StatusNotFound, api.CodeNotFound, "snapshot no encontrado")
+		return
+	}
+	var in api.PinIn
+	if !decode(w, r, 1<<10, &in) {
+		return
+	}
+	err := s.cfg.Store.SetPinned(r.Context(), rc.user.ID, id, in.Pinned)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, api.CodeNotFound, "snapshot no encontrado")
+		return
+	}
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	s.audit(r, rc, "snapshot.pin", map[string]any{"id": id, "pinned": in.Pinned})
+	w.WriteHeader(http.StatusOK)
 }

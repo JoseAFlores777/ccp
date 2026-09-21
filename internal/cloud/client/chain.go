@@ -45,8 +45,12 @@ type ChainFault struct {
 // ChainReport es el resultado de verificar la cadena. Las listas nunca salen
 // como null: `ccp cloud verify --json` es superficie de máquina.
 type ChainReport struct {
-	Links  int          `json:"links"`
-	Roots  int          `json:"roots"`
+	Links int `json:"links"`
+	Roots int `json:"roots"`
+	// Pruned son las lápidas: eslabones a los que la retención del servidor se
+	// llevó el contenido. Siguen verificando y siguen contando como eslabón,
+	// que es justo lo que impide que una poda parezca un robo.
+	Pruned int          `json:"pruned"`
 	Faults []ChainFault `json:"faults"`
 }
 
@@ -75,6 +79,9 @@ func VerifyChain(acct *crypt.Account, links []api.ChainLink, pushed []string) Ch
 	for _, l := range links {
 		if err := acct.VerifyDigest(l.ID, l.Parent, l.Digest, l.Sig); err != nil {
 			rep.Faults = append(rep.Faults, ChainFault{Code: FaultBadSignature, ID: l.ID})
+		}
+		if l.Pruned {
+			rep.Pruned++
 		}
 		if l.Parent == "" {
 			rep.Roots++

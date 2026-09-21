@@ -26,6 +26,10 @@ type Blobs interface {
 	// Put guarda data en key, sobrescribiendo. El contenido de una clave es
 	// siempre el mismo (el id es su HMAC), así que reescribirla no pierde nada.
 	Put(ctx context.Context, key string, data []byte) error
+	// Delete borra key. Que no exista NO es un error: la poda borra lo que ya
+	// no referencia nadie, y pararse en un objeto que otro barrido (o un
+	// reintento del mismo) ya se llevó dejaría el resto sin barrer.
+	Delete(ctx context.Context, key string) error
 	Ping(ctx context.Context) error
 }
 
