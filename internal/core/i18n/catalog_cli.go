@@ -987,6 +987,14 @@ SNAPSHOTS
   ccp snapshot pin|unpin <id> | prune [--dry-run]
   ccp snapshot export <id> <file> [--with-secrets] | import <file>
 
+MCP SERVERS                       layer: global · profile · project
+  ccp mcp list [--scope <layer>]        what each layer declares, and where it goes
+  ccp mcp add <name> -- <cmd> [args…]   stdio server (--env K=V)
+  ccp mcp add <name> --url <url>        remote one (--transport http|sse, --header K=V)
+  ccp mcp rm <name> [--scope <layer>]
+  ccp mcp enable|disable <name> [--profile <n>]   inherited server, per profile
+  ccp mcp targets [<name> [cli|desktop|cli,desktop|none]]
+
 DETECT THE MACHINE
   ccp scan [--json]                     everything Claude-related here, and where each thing applies
   ccp adopt [--dry-run | --yes] [--only <id|kind>]
@@ -1088,6 +1096,14 @@ SNAPSHOTS
   ccp snapshot restore <id> [--only <ruta>] [--dry-run | --yes]
   ccp snapshot pin|unpin <id> | prune [--dry-run]
   ccp snapshot export <id> <archivo> [--with-secrets] | import <archivo>
+
+SERVIDORES MCP                    capa: global · perfil · proyecto
+  ccp mcp list [--scope <capa>]         qué declara cada capa y a dónde va
+  ccp mcp add <nombre> -- <cmd> [args…] servidor stdio (--env CLAVE=valor)
+  ccp mcp add <nombre> --url <url>      remoto (--transport http|sse, --header K=V)
+  ccp mcp rm <nombre> [--scope <capa>]
+  ccp mcp enable|disable <nombre> [--profile <n>]   heredado, por perfil
+  ccp mcp targets [<nombre> [cli|desktop|cli,desktop|none]]
 
 DETECTAR LA MÁQUINA
   ccp scan [--json]                     todo lo de Claude en esta máquina, y dónde aplica cada cosa

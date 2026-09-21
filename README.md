@@ -816,6 +816,22 @@ mcp:
 - **Permissions merge by replacing arrays**, as they always have. To add instead of replace, say so in the overlay: `"permissions": {"$merge": "union", "allow": ["Bash(make:*)"]}`. The mark never reaches the generated `settings.json`.
 - `ccp doctor` reports what is out of step: `projection_stale`, `desktop_restart_pending`, `mcp_command_missing`, `mcp_unmanaged_only_desktop` and `cc_home_symlink_nonleaf`.
 
+#### `ccp mcp` — the same thing without editing files
+
+```bash
+ccp mcp list [--scope <layer>] [--json]              # what the layer declares, and where it goes
+ccp mcp add fs -- npx -y @modelcontextprotocol/server-filesystem ~/code
+ccp mcp add linear --url https://mcp.linear.app/sse --transport sse --header "Authorization=Bearer ${LINEAR}"
+ccp mcp add jira '{"command":"npx","args":["-y","jira-mcp"]}'   # the raw JSON, if you prefer
+ccp mcp rm <name> [--scope <layer>]
+ccp mcp enable|disable <name> [--profile <n>]        # an inherited server, in one profile
+ccp mcp targets [<name> [cli|desktop|cli,desktop|none]]
+```
+
+The layer is `global`, `profile[:<name>]`, `project[:<path>]` or `desktop[:<name>]` (read-only), and **without `--scope` it is the terminal's active profile**. `--env KEY=value` goes with the stdio form, `--header KEY=value` with the remote one, and the three forms (the command after `--`, `--url`, the JSON) never mix.
+
+Two refusals are the point of the command: the **Desktop window** receives a profile's MCPs but does not declare them — writing there would be undone by the next sync, so it tells you to declare it in the profile instead; and a **secret in the clear in a project's `.mcp.json`** — a file that travels in the repo — is refused, pointing at `${VARIABLE}`. After each write it says who it regenerated and which window keeps the previous MCPs until you restart it.
+
 ### Editing `ccp.yaml` — `ccp config edit`
 
 ```bash
@@ -963,6 +979,8 @@ With commands: `ccp config show` · `ccp config set <clave> <valor>` · `ccp con
 | Status / diagnostics | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
 | Snapshots | `ccp snapshot create\|list\|diff\|restore\|export\|import` |
+| Add or remove an MCP server | `ccp mcp add\|rm <n>` · `ccp mcp list` |
+| Turn an inherited MCP off in one profile | `ccp mcp disable <n> --profile <perfil>` |
 | Update | `ccp upgrade` |
 | Full help | `ccp help` |
 

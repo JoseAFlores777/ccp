@@ -135,6 +135,10 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 		return dispatchScan(rest, stdout, stderr)
 	case "adopt":
 		return dispatchAdopt(rest, stdout, stderr)
+	// `mcp` es el editor de servidores MCP por capa (C3). Como backup, serve y
+	// snapshot, NO entra en la completion: ese texto es contrato golden.
+	case "mcp":
+		return dispatchMCP(rest, stdout, stderr)
 	case "config":
 		return cmdConfig(rest, stdout, stderr)
 	case "doctor":
