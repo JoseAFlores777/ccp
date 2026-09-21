@@ -579,6 +579,13 @@ func cfgPutProfileEnv(r InventoryRoots, t cfgTarget, value any, del bool) (bool,
 // want, want sola si old está vacía, y sin want se quita old. La lista entera es la
 // única operación que el archivo admite, igual que con los hooks.
 func cfgEntryWrite(t cfgTarget, old, want string) error {
+	// Una referencia con Entry pero sin Key (o de un tipo que no es una lista
+	// dentro de un JSON) deja el Path vacío, y jsonSetPath no admite uno vacío.
+	// serve acepta cualquier referencia que le llegue, así que la comprobación
+	// va aquí, como en cfgKeyWrite: un error de parámetro, no un panic.
+	if len(t.Path) == 0 {
+		return fmt.Errorf("hace falta una clave de lista donde escribir la entrada en %s", t.File)
+	}
 	b, err := os.ReadFile(t.File)
 	if err != nil && !os.IsNotExist(err) {
 		return err
