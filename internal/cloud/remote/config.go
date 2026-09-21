@@ -58,8 +58,20 @@ func FilesFor(home, name string) client.Files {
 	return client.Files{Dir: filepath.Join(SyncDir(home), name)}
 }
 
+// registryFile es el nombre fijo del registro dentro de <home>/sync.
+const registryFile = "remotes.json"
+
+// reservedName: el directorio de estado de un destino es <home>/sync/<nombre>,
+// y ahí ya vive el registro con su nombre fijo. Aceptar ese nombre no daba un
+// error: al registrar el primer destino, SaveAK hacía MkdirAll y convertía el
+// registro —que todavía no existía como archivo— en un DIRECTORIO, y desde
+// entonces LoadRegistry fallaba con EISDIR en TODAS las órdenes de sync,
+// incluidas `remote rm` y `remote list`, que son las que lo arreglarían. Sin
+// distinguir mayúsculas, por lo mismo que Find: en APFS es el mismo archivo.
+func reservedName(name string) bool { return strings.EqualFold(name, registryFile) }
+
 // ValidName dice si un nombre puede ser el de un destino.
-func ValidName(name string) bool { return nameRe.MatchString(name) }
+func ValidName(name string) bool { return nameRe.MatchString(name) && !reservedName(name) }
 
 // Find devuelve el destino por su nombre, SIN distinguir mayúsculas: el
 // nombre acaba siendo el directorio <home>/sync/<nombre> y APFS —el sistema
@@ -80,6 +92,9 @@ func (r Registry) Find(name string) (Entry, bool) {
 // distintas compartiendo el directorio de estado, y la AK de una no abre la
 // otra.
 func (r *Registry) Add(name, url string) error {
+	if reservedName(name) {
+		return fmt.Errorf("%q es el nombre del registro de destinos; elige otro", name)
+	}
 	if !ValidName(name) {
 		return fmt.Errorf("%q no vale como nombre de destino: letras, números, «.», «_» y «-», empezando por letra o número", name)
 	}
@@ -104,7 +119,7 @@ func (r *Registry) Remove(name string) bool {
 	return false
 }
 
-func registryPath(home string) string { return filepath.Join(SyncDir(home), "remotes.json") }
+func registryPath(home string) string { return filepath.Join(SyncDir(home), registryFile) }
 
 // LoadRegistry lee los destinos. Que no haya archivo es un registro vacío.
 func LoadRegistry(home string) (Registry, error) {
