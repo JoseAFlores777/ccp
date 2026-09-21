@@ -8,7 +8,7 @@
 import { api, type CfgType, type ConfigItem, type ConfigLayer, type ConfigRef, type ConfigValue, type ConfigWrite, type McpRow } from './api';
 import { shellQuote, tilde } from './format';
 import { t } from './i18n';
-import { buildMcp } from './mcp';
+import { buildMcp, type McpBuild } from './mcp';
 import type { ModalSpec } from './store';
 
 /** El orden de la columna izquierda, el mismo que fija core (cfgTypeOrder). */
@@ -109,9 +109,23 @@ export function maskedLines(m: Record<string, unknown> | undefined, sep: string)
   return Object.entries(m).map(([k, v]) => `${k}${sep}${maskValue(k, String(v ?? ''))}`).join('\n');
 }
 
+/** Las claves que se quedaron enmascaradas y NO existían antes: con ese nombre
+ *  no hay nada guardado que restituir, así que su valor real no está en ningún
+ *  sitio. Pasa al corregir el nombre de un secreto (GITHB_TOKEN → GITHUB_TOKEN)
+ *  o cualquier valor de ≥24 caracteres, que también sale tapado. */
+export function maskedOrphans(next: Record<string, string>, prev: Record<string, unknown> | undefined): string[] {
+  return Object.entries(next).filter(([k, v]) => v === MASK && !(prev && k in prev)).map(([k]) => k);
+}
+
 /** Devuelve el mapa con los valores que el usuario dejó enmascarados puestos
- *  otra vez a lo que había: nadie pierde un token por editar un argumento. */
+ *  otra vez a lo que había: nadie pierde un token por editar un argumento.
+ *  Si una clave enmascarada no estaba antes, esto REVIENTA en vez de guardar el
+ *  marcador: escribir «••••••••» encima del token lo borra del disco y no queda
+ *  en ningún otro lado. El modal lo avisa antes (maskedOrphans); esto es el
+ *  cierre para cualquier otro camino que llegue aquí. */
 export function unmask(next: Record<string, string>, prev: Record<string, unknown> | undefined): Record<string, string> {
+  const lost = maskedOrphans(next, prev);
+  if (lost.length) throw new Error(t('Vuelve a escribir el valor de {k}: con ese nombre no había nada guardado y {m} no es un valor.', { k: lost.join(', '), m: MASK }));
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(next)) {
     out[k] = v === MASK && prev && k in prev ? String(prev[k] ?? '') : v;
@@ -167,6 +181,21 @@ export function mcpModal(layer: ConfigLayer, row?: McpRow, def?: Record<string, 
   const isMcpJson = (f: Record<string, string>) => f.transport === 'json';
   const isStdio = (f: Record<string, string>) => (f.transport || 'stdio') === 'stdio';
   const isUrl = (f: Record<string, string>) => f.transport === 'http' || f.transport === 'sse';
+  // Un secreto renombrado sale del formulario como MASK con una clave que no
+  // existía: guardarlo escribiría el marcador ENCIMA del token y el valor real
+  // no queda en ningún otro sitio. Se bloquea el guardado en vez de perderlo.
+  const maskLost = (cfg: Record<string, unknown> | undefined): string[] => {
+    const out: string[] = [];
+    for (const [field, prev] of [['env', def?.env], ['headers', def?.headers]] as const) {
+      const cur = cfg?.[field] as Record<string, string> | undefined;
+      if (!cur) continue;
+      for (const k of maskedOrphans(cur, prev as Record<string, unknown> | undefined)) {
+        out.push(t('Vuelve a escribir el valor de {k}: con ese nombre no había nada guardado y {m} no es un valor.', { k, m: MASK }));
+      }
+    }
+    return out;
+  };
+  const mcpErrors = (b: McpBuild): string[] => [...b.errors, ...(b.errors.length ? [] : maskLost(b.config))];
   return {
     title: editing ? t('Editar {n}', { n: row.name }) : t('Nuevo servidor MCP en {l}', { l: layerLabel(layer) }),
     sub: t('El nombre es con el que Claude Code nombra sus herramientas (mcp__nombre__tool): sin espacios ni barras.'),
@@ -215,17 +244,19 @@ export function mcpModal(layer: ConfigLayer, row?: McpRow, def?: Record<string, 
       if (layer.level === 'desktop') w.push(t('El chat de Desktop solo carga servidores stdio y no relee el archivo en caliente.'));
       return w;
     },
-    canConfirm: (f) => buildMcp(f).errors.length === 0,
+    canConfirm: (f) => mcpErrors(buildMcp(f)).length === 0,
     preview: (f) => {
       const b = buildMcp(f);
-      if (b.errors.length) return { label: t('Falta algo'), text: b.errors.join('\n') };
+      const errs = mcpErrors(b);
+      if (errs.length) return { label: t('Falta algo'), text: errs.join('\n') };
       return { label: t('Lo que se guarda'), text: JSON.stringify({ [f.name]: b.config }, null, 2) };
     },
     cli: (f) => mcpAddCli(layer, f),
     confirmLabel: editing ? t('Guardar') : t('Añadir'),
     onConfirm: async (f) => {
       const b = buildMcp(f);
-      if (!b.config) throw new Error(b.errors.join('\n'));
+      const errs = mcpErrors(b);
+      if (!b.config || errs.length) throw new Error(errs.join('\n'));
       const cfg = { ...b.config } as Record<string, unknown>;
       if (cfg.env) cfg.env = unmask(cfg.env as Record<string, string>, def?.env as Record<string, unknown>);
       if (cfg.headers) cfg.headers = unmask(cfg.headers as Record<string, string>, def?.headers as Record<string, unknown>);
