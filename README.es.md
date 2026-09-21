@@ -818,14 +818,14 @@ mcp:
 ```bash
 ccp mcp list [--scope <capa>] [--json]               # qué declara la capa y a dónde va
 ccp mcp add fs -- npx -y @modelcontextprotocol/server-filesystem ~/code
-ccp mcp add linear --url https://mcp.linear.app/sse --transport sse --header "Authorization=Bearer ${LINEAR}"
+ccp mcp add linear --url https://mcp.linear.app/sse --transport sse --header 'Authorization=Bearer ${LINEAR}'
 ccp mcp add jira '{"command":"npx","args":["-y","jira-mcp"]}'   # el JSON crudo, si lo prefieres
 ccp mcp rm <nombre> [--scope <capa>]
 ccp mcp enable|disable <nombre> [--profile <n>]      # uno heredado, en UN perfil
 ccp mcp targets [<nombre> [cli|desktop|cli,desktop|none]]
 ```
 
-La capa es `global`, `profile[:<nombre>]`, `project[:<ruta>]` o `desktop[:<nombre>]` (solo lectura), y **sin `--scope` es el perfil activo de la terminal**. `--env CLAVE=valor` acompaña a la forma stdio y `--header CLAVE=valor` a la remota; las tres formas (el comando tras `--`, `--url`, el JSON) no se mezclan.
+La capa es `global`, `profile[:<nombre>]`, `project[:<ruta>]` o `desktop[:<nombre>]` (solo lectura), y **sin `--scope` es el perfil activo de la terminal**. `--env CLAVE=valor` acompaña a la forma stdio y `--header CLAVE=valor` a la remota; las tres formas (el comando tras `--`, `--url`, el JSON) no se mezclan. Un secreto entra como el literal `${VARIABLE}` —de ahí las comillas simples: con dobles lo expande tu shell antes y el token queda en claro (y la capa `project` lo rechaza).
 
 Dos negativas son la razón de ser del comando: la **ventana de Desktop** recibe los MCP del perfil pero no los declara —escribir ahí lo desharía el siguiente sync, así que te dice que lo declares en el perfil—, y un **secreto en claro en el `.mcp.json` de un proyecto** —un archivo que viaja en el repo— se niega señalando `${VARIABLE}`. Después de cada escritura dice a quién regeneró y qué ventana se queda con los MCP de antes hasta que la reinicies.
 
