@@ -127,3 +127,51 @@ func TestProfileProjectionCheckInstruccionesDesfasadas(t *testing.T) {
 		t.Fatalf("tras regenerar sigue desfasado: %+v", c2)
 	}
 }
+
+// Borrar un artefacto del overlay (lo que hace `ccp instruct rm profile`) deja
+// en el cc-home un enlace colgado que el siguiente sync SÍ poda. El check tiene
+// que verlo: si no, el guardián jura «al día» mientras el CLI y la pestaña Code
+// arrastran un comando fantasma roto.
+func TestProfileProjectionCheckHojaQueSobraEnElDestino(t *testing.T) {
+	home, src := mcpFixture(t)
+	mustWrite(t, filepath.Join(cfgOverlayDir(home, "work"), "commands", "foo.md"), "# foo\n")
+	mustWrite(t, filepath.Join(cfgOverlayDir(home, "work"), "commands", "bar.md"), "# bar\n")
+	if err := seedCCHome(home, "work"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ProjectProfileArtifacts(home, "work", src); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ProjectMCPToCLI(home, "work", efectivo(t, home, src, "work")); err != nil {
+		t.Fatal(err)
+	}
+	c, err := ProfileProjectionCheck(home, "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Artifacts) != 0 {
+		t.Fatalf("recién proyectado ya sale desfasado: %v", c.Artifacts)
+	}
+
+	// El usuario retira el comando del overlay: el enlace del cc-home queda colgado.
+	if err := os.Remove(filepath.Join(cfgOverlayDir(home, "work"), "commands", "foo.md")); err != nil {
+		t.Fatal(err)
+	}
+	c2, err := ProfileProjectionCheck(home, "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(c2.Artifacts, []string{"commands"}) {
+		t.Fatalf("artifacts = %v, quiero [commands] (hay un enlace que podar)", c2.Artifacts)
+	}
+	ghost := filepath.Join(ccHomePath(home, "work"), "commands", "foo.md")
+	if _, err := os.Lstat(ghost); err != nil {
+		t.Fatal("el check podó el enlace: tiene que ser de solo lectura")
+	}
+	if _, err := ProjectProfileArtifacts(home, "work", src); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(ghost); err == nil {
+		t.Fatal("el sync no podó el enlace colgado")
+	}
+}
