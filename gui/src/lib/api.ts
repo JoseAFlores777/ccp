@@ -548,6 +548,80 @@ export interface McpRow {
   missing?: string;
 }
 
+// --- Nube (P-21, §10.3). El portal propone y esta máquina aplica: lo que
+// llega firmado se reconcilia aquí, y lo que ejecuta código espera a que
+// alguien de esta máquina lo confirme.
+
+export type VaultState = 'unlocked' | 'locked' | 'missing' | 'unknown';
+export type DevicePolicy = 'auto' | 'manual';
+
+export interface CloudStatus {
+  logged_in: boolean;
+  server: string;
+  email: string;
+  device_id: string;
+  device_name: string;
+  vault: VaultState;
+  /** Snapshots locales que aún no están arriba. */
+  pending_push: number;
+  policy: DevicePolicy;
+  /** Cambios que esperan confirmación en esta máquina. */
+  pending_review: number;
+  conflicts: number;
+  revision: string;
+}
+
+export interface CloudDevice {
+  id: string;
+  name: string;
+  platform: string;
+  ccp_version: string;
+  created: string;
+  last_seen: string;
+  revoked: boolean;
+}
+
+/** El motivo por el que un cambio no se aplica solo. Un motivo que esta
+ *  versión no conozca se enseña tal cual: callarlo dejaría a alguien
+ *  confirmando algo sin saber qué es. */
+export type Danger = 'hooks' | 'mcp' | 'status_line' | 'permissions' | 'plugins' | 'script' | string;
+
+export interface CloudPending {
+  lpath: string;
+  why: Danger[];
+}
+
+export interface CloudSkipped {
+  lpath: string;
+  reason: string;
+}
+
+/** Lo que el agente dejó esperando a una persona, tal y como lo guardó: entre
+ *  que se enseñó y se contesta el disco pudo cambiar, y confirmar una lista
+ *  distinta de la que se leyó sería confirmar otra cosa. */
+export interface CloudReview {
+  revision: string;
+  snapshot: string;
+  created: string;
+  pending: CloudPending[];
+  conflicts: { lpath: string }[];
+  applied: string[];
+  skipped: CloudSkipped[];
+}
+
+export interface CloudOutcome {
+  revision: string;
+  snapshot?: string;
+  pre_snapshot?: string;
+  applied: string[];
+  pending: CloudPending[];
+  conflicts: string[];
+  skipped: CloudSkipped[];
+  state: string;
+  reason?: string;
+  waiting: boolean;
+}
+
 export const api = {
   info: () => ccpCall<AppInfo>('app.info'),
   setLang: (lang: string) => ccpCall('app.setLang', { lang }),
@@ -661,6 +735,17 @@ export const api = {
   // segunda ruta (mcp.enable) que mantener para la misma escritura.
   mcpSetEnabled: (profile: string, name: string, enabled: boolean) =>
     ccpCall<ConfigWrite>('mcp.disable', { profile, name, enabled }),
+
+  // La nube (P-21). Falta a propósito todo lo que pide un secreto por teclado
+  // —login, init, unlock—: eso abre Terminal, porque la frase de bóveda no
+  // cruza el puente. `approve` va siempre explícito, y [] es «rechazarlo todo»:
+  // no hay forma de confirmar lo ejecutable por omisión.
+  cloudStatus: () => ccpCall<CloudStatus>('cloud.status'),
+  cloudDevices: () => ccpCall<{ this: string; devices: CloudDevice[] }>('cloud.devices'),
+  cloudReview: () => ccpCall<CloudReview>('cloud.review'),
+  cloudReviewResolve: (approve: string[]) => ccpCall<CloudOutcome>('cloud.reviewResolve', { approve }),
+  cloudSetPolicy: (policy: DevicePolicy) => ccpCall<{ policy: DevicePolicy }>('cloud.setPolicy', { policy }),
+  cloudRevoke: (device: string) => ccpCall<{ device: string }>('cloud.revoke', { device }),
 
   inventoryScan: () => ccpCall<Inventory>('inventory.scan'),
   adoptPlan: () => ccpCall<{ steps: AdoptStep[] }>('adopt.plan'),

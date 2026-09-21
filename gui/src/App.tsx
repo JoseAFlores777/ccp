@@ -19,6 +19,7 @@ import { Inicio } from './screens/Inicio';
 import { Mapa } from './screens/Mapa';
 import { Memoria } from './screens/Memoria';
 import { Mover } from './screens/Mover';
+import { Nube } from './screens/Nube';
 import { Perfil } from './screens/Perfil';
 import { Perfiles } from './screens/Perfiles';
 import { Prestamos } from './screens/Prestamos';
@@ -47,6 +48,7 @@ const SCREENS: Record<Screen, () => React.JSX.Element | null> = {
   ajustes: Ajustes,
   copias: Copias,
   snapshots: Snapshots,
+  nube: Nube,
   bienvenida: Detectar,
 };
 
