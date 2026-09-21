@@ -2,8 +2,10 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -157,5 +159,73 @@ func TestPodarNoTocaUnFijado(t *testing.T) {
 	}
 	if code := e.call("GET", "/v1/snapshots/"+viejo.ID, tok, dev, nil, nil); code != http.StatusGone {
 		t.Fatalf("tras soltarlo, el barrido siguiente tenía que podarlo: %d", code)
+	}
+}
+
+// borradoQueFalla envuelve el almacenamiento para que Delete falle mientras
+// falla esté encendido: un 5xx pasajero del bucket, o el proceso muriéndose
+// entre el commit de la base y el borrado del objeto.
+type borradoQueFalla struct {
+	blobs.Blobs
+	falla *bool
+}
+
+func (b borradoQueFalla) Delete(ctx context.Context, key string) error {
+	if *b.falla {
+		return errors.New("el bucket no responde")
+	}
+	return b.Blobs.Delete(ctx, key)
+}
+
+// newEnvRetBl es newEnvRet con el almacenamiento envuelto: el env sigue
+// apuntando al Mem de abajo, que es el que sabe mirar dentro (Peek).
+func newEnvRetBl(t *testing.T, r Retention, wrap func(blobs.Blobs) blobs.Blobs) *env {
+	t.Helper()
+	iss := oidctest.New(t)
+	st := store.NewMem()
+	bl := blobstest.New(t)
+	h := New(Config{
+		Store: st, Blobs: wrap(bl), Verifier: NewOIDCVerifier(iss.URL, iss.JWKSURL(), oidctest.Audience),
+		Issuer: iss.URL, ClientID: oidctest.ClientID, Retention: r,
+	})
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	return &env{t: t, iss: iss, st: st, bl: bl, url: srv.URL}
+}
+
+// Un blob cuyo borrado en el bucket falla no se puede olvidar: la fila ya no
+// está, así que si nadie lo apunta nada vuelve a nombrarlo nunca y el objeto
+// ocupa sitio para siempre. La siguiente poda tiene que reintentarlo.
+func TestUnBorradoQueFallaSeReintentaEnLaPodaSiguiente(t *testing.T) {
+	falla := true
+	e := newEnvRetBl(t, Retention{Daily: 1}, func(b blobs.Blobs) blobs.Blobs {
+		return borradoQueFalla{Blobs: b, falla: &falla}
+	})
+	tok := e.iss.AccessToken()
+	dev := e.newDevice(tok, "mac")
+	soloSuyo := id("ab")
+	items := e.presign(tok, dev, "put", soloSuyo)
+	put(t, items[0].URL, []byte("sellado"))
+	viejo := api.SnapshotIn{ID: id("11"), Created: time.Now().Add(-48 * time.Hour), Manifest: []byte("m1"),
+		Sig: bytes.Repeat([]byte{1}, 64), Blobs: []string{soloSuyo}}
+	nuevo := api.SnapshotIn{ID: id("22"), Parent: viejo.ID, Created: time.Now(), Manifest: []byte("m2"),
+		Sig: bytes.Repeat([]byte{2}, 64)}
+	for _, in := range []api.SnapshotIn{viejo, nuevo} {
+		if code := e.call("POST", "/v1/snapshots", tok, dev, in, nil); code != 201 {
+			t.Fatalf("commit %s = %d", in.ID, code)
+		}
+	}
+	clave := blobs.Key(e.userID(tok), soloSuyo)
+	if _, ok := e.bl.Peek(clave); !ok {
+		t.Fatal("el borrado falló: el objeto tenía que seguir ahí")
+	}
+	// Ahora el bucket responde, y el barrido siguiente tiene que acordarse.
+	falla = false
+	if code := e.call("POST", "/v1/snapshots", tok, dev, api.SnapshotIn{ID: id("33"), Parent: nuevo.ID,
+		Created: time.Now(), Manifest: []byte("m3"), Sig: bytes.Repeat([]byte{3}, 64)}, nil); code != 201 {
+		t.Fatalf("tercer commit = %d", code)
+	}
+	if _, ok := e.bl.Peek(clave); ok {
+		t.Fatal("el blob que no se pudo borrar se quedó huérfano para siempre")
 	}
 }

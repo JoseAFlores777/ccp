@@ -169,6 +169,18 @@ func runContract(t *testing.T, s Store) {
 	if err != nil || len(libres) != 1 || libres[0] != bb {
 		t.Fatalf("PruneSnapshots = %v, %v; quiero solo %s", libres, err, bb)
 	}
+	// Un blob liberado sigue apuntado hasta que se confirme su borrado: si no,
+	// el que el bucket no pudo borrar no lo nombraría nadie nunca más.
+	pendientes, err := s.PruneSnapshots(ctx, u.ID, nil, now.Add(time.Hour))
+	if err != nil || len(pendientes) != 1 || pendientes[0] != bb {
+		t.Fatalf("un blob liberado tiene que seguir pendiente: %v, %v", pendientes, err)
+	}
+	if err := s.ForgetBlobs(ctx, u.ID, []string{bb}); err != nil {
+		t.Fatalf("ForgetBlobs: %v", err)
+	}
+	if pendientes, err := s.PruneSnapshots(ctx, u.ID, nil, now.Add(time.Hour)); err != nil || len(pendientes) != 0 {
+		t.Fatalf("un blob confirmado ya no está pendiente: %v, %v", pendientes, err)
+	}
 	if known, _ := s.KnownBlobs(ctx, u.ID, []string{ba, bb}); len(known) != 1 || known[ba] == 0 {
 		t.Fatalf("el blob que aún usa otro snapshot no se borra: %v", known)
 	}

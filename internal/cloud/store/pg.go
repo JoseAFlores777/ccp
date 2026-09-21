@@ -353,10 +353,16 @@ func (p *PG) Snapshots(ctx context.Context, userID, deviceID string, limit int) 
 // PruneSnapshots: ver el contrato en store.go. Todo en una transacción, y los
 // blobs solo se borran de la base: quitarlos del bucket es cosa de quien llama,
 // después, porque el orden inverso dejaría filas apuntando a objetos que ya no
-// están.
+// están. La fila liberada pasa a `blob_trash` en la misma transacción y se
+// devuelve la basura entera, no solo la de esta vuelta: un borrado que falló no
+// lo nombraría nadie más (el DELETE ... RETURNING solo devuelve lo que sigue en
+// la tabla) y el objeto se quedaría huérfano para siempre.
 func (p *PG) PruneSnapshots(ctx context.Context, userID string, ids []string, before time.Time) ([]string, error) {
-	if !IsUUID(userID) || len(ids) == 0 {
+	if !IsUUID(userID) {
 		return []string{}, nil
+	}
+	if ids == nil {
+		ids = []string{}
 	}
 	tx, err := p.pool.Begin(ctx)
 	if err != nil {
@@ -372,11 +378,17 @@ func (p *PG) PruneSnapshots(ctx context.Context, userID string, ids []string, be
 		WHERE user_id = $1::uuid AND snapshot_id = ANY($2::text[])`, userID, ids); err != nil {
 		return nil, err
 	}
-	rows, err := tx.Query(ctx, `DELETE FROM blobs b
+	if _, err := tx.Exec(ctx, `WITH libres AS (
+		DELETE FROM blobs b
 		WHERE b.user_id = $1::uuid AND b.created_at < $2
 		  AND NOT EXISTS (SELECT 1 FROM snapshot_blobs sb
 			WHERE sb.user_id = b.user_id AND sb.blob_id = b.id)
-		RETURNING b.id`, userID, before)
+		RETURNING b.id)
+		INSERT INTO blob_trash (user_id, blob_id) SELECT $1::uuid, id FROM libres
+		ON CONFLICT DO NOTHING`, userID, before); err != nil {
+		return nil, err
+	}
+	rows, err := tx.Query(ctx, `SELECT blob_id FROM blob_trash WHERE user_id = $1::uuid`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -395,6 +407,16 @@ func (p *PG) PruneSnapshots(ctx context.Context, userID string, ids []string, be
 	}
 	sort.Strings(libres)
 	return libres, tx.Commit(ctx)
+}
+
+// ForgetBlobs: ver el contrato en store.go.
+func (p *PG) ForgetBlobs(ctx context.Context, userID string, ids []string) error {
+	if !IsUUID(userID) || len(ids) == 0 {
+		return nil
+	}
+	_, err := p.pool.Exec(ctx, `DELETE FROM blob_trash
+		WHERE user_id = $1::uuid AND blob_id = ANY($2::text[])`, userID, ids)
+	return err
 }
 
 // SetPinned: ver el contrato en store.go.
