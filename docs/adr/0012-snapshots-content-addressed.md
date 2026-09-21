@@ -6,8 +6,9 @@ Fecha: 2026-09-18
 
 Aceptada. Implementa el §8 del spec
 [2026-09-18-config-unificada-snapshots-nube](../superpowers/specs/2026-09-18-config-unificada-snapshots-nube-design.md).
-La 0011 (una fuente declarada, varias proyecciones) y la 0013 (nube cifrada de extremo a extremo) se escriben
-con sus planes; este formato es el que la 0013 sube.
+La [0011](0011-una-fuente-declarada-varias-proyecciones.md) (una fuente declarada, varias proyecciones) y la
+[0013](0013-cloud-end-to-end-encryption.md) (nube cifrada de extremo a extremo) salieron con sus planes; este
+formato es el que la 0013 sube.
 
 ## Contexto
 

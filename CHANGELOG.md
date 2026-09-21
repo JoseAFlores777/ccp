@@ -4,6 +4,33 @@
 
 ### Added
 
+- **`ccp cloud`: el historial de snapshots en un servidor propio, cifrado de punta a punta** (spec §10,
+  [ADR 0013](docs/adr/0013-cloud-end-to-end-encryption.md) y
+  [ADR 0015](docs/adr/0015-identity-keycloak-vault-separate.md)). `login` (código de dispositivo), `init`,
+  `unlock`, `push`, `pull`, `list`, `devices`, `revoke`, `logout` y `status [--json]`.
+  - **Todo se cifra en el equipo antes de salir.** Blobs y manifiestos van sellados con su id como dato
+    asociado, los ids de la nube son un HMAC de los hashes locales —el servidor deduplica sin saber qué
+    guarda— y cada snapshot va firmado con Ed25519. La firma se verifica con la clave pública **derivada de
+    la clave de cuenta**, no con una que diga el servidor: un servidor comprometido puede negar el servicio,
+    pero no colar, alterar ni reordenar un snapshot. Los blobs van directos al almacenamiento con URLs
+    prefirmadas y no pasan por el API.
+  - **Dos secretos con dos dueños**: la identidad la da Keycloak y el cifrado una **frase de bóveda** que
+    nunca llega al servidor, más un **código de recuperación** que se enseña una sola vez. Perder los dos
+    hace irrecuperable la copia de la nube; los snapshots locales siguen siendo la fuente primaria.
+  - **Revocar un equipo** lo echa del API en su siguiente petición —el dispositivo se comprueba en cada una—,
+    pero no borra la clave que ese equipo ya tiene: para eso hace falta rotar la clave de cuenta (F4).
+  - Los archivos de la nube de este equipo viven en `~/.config/ccp/cloud` (0700, todos 0600).
+
+- **El backend `ccp-cloud`**: el API `/v1` (dispositivos, bóveda, blobs prefirmados y snapshots) con
+  Postgres, migraciones SQL embebidas y almacenamiento S3, en `cmd/ccp-cloud` e `internal/cloud/`. Se
+  configura por entorno y guarda **solo datos opacos**. El despliegue público queda pendiente de que el
+  usuario lo autorice.
+
+- **`ccp snapshot restore` traduce el HOME de origen.** Un snapshot hecho bajo `/Users/ana` y restaurado
+  donde el HOME es `/Users/jose` traía rutas que no existen. Ahora el HOME se reescribe dentro de las reglas
+  de carpeta, los comandos de hooks y de MCP y la ruta de cada proyecto, y el plan lo anuncia. Las
+  conversaciones se dejan intactas: sus rutas son historia, describen dónde ocurrió algo.
+
 - **La app: P-17 evoluciona de «Copias» a Snapshots** (spec §8). La historia de toda la
   configuración en una pantalla: línea de tiempo con etiqueta, disparador, fecha, tamaño y fijados;
   el detalle de qué captura cada snapshot, agrupado por el mismo prefijo que entiende `--only`;

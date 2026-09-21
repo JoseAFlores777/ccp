@@ -756,6 +756,63 @@ window, each project), and from there you pin it, label it, export it or compare
 - The `.tar.gz` copies of `ccp backup` are still in **Settings**: they are the old format, good for moving a
   configuration to another machine by hand.
 
+## Cloud — the same history, on your own server
+
+`ccp snapshot` is the history on this machine. `ccp cloud` is that same history on a server of yours, so a
+second Mac can pick it up. **Everything is encrypted here before it leaves**: the server stores sealed text,
+opaque ids and signatures it cannot make, and it never sees the key.
+
+```bash
+# first machine
+ccp cloud login https://ccp.example.com   # device code: approve it in the browser
+ccp cloud init                            # create the vault; WRITE DOWN the recovery code
+ccp snapshot create -m "first upload"
+ccp cloud push                            # uploads what the cloud does not have
+
+# the other machine
+ccp cloud login https://ccp.example.com
+ccp cloud unlock                          # the vault passphrase (not your account password)
+ccp cloud pull latest                     # downloads it into the local store
+ccp snapshot restore latest               # shows the plan; add --yes to apply it
+
+ccp cloud status      # server, account, machine, vault, how many are pending
+ccp cloud list        # snapshots in the cloud, from every machine
+ccp cloud devices     # your machines; `ccp cloud revoke <id>` throws one out
+ccp cloud logout      # revoke this machine and delete its token and local vault
+```
+
+**Two secrets, and they are not the same one.** Your account password lives in the login page and answers
+*who are you*. The **vault passphrase** never reaches the server and answers *can you read this*. The
+**recovery code** is shown once, when you create the vault: keep it off this machine (a password manager,
+paper). Lose the passphrase *and* the code and the cloud copy cannot be recovered — your local snapshots are
+still the primary source.
+
+**What the server sees, and what it does not:**
+
+| It sees | It does not see |
+|---|---|
+| When each snapshot was made, how big it is, which machine sent it and which one it follows | What is inside any of them: blobs and manifests arrive sealed |
+| Opaque ids (an HMAC of the local hash), enough to store each thing once | Whether you have a particular file: it cannot check an id it did not receive |
+| Your machines: name, platform, last contact | Your API keys, MCP tokens, hooks or instructions |
+
+- **Signatures are checked against your own key.** Every snapshot is signed with a key derived from the vault
+  key, and `pull` verifies it with the public half derived here — never with one the server hands over. A
+  compromised server can refuse to serve you; it cannot slip in, alter or reorder a snapshot.
+- **Blobs never pass through the API.** They go straight between this machine and the storage, with
+  pre-signed URLs. Anything over 64 MiB is left behind and `push` says which.
+- **Paths are translated between machines.** A snapshot taken under `/Users/ana` and restored where HOME is
+  `/Users/jose` rewrites the HOME inside folder rules, hook and MCP commands and each project's path — the
+  restore announces it («Paths from … rewritten to …»). Conversations are history: their paths describe where
+  something happened, so they are left alone.
+- **Revoking a machine** throws it out of the API on its very next request. It does not erase the key that
+  machine already has: if you fear a leak, the answer is rotating the account key, which is not here yet.
+- **This machine's cloud files** live in `~/.config/ccp/cloud` (0700, every file 0600): the session, the
+  device token, the unlocked key and which snapshots are already uploaded.
+
+Setting up the server (Postgres + Keycloak + S3 storage + the `ccp-cloud` API) is a separate job; the pieces
+live in `deploy/ccp-cloud/`. **The public deployment is pending the owner's authorization**, so until then
+`ccp cloud` points at whatever server you run yourself.
+
 ## Detect the machine — `ccp scan` and `ccp adopt`
 
 `ccp scan` lists everything Claude-related on this machine: your global `~/.claude`, each profile, the MCP
@@ -1008,6 +1065,7 @@ With commands: `ccp config show` · `ccp config set <clave> <valor>` · `ccp con
 | Status / diagnostics | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
 | Snapshots | `ccp snapshot create\|list\|diff\|restore\|export\|import` |
+| Cloud | `ccp cloud login\|init\|unlock\|push\|pull\|list\|devices` |
 | Add or remove an MCP server | `ccp mcp add\|rm <n>` · `ccp mcp list` |
 | Turn an inherited MCP off in one profile | `ccp mcp disable <n> --profile <perfil>` |
 | Update | `ccp upgrade` |
