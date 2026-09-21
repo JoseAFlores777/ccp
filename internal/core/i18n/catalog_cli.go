@@ -198,6 +198,10 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "%s: %s not projected into %s yet (ccp profile sync).",
 		Es: "%s: %s sin proyectar todavía en %s (ccp profile sync).",
 	},
+	"cli.profile.check_mcp_removed": {
+		En: "%s: %s are going to be removed from %s (ccp profile sync).",
+		Es: "%s: %s se van a retirar de %s (ccp profile sync).",
+	},
 	"cli.profile.check_artifacts": {
 		En: "%s: %s are declared by the profile and are not mirrored into its cc-home yet (ccp profile sync).",
 		Es: "%s: %s los declara el perfil y todavía no están espejados en su cc-home (ccp profile sync).",
@@ -221,6 +225,10 @@ var catalogCLI = map[string]map[Lang]string{
 	"cli.profile.mcp_error": {
 		En: "%s: the MCP projection failed (%s); the profile was regenerated anyway and it is retried on the next sync.",
 		Es: "%s: la proyección de MCP falló (%s); el perfil se regeneró igual y se reintenta en el próximo sync.",
+	},
+	"cli.profile.check_mcp_error": {
+		En: "%s: the MCP layers cannot be read (%s), so their projection cannot be checked.",
+		Es: "%s: no se pueden leer las capas de MCP (%s), así que no se puede comprobar su proyección.",
 	},
 	"cli.profile.sync_unsaved": {
 		En: "%s: could not save in its overlay what you changed with /config (%s): %s. It was regenerated without it; the copy is listed below.",

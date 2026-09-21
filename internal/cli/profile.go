@@ -494,14 +494,22 @@ func profileSyncCheck(home, name string, lang i18n.Lang, stdout, stderr io.Write
 	return 0
 }
 
-// printProjectionCheck reutiliza los mismos textos que la proyección de verdad
-// imprime en printSettingsDrift: si el check dijera las cosas de otra manera,
-// leerlo antes del sync y después no serviría para comparar.
+// printProjectionCheck reutiliza los textos de la proyección de verdad siempre
+// que digan lo mismo: si el check contara las cosas de otra manera, leerlo antes
+// del sync y después no serviría para comparar. Las excepciones son los dos
+// textos que en futuro no son ciertos (una retirada y un fallo de lectura sin
+// regeneración), que tienen su propia clave.
 func printProjectionCheck(w io.Writer, lang i18n.Lang, c core.ProjectionCheck) {
 	for _, m := range c.MCP {
 		dest := i18n.T(lang, "cli.profile.mcp_dest_"+m.Target)
-		if pend := append(append([]string{}, m.Written...), m.Removed...); len(pend) > 0 {
-			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.check_mcp", c.Profile, strings.Join(pend, ", "), dest)))
+		// Escrituras y retiradas son movimientos opuestos: fundirlas en una
+		// lista hacía que un servidor que el sync va a QUITAR del destino se
+		// anunciara como «sin proyectar todavía», justo lo contrario.
+		if len(m.Written) > 0 {
+			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.check_mcp", c.Profile, strings.Join(m.Written, ", "), dest)))
+		}
+		if len(m.Removed) > 0 {
+			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.check_mcp_removed", c.Profile, strings.Join(m.Removed, ", "), dest)))
 		}
 		if len(m.Conflicts) > 0 {
 			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.mcp_conflict", c.Profile, dest, strings.Join(m.Conflicts, ", "))))
@@ -522,7 +530,9 @@ func printProjectionCheck(w io.Writer, lang i18n.Lang, c core.ProjectionCheck) {
 	if len(c.Artifacts) > 0 {
 		fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.check_artifacts", c.Profile, strings.Join(c.Artifacts, ", "))))
 	}
+	// mcp_error termina prometiendo que «el perfil se regeneró igual»: aquí no
+	// se regeneró nada, porque el check no escribe.
 	if c.Err != "" {
-		fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.mcp_error", c.Profile, c.Err)))
+		fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.check_mcp_error", c.Profile, c.Err)))
 	}
 }
