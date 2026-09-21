@@ -65,3 +65,5 @@ func TestMemCommitSnapshotDispositivoDesconocido(t *testing.T) {
 
 // TestMemGroupContract: los grupos de dispositivos y su etiqueta en las revisiones.
 func TestMemGroupContract(t *testing.T) { runGroupContract(t, NewMem()) }
+
+func TestMemAuditContract(t *testing.T) { runAuditContract(t, NewMem()) }
