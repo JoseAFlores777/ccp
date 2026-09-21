@@ -278,11 +278,19 @@ func TestLimitsAndValidation(t *testing.T) {
 	if code := e.call("POST", "/v1/snapshots", tok, dev, big, nil); code != 413 {
 		t.Fatalf("manifiesto enorme = %d, quiero 413", code)
 	}
+	// Los ids del caso «demasiados» tienen que ser VÁLIDOS y distintos: con
+	// cadenas vacías el 400 lo daba la validación de ids y el tope nunca se
+	// llegaba a evaluar, así que la comprobación se podía borrar sin que
+	// ningún test se enterase.
+	demasiados := make([]string, 0, api.MaxPresignIDs+1)
+	for i := range api.MaxPresignIDs + 1 {
+		demasiados = append(demasiados, fmt.Sprintf("%064x", i))
+	}
 	for name, req := range map[string]api.PresignReq{
 		"op rara":     {Op: "delete", IDs: []string{id("ab")}},
 		"id inválido": {Op: "put", IDs: []string{"../x"}},
 		"sin ids":     {Op: "put"},
-		"demasiados":  {Op: "put", IDs: make([]string, api.MaxPresignIDs+1)},
+		"demasiados":  {Op: "put", IDs: demasiados},
 	} {
 		if code := e.call("POST", "/v1/blobs/presign", tok, dev, req, nil); code != 400 {
 			t.Errorf("%s: presign = %d, quiero 400", name, code)
