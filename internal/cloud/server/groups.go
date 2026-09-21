@@ -26,8 +26,13 @@ func toGroup(g store.Group) api.Group {
 
 // groupInput valida lo que llega y devuelve el grupo listo para el almacén.
 // Un equipo revocado no entra: no va a volver a preguntar, así que la orden
-// que se le publique se queda pendiente para siempre en el portal.
-func (s *srv) groupInput(w http.ResponseWriter, r *http.Request, rc reqCtx, in api.GroupIn) (store.Group, bool) {
+// que se le publique se queda pendiente para siempre en el portal. Pero
+// revocar NO saca al equipo de los grupos en los que ya estaba, así que los
+// que `ya` están dentro pasan: sin esa excepción, guardar el grupo tal y como
+// el servidor lo devuelve —leer, modificar, escribir, que es lo que hace
+// `ccp cloud groups set`— se volvía imposible hasta adivinar cuál de los
+// miembros está revocado.
+func (s *srv) groupInput(w http.ResponseWriter, r *http.Request, rc reqCtx, in api.GroupIn, ya []string) (store.Group, bool) {
 	name := strings.TrimSpace(in.Name)
 	if name == "" || len(name) > api.MaxGroupNameLen || len(in.Members) > api.MaxGroupMembers {
 		writeError(w, http.StatusBadRequest, api.CodeBadRequest,
@@ -46,8 +51,14 @@ func (s *srv) groupInput(w http.ResponseWriter, r *http.Request, rc reqCtx, in a
 		return store.Group{}, false
 	}
 	revocado := map[string]bool{}
+	nombre := map[string]string{}
 	for _, d := range devs {
 		revocado[d.ID] = d.Revoked
+		nombre[d.ID] = d.Name
+	}
+	dentro := map[string]bool{}
+	for _, id := range ya {
+		dentro[id] = true
 	}
 	for _, id := range in.Members {
 		rev, existe := revocado[id]
@@ -55,8 +66,11 @@ func (s *srv) groupInput(w http.ResponseWriter, r *http.Request, rc reqCtx, in a
 			writeError(w, http.StatusNotFound, api.CodeNotFound, "dispositivo no encontrado")
 			return store.Group{}, false
 		}
-		if rev {
-			writeError(w, http.StatusConflict, api.CodeConflict, "ese dispositivo está revocado")
+		// El mensaje nombra el equipo: quien manda la lista entera no sabe
+		// cuál de los que escribió es el revocado.
+		if rev && !dentro[id] {
+			writeError(w, http.StatusConflict, api.CodeConflict,
+				"el dispositivo «"+nombre[id]+"» está revocado")
 			return store.Group{}, false
 		}
 	}
@@ -81,7 +95,7 @@ func (s *srv) createGroup(w http.ResponseWriter, r *http.Request, rc reqCtx) {
 	if !decode(w, r, 64<<10, &in) {
 		return
 	}
-	g, ok := s.groupInput(w, r, rc, in)
+	g, ok := s.groupInput(w, r, rc, in, nil)
 	if !ok {
 		return
 	}
@@ -121,11 +135,19 @@ func (s *srv) updateGroup(w http.ResponseWriter, r *http.Request, rc reqCtx) {
 	if !decode(w, r, 64<<10, &in) {
 		return
 	}
-	g, ok := s.groupInput(w, r, rc, in)
+	// Se lee el grupo antes de validar para saber quién ya estaba dentro: un
+	// miembro revocado que no se toca no puede bloquear el resto del cambio.
+	id := r.PathValue("id")
+	actual, err := s.cfg.Store.Group(r.Context(), rc.user.ID, id)
+	if err != nil {
+		s.groupError(w, r, err)
+		return
+	}
+	g, ok := s.groupInput(w, r, rc, in, actual.Members)
 	if !ok {
 		return
 	}
-	g.ID = r.PathValue("id")
+	g.ID = id
 	got, err := s.cfg.Store.UpdateGroup(r.Context(), rc.user.ID, g)
 	if err != nil {
 		s.groupError(w, r, err)

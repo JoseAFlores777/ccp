@@ -176,3 +176,52 @@ func TestGrupoRevisionConGrupoInexistente(t *testing.T) {
 		t.Fatalf("grupo con forma rara = %d; quiero 400", code)
 	}
 }
+
+// Revocar un equipo no lo saca de los grupos en los que ya estaba, así que
+// guardar el grupo tal y como el servidor lo devuelve tiene que seguir
+// funcionando: si no, `ccp cloud groups set` deja el grupo congelado hasta que
+// el usuario adivine cuál de los que escribió está revocado. Añadir uno nuevo
+// revocado sigue siendo 409, y el mensaje lo nombra.
+func TestGrupoConservaRevocadoYaDentro(t *testing.T) {
+	e := newEnv(t)
+	tok := e.iss.AccessToken()
+	portal, mac := e.newDevice(tok, "portal"), e.newDevice(tok, "mac")
+	e.iss.NewSession("sesion-mac2")
+	mac2 := e.newDevice(e.iss.AccessToken(), "mac2")
+
+	var g api.Group
+	if code := e.call("POST", "/v1/groups", tok, portal,
+		api.GroupIn{Name: "Macs", Members: []string{mac, mac2}}, &g); code != 201 {
+		t.Fatalf("POST /v1/groups = %d", code)
+	}
+	if code := e.call("DELETE", "/v1/devices/"+mac2, tok, portal, nil, nil); code != 204 {
+		t.Fatalf("revocar = %d", code)
+	}
+	var leido api.Group
+	if code := e.call("GET", "/v1/groups/"+g.ID, tok, portal, nil, &leido); code != 200 || len(leido.Members) != 2 {
+		t.Fatalf("GET /v1/groups/{id} = %d %+v", code, leido)
+	}
+	var ed api.Group
+	if code := e.call("PUT", "/v1/groups/"+g.ID, tok, portal,
+		api.GroupIn{Name: leido.Name, Members: leido.Members}, &ed); code != 200 {
+		t.Fatalf("guardar el grupo tal cual = %d; quiero 200", code)
+	}
+	if len(ed.Members) != 2 {
+		t.Fatalf("miembros tras guardar = %+v", ed.Members)
+	}
+	// Uno revocado que NO estaba dentro sí se rechaza, con su nombre.
+	e.iss.NewSession("sesion-mac3")
+	mac3 := e.newDevice(e.iss.AccessToken(), "mac3")
+	if code := e.call("DELETE", "/v1/devices/"+mac3, tok, portal, nil, nil); code != 204 {
+		t.Fatalf("revocar mac3 = %d", code)
+	}
+	var errBody api.Error
+	code := e.call("PUT", "/v1/groups/"+g.ID, tok, portal,
+		api.GroupIn{Name: leido.Name, Members: append(leido.Members, mac3)}, &errBody)
+	if code != 409 {
+		t.Fatalf("añadir un revocado = %d; quiero 409", code)
+	}
+	if !strings.Contains(errBody.Message, "mac3") {
+		t.Fatalf("el 409 no nombra el dispositivo: %q", errBody.Message)
+	}
+}
