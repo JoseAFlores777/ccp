@@ -169,3 +169,34 @@ func TestDesktopNombreSueltoEsAtajoDeOpen(t *testing.T) {
 		t.Errorf("el atajo debería planificar como open: %s", out.String())
 	}
 }
+
+// El arranque de la ventana es lo que aplica la proyección aplazada, así que
+// `open` tiene que enterarse de que hay algo pendiente. Con --dry-run se avisa
+// en vez de aplicarlo: un dry-run que escribe el chat no es un dry-run.
+func TestDesktopOpenAvisaDeLoAplazado(t *testing.T) {
+	home := homeConPerfil(t, "work", "official")
+	dd := core.DesktopDataDir(home, "work")
+	if err := os.MkdirAll(dd, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cfgFile := filepath.Join(dd, "claude_desktop_config.json")
+	if err := os.WriteFile(cfgFile, []byte(`{"preferences":{}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Se deja pendiente como lo dejaría un sync con la ventana viva.
+	eff := []core.MCPEntry{{Name: "fs", Def: map[string]any{"command": "npx"}}}
+	if _, err := core.ProjectMCPToDesktop(home, "work", eff, true); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errb bytes.Buffer
+	if code := Dispatch([]string{"desktop", "open", "work", "--dry-run"}, &out, &errb); code != 0 {
+		t.Fatalf("exit = %d: %s", code, errb.String())
+	}
+	if !strings.Contains(out.String(), "MCP") {
+		t.Errorf("open debería avisar de lo aplazado: %s", out.String())
+	}
+	if !core.DesktopProjectionPending(home, "work") {
+		t.Error("--dry-run aplicó la proyección")
+	}
+}

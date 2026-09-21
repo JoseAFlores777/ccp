@@ -18,7 +18,9 @@
     y un nombre declarado que ya estaba ahí se informa como conflicto en vez de pisarse.
   - **El chat de Desktop tiene dos límites, y son suyos** (ADR 0016): solo entradas `stdio` —una `http`/`sse`
     se informa en vez de escribirse— y no se escribe con la ventana abierta, porque no la relee en caliente:
-    el cambio queda pendiente hasta el siguiente arranque. En tu ventana principal (`default`) no se escribe.
+    el cambio queda pendiente hasta el siguiente arranque, y es el arranque el que lo aplica: tanto
+    `ccp desktop open` como el lanzador del Dock aplican lo pendiente justo antes de lanzar la ventana.
+    En tu ventana principal (`default`) no se escribe.
   - **`overlay/{agents,commands,skills,output-styles}/`**: en cuanto el perfil tiene algo propio, su
     directorio del `cc-home` pasa a ser global ∪ perfil, con directorios reales y symlinks solo en las hojas
     (la forma que Desktop exige). `profile add` no cambia.

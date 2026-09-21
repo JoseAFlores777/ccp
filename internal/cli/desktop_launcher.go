@@ -117,6 +117,11 @@ func RunDesktopLauncher(appPath string, args []string) int {
 	if _, merr := core.MirrorForDesktop(home, profile); merr != nil {
 		fmt.Fprintf(os.Stderr, "ccp: no se pudo espejar el cc-home: %v\n", merr)
 	}
+	// Igual que en `ccp desktop open`: la proyección aplazada se aplica antes de
+	// que la ventana viva vuelva a tener el archivo del chat en memoria.
+	if _, _, perr := core.ApplyDesktopPending(home, profile); perr != nil {
+		fmt.Fprintf(os.Stderr, "ccp: no se pudo aplicar la proyección pendiente: %v\n", perr)
+	}
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return desktopLauncherFail("no se pudo crear el user-data-dir", err)
 	}

@@ -84,7 +84,10 @@ Dos límites salen medidos del 0016 y los dos están en el código, no en la doc
 - **No se escribe con la ventana corriendo** (M3 + M5). Desktop no relee el archivo en caliente y lo
   reescribe desde su copia en memoria, así que una escritura en caliente se pierde o pelea. Con la
   ventana viva la proyección queda **aplazada** (`profiles/<n>/state/desktop-pending.json`) y se aplica al
-  siguiente arranque. Nunca se mata una ventana por sorpresa.
+  siguiente arranque. Quien la aplica es el propio arranque: `ccp desktop open` y el lanzador del Dock
+  llaman a `ApplyDesktopPending` justo antes de lanzar (donde ya se espeja el cc-home y la ventana aún no
+  está viva). Sin ese gancho el marcador sobrevivía a abrir y cerrar la ventana y el remedio que pedía el
+  doctor era justo el que no lo arreglaba. Nunca se mata una ventana por sorpresa.
 
 La sonda de «¿está corriendo?» **no** vive en `core`: `internal/cli` la inyecta con
 `SetDesktopRunningProbe`, igual que `SetAutoHooksBin`. Sin inyectar se responde «no corre», que es lo que

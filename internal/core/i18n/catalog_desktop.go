@@ -72,6 +72,17 @@ var catalogDesktop = map[string]map[Lang]string{
 		En: "would convert in '%s': %s (run without --dry-run to apply)",
 		Es: "convertiría en '%s': %s (córrelo sin --dry-run para aplicarlo)",
 	},
+	// La proyección que se aplazó por tener la ventana viva se aplica aquí,
+	// antes de lanzar: es el único momento en que el archivo del chat se puede
+	// escribir sin que Desktop lo pise desde su copia en memoria.
+	"cli.desktop.pending_applied": {
+		En: "Profile '%s': the MCP that were waiting for this window are now in its chat config (%s).",
+		Es: "Perfil '%s': los MCP que esperaban a esta ventana ya están en la config de su chat (%s).",
+	},
+	"cli.desktop.pending_pending": {
+		En: "Profile '%s' has MCP waiting for this window; launching it applies them (run without --dry-run).",
+		Es: "El perfil '%s' tiene MCP esperando a esta ventana; lanzarla los aplica (córrelo sin --dry-run).",
+	},
 	"cli.desktop.launched": {
 		En: "Claude Desktop launched with profile '%s'.",
 		Es: "Claude Desktop lanzado con el perfil '%s'.",
