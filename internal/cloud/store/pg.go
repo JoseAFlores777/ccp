@@ -250,6 +250,12 @@ func (p *PG) KnownBlobs(ctx context.Context, userID string, ids []string) (map[s
 	return out, rows.Err()
 }
 
+// insertSnapshotSQL está fuera para poder comprobarlo sin base de datos: lo
+// que esta sentencia omite se queda en el DEFAULT del esquema, y el barrido de
+// la misma petición ya lee la fila escrita.
+const insertSnapshotSQL = `INSERT INTO snapshots (user_id, id, parent, device_id, created, manifest, sig, size, pinned, manifest_sha256)
+	VALUES ($1::uuid, $2, $3, $4::uuid, $5, $6, $7, $8, $9, sha256($6))`
+
 // CommitSnapshot es una transacción, y de ahí salen las dos garantías: un
 // snapshot a medias no existe, y una referencia a un blob sin registrar la
 // rechaza la clave foránea antes de que nada se haya confirmado.
@@ -294,9 +300,8 @@ func (p *PG) CommitSnapshot(ctx context.Context, userID string, s Snapshot, newB
 	// El digest lo calcula Postgres sobre el mismo valor que escribe: así el
 	// hash con el que se verifica la firma no puede describir otros bytes que
 	// los guardados.
-	if _, err := tx.Exec(ctx, `INSERT INTO snapshots (user_id, id, parent, device_id, created, manifest, sig, size, manifest_sha256)
-		VALUES ($1::uuid, $2, $3, $4::uuid, $5, $6, $7, $8, sha256($6))`,
-		userID, s.ID, s.Parent, s.DeviceID, s.Created, s.Manifest, s.Sig, s.Size); err != nil {
+	if _, err := tx.Exec(ctx, insertSnapshotSQL,
+		userID, s.ID, s.Parent, s.DeviceID, s.Created, s.Manifest, s.Sig, s.Size, s.Pinned); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return false, nil // otro commit del mismo snapshot ganó la carrera

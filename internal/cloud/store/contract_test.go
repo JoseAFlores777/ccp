@@ -113,7 +113,7 @@ func runContract(t *testing.T, s Store) {
 	if known, _ := s.KnownBlobs(ctx, other.ID, []string{ba}); len(known) != 0 {
 		t.Fatal("los blobs de un usuario se ven desde otro")
 	}
-	s2 := Snapshot{ID: hexID('2'), Parent: s1.ID, DeviceID: d2.ID, Created: now.Add(time.Minute), Manifest: []byte("m2"), Sig: []byte("s2"), Size: 10}
+	s2 := Snapshot{ID: hexID('2'), Parent: s1.ID, DeviceID: d2.ID, Created: now.Add(time.Minute), Manifest: []byte("m2"), Sig: []byte("s2"), Size: 10, Pinned: true}
 	if _, err := s.CommitSnapshot(ctx, u.ID, s2, nil, []string{ba}); err != nil {
 		t.Fatalf("snapshot que reusa un blob: %v", err)
 	}
@@ -141,6 +141,23 @@ func runContract(t *testing.T, s Store) {
 	}
 	if _, err := s.Snapshot(ctx, other.ID, s1.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatal("un snapshot se ve desde otro usuario")
+	}
+
+	// El fijado llega en el commit, no después: el barrido corre en la misma
+	// petición que la subida, así que un snapshot que se guarda sin fijar se
+	// poda antes de que nadie pueda fijarlo.
+	fijado, err := s.Snapshot(ctx, u.ID, s2.ID)
+	if err != nil || !fijado.Pinned {
+		t.Fatalf("el commit perdió el fijado: %+v, %v", fijado, err)
+	}
+	if l, _ := s.Snapshots(ctx, u.ID, "", 10); len(l) == 0 || !l[0].Pinned {
+		t.Fatalf("la lista perdió el fijado: %+v", l)
+	}
+	if err := s.SetPinned(ctx, u.ID, s2.ID, false); err != nil {
+		t.Fatalf("SetPinned: %v", err)
+	}
+	if desfijado, _ := s.Snapshot(ctx, u.ID, s2.ID); desfijado.Pinned {
+		t.Fatal("SetPinned(false) no desfija")
 	}
 
 	// Podar: se va el contenido, se queda el eslabón. Y un blob que otro
