@@ -281,3 +281,30 @@ func pistaDePull(t *testing.T, out string) []string {
 	t.Fatalf("pull no imprimió ninguna pista: %q", out)
 	return nil
 }
+
+// Con --json, el stdout es el protocolo: un destino vacío es un estado normal
+// —la carpeta recién elegida—, así que se cuenta con JSON válido y la prosa se
+// va a stderr. Escribir la frase en stdout revienta a quien haga `| jq`.
+func TestSyncDestinoVacioSigueSiendoJSON(t *testing.T) {
+	t.Setenv("CCP_SYNC_PASSPHRASE", fraseSync)
+	snapEnv(t)
+	if code, out, errs := snapRun(t, "sync", "remote", "add", "icloud", "file://"+t.TempDir()); code != 0 {
+		t.Fatalf("remote add: %d %q %q", code, out, errs)
+	}
+	for _, args := range [][]string{
+		{"sync", "pull", "--json"},
+		{"sync", "apply", "--json", "--plan"},
+	} {
+		code, out, errs := snapRun(t, args...)
+		if code != 0 {
+			t.Fatalf("%v: %d %q %q", args, code, out, errs)
+		}
+		var v any
+		if err := json.Unmarshal([]byte(out), &v); err != nil {
+			t.Fatalf("%v: stdout no es JSON (%v): %q", args, err, out)
+		}
+		if !strings.Contains(errs, "icloud") {
+			t.Fatalf("%v: el aviso no salió por stderr: %q", args, errs)
+		}
+	}
+}
