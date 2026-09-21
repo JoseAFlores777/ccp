@@ -17,6 +17,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
 )
@@ -105,6 +106,18 @@ func srvConfigItemPut(s *server, raw json.RawMessage) (any, error) {
 	return okWrite(w), nil
 }
 
+// srvPreDeleteSnapshot es la red de los borrados del editor. Un «Quitar» de la
+// GUI puede llevarse un archivo entero (el CLAUDE.md global) tras un solo
+// modal, y por la ruta de serve no pasa ni el snapshot del día, que solo corre
+// desde Dispatch. Como en profiles.rm y backup.restore: si no sale, no se
+// borra nada.
+func srvPreDeleteSnapshot(s *server) error {
+	if _, err := autoSnapshot(s.home, "pre-config-delete"); err != nil {
+		return fmt.Errorf("no se pudo guardar el snapshot de seguridad y no se borró nada: %w", err)
+	}
+	return nil
+}
+
 func srvConfigItemDelete(s *server, raw json.RawMessage) (any, error) {
 	p, err := params[cfgRefParams](raw)
 	if err != nil {
@@ -112,6 +125,9 @@ func srvConfigItemDelete(s *server, raw json.RawMessage) (any, error) {
 	}
 	r, err := srvCfgRoots(s)
 	if err != nil {
+		return nil, err
+	}
+	if err := srvPreDeleteSnapshot(s); err != nil {
 		return nil, err
 	}
 	w, err := core.ConfigItemDelete(r, p.Ref)
@@ -185,6 +201,9 @@ func srvMCPDelete(s *server, raw json.RawMessage) (any, error) {
 	}
 	r, err := srvCfgRoots(s)
 	if err != nil {
+		return nil, err
+	}
+	if err := srvPreDeleteSnapshot(s); err != nil {
 		return nil, err
 	}
 	w, err := core.MCPDelete(r, p.Layer, p.Name)
