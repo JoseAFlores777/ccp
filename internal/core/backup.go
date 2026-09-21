@@ -482,7 +482,7 @@ func applyProfile(home string, ba *backupArchive, bc *Config, name string, cur *
 		rel := strings.TrimPrefix(memberName, "profiles/"+name+"/")
 		// validateBackupPaths ya lo exigió; se repite aquí porque este es el
 		// punto que escribe, y un caller nuevo no debe poder saltárselo.
-		if !backupProfileFiles[rel] {
+		if !backupProfileAllowed(rel) {
 			return fmt.Errorf("el backup trae %q, que ccp no restaura", memberName)
 		}
 		dst := filepath.Join(profileDirPath(home, name), filepath.FromSlash(rel))

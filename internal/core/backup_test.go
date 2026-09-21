@@ -617,3 +617,45 @@ func TestBackupRestoreRejectsInvalidProfileName(t *testing.T) {
 		t.Fatalf("restore escribió en %s", victim)
 	}
 }
+
+// TestBackupRoundTripArtefactosDePerfil: lo que el export mete, el restore lo
+// tiene que poder escribir. Los artefactos de perfil (overlay/agents/…, spec
+// §6.2) entran siempre en el tar, así que cualquier perfil con un agente
+// producía un backup irrestaurable — y con --overwrite el fallo llegaba
+// DESPUÉS del RemoveAll, dejando el perfil borrado.
+func TestBackupRoundTripArtefactosDePerfil(t *testing.T) {
+	home := setupHome(t)
+	agentDir := filepath.Join(cfgOverlayDir(home, "work"), "agents")
+	if err := os.MkdirAll(agentDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(agentDir, "rev.md"), []byte("# rev\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	dest := filepath.Join(t.TempDir(), "art.tar.gz")
+	if err := BackupExport(home, dest, false, fixedTime); err != nil {
+		t.Fatalf("export: %v", err)
+	}
+
+	target := t.TempDir()
+	if _, err := BackupRestore(target, dest, RestoreOpts{Now: fixedTime}); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(cfgOverlayDir(target, "work"), "agents", "rev.md"))
+	if err != nil || string(got) != "# rev\n" {
+		t.Errorf("agente no restaurado: %q err=%v", got, err)
+	}
+
+	// Y sobre un home que ya tiene el perfil: --overwrite no puede dejarlo a medias.
+	if _, err := BackupRestore(home, dest, RestoreOpts{Overwrite: true, Now: fixedTime}); err != nil {
+		t.Fatalf("restore overwrite: %v", err)
+	}
+	got, err = os.ReadFile(filepath.Join(cfgOverlayDir(home, "work"), "agents", "rev.md"))
+	if err != nil || string(got) != "# rev\n" {
+		t.Errorf("agente no restaurado con --overwrite: %q err=%v", got, err)
+	}
+	if !pathExists(ccHomePath(home, "work")) {
+		t.Error("cc-home del perfil desaparecido tras el restore")
+	}
+}
