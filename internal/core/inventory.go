@@ -608,6 +608,13 @@ func (w *invWalker) invMCPServers(servers map[string]any, o invMCPOpts) {
 // disco; uno relativo solo si hay LookPath, porque sin él no se puede saber y
 // acusar en falso a un servidor sano ensuciaría los pendientes del plan.
 func (w *invWalker) mcpMissing(cmd, pluginRoot string) string {
+	return mcpMissingCommand(cmd, pluginRoot, w.lookPath)
+}
+
+// mcpMissingCommand es la regla suelta, compartida con el doctor (§6.4): una
+// sola definición de «este command no resuelve», porque dos acabarían
+// respondiendo cosas distintas sobre el mismo servidor.
+func mcpMissingCommand(cmd, pluginRoot string, look func(string) (string, error)) string {
 	c := cmd
 	if pluginRoot != "" {
 		c = strings.ReplaceAll(c, "${CLAUDE_PLUGIN_ROOT}", pluginRoot)
@@ -622,10 +629,10 @@ func (w *invWalker) mcpMissing(cmd, pluginRoot string) string {
 		}
 		return ""
 	}
-	if w.lookPath == nil {
+	if look == nil {
 		return ""
 	}
-	if _, err := w.lookPath(c); err != nil {
+	if _, err := look(c); err != nil {
 		return cmd
 	}
 	return ""

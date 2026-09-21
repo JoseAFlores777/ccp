@@ -131,6 +131,17 @@ func mcpWant(eff []MCPEntry, target string, p *MCPProjection) map[string]any {
 // ProjectMCPToCLI escribe los MCP efectivos en cc-home/.claude.json del perfil.
 // `default` no se proyecta: su destino ES la capa global (~/.claude.json).
 func ProjectMCPToCLI(home, name string, eff []MCPEntry) (MCPProjection, error) {
+	return projectMCPToCLI(home, name, eff, false)
+}
+
+// CheckMCPToCLI es la misma proyección en modo check: calcula el informe y no
+// escribe nada (ni el destino ni el registro de gestionados). Lo usa
+// ProfileProjectionCheck, y con él `ccp profile sync --check`.
+func CheckMCPToCLI(home, name string, eff []MCPEntry) (MCPProjection, error) {
+	return projectMCPToCLI(home, name, eff, true)
+}
+
+func projectMCPToCLI(home, name string, eff []MCPEntry, dry bool) (MCPProjection, error) {
 	p := MCPProjection{Target: MCPTargetCLI}
 	if name == "" || name == "default" {
 		return p, nil
@@ -163,9 +174,12 @@ func ProjectMCPToCLI(home, name string, eff []MCPEntry) (MCPProjection, error) {
 	if !changed {
 		// Aun así se deja el registro al día: un .ccp-managed.json perdido no
 		// puede convertir en ajeno lo que ccp sí escribió.
-		if !slices.Equal(readManaged(managedPath), now) {
+		if !dry && !slices.Equal(readManaged(managedPath), now) {
 			_ = writeManaged(managedPath, now)
 		}
+		return p, nil
+	}
+	if dry {
 		return p, nil
 	}
 	if len(servers) == 0 {
@@ -229,6 +243,20 @@ func DesktopProjectionPending(home, name string) bool {
 //
 // `running` lo decide quien llama (core no ejecuta ps).
 func ProjectMCPToDesktop(home, name string, eff []MCPEntry, running bool) (MCPProjection, error) {
+	return projectMCPToDesktop(home, name, eff, running, false)
+}
+
+// CheckMCPToDesktop cuenta el desfase del chat sin escribir. `running` no entra:
+// con la ventana abierta la escritura se aplaza, pero el desfase existe igual y
+// es justo lo que hay que contar. Deferred sale del marcador que dejó la última
+// proyección aplazada, no de una sonda de procesos.
+func CheckMCPToDesktop(home, name string, eff []MCPEntry) (MCPProjection, error) {
+	p, err := projectMCPToDesktop(home, name, eff, false, true)
+	p.Deferred = DesktopProjectionPending(home, name)
+	return p, err
+}
+
+func projectMCPToDesktop(home, name string, eff []MCPEntry, running, dry bool) (MCPProjection, error) {
 	p := MCPProjection{Target: MCPTargetDesktop}
 	if name == "" {
 		return p, nil
@@ -239,7 +267,7 @@ func ProjectMCPToDesktop(home, name string, eff []MCPEntry, running bool) (MCPPr
 	}
 	p.File = filepath.Join(dir, "claude_desktop_config.json")
 	want := mcpWant(eff, MCPTargetDesktop, &p)
-	if running {
+	if running && !dry {
 		// Lo que se sabe de M5 no basta para escribir con la ventana viva.
 		if err := writeFileAtomic(desktopPendingPath(home, name), []byte("{}\n"), 0o600); err != nil {
 			return p, err
@@ -265,6 +293,9 @@ func ProjectMCPToDesktop(home, name string, eff []MCPEntry, running bool) (MCPPr
 	}
 	managed := reconcileManaged(readManaged(managedPath), servers, want)
 	servers, now, changed := projectMCPInto(servers, want, managed, &p)
+	if dry {
+		return p, nil
+	}
 	if changed {
 		if len(servers) == 0 {
 			delete(doc, "mcpServers")

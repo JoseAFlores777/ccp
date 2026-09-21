@@ -17,6 +17,10 @@ import (
 type DoctorCheck struct {
 	OK    bool
 	Label string
+	// Code es el código estable del hallazgo (spec §6.4), como en `desktop
+	// doctor`. Vacío en los chequeos de siempre (PATH, login), que no lo tenían
+	// y nadie los consulta por código.
+	Code string
 }
 
 // lookPath se inyecta en tests para no depender del PATH real de la máquina.
@@ -101,6 +105,11 @@ func Doctor(l i18n.Lang, home string) ([]DoctorCheck, error) {
 			}
 		}
 	}
+
+	// Los hallazgos de la proyección van al final y solo cuando hay algo que
+	// arreglar (spec §6.4): son cinco miradas por perfil y listarlas en verde
+	// escondería las rojas entre el ruido.
+	checks = append(checks, doctorProjection(l, home, c)...)
 
 	return checks, nil
 }
