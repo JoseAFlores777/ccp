@@ -26,7 +26,7 @@ func openTestPG(t *testing.T) *PG {
 	}
 	t.Cleanup(pg.Close)
 	// Base limpia en cada ejecución: el contrato crea usuarios con subs fijos.
-	for _, tbl := range []string{"audit_log", "snapshot_blobs", "snapshots", "blobs", "devices", "vaults", "users", "schema_migrations"} {
+	for _, tbl := range []string{"audit_log", "revisions", "snapshot_blobs", "snapshots", "blobs", "devices", "vaults", "users", "schema_migrations"} {
 		if _, err := pg.pool.Exec(ctx, "DROP TABLE IF EXISTS "+tbl+" CASCADE"); err != nil {
 			t.Fatalf("limpiar %s: %v", tbl, err)
 		}
@@ -42,6 +42,8 @@ func openTestPG(t *testing.T) *PG {
 }
 
 func TestPGContract(t *testing.T) { runContract(t, openTestPG(t)) }
+
+func TestPGRevisionContract(t *testing.T) { runRevisionContract(t, openTestPG(t)) }
 
 // El mismo desempate que el Store de memoria: dos snapshots del mismo instante
 // tienen que salir siempre en el mismo orden, o `limit` se queda con cualquiera.

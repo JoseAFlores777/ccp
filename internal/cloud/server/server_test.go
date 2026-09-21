@@ -17,8 +17,10 @@ import (
 
 	"github.com/JoseAFlores777/ccp/internal/cloud/api"
 	"github.com/JoseAFlores777/ccp/internal/cloud/blobs/blobstest"
+	"github.com/JoseAFlores777/ccp/internal/cloud/crypt"
 	"github.com/JoseAFlores777/ccp/internal/cloud/oidctest"
 	"github.com/JoseAFlores777/ccp/internal/cloud/store"
+	"github.com/JoseAFlores777/ccp/internal/vault"
 )
 
 type env struct {
@@ -524,4 +526,205 @@ func TestHeadAllNoCreaUnaGoroutinePorBlob(t *testing.T) {
 	}
 	close(bl.soltar)
 	<-hecho
+}
+
+// rev arma una revisión deseada mínima y válida.
+func rev(revID, prev, device, snapshot string) api.RevisionIn {
+	return api.RevisionIn{ID: revID, Prev: prev, DeviceID: device, Snapshot: snapshot,
+		Body: []byte(`{"cambios":[]}`), Sig: bytes.Repeat([]byte{7}, 64), Created: time.Now().UTC()}
+}
+
+func TestRevisionPublicarYRecoger(t *testing.T) {
+	e := newEnv(t)
+	tok := e.iss.AccessToken()
+	portal, mac := e.newDevice(tok, "portal"), e.newDevice(tok, "mac")
+
+	in := rev(id("a"), "", mac, id("1"))
+	var got api.Revision
+	if code := e.call("POST", "/v1/revisions", tok, portal, in, &got); code != 201 {
+		t.Fatalf("POST /v1/revisions = %d", code)
+	}
+	if got.State != api.RevPending || got.By != portal || got.DeviceName != "mac" || got.Snapshot != id("1") {
+		t.Fatalf("revisión publicada = %+v", got)
+	}
+	// La máquina destinataria la recoge entera: cuerpo y firma tal cual, que
+	// es lo único con lo que puede comprobar que la orden es de su cuenta.
+	var pend api.Revision
+	if code := e.call("GET", "/v1/revisions/pending", tok, mac, nil, &pend); code != 200 {
+		t.Fatalf("GET pending = %d", code)
+	}
+	if !bytes.Equal(pend.Body, in.Body) || !bytes.Equal(pend.Sig, in.Sig) || pend.ID != in.ID {
+		t.Fatalf("la revisión no vuelve intacta: %+v", pend)
+	}
+	// Y nadie más: la orden es para una máquina concreta.
+	if code := e.call("GET", "/v1/revisions/pending", tok, portal, nil, nil); code != 204 {
+		t.Fatalf("pending de otro equipo = %d; quiero 204", code)
+	}
+	var one api.Revision
+	if code := e.call("GET", "/v1/revisions/"+in.ID, tok, portal, nil, &one); code != 200 || !bytes.Equal(one.Sig, in.Sig) {
+		t.Fatalf("GET /v1/revisions/{id} = %d %+v", code, one)
+	}
+	var list []api.RevisionMeta
+	if code := e.call("GET", "/v1/revisions?device="+mac, tok, portal, nil, &list); code != 200 || len(list) != 1 {
+		t.Fatalf("listado = %d %+v", code, list)
+	}
+}
+
+func TestRevisionCadenaPorDispositivo(t *testing.T) {
+	e := newEnv(t)
+	tok := e.iss.AccessToken()
+	portal, mac := e.newDevice(tok, "portal"), e.newDevice(tok, "mac")
+	if code := e.call("POST", "/v1/revisions", tok, portal, rev(id("a"), "", mac, id("1")), nil); code != 201 {
+		t.Fatal("no publicó la primera")
+	}
+	// Encadenar mal es un conflicto, no una rama: si el servidor quitara un
+	// eslabón, el siguiente `prev` dejaría de cuadrar y se vería.
+	for name, prev := range map[string]string{"inventado": id("9"), "vacío": ""} {
+		if code := e.call("POST", "/v1/revisions", tok, portal, rev(id("b"), prev, mac, id("2")), nil); code != 409 {
+			t.Fatalf("prev %s = %d; quiero 409", name, code)
+		}
+	}
+	// Publicar sobre la pendiente la reemplaza: la orden vieja nunca llegó a
+	// la máquina, así que no se cierra como fallida.
+	if code := e.call("POST", "/v1/revisions", tok, portal, rev(id("b"), id("a"), mac, id("2")), nil); code != 201 {
+		t.Fatal("no dejó reemplazar la pendiente")
+	}
+	var vieja api.Revision
+	e.call("GET", "/v1/revisions/"+id("a"), tok, portal, nil, &vieja)
+	if vieja.State != api.RevSuperseded || !strings.Contains(vieja.Reason, id("b")) {
+		t.Fatalf("la reemplazada = %+v", vieja)
+	}
+	var pend api.Revision
+	e.call("GET", "/v1/revisions/pending", tok, mac, nil, &pend)
+	if pend.ID != id("b") {
+		t.Fatalf("la pendiente debe ser la nueva: %+v", pend)
+	}
+}
+
+func TestRevisionEstadoSoloElDestinatario(t *testing.T) {
+	e := newEnv(t)
+	tok := e.iss.AccessToken()
+	portal, mac := e.newDevice(tok, "portal"), e.newDevice(tok, "mac")
+	e.call("POST", "/v1/revisions", tok, portal, rev(id("a"), "", mac, id("1")), nil)
+	path := "/v1/revisions/" + id("a") + "/state"
+
+	// Que otro equipo cierre la orden de un tercero sería contar por él lo que
+	// no ha hecho.
+	if code := e.call("POST", path, tok, portal, api.RevisionStateIn{State: api.RevApplied}, nil); code != 404 {
+		t.Fatalf("cerrar desde otro equipo = %d; quiero 404", code)
+	}
+	for name, in := range map[string]api.RevisionStateIn{
+		"pendiente":         {State: api.RevPending},
+		"reemplazada":       {State: api.RevSuperseded},
+		"inventado":         {State: "raro"},
+		"fallo sin causa":   {State: api.RevFailed},
+		"parcial sin causa": {State: api.RevPartial},
+	} {
+		if code := e.call("POST", path, tok, mac, in, nil); code != 400 {
+			t.Fatalf("estado %q = %d; quiero 400", name, code)
+		}
+	}
+	var out api.RevisionMeta
+	if code := e.call("POST", path, tok, mac, api.RevisionStateIn{State: api.RevPartial, Reason: "hooks sin confirmar"}, &out); code != 200 {
+		t.Fatalf("informar parcial = %d", code)
+	}
+	if out.State != api.RevPartial || out.Reason != "hooks sin confirmar" || out.Updated.IsZero() {
+		t.Fatalf("estado informado = %+v", out)
+	}
+	if code := e.call("POST", path, tok, mac, api.RevisionStateIn{State: api.RevApplied}, nil); code != 409 {
+		t.Fatalf("informar dos veces = %d; quiero 409", code)
+	}
+	if code := e.call("GET", "/v1/revisions/pending", tok, mac, nil, nil); code != 204 {
+		t.Fatalf("una revisión ya informada sigue pendiente: %d", code)
+	}
+}
+
+func TestRevisionRechazaLoInválido(t *testing.T) {
+	e := newEnv(t)
+	tok := e.iss.AccessToken()
+	portal := e.newDevice(tok, "portal")
+	// El mac entra en otra sesión de Keycloak: revocarlo al final no puede
+	// arrastrar al portal, que es quien sigue hablando.
+	e.iss.NewSession("sesion-mac")
+	mac := e.newDevice(e.iss.AccessToken(), "mac")
+	ok := rev(id("a"), "", mac, id("1"))
+	mal := func(f func(*api.RevisionIn)) api.RevisionIn {
+		r := ok
+		f(&r)
+		return r
+	}
+	casos := map[string]api.RevisionIn{
+		"id no hex":        mal(func(r *api.RevisionIn) { r.ID = "../otro" }),
+		"prev no hex":      mal(func(r *api.RevisionIn) { r.Prev = "x" }),
+		"snapshot no hex":  mal(func(r *api.RevisionIn) { r.Snapshot = "x" }),
+		"base no hex":      mal(func(r *api.RevisionIn) { r.Base = "x" }),
+		"dispositivo raro": mal(func(r *api.RevisionIn) { r.DeviceID = "no-uuid" }),
+		"firma corta":      mal(func(r *api.RevisionIn) { r.Sig = []byte{1} }),
+		"sin fecha":        mal(func(r *api.RevisionIn) { r.Created = time.Time{} }),
+		// Una revisión que no dice a qué estado llegar no es una orden.
+		"sin snapshot ni cambios": mal(func(r *api.RevisionIn) { r.Snapshot, r.Body = "", nil }),
+		"cuerpo enorme":           mal(func(r *api.RevisionIn) { r.Body = bytes.Repeat([]byte{1}, api.MaxRevisionBytes+1) }),
+	}
+	for name, in := range casos {
+		code := e.call("POST", "/v1/revisions", tok, portal, in, nil)
+		if code != 400 && code != 413 {
+			t.Fatalf("%s = %d; quiero 400 o 413", name, code)
+		}
+	}
+	// A un equipo que no existe, o que ya está fuera, no se le manda nada.
+	if code := e.call("POST", "/v1/revisions", tok, portal, mal(func(r *api.RevisionIn) { r.DeviceID = portal[:len(portal)-1] + "0" }), nil); code != 404 {
+		t.Fatalf("dispositivo desconocido = %d; quiero 404", code)
+	}
+	if code := e.call("DELETE", "/v1/devices/"+mac, tok, portal, nil, nil); code != 204 {
+		t.Fatalf("revocar mac")
+	}
+	if code := e.call("POST", "/v1/revisions", tok, portal, ok, nil); code != 409 {
+		t.Fatalf("revisión a un equipo revocado = %d; quiero 409", code)
+	}
+}
+
+// TestRevisionElServidorNoPuedeDesviarUnaOrden es el requisito de §10.3 en un
+// caso: el servidor guarda y sirve, pero no tiene con qué firmar. Puede copiar
+// una revisión a otra máquina; lo que no puede es que esa máquina se la crea,
+// porque el destinatario va dentro de la firma.
+func TestRevisionElServidorNoPuedeDesviarUnaOrden(t *testing.T) {
+	e := newEnv(t)
+	tok := e.iss.AccessToken()
+	portal, mac, otro := e.newDevice(tok, "portal"), e.newDevice(tok, "mac"), e.newDevice(tok, "otro")
+	ak, err := vault.NewKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	acct, err := crypt.NewAccount(ak)
+	if err != nil {
+		t.Fatal(err)
+	}
+	partes := crypt.RevisionParts{ID: id("a"), Device: mac, Snapshot: id("1"), Body: []byte(`{"cambios":[]}`)}
+	in := api.RevisionIn{ID: partes.ID, DeviceID: partes.Device, Snapshot: partes.Snapshot,
+		Body: partes.Body, Sig: acct.SignRevision(partes), Created: time.Now().UTC()}
+	if code := e.call("POST", "/v1/revisions", tok, portal, in, nil); code != 201 {
+		t.Fatalf("publicar = %d", code)
+	}
+	var pend api.Revision
+	e.call("GET", "/v1/revisions/pending", tok, mac, nil, &pend)
+	llegó := crypt.RevisionParts{ID: pend.ID, Prev: pend.Prev, Device: pend.DeviceID,
+		Snapshot: pend.Snapshot, Base: pend.Base, Body: pend.Body}
+	if err := acct.VerifyRevision(llegó, pend.Sig); err != nil {
+		t.Fatalf("la orden legítima no verifica: %v", err)
+	}
+	// Ahora el desvío: el mismo cuerpo y la misma firma, dirigidos a otra
+	// máquina. El servidor los acepta —no sabe leerlos— y esa máquina los
+	// rechaza al verificar.
+	copia := in
+	copia.ID, copia.DeviceID = id("b"), otro
+	if code := e.call("POST", "/v1/revisions", tok, portal, copia, nil); code != 201 {
+		t.Fatalf("la copia = %d", code)
+	}
+	var desviada api.Revision
+	e.call("GET", "/v1/revisions/pending", tok, otro, nil, &desviada)
+	suplantada := crypt.RevisionParts{ID: desviada.ID, Prev: desviada.Prev, Device: desviada.DeviceID,
+		Snapshot: desviada.Snapshot, Base: desviada.Base, Body: desviada.Body}
+	if err := acct.VerifyRevision(suplantada, desviada.Sig); !errors.Is(err, crypt.ErrSignature) {
+		t.Fatalf("una orden desviada a otra máquina debe fallar al verificar: %v", err)
+	}
 }

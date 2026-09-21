@@ -153,6 +153,45 @@ func (a *Account) SignPublic() ed25519.PublicKey {
 	return a.sign.Public().(ed25519.PublicKey)
 }
 
+// RevisionParts es lo que ata una revisión deseada al firmarla: qué orden es,
+// qué eslabón encadena, a QUIÉN va dirigida y qué estado pide. El dispositivo
+// entra en la firma a propósito: firmar solo el contenido dejaría al servidor
+// servirle a una máquina la revisión que el portal escribió para otra, sin
+// falsificar nada.
+type RevisionParts struct {
+	ID       string
+	Prev     string
+	Device   string
+	Snapshot string
+	Base     string
+	Body     []byte
+}
+
+// signedRevision es lo que se firma. Prefijo de dominio propio para que la
+// firma de una revisión no pueda pasar por la de un snapshot; los campos van
+// separados por saltos de línea porque todos son ids validados (hex o UUID) y
+// ninguno puede llevar uno dentro.
+func signedRevision(p RevisionParts) []byte {
+	sum := sha256.Sum256(p.Body)
+	return []byte("ccp/v1/revision\n" + p.ID + "\n" + p.Prev + "\n" + p.Device + "\n" +
+		p.Snapshot + "\n" + p.Base + "\n" + hex.EncodeToString(sum[:]))
+}
+
+// SignRevision firma una revisión deseada.
+func (a *Account) SignRevision(p RevisionParts) []byte {
+	return ed25519.Sign(a.sign, signedRevision(p))
+}
+
+// VerifyRevision comprueba la firma de una revisión deseada. El servidor no
+// tiene con qué firmar: una orden que no verifique aquí no sale de él, viene
+// de quien tenga la clave de cuenta.
+func (a *Account) VerifyRevision(p RevisionParts, sig []byte) error {
+	if !ed25519.Verify(a.SignPublic(), signedRevision(p), sig) {
+		return ErrSignature
+	}
+	return nil
+}
+
 // Wraps es lo que el servidor guarda de la bóveda: dos envolturas de la AK que
 // no sabe abrir y la clave pública de firma.
 type Wraps struct {

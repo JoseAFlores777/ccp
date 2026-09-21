@@ -67,6 +67,27 @@ type Snapshot struct {
 	Pinned     bool
 }
 
+// Revision es una revisión deseada: el estado al que el portal pide que llegue
+// un dispositivo. El servidor la guarda y la sirve tal cual; Body y Sig son
+// opacos para él y es el cliente quien verifica la firma antes de aplicar
+// nada. En los listados, Body y Sig van vacíos.
+type Revision struct {
+	ID         string
+	Prev       string
+	DeviceID   string
+	DeviceName string
+	Snapshot   string
+	Base       string
+	Body       []byte
+	Sig        []byte
+	Created    time.Time
+	State      string
+	Reason     string
+	Updated    time.Time
+	// By es el dispositivo que la publicó.
+	By string
+}
+
 // Store es lo que el servidor necesita persistir. Toda operación va acotada a
 // un usuario: no hay forma de pedir algo de otra cuenta.
 type Store interface {
@@ -89,6 +110,26 @@ type Store interface {
 	// deviceID no está vacío.
 	Snapshots(ctx context.Context, userID, deviceID string, limit int) ([]Snapshot, error)
 	Snapshot(ctx context.Context, userID, id string) (Snapshot, error)
+	// PublishRevision guarda una revisión deseada como cabeza de la cadena de
+	// su dispositivo. r.Prev debe ser la cabeza actual ("" si no hay ninguna)
+	// o devuelve ErrConflict, igual que un id repetido; un dispositivo que no
+	// existe, ErrNotFound. Si la cabeza seguía pendiente queda RevSuperseded
+	// con el id de la nueva por motivo: la orden vieja nunca llegó a la
+	// máquina y cerrarla como fallida sería culparla de algo que no hizo.
+	PublishRevision(ctx context.Context, userID string, r Revision) (Revision, error)
+	// PendingRevision devuelve la cabeza de la cadena del dispositivo si sigue
+	// pendiente, entera. ErrNotFound si no hay nada que aplicar.
+	PendingRevision(ctx context.Context, userID, deviceID string) (Revision, error)
+	// Revision devuelve una revisión entera, con cuerpo y firma.
+	Revision(ctx context.Context, userID, id string) (Revision, error)
+	// Revisions lista de la más nueva a la más vieja, filtrando por
+	// dispositivo si deviceID no está vacío. Sin Body ni Sig.
+	Revisions(ctx context.Context, userID, deviceID string, limit int) ([]Revision, error)
+	// SetRevisionState anota el resultado. Va acotada al dispositivo
+	// destinatario a propósito: que otro equipo cierre una orden ajena sería
+	// contar por él lo que no ha hecho. ErrNotFound si no es suya, ErrConflict
+	// si ya no estaba pendiente.
+	SetRevisionState(ctx context.Context, userID, deviceID, id, state, reason string, at time.Time) (Revision, error)
 	Audit(ctx context.Context, userID, deviceID, action string, detail map[string]any) error
 	Ping(ctx context.Context) error
 }

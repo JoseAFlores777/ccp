@@ -9,6 +9,8 @@ import (
 
 func TestMemContract(t *testing.T) { runContract(t, NewMem()) }
 
+func TestMemRevisionContract(t *testing.T) { runRevisionContract(t, NewMem()) }
+
 // Dos snapshots del mismo instante deben salir siempre en el mismo orden: si no,
 // `limit` se queda con cualquiera de los dos y la lista baila entre llamadas.
 func TestMemSnapshotsDesempataPorID(t *testing.T) {
