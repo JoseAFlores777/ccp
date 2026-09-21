@@ -1174,8 +1174,8 @@ export const en: Record<string, string> = {
   // El plan de restauración y su confirmación.
   "Preparar restauración": "Prepare a restore",
   "Plan de restauración": "Restore plan",
-  "Esto es solo el plan: todavía no se ha escrito nada. Marca qué partes quieres y confirma.": "This is only the plan: nothing has been written yet. Tick the parts you want and confirm.",
-  "{n} por escribir": "{n} to write",
+  "Esto es solo el plan: todavía no se ha escrito nada. Marca los elementos que quieras y confirma.": "This is only the plan: nothing has been written yet. Tick the items you want and confirm.",
+  "{k} de {n} marcados": "{k} of {n} ticked",
   "nada que escribir: ya coincide": "nothing to write: it already matches",
   "Sin nada marcado no hay equivalente CLI: «ccp snapshot restore» sin «--only» restauraría el plan entero.": "With nothing ticked there is no CLI equivalent: «ccp snapshot restore» without «--only» would restore the whole plan.",
   "escribe": "writes",

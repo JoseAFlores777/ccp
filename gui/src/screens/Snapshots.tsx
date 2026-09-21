@@ -175,14 +175,30 @@ function PlanRestauracion({ id, plan, onDone }: { id: string; plan: SnapPlan; on
     for (const s of plan.steps) m.set(groupOf(s.lpath), [...(m.get(groupOf(s.lpath)) ?? []), s]);
     return [...m.entries()];
   }, [plan.steps]);
-  const writes = (ss: SnapStep[]) => ss.filter((s) => s.action === 'write' || s.action === 'merge').length;
+  const writable = (s: SnapStep) => s.action === 'write' || s.action === 'merge';
+  const writes = (ss: SnapStep[]) => ss.filter(writable).length;
+  // La selección es POR ELEMENTO, no por grupo. `--only` casa por ruta lógica
+  // exacta o por prefijo, así que marcar «ccp» arrastraba ccp.yaml, los
+  // overlays de TODOS los perfiles y sus claves cuando lo que se quería
+  // recuperar era, por ejemplo, un solo mcp.json de un perfil.
   const [sel, setSel] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(groups.filter(([, ss]) => writes(ss) > 0).map(([g]) => [g, true])),
+    Object.fromEntries(plan.steps.filter(writable).map((s) => [s.lpath, true])),
   );
-  const chosen = groups.filter(([g, ss]) => sel[g] && writes(ss) > 0).map(([g]) => g);
-  const total = groups.filter(([g]) => chosen.includes(g)).reduce((a, [, ss]) => a + writes(ss), 0);
-  const hasState = groups.some(([g, ss]) => chosen.includes(g) && ss.some((s) => isStatePath(s.lpath) && (s.action === 'write' || s.action === 'merge')));
-  const cmd = `ccp snapshot restore ${short(id)}${chosen.map((g) => ` --only ${g}`).join('')} --yes`;
+  const chosenPaths = plan.steps.filter((s) => writable(s) && sel[s.lpath]).map((s) => s.lpath);
+  const total = chosenPaths.length;
+  // Un grupo marcado entero se dice con su prefijo, para que la línea CLI siga
+  // siendo legible; en cuanto va suelto algún elemento se nombran uno a uno,
+  // que es el grano que el motor ya aceptaba.
+  const only = groups.flatMap(([g, ss]) => {
+    const w = ss.filter(writable);
+    const picked = w.filter((s) => sel[s.lpath]);
+    if (picked.length === 0) return [];
+    return picked.length === w.length ? [g] : picked.map((s) => s.lpath);
+  });
+  const hasState = chosenPaths.some(isStatePath);
+  const setGroup = (ss: SnapStep[], on: boolean) =>
+    setSel({ ...sel, ...Object.fromEntries(ss.filter(writable).map((s) => [s.lpath, on])) });
+  const cmd = `ccp snapshot restore ${short(id)}${only.map((o) => ` --only ${o}`).join('')} --yes`;
 
   const apply = () =>
     openModal({
@@ -203,7 +219,7 @@ function PlanRestauracion({ id, plan, onDone }: { id: string; plan: SnapPlan; on
       confirmLabel: t('Restaurar'),
       cli: () => cmd,
       onConfirm: async () => {
-        onDone(await api.snapshotRestore(id, chosen, false));
+        onDone(await api.snapshotRestore(id, only, false));
         return t('Restaurado desde {id}', { id: short(id) });
       },
     });
@@ -211,28 +227,44 @@ function PlanRestauracion({ id, plan, onDone }: { id: string; plan: SnapPlan; on
   return (
     <Card>
       <CardHead label={t('Plan de restauración')} />
-      <Note kind="accent">{t('Esto es solo el plan: todavía no se ha escrito nada. Marca qué partes quieres y confirma.')}</Note>
+      <Note kind="accent">{t('Esto es solo el plan: todavía no se ha escrito nada. Marca los elementos que quieras y confirma.')}</Note>
       {groups.map(([g, ss]) => (
         <div key={g} style={{ marginTop: 12, borderTop: '1px solid var(--line)', paddingTop: 8 }}>
           <label style={{ display: 'flex', gap: 8, alignItems: 'baseline', cursor: writes(ss) ? 'pointer' : 'default' }}>
+            {/* El grupo es un atajo para marcar los suyos de golpe; el estado
+             *  vive en cada elemento, así que aquí se lee, no se guarda. */}
             <input
-              type="checkbox" checked={!!sel[g] && writes(ss) > 0} disabled={writes(ss) === 0}
-              onChange={(e) => setSel({ ...sel, [g]: e.target.checked })}
+              type="checkbox"
+              checked={writes(ss) > 0 && ss.filter(writable).every((s) => sel[s.lpath])}
+              ref={(el) => {
+                if (el) el.indeterminate = ss.filter(writable).some((s) => sel[s.lpath]) && !ss.filter(writable).every((s) => sel[s.lpath]);
+              }}
+              disabled={writes(ss) === 0}
+              onChange={(e) => setGroup(ss, e.target.checked)}
             />
             <span style={{ fontSize: 13 }}>
               {groupLabel(g)}
               {ss.some((s) => isStatePath(s.lpath)) && ` ${t('· incluye conversaciones guardadas')}`}
             </span>
             <span style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>
-              {writes(ss) > 0 ? t('{n} por escribir', { n: String(writes(ss)) }) : t('nada que escribir: ya coincide')}
+              {writes(ss) > 0
+                ? t('{k} de {n} marcados', { k: String(ss.filter((x) => writable(x) && sel[x.lpath]).length), n: String(writes(ss)) })
+                : t('nada que escribir: ya coincide')}
             </span>
           </label>
           {ss.map((s) => (
-            <div key={s.lpath} style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '2px 0 2px 24px' }}>
+            <label
+              key={s.lpath}
+              style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '2px 0 2px 24px', cursor: writable(s) ? 'pointer' : 'default' }}
+            >
+              <input
+                type="checkbox" checked={writable(s) && !!sel[s.lpath]} disabled={!writable(s)}
+                onChange={(e) => setSel({ ...sel, [s.lpath]: e.target.checked })}
+              />
               <Pill tone={ACTION_TONE[s.action]}>{al[s.action]}</Pill>
               <span className="mono ellipsis selectable" style={{ fontSize: 11.5, flex: 1, minWidth: 0 }}>{s.lpath}</span>
               {s.reason && <span style={{ fontSize: 11, color: 'var(--warn)' }}>{reasonLabel(s.reason)}</span>}
-            </div>
+            </label>
           ))}
         </div>
       ))}
@@ -243,7 +275,7 @@ function PlanRestauracion({ id, plan, onDone }: { id: string; plan: SnapPlan; on
        *  sino «todo» (selectItems devuelve el plan entero), así que ofrecer el
        *  comando aquí entregaría, en el estado «no quiero restaurar nada», la
        *  línea más destructiva de la pantalla. */}
-      {chosen.length > 0 ? (
+      {only.length > 0 ? (
         <CliBar cmd={cmd} />
       ) : (
         <Note kind="warn" style={{ marginTop: 16 }}>
