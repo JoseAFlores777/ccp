@@ -6,6 +6,7 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -21,18 +22,22 @@ import (
 	"github.com/JoseAFlores777/ccp/internal/snapshot"
 )
 
-// agentOpts monta el agente con la sesión, la bóveda y el almacén de este
+// cloudAgentOpts monta el agente con la sesión, la bóveda y el almacén de este
 // equipo. Sin bóveda no hay nada que hacer: una revisión llega sellada.
-func (c cloudCmd) agentOpts() (agent.Opts, error) {
-	cfg, cl, err := client.Session(c.ctx, c.files)
+//
+// Vive fuera de cloudCmd porque `ccp serve` monta el mismo agente para la
+// pantalla Nube (P-21): dos construcciones del agente con distinta política o
+// distinto almacén serían dos máquinas distintas aplicando la misma revisión.
+func cloudAgentOpts(ctx context.Context, home string, files client.Files) (agent.Opts, error) {
+	cfg, cl, err := client.Session(ctx, files)
 	if err != nil {
 		return agent.Opts{}, err
 	}
-	acct, err := client.Account(c.files)
+	acct, err := client.Account(files)
 	if err != nil {
 		return agent.Opts{}, err
 	}
-	st, err := core.OpenSnapshotStore(c.home)
+	st, err := core.OpenSnapshotStore(home)
 	if err != nil {
 		return agent.Opts{}, err
 	}
@@ -40,8 +45,12 @@ func (c cloudCmd) agentOpts() (agent.Opts, error) {
 	if err != nil {
 		return agent.Opts{}, err
 	}
-	return agent.Opts{Home: c.home, Src: src, API: cl, Acct: acct, Store: st, Files: c.files,
+	return agent.Opts{Home: home, Src: src, API: cl, Acct: acct, Store: st, Files: files,
 		DeviceID: cfg.DeviceID, Policy: cfg.Policy, Machine: snapMachine(), Now: time.Now}, nil
+}
+
+func (c cloudCmd) agentOpts() (agent.Opts, error) {
+	return cloudAgentOpts(c.ctx, c.home, c.files)
 }
 
 // printOutcome cuenta una pasada. El orden es el de la pregunta que se hace
