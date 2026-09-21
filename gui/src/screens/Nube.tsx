@@ -14,6 +14,7 @@ import { ago, clock } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, CardHead, Checkbox, CliBar, Empty, ErrorNote, KV, Loading, Note, Pill, Segmented } from '../components/ui';
+import { Historial, reasonLabel } from './NubeHistorial';
 
 const short = (id: string) => id.slice(0, 12);
 
@@ -29,22 +30,6 @@ function whyLabel(d: Danger): string {
     script: t('un archivo ejecutable'),
   };
   return m[d] ?? d;
-}
-
-// Los motivos de un «sin aplicar» llegan como códigos estables (los pone el
-// agente o el motor de restauración). Uno desconocido sale crudo antes que
-// desaparecer.
-function reasonLabel(code: string): string {
-  const m: Record<string, string> = {
-    no_delete_on_restore: t('ccp no borra archivos al restaurar'),
-    no_cloud_data: t('sus datos no están en la nube'),
-    not_confirmed: t('no se confirmó en la máquina'),
-    missing_blob: t('el snapshot no tiene sus datos (¿se exportó sin secretos?)'),
-    project_missing: t('la carpeta del proyecto no existe en esta máquina'),
-    invalid: t('no es una ruta que ccp sepa restaurar'),
-    unreadable: t('no se pudo leer el archivo actual'),
-  };
-  return m[code] ?? code;
 }
 
 function vaultLabel(v: CloudStatus['vault']): [string, 'accent' | 'warn' | 'err' | 'neutral'] {
@@ -318,6 +303,7 @@ export function Nube() {
       {data?.logged_in && (
         <>
           <Revisiones onDone={st.reload} />
+          <Historial onDone={st.reload} />
           <Politica st={data} reload={st.reload} />
           <Dispositivos />
         </>

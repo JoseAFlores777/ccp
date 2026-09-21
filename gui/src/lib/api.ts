@@ -355,6 +355,11 @@ export interface SnapPlan {
   pre_snapshot?: string;
   steps: SnapStep[];
   regenerated: string[];
+  /** Solo cuando el snapshot viene de una máquina con otro HOME: las rutas
+   *  absolutas se reescriben, y lo que se escribe no es literalmente lo que
+   *  el snapshot guardó. */
+  home_from?: string;
+  home_to?: string;
 }
 
 export interface PruneReport {
@@ -622,6 +627,60 @@ export interface CloudOutcome {
   waiting: boolean;
 }
 
+/** Un snapshot de la nube, venga de la máquina que venga. `here` sale del
+ *  estado local: el id de allá arriba es un MAC del de aquí y solo esta
+ *  máquina ata los dos, así que la nube no puede decirlo. */
+export interface CloudSnapshot {
+  id: string;
+  parent: string;
+  device_id: string;
+  device_name: string;
+  created: string;
+  size: number;
+  pinned: boolean;
+  here: boolean;
+}
+
+/** Dónde cae en ESTA máquina un proyecto del snapshot (spec §11). El mapeo se
+ *  hace aquí y no en el portal: es el único sitio con un disco que mirar. */
+export interface CloudProjectMap {
+  key: string;
+  remote?: string;
+  /** La ruta que traía el snapshot, ya traducida al HOME de aquí. */
+  from?: string;
+  path?: string;
+  source: 'snapshot' | 'remote' | 'manual' | 'missing' | string;
+  files: string[];
+  /** El remoto que habría que clonar cuando el proyecto no está. */
+  clone?: string;
+}
+
+/** Algo que queda por hacer a mano después de restaurar: los tokens no viajan
+ *  y los comandos de los MCP y los hooks pueden no estar en esta máquina. */
+export interface CloudPendingTask {
+  kind: 'login' | 'command' | 'project' | string;
+  name: string;
+  where?: string;
+}
+
+/** El plan (o el resultado) de restaurar un snapshot de la nube aquí. El plan
+ *  ES el diff contra el estado vivo: el motor dice qué escribiría en cada
+ *  ruta, así que no hay una segunda cuenta que pueda decir otra cosa. */
+export interface CloudRestore {
+  cloud: string;
+  snapshot: string;
+  plan: SnapPlan;
+  projects: CloudProjectMap[];
+  pending: CloudPendingTask[];
+  /** Rutas cuyos datos no están en la nube: no se restauran. */
+  no_data: string[];
+}
+
+export interface CloudRestoreOpts {
+  only?: string[];
+  projects?: Record<string, string>;
+}
+
 export const api = {
   info: () => ccpCall<AppInfo>('app.info'),
   setLang: (lang: string) => ccpCall('app.setLang', { lang }),
@@ -746,6 +805,11 @@ export const api = {
   cloudReviewResolve: (approve: string[]) => ccpCall<CloudOutcome>('cloud.reviewResolve', { approve }),
   cloudSetPolicy: (policy: DevicePolicy) => ccpCall<{ policy: DevicePolicy }>('cloud.setPolicy', { policy }),
   cloudRevoke: (device: string) => ccpCall<{ device: string }>('cloud.revoke', { device }),
+  cloudSnapshots: (device = '') => ccpCall<CloudSnapshot[]>('cloud.snapshots', { device }),
+  cloudRestorePlan: (snapshot: string, o: CloudRestoreOpts = {}) =>
+    ccpCall<CloudRestore>('cloud.restorePlan', { snapshot, only: o.only ?? [], projects: o.projects ?? {} }),
+  cloudRestore: (snapshot: string, o: CloudRestoreOpts = {}) =>
+    ccpCall<CloudRestore>('cloud.restore', { snapshot, only: o.only ?? [], projects: o.projects ?? {} }),
 
   inventoryScan: () => ccpCall<Inventory>('inventory.scan'),
   adoptPlan: () => ccpCall<{ steps: AdoptStep[] }>('adopt.plan'),
