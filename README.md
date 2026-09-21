@@ -886,6 +886,10 @@ or after 15 minutes without touching anything.
   edit as a signed desired revision to the machines you pick. It does not restore and it does not create or
   delete items: the portal proposes, and inventing a logical path from a browser is how you get a file nobody
   can place.
+- **Download** of any snapshot, assembled in the tab: a `.ccpsnap` sealed with a passphrase you type there
+  (the same file `ccp snapshot import` opens) or a readable `.tar.gz`. The plain one is only offered once you
+  tick a box that says, in those words, that your keys go in the clear — and without a passphrase the
+  `.ccpsnap` leaves the secrets out rather than carry them in the clear inside something called «encrypted».
 - Signatures have three answers, not two: valid, altered, and *this browser cannot verify Ed25519* — which is
   not the same as valid.
 
