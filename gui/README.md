@@ -92,9 +92,11 @@ build no está firmado: la primera vez macOS pide abrirlo con clic derecho → A
 gui/
 ├── src/
 │   ├── lib/          puente (bridge.ts), tipos del protocolo (api.ts), estado (store.tsx),
-│   │                 operaciones compartidas (actions.ts), textos de diagnóstico (findings.ts), i18n
+│   │                 operaciones compartidas (actions.ts), editores de configuración
+│   │                 (config_edit.ts), textos de diagnóstico (findings.ts), i18n
 │   ├── components/   marco (Shell), modal de confirmación, hoja de terminal, avisos, piezas de UI
-│   └── screens/      una pantalla por archivo (P-01 … P-18)
+│   └── screens/      una pantalla por archivo (P-01 … P-20). P-20 Configuración se reparte
+│                     en tres: la pantalla, su tabla de MCP y su vista efectiva
 ├── src-tauri/        el puente en Rust (bridge.rs), terminal y Finder (native.rs), config de Tauri
 └── scripts/          sandbox.sh (datos de prueba) y build-sidecar.sh (ccp para el .app)
 ```

@@ -11,6 +11,7 @@ import { Detectar } from './screens/Detectar';
 import { Ajustes, Copias } from './screens/Ajustes';
 import { Carpetas } from './screens/Carpetas';
 import { Config } from './screens/Config';
+import { Configuracion } from './screens/Configuracion';
 import { Conversaciones } from './screens/Conversaciones';
 import { Desktop } from './screens/Desktop';
 import { Diagnostico } from './screens/Diagnostico';
@@ -31,6 +32,7 @@ const SCREENS: Record<Screen, () => React.JSX.Element | null> = {
   perfiles: Perfiles,
   perfil: Perfil,
   config: Config,
+  configuracion: Configuracion,
   carpetas: Carpetas,
   conv: Conversaciones,
   mover: Mover,

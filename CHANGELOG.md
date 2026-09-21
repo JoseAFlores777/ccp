@@ -4,6 +4,26 @@
 
 ### Added
 
+- **La app: P-20 Configuración, el editor unificado** (spec §7). Una pantalla para toda la
+  configuración de Claude: arriba la capa (global · perfil · proyecto · ventana), a la izquierda los
+  tipos (instrucciones, MCP, skills, agentes, comandos, hooks, permisos, variables, plugins, estilos,
+  barra de estado y ajustes) y en el centro los elementos con su **procedencia** y sus distintivos
+  **dónde aplica** (CLI · Code · Chat). Absorbe P-05 —el conmutador «Efectivo» es la vista fusionada
+  de una cuenta, con lo tapado marcado— y la vista de solo-gestionado de P-15.
+  - Lo que se ve y no se edita dice por qué, con la misma frase que la terminal: lo trae un plugin,
+    lo fija managed-settings, lo proyecta ccp desde el overlay.
+  - Editores: MCP (stdio/http/sse/JSON, con los secretos **enmascarados** —lo que no se toca se
+    restituye al guardar—, el destino por servidor y el conmutador de apagarlo en un perfil), skills,
+    agentes, comandos y estilos como archivo, hooks por evento, permisos con sus tres listas y
+    CLAUDE.md con vista previa de sus `@import`.
+  - **Acciones de capa**: llevar un elemento a la global, a otro perfil o a un proyecto, dejándolo o
+    quitándolo del origen. Es el mismo elemento con otra capa: core decide el archivo, así que no hay
+    una ruta nueva por destino.
+  - Tras cada escritura se dice dónde quedó, a quién regeneró y **qué ventana de Desktop se queda con
+    los MCP de antes** hasta reiniciarla. La proyección la hace la propia escritura, no una llamada
+    aparte. Todo pasa por `core` (`config.item.*` y `mcp.*`), así que las barreras son las mismas que
+    en la terminal, y cada pantalla enseña su equivalente de CLI.
+
 - **`ccp serve`: los métodos del editor de configuración** (spec §7): `config.items`,
   `config.item.get|put|delete`, `config.effective` y `mcp.list|put|delete|setTargets|disable`. Son altas en
   el registro, así que el protocolo sigue en `1`. La capa viaja SIEMPRE en los parámetros —serve no tiene

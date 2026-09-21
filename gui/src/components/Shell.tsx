@@ -24,7 +24,7 @@ export function navGroups(): [string, NavItem[]][] {
     [t('Cuentas'), [
       { label: t('Perfiles'), id: 'perfiles' },
       { label: t('Detalle'), id: 'perfil' },
-      { label: t('Configuración'), id: 'config' },
+      { label: t('Configuración'), id: 'configuracion' },
       { label: t('Carpetas'), id: 'carpetas' },
     ]],
     [t('Conversaciones'), [
@@ -57,6 +57,7 @@ export function screenHead(s: Screen, selected: string, selectedType: string): [
         : selectedType === 'default'
           ? t('Tu Claude de siempre: la sesión de ~/.claude. No se renombra ni se borra, y es lo que usa toda carpeta sin regla.')
           : t('Todo lo de una cuenta en un sitio: acceso, carpetas, ventana, rotación y la zona de riesgo.')];
+    case 'configuracion': return [t('Configuración'), t('Todo lo que lee Claude, capa a capa: qué hay declarado en cada una, dónde aplica y qué recibe de verdad cada cuenta.')];
     case 'config': return [t('Configuración del perfil'), t('Qué recibe de verdad Claude Code con esta cuenta, y de dónde sale cada valor.')];
     case 'carpetas': return [t('Carpetas'), t('Una carpeta usa la cuenta de su regla más cercana hacia arriba. Si no hay ninguna, default.')];
     case 'conv': return [t('Conversaciones'), t('Todas las sesiones, de terminal y de Desktop, en un solo sitio. Se busca por título, no por uuid.')];

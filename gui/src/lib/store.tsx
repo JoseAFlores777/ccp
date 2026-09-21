@@ -13,7 +13,7 @@ import { setUserHome } from './format';
 import { setLang as setI18nLang, t, type Lang } from './i18n';
 
 export type Screen =
-  | 'inicio' | 'mapa' | 'perfiles' | 'perfil' | 'config' | 'carpetas'
+  | 'inicio' | 'mapa' | 'perfiles' | 'perfil' | 'config' | 'configuracion' | 'carpetas'
   | 'conv' | 'mover' | 'prestamos' | 'rotacion' | 'uso' | 'sesiones'
   | 'desktop' | 'diag' | 'memoria' | 'ajustes' | 'copias' | 'bienvenida';
 
@@ -30,6 +30,9 @@ export interface Field {
   kind: 'text' | 'secret' | 'select' | 'area' | 'folder';
   hint?: string;
   placeholder?: string;
+  /** Alto de un campo «area». Un archivo entero (un CLAUDE.md, una skill) no se
+   *  edita a gusto en cuatro líneas, y un valor suelto no necesita veinte. */
+  rows?: number;
   options?: { value: string; label: string }[];
   show?: (form: Record<string, string>) => boolean;
 }
