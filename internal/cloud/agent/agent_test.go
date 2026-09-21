@@ -7,6 +7,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -453,5 +454,50 @@ func TestUnMotivoLarguisimoSeRecortaYLaRevisionSeCierra(t *testing.T) {
 	}
 	if st := m.estado(revID(9)); st.State != api.RevPartial {
 		t.Fatalf("el portal tiene que verla cerrada: %+v", st)
+	}
+}
+
+// En manual lo pendiente no tiene motivos, pero `why` viaja como [] y nunca
+// como null: `review.json` y la respuesta de `cloud.review` los lee la GUI, que
+// hace `p.why.map(...)` — un null ahí deja la pantalla Nube en blanco.
+func TestPendienteSinMotivosSerializaListaVacia(t *testing.T) {
+	ctx := context.Background()
+	m := nueva(t)
+	m.o.Policy = PolicyManual
+	write(t, filepath.Join(m.o.Src, "CLAUDE.md"), "uno")
+	snap := m.captura()
+	write(t, filepath.Join(m.o.Src, "CLAUDE.md"), "dos")
+
+	m.publica(revID(50), snap, "")
+	out, err := Once(ctx, m.o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Pending) != 1 || out.Pending[0].Why == nil {
+		t.Fatalf("why no puede ser nil: %+v", out.Pending)
+	}
+
+	b, err := os.ReadFile(filepath.Join(m.o.Files.Dir, ReviewFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var crudo struct {
+		Pending []struct {
+			Why json.RawMessage `json:"why"`
+		} `json:"pending"`
+	}
+	if err := json.Unmarshal(b, &crudo); err != nil {
+		t.Fatal(err)
+	}
+	if len(crudo.Pending) != 1 || string(crudo.Pending[0].Why) != "[]" {
+		t.Fatalf("review.json debería llevar \"why\": [], lleva %s", b)
+	}
+
+	r, ok, err := LoadReview(m.o.Files)
+	if err != nil || !ok {
+		t.Fatalf("no se pudo releer la revisión: %v %v", ok, err)
+	}
+	if len(r.Pending) != 1 || r.Pending[0].Why == nil {
+		t.Fatalf("al releer, why sigue siendo nil: %+v", r.Pending)
 	}
 }
