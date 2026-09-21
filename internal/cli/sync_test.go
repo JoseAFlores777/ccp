@@ -179,3 +179,49 @@ func TestSyncDestinoRehechoVuelveASubir(t *testing.T) {
 		t.Fatalf("push tras vaciar: %d %q %q", code, out, errs)
 	}
 }
+
+// TestSyncBovedaAjenaNoEsManipulacion: el destino se rehízo desde otra
+// máquina —la carpeta perdió el remote.json y otro equipo creó su bóveda— y
+// esta, que nunca volvió a añadirlo, sigue con su AK. Antes nadie lo miraba:
+// push seguía diciendo «subido» sobre blobs que la otra máquina no podrá abrir
+// nunca, y lo ajeno salía como firma inválida, acusando de manipulación lo que
+// no es un ataque. Debe decir que la bóveda del destino no es la de este
+// equipo, y cómo salir.
+func TestSyncBovedaAjenaNoEsManipulacion(t *testing.T) {
+	t.Setenv("CCP_SYNC_PASSPHRASE", fraseSync)
+	destino := t.TempDir()
+	snapEnv(t)
+	yo := os.Getenv("CCP_HOME")
+	if code, out, errs := snapRun(t, "snapshot", "create"); code != 0 {
+		t.Fatalf("create: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "sync", "remote", "add", "icloud", "file://"+destino); code != 0 {
+		t.Fatalf("remote add: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "sync", "push"); code != 0 {
+		t.Fatalf("push: %d %q %q", code, out, errs)
+	}
+
+	// Otra máquina rehace la bóveda: la carpeta perdió el remote.json (lo que
+	// hace un servicio de sincronización que no lo propagó) y ella lo crea.
+	if err := os.Remove(filepath.Join(destino, "remote.json")); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CCP_HOME", t.TempDir())
+	if code, out, errs := snapRun(t, "sync", "remote", "add", "otra", "file://"+destino); code != 0 {
+		t.Fatalf("remote add de la otra máquina: %d %q %q", code, out, errs)
+	}
+
+	// De vuelta aquí, sin volver a añadir el destino.
+	t.Setenv("CCP_HOME", yo)
+	code, out, errs := snapRun(t, "sync", "pull")
+	if code == 0 {
+		t.Fatalf("pull contra una bóveda ajena salió 0: %q", out)
+	}
+	if strings.Contains(errs, "alterado") {
+		t.Fatalf("pull acusa de manipulación: %q", errs)
+	}
+	if !strings.Contains(errs, "bóveda") || !strings.Contains(errs, "icloud") {
+		t.Fatalf("pull no explica la bóveda ajena: %q", errs)
+	}
+}

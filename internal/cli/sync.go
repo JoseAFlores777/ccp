@@ -162,11 +162,38 @@ func (c syncCmd) ready(name string) (*remote.Store, *crypt.Account, *snapshot.St
 	if err != nil {
 		return nil, nil, nil, e, err
 	}
+	if err := c.sameVault(r, acct, e.Name); err != nil {
+		return nil, nil, nil, e, err
+	}
 	st, err := core.OpenSnapshotStore(c.home)
 	if err != nil {
 		return nil, nil, nil, e, err
 	}
 	return r, acct, st, e, nil
+}
+
+// sameVault comprueba que la bóveda que hay AHORA en el destino es la que abre
+// la clave de este equipo. `PutVault` ya impide pisar una bóveda, pero no
+// impide que la carpeta pierda su remote.json —iCloud Drive, Dropbox y
+// Syncthing lo hacen— y que otra máquina cree allí la suya: desde ese momento
+// las dos trabajan en el mismo sitio con AK distintas. Nada aguas abajo lo
+// nota, porque cada una sella y verifica con la suya: push seguiría diciendo
+// «subido» sobre unos blobs que la otra no podrá abrir jamás, y un pull de lo
+// ajeno saldría como firma inválida, o sea acusando de manipulación algo que
+// no es un ataque. Se dice aquí, una vez, y con la salida: volver a añadir el
+// destino (que es lo que reemplaza la clave y olvida el estado local).
+func (c syncCmd) sameVault(r *remote.Store, acct *crypt.Account, name string) error {
+	v, err := r.Vault(c.ctx)
+	if errors.Is(err, remote.ErrNoVault) {
+		return errors.New(i18n.T(c.lang, "cli.sync.vault_gone", name, name))
+	}
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(acct.SignPublic(), v.SignPub) {
+		return errors.New(i18n.T(c.lang, "cli.sync.vault_other", name, name))
+	}
+	return nil
 }
 
 func (c syncCmd) remote(args []string) int {
