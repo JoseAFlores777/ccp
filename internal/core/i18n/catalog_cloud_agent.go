@@ -15,6 +15,18 @@ var catalogCloudAgent = map[string]map[Lang]string{
 		En: "Watching for revisions every %s. Ctrl-C to stop.",
 		Es: "Atento a las revisiones cada %s. Ctrl-C para parar.",
 	},
+	// Lo que se dice cuando la nube deja de responder y cuando vuelve. El
+	// primero sale UNA vez por corte (el bucle no repite el mismo error), y el
+	// segundo cierra el aviso: sin él, el silencio de después es idéntico al
+	// de una máquina que nunca falló.
+	"cli.cloud.agent_unreachable": {
+		En: "%v. ccp keeps working; the agent will try again on the next pass.",
+		Es: "%v. ccp sigue funcionando; el agente lo reintentará en la siguiente pasada.",
+	},
+	"cli.cloud.agent_back": {
+		En: "The cloud is answering again.",
+		Es: "La nube vuelve a responder.",
+	},
 	"cli.cloud.agent_bad_interval": {
 		En: "cloud agent: --interval wants a duration like 30s, 5m or 1h, not '%s'",
 		Es: "cloud agent: --interval quiere una duración como 30s, 5m o 1h, no '%s'",

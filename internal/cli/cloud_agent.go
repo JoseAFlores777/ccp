@@ -128,10 +128,17 @@ func (c cloudCmd) agent(args []string) int {
 		return 0
 	}
 	fmt.Fprintln(c.err, i18n.T(c.lang, "cli.cloud.agent_watching", every))
-	agent.Loop(c.ctx, o, every, func(out *agent.Outcome, err error) {
+	// El bucle ya no repite un error que sigue siendo el mismo, así que aquí
+	// se imprime tal cual llega; lo que sí se añade es el aviso de que la nube
+	// volvió, que es la otra mitad de «la sincronización se pausa y avisa».
+	agent.Loop(c.ctx, o, every, func(out *agent.Outcome, err error, recovered bool) {
+		if recovered {
+			fmt.Fprintln(c.err, i18n.T(c.lang, "cli.cloud.agent_back"))
+		}
 		switch {
 		case err != nil:
-			fmt.Fprintf(c.err, "Error: %v\n", err)
+			fmt.Fprintf(c.err, "Error: %v\n", i18n.T(c.lang, "cli.cloud.agent_unreachable", err))
+		case out == nil:
 		case a.flags["--json"]:
 			snapJSON(c.out, c.err, out)
 		default:

@@ -47,8 +47,8 @@ func Discover(ctx context.Context, hc *http.Client, server string) (Endpoints, e
 	if err := getJSON(ctx, hc, strings.TrimSuffix(server, "/")+"/v1/info", &e.Info); err != nil {
 		return e, fmt.Errorf("%s no responde como una nube de ccp: %w", server, err)
 	}
-	if e.Info.APIVersion != api.Version {
-		return e, fmt.Errorf("el servidor habla la versión %d del protocolo y este ccp la %d; actualiza ccp", e.Info.APIVersion, api.Version)
+	if err := versionCompatible(e.Info.APIVersion); err != nil {
+		return e, err
 	}
 	// El emisor sale de la respuesta del servidor, y es quien recibe el
 	// device_code y devuelve el refresh token: en claro, la credencial de
@@ -77,6 +77,21 @@ func Discover(ctx context.Context, hc *http.Client, server string) (Endpoints, e
 	}
 	e.TokenURL, e.DeviceAuthURL = d.Token, d.Device
 	return e, nil
+}
+
+// versionCompatible compara la versión del protocolo. Son DOS situaciones, no
+// una, y cada una manda a actualizar algo distinto: decirle «actualiza ccp» a
+// quien ya tiene el ccp nuevo y un servidor sin desplegar es mandarlo a repetir
+// lo que acaba de hacer, y ahí se queda mirando el mismo error.
+func versionCompatible(server int) error {
+	switch {
+	case server == api.Version:
+		return nil
+	case server > api.Version:
+		return fmt.Errorf("el servidor habla la versión %d del protocolo y este ccp la %d; actualiza ccp", server, api.Version)
+	default:
+		return fmt.Errorf("este ccp habla la versión %d del protocolo y el servidor la %d; hay que actualizar el servidor", api.Version, server)
+	}
 }
 
 // secureOrLocal dice si una URL viaja cifrada. http solo vale contra el bucle
