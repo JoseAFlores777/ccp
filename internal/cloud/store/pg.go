@@ -1,0 +1,368 @@
+package store
+
+import (
+	"context"
+	"embed"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+//go:embed migrations/*.sql
+var migrationFS embed.FS
+
+// migrateLock es el lock consultivo del migrador: dos instancias que arrancan a
+// la vez migran una detrás de otra.
+const migrateLock = 727001
+
+// PG es el Store de producción.
+type PG struct{ pool *pgxpool.Pool }
+
+// OpenPG abre el pool. dsn es de palabras clave (host=… user=… dbname=…) y la
+// contraseña va aparte: una contraseña generada con «@» o «/» rompería una URL.
+func OpenPG(ctx context.Context, dsn, password string) (*PG, error) {
+	cfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("store: DSN inválida: %w", err)
+	}
+	if password != "" {
+		cfg.ConnConfig.Password = password
+	}
+	cfg.MaxConns = 10
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("store: no se pudo abrir Postgres: %w", err)
+	}
+	return &PG{pool: pool}, nil
+}
+
+// Close cierra el pool.
+func (p *PG) Close() { p.pool.Close() }
+
+// Ping comprueba que Postgres responde.
+func (p *PG) Ping(ctx context.Context) error { return p.pool.Ping(ctx) }
+
+// Migrate aplica, en orden, las migraciones que falten.
+func (p *PG) Migrate(ctx context.Context) error {
+	conn, err := p.pool.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock($1)`, migrateLock); err != nil {
+		return fmt.Errorf("store: lock del migrador: %w", err)
+	}
+	defer func() {
+		// Contexto propio: si el de la llamada ya venció, soltar el lock sigue
+		// siendo obligatorio o la siguiente instancia se queda esperando.
+		_, _ = conn.Exec(context.Background(), `SELECT pg_advisory_unlock($1)`, migrateLock)
+	}()
+	if _, err := conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
+		version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`); err != nil {
+		return err
+	}
+	entries, err := fs.ReadDir(migrationFS, "migrations")
+	if err != nil {
+		return err
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	for _, e := range entries {
+		if err := p.applyMigration(ctx, conn.Conn(), e.Name()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// applyMigration aplica una migración si falta, en su propia transacción junto
+// con la fila que la da por aplicada: o entra entera, o no entra.
+func (p *PG) applyMigration(ctx context.Context, conn *pgx.Conn, name string) error {
+	v, err := strconv.Atoi(strings.SplitN(name, "_", 2)[0])
+	if err != nil {
+		return fmt.Errorf("store: migración con nombre inválido: %s", name)
+	}
+	var done bool
+	if err := conn.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`, v).Scan(&done); err != nil {
+		return err
+	}
+	if done {
+		return nil
+	}
+	sql, err := migrationFS.ReadFile("migrations/" + name)
+	if err != nil {
+		return err
+	}
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }() // no-op tras Commit
+	// Sin argumentos, pgx usa el protocolo simple: admite varias sentencias.
+	if _, err := tx.Exec(ctx, string(sql)); err != nil {
+		return fmt.Errorf("store: migración %s: %w", name, err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO schema_migrations (version) VALUES ($1)`, v); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func notFound(err error) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	return err
+}
+
+func (p *PG) UpsertUser(ctx context.Context, sub, email string) (User, error) {
+	var u User
+	err := p.pool.QueryRow(ctx, `INSERT INTO users (sub, email) VALUES ($1, $2)
+		ON CONFLICT (sub) DO UPDATE SET email = EXCLUDED.email
+		RETURNING id::text, sub, email`, sub, email).Scan(&u.ID, &u.Sub, &u.Email)
+	return u, err
+}
+
+func (p *PG) Vault(ctx context.Context, userID string) (Vault, error) {
+	if !IsUUID(userID) {
+		return Vault{}, ErrNotFound
+	}
+	var v Vault
+	var kdf string
+	err := p.pool.QueryRow(ctx, `SELECT kdf::text, passphrase_wrap, recovery_wrap, sign_pub, created_at
+		FROM vaults WHERE user_id = $1::uuid`, userID).
+		Scan(&kdf, &v.PassphraseWrap, &v.RecoveryWrap, &v.SignPub, &v.Created)
+	v.KDF = []byte(kdf)
+	return v, notFound(err)
+}
+
+func (p *PG) CreateVault(ctx context.Context, userID string, v Vault) error {
+	if !IsUUID(userID) {
+		return ErrNotFound
+	}
+	if !json.Valid(v.KDF) {
+		return fmt.Errorf("store: KDF no es JSON")
+	}
+	tag, err := p.pool.Exec(ctx, `INSERT INTO vaults (user_id, kdf, passphrase_wrap, recovery_wrap, sign_pub)
+		VALUES ($1::uuid, $2::jsonb, $3, $4, $5) ON CONFLICT (user_id) DO NOTHING`,
+		userID, string(v.KDF), v.PassphraseWrap, v.RecoveryWrap, v.SignPub)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrConflict
+	}
+	return nil
+}
+
+// revoked_at IS NOT NULL: el instante exacto no sale de aquí, solo si lo está.
+const deviceCols = `id::text, name, platform, ccp_version, created_at, last_seen, revoked_at IS NOT NULL`
+
+func scanDevice(row pgx.Row) (Device, error) {
+	var d Device
+	err := row.Scan(&d.ID, &d.Name, &d.Platform, &d.CCPVersion, &d.Created, &d.LastSeen, &d.Revoked)
+	return d, notFound(err)
+}
+
+func (p *PG) CreateDevice(ctx context.Context, userID string, d Device) (Device, error) {
+	if !IsUUID(userID) {
+		return Device{}, ErrNotFound
+	}
+	return scanDevice(p.pool.QueryRow(ctx, `INSERT INTO devices (user_id, name, platform, ccp_version)
+		VALUES ($1::uuid, $2, $3, $4) RETURNING `+deviceCols, userID, d.Name, d.Platform, d.CCPVersion))
+}
+
+func (p *PG) Devices(ctx context.Context, userID string) ([]Device, error) {
+	if !IsUUID(userID) {
+		return []Device{}, nil
+	}
+	rows, err := p.pool.Query(ctx, `SELECT `+deviceCols+`
+		FROM devices WHERE user_id = $1::uuid ORDER BY created_at, id`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Device{}
+	for rows.Next() {
+		d, err := scanDevice(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+func (p *PG) SeenDevice(ctx context.Context, userID, deviceID string, at time.Time) (Device, error) {
+	if !IsUUID(userID) || !IsUUID(deviceID) {
+		return Device{}, ErrNotFound
+	}
+	return scanDevice(p.pool.QueryRow(ctx, `UPDATE devices SET last_seen = $3
+		WHERE user_id = $1::uuid AND id = $2::uuid RETURNING `+deviceCols, userID, deviceID, at))
+}
+
+// RevokeDevice es idempotente y conserva el primer instante: COALESCE deja la
+// revocación original en pie si alguien vuelve a revocar el mismo equipo.
+func (p *PG) RevokeDevice(ctx context.Context, userID, deviceID string, at time.Time) error {
+	if !IsUUID(userID) || !IsUUID(deviceID) {
+		return ErrNotFound
+	}
+	tag, err := p.pool.Exec(ctx, `UPDATE devices SET revoked_at = COALESCE(revoked_at, $3)
+		WHERE user_id = $1::uuid AND id = $2::uuid`, userID, deviceID, at)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (p *PG) KnownBlobs(ctx context.Context, userID string, ids []string) (map[string]int64, error) {
+	out := map[string]int64{}
+	if !IsUUID(userID) || len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := p.pool.Query(ctx, `SELECT id, size FROM blobs
+		WHERE user_id = $1::uuid AND id = ANY($2::text[])`, userID, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		var size int64
+		if err := rows.Scan(&id, &size); err != nil {
+			return nil, err
+		}
+		out[id] = size
+	}
+	return out, rows.Err()
+}
+
+// CommitSnapshot es una transacción, y de ahí salen las dos garantías: un
+// snapshot a medias no existe, y una referencia a un blob sin registrar la
+// rechaza la clave foránea antes de que nada se haya confirmado.
+func (p *PG) CommitSnapshot(ctx context.Context, userID string, s Snapshot, newBlobs []Blob, refs []string) (bool, error) {
+	if !IsUUID(userID) || !IsUUID(s.DeviceID) {
+		return false, ErrNotFound
+	}
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }() // no-op tras Commit
+
+	var exists bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM snapshots
+		WHERE user_id = $1::uuid AND id = $2)`, userID, s.ID).Scan(&exists); err != nil {
+		return false, err
+	}
+	if exists {
+		return false, tx.Commit(ctx)
+	}
+	var devOK bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM devices
+		WHERE user_id = $1::uuid AND id = $2::uuid)`, userID, s.DeviceID).Scan(&devOK); err != nil {
+		return false, err
+	}
+	if !devOK {
+		return false, ErrNotFound
+	}
+	if len(newBlobs) > 0 {
+		ids := make([]string, len(newBlobs))
+		sizes := make([]int64, len(newBlobs))
+		for i, b := range newBlobs {
+			ids[i], sizes[i] = b.ID, b.Size
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO blobs (user_id, id, size)
+			SELECT $1::uuid, unnest($2::text[]), unnest($3::bigint[])
+			ON CONFLICT DO NOTHING`, userID, ids, sizes); err != nil {
+			return false, err
+		}
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO snapshots (user_id, id, parent, device_id, created, manifest, sig, size)
+		VALUES ($1::uuid, $2, $3, $4::uuid, $5, $6, $7, $8)`,
+		userID, s.ID, s.Parent, s.DeviceID, s.Created, s.Manifest, s.Sig, s.Size); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return false, nil // otro commit del mismo snapshot ganó la carrera
+		}
+		return false, err
+	}
+	if len(refs) > 0 {
+		// La clave foránea rechaza una referencia a un blob sin registrar.
+		if _, err := tx.Exec(ctx, `INSERT INTO snapshot_blobs (user_id, snapshot_id, blob_id)
+			SELECT $1::uuid, $2, unnest($3::text[])
+			ON CONFLICT DO NOTHING`, userID, s.ID, refs); err != nil {
+			return false, fmt.Errorf("store: referencias del snapshot: %w", err)
+		}
+	}
+	return true, tx.Commit(ctx)
+}
+
+const snapCols = `s.id, s.parent, s.device_id::text, d.name, s.created, s.size, s.pinned`
+
+func (p *PG) Snapshots(ctx context.Context, userID, deviceID string, limit int) ([]Snapshot, error) {
+	if !IsUUID(userID) {
+		return []Snapshot{}, nil
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	// El desempate por id no es cosmético: dos snapshots del mismo instante
+	// salían en orden arbitrario y `limit` se quedaba con cualquiera de ellos.
+	rows, err := p.pool.Query(ctx, `SELECT `+snapCols+` FROM snapshots s
+		JOIN devices d ON d.id = s.device_id
+		WHERE s.user_id = $1::uuid AND ($2 = '' OR s.device_id::text = $2)
+		ORDER BY s.created DESC, s.id DESC LIMIT $3`, userID, deviceID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Snapshot{}
+	for rows.Next() {
+		var s Snapshot
+		if err := rows.Scan(&s.ID, &s.Parent, &s.DeviceID, &s.DeviceName, &s.Created, &s.Size, &s.Pinned); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+func (p *PG) Snapshot(ctx context.Context, userID, id string) (Snapshot, error) {
+	if !IsUUID(userID) {
+		return Snapshot{}, ErrNotFound
+	}
+	var s Snapshot
+	err := p.pool.QueryRow(ctx, `SELECT `+snapCols+`, s.manifest, s.sig FROM snapshots s
+		JOIN devices d ON d.id = s.device_id
+		WHERE s.user_id = $1::uuid AND s.id = $2`, userID, id).
+		Scan(&s.ID, &s.Parent, &s.DeviceID, &s.DeviceName, &s.Created, &s.Size, &s.Pinned, &s.Manifest, &s.Sig)
+	return s, notFound(err)
+}
+
+// Audit solo inserta. user_id y device_id admiten NULL a propósito: hay cosas
+// que apuntar (un login que no llegó a cuajar) sin una cuenta o un equipo aún.
+func (p *PG) Audit(ctx context.Context, userID, deviceID, action string, detail map[string]any) error {
+	if detail == nil {
+		detail = map[string]any{}
+	}
+	d, err := json.Marshal(detail)
+	if err != nil {
+		return err
+	}
+	_, err = p.pool.Exec(ctx, `INSERT INTO audit_log (user_id, device_id, action, detail)
+		VALUES (NULLIF($1, '')::uuid, NULLIF($2, '')::uuid, $3, $4::jsonb)`,
+		userID, deviceID, action, string(d))
+	return err
+}
