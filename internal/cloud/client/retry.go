@@ -40,12 +40,26 @@ var postRepetible = map[string]bool{
 	"/v1/snapshots":     true,
 }
 
-// idempotent dice si repetir esa petición es seguro. GET, HEAD, PUT y DELETE lo
-// son por definición de HTTP; POST, solo donde lo diga postRepetible.
+// putNoRepetible son los PUT que en la práctica no son idempotentes, por más
+// que el método lo sea sobre el papel. `/v1/vault` CREA la bóveda y contesta
+// 409 a la segunda llamada, así que una respuesta perdida tras el alta (un 502
+// de un proxy después del commit, un corte de conexión) se convertiría al
+// reintentar en «esta cuenta ya tiene bóveda»: `ccp cloud init` muere ahí,
+// antes de enseñar el código de recuperación, y ese código no se reemite jamás.
+// Mejor devolver el fallo de transporte tal cual, que al menos dice la verdad.
+var putNoRepetible = map[string]bool{
+	"/v1/vault": true,
+}
+
+// idempotent dice si repetir esa petición es seguro. GET, HEAD y DELETE lo son
+// por definición de HTTP; PUT lo es salvo en putNoRepetible; POST, solo donde
+// lo diga postRepetible.
 func idempotent(method, path string) bool {
 	switch method {
-	case http.MethodGet, http.MethodHead, http.MethodPut, http.MethodDelete:
+	case http.MethodGet, http.MethodHead, http.MethodDelete:
 		return true
+	case http.MethodPut:
+		return !putNoRepetible[strings.SplitN(path, "?", 2)[0]]
 	case http.MethodPost:
 		p := strings.SplitN(path, "?", 2)[0]
 		// `snapshots/<id>/pin` PONE un valor, no lo alterna, así que repetirlo
