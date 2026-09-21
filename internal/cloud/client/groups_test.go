@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/JoseAFlores777/ccp/internal/cloud/api"
@@ -53,5 +54,33 @@ func TestGruposDesdeElCliente(t *testing.T) {
 	}
 	if gs, _ := a.Groups(ctx); len(gs) != 0 {
 		t.Fatalf("Groups tras borrar = %+v", gs)
+	}
+}
+
+// `ccp cloud groups` imprime el id recortado a 8 caracteres, así que lo que el
+// usuario copia de la pantalla NUNCA es el id entero: resolver solo por id
+// completo convertía la columna «ID» en algo que el propio CLI rechazaba.
+func TestResolveGroupPorPrefijoDeID(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, nil)
+	_, a, _ := r.machine(t, "mac-a")
+
+	g, err := a.CreateGroup(ctx, api.GroupIn{Name: "Macs"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := ResolveGroup(ctx, a, g.ID[:8])
+	if err != nil || got.ID != g.ID {
+		t.Fatalf("ResolveGroup(prefijo) = %+v, %v", got, err)
+	}
+	// El id entero y el nombre siguen valiendo.
+	if got, err := ResolveGroup(ctx, a, g.ID); err != nil || got.ID != g.ID {
+		t.Fatalf("ResolveGroup(id) = %+v, %v", got, err)
+	}
+	if got, err := ResolveGroup(ctx, a, "macs"); err != nil || got.ID != g.ID {
+		t.Fatalf("ResolveGroup(nombre) = %+v, %v", got, err)
+	}
+	if _, err := ResolveGroup(ctx, a, "no-existe"); !errors.Is(err, ErrGroupNotFound) {
+		t.Fatalf("ResolveGroup(desconocido) = %v", err)
 	}
 }
