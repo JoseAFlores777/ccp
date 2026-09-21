@@ -4,7 +4,7 @@
 // servidor, ni navegador, ni red.
 import { readFileSync, writeFileSync } from 'node:fs';
 import * as c from './web/js/crypto.js';
-import { publish, buildEdited } from './web/js/publish.js';
+import { publish, buildEdited, restore } from './web/js/publish.js';
 
 const v = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 let fallos = 0;
@@ -93,5 +93,40 @@ writeFileSync(process.argv[3], JSON.stringify({ commit, revisions: revisiones, b
   } catch (e) { err = e; }
   check('publicar sin equipos falla', err !== null, 'no lanzó');
   check('y no deja nada hecho en la nube', tocado.length === 0, tocado.join(', '));
+}
+// «Restaurar en <máquina>» (§10.3.1, camino 2). Lo que lo distingue de una
+// edición es la base vacía: con base, la máquina reconcilia y lo suyo se
+// queda; sin ella, la orden es «llega a este snapshot». Y no sube ni crea
+// nada: el snapshot que se restaura ya está en la nube.
+{
+  const tocado = [];
+  const puestas = [];
+  const fake = {
+    putBlob: async (id) => { tocado.push('putBlob ' + id); },
+    presign: async (_op, ids) => { tocado.push('presign'); return ids.map((id) => ({ id, exists: true })); },
+    commitSnapshot: async (in_) => { tocado.push('commitSnapshot'); return { id: in_.id }; },
+    revisions: async (dev) => (v.chains[dev] || []).map((r) => ({ id: r.id, prev: r.prev || '' })),
+    publishRevision: async (r) => { puestas.push(r); return r; },
+  };
+  const out = await restore({ api: fake, keys }, { snapshot: v.cloud_id, devices: v.devices });
+  check('restaurar no toca el almacén de la nube', tocado.length === 0, tocado.join(', '));
+  check('una orden por equipo', out.results.length === v.devices.length && out.results.every((r) => r.ok));
+  check('todas nombran el snapshot que se restaura', puestas.every((r) => r.snapshot === v.cloud_id));
+  check('y van SIN base: eso es lo que las hace una restauración',
+    puestas.every((r) => (r.base || '') === ''), JSON.stringify(puestas.map((r) => r.base)));
+  check('encadenan sobre la cabeza de cada equipo',
+    puestas.every((r) => (r.prev || '') === (v.heads[r.device_id] || '')));
+  // La firma tiene que verificar con base vacía: Go la comprueba aparte, aquí
+  // basta con que no se cuele una firma sobre otra cosa.
+  check('cada orden lleva su firma', puestas.every((r) => typeof r.sig === 'string' && r.sig.length > 0));
+
+  let err = null;
+  try { await restore({ api: fake, keys }, { snapshot: v.cloud_id, devices: [] }); } catch (e) { err = e; }
+  check('restaurar sin equipos falla', err !== null, 'no lanzó');
+  err = null;
+  try { await restore({ api: fake, keys }, { snapshot: '', devices: v.devices }); } catch (e) { err = e; }
+  check('restaurar sin snapshot falla', err !== null, 'no lanzó');
+
+  writeFileSync(process.argv[3] + '.restore', JSON.stringify({ revisions: puestas }));
 }
 process.exit(fallos === 0 ? 0 : 1);

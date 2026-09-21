@@ -340,7 +340,8 @@ async function renderTimeline(deviceID) {
       el('td', {}, tamano(s.size)),
       el('td', {}, detalle),
       el('td', {}, el('a', { class: 'lig', href: '#/config/' + s.id }, 'configurar'), ' ',
-        el('a', { class: 'lig', href: '#', onclick: (e) => { e.preventDefault(); dialogoDescargar(s); } }, 'descargar')),
+        el('a', { class: 'lig', href: '#', onclick: (e) => { e.preventDefault(); dialogoDescargar(s); } }, 'descargar'), ' ',
+        el('a', { class: 'lig', href: '#', onclick: (e) => { e.preventDefault(); dialogoRestaurar(s, deviceID); } }, 'restaurar en…')),
       el('td', { class: 'mono flojo', title: s.id }, s.id.slice(0, 12)));
   });
   sinc();
@@ -712,6 +713,75 @@ function campoTexto(c, texto, original, nota) {
   return el('div', { class: 'editor' }, area,
     el('div', { class: 'pie' }, el('button', { onclick: grabar }, 'Guardar'),
       el('button', { class: 'lig', onclick: () => { area.value = original; } }, 'Volver al original'), aviso2));
+}
+
+
+// ------------------------------------------------------- «Restaurar en…»
+
+// dialogoRestaurar publica una orden de restauración: «llega a este
+// snapshot». No edita nada, así que no sube ni crea nada en la nube; lo único
+// que sale de aquí es una revisión firmada por equipo (§10.3.1, camino 2).
+//
+// Viene marcado el equipo del que salió el snapshot —restaurar una máquina en
+// uno de sus propios snapshots es el caso normal—, y ninguno más: mandar la
+// configuración de una máquina a otra no puede ser un descuido de un clic.
+function dialogoRestaurar(s, deviceID) {
+  const caja = el('div', { class: 'caja' }, el('p', { class: 'flojo' }, 'Leyendo equipos…'));
+  const fondo = el('div', { class: 'dialogo', onclick: (e) => { if (e.target === fondo) fondo.remove(); } }, caja);
+  document.body.append(fondo);
+  api.devices().then((devs) => {
+    const elegibles = devs.filter((d) => !d.revoked && d.platform !== 'portal');
+    const marcados = new Set(elegibles.some((d) => d.id === deviceID) ? [deviceID] : []);
+    const filas = elegibles.map((d) => {
+      const ch = el('input', { type: 'checkbox', checked: marcados.has(d.id) || null });
+      ch.addEventListener('change', () => { ch.checked ? marcados.add(d.id) : marcados.delete(d.id); sincroniza(); });
+      return el('label', {}, ch, el('span', {}, d.name),
+        el('span', { class: 'flojo' }, ` · ${d.platform || '—'} · último contacto ${hace(d.last_seen)}`),
+        d.id === deviceID ? el('span', { class: 'etiqueta' }, 'de aquí salió') : null);
+    });
+    const aceptar = el('button', { class: 'grande', onclick: () => restaura([...marcados], elegibles, caja, s) }, 'Restaurar');
+    const sincroniza = () => {
+      aceptar.disabled = ![...marcados].some((id) => elegibles.some((d) => d.id === id));
+    };
+    sincroniza();
+    rellena(caja,
+      el('h2', {}, 'Restaurar en…'),
+      el('p', { class: 'flojo' },
+        `Snapshot ${s.id.slice(0, 12)} · ${fecha(s.created)}. Cada máquina lo aplicará cuando su agente contacte; ` +
+        'si está apagada, al encenderse. Antes de escribir toma un snapshot de seguridad, y no borra nada que ' +
+        'exista allí y no esté en éste.'),
+      el('p', { class: 'flojo' },
+        'Lo que ejecuta código (hooks, comandos de MCP, barra de estado) lo confirma una persona en esa máquina. ' +
+        'El portal nunca restaura por sí mismo: propone, y la máquina ejecuta.'),
+      ...filas,
+      elegibles.length === 0 ? el('p', { class: 'mal' }, 'No hay ningún equipo al que publicar.') : null,
+      el('div', { class: 'botones' },
+        el('button', { class: 'lig', onclick: () => fondo.remove() }, 'Cancelar'), aceptar));
+  }).catch((e) => caja.replaceChildren(el('p', { class: 'mal' }, e.message)));
+}
+
+async function restaura(ids, elegibles, caja, s) {
+  const paso = el('p', { class: 'flojo' }, 'Empezando…');
+  caja.replaceChildren(el('h2', {}, 'Publicando'), paso);
+  try {
+    const out = await publicar.restore({ api, keys: vault.keys() }, {
+      snapshot: s.id,
+      devices: elegibles.filter((d) => ids.includes(d.id)),
+      onStep: (t) => { paso.textContent = t; },
+    });
+    rellena(caja,
+      el('h2', {}, 'Orden puesta'),
+      el('p', { class: 'flojo' }, `Snapshot ${out.snapshot.slice(0, 12)}`),
+      ...out.results.map((r) => el('p', { class: r.ok ? 'ok' : 'mal' },
+        r.ok ? `${r.device.name}: pendiente de que su agente la recoja.`
+          : `${r.device.name}: no se pudo publicar — ${r.error}`)),
+      el('div', { class: 'botones' },
+        el('button', { class: 'grande', onclick: () => caja.parentElement.remove() }, 'Cerrar')));
+  } catch (e) {
+    caja.replaceChildren(el('h2', {}, 'No se publicó'), el('p', { class: 'mal' }, e.message),
+      el('div', { class: 'botones' },
+        el('button', { onclick: () => caja.parentElement.remove() }, 'Cerrar')));
+  }
 }
 
 // ----------------------------------------------------------- «Aplicar a…»

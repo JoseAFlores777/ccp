@@ -101,18 +101,29 @@ export async function publish({ api, keys }, { base, baseCloud, edits, devices, 
   paso('Publicando el snapshot…');
   const meta = await api.commitSnapshot({ ...built.in, blobs });
 
+  const resultados = await ordena({ api, keys }, { snapshot: built.in.id, base: baseCloud || '', devices, paso });
+  return { snapshot: built.in.id, meta, manifest: built.manifest, uploaded: subidos.size, missing: sinDatos, results: resultados };
+}
+
+// ordena firma y publica UNA revisión por equipo. Lo comparten «Aplicar a…» y
+// «Restaurar en…» porque son la misma orden con distinta base, y dos bucles
+// que publican revisiones acabarían encadenando de dos maneras.
+//
+// El resultado se cuenta POR EQUIPO: publicar para tres y fallar en el tercero
+// no es un fallo, son dos órdenes puestas y una que no.
+async function ordena({ api, keys }, { snapshot: snapID, base, devices, paso }) {
   const resultados = [];
   for (const d of devices) {
     try {
-      paso('Publicando la revisión para ' + d.name + '…');
+      if (paso) paso('Publicando la revisión para ' + d.name + '…');
       // `prev` tiene que ser la cabeza de la cadena de ESE equipo: encadenar
       // es lo que impide que el servidor quite un eslabón sin que se vea.
       const prev = await headRevision(api, d.id);
       const id = randomID();
-      const parts = { id, prev, device: d.id, snapshot: built.in.id, base: baseCloud || '' };
+      const parts = { id, prev, device: d.id, snapshot: snapID, base: base || '' };
       const sig = await snap.signRevision(keys.sign, parts, new Uint8Array(0));
       const rev = await api.publishRevision({
-        id, prev, device_id: d.id, snapshot: built.in.id, base: baseCloud || '',
+        id, prev, device_id: d.id, snapshot: snapID, base: base || '',
         sig: c.b64e(sig), created: new Date().toISOString(),
       });
       resultados.push({ device: d, ok: true, revision: rev.id });
@@ -120,7 +131,28 @@ export async function publish({ api, keys }, { base, baseCloud, edits, devices, 
       resultados.push({ device: d, ok: false, error: e.message });
     }
   }
-  return { snapshot: built.in.id, meta, manifest: built.manifest, uploaded: subidos.size, missing: sinDatos, results: resultados };
+  return resultados;
+}
+
+// restore ordena a uno o más equipos LLEGAR a un snapshot que ya está en la
+// nube (§10.3.1, camino 2). No sube nada ni crea ningún snapshot: el que se
+// restaura ya existe, y publicar una copia suya solo añadiría un eslabón que
+// no dice nada nuevo.
+//
+// Se diferencia de `publish` en una sola cosa, y es la que lo convierte en una
+// restauración: la revisión va SIN base. Con base, la máquina reconcilia a
+// tres bandas y lo que ella cambió por su cuenta se queda; sin ella, la orden
+// es absoluta —«llega a este snapshot»— y lo deseado gana. Lo ejecutable
+// sigue pidiendo confirmación allí: el portal propone, la máquina ejecuta.
+export async function restore({ api, keys }, { snapshot: snapID, devices, onStep }) {
+  if (!snapID) throw new Error('no se dijo qué snapshot restaurar');
+  // Sin equipos no hay nada que ordenar, y decirlo es mejor que enseñar
+  // «Publicado» sobre una lista de destinos vacía.
+  if (!devices || devices.length === 0) {
+    throw new Error('no hay ningún equipo al que publicar: la orden no se puso en ninguna parte');
+  }
+  const results = await ordena({ api, keys }, { snapshot: snapID, base: '', devices, paso: onStep });
+  return { snapshot: snapID, results };
 }
 
 // headRevision devuelve la cabeza de la cadena de un equipo: el eslabón que
