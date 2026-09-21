@@ -600,3 +600,32 @@ func TestConfigItemEntrySinClave(t *testing.T) {
 		t.Fatal("borrar una entrada sin clave debería dar error")
 	}
 }
+
+func TestConfigItemPutRechazaProyectoInexistente(t *testing.T) {
+	r := invFixture(t)
+	// La GUI pide la ruta del proyecto en un campo de texto libre: con un
+	// typo, escribir sin más crea el árbol .claude entero (y con
+	// instructions, la propia carpeta del proyecto) en un repo que no
+	// existe, así que el agente queda guardado «bien» y no lo lee nadie.
+	falso := filepath.Join(t.TempDir(), "no", "existe")
+	capa := ConfigLayer{Level: "project", Name: falso}
+	_, err := ConfigItemPut(r, ConfigRef{Layer: capa, Type: CfgTypeAgents, Name: "revisor"},
+		ConfigValue{Text: "agente\n"})
+	if err == nil {
+		t.Fatal("un proyecto que no existe no se escribe en silencio")
+	}
+	if _, err := os.Stat(falso); !os.IsNotExist(err) {
+		t.Errorf("no debe crearse nada bajo %s: %v", falso, err)
+	}
+	// Con instructions el destino es <proyecto>/CLAUDE.md: el mismo corte.
+	if _, err := ConfigItemPut(r, ConfigRef{Layer: capa, Type: CfgTypeInstructions, Name: "CLAUDE.md"},
+		ConfigValue{Text: "hola\n"}); err == nil {
+		t.Fatal("instructions tampoco crea la carpeta del proyecto")
+	}
+	// Un proyecto que sí existe sigue escribiéndose.
+	real := t.TempDir()
+	if _, err := ConfigItemPut(r, ConfigRef{Layer: ConfigLayer{Level: "project", Name: real},
+		Type: CfgTypeAgents, Name: "revisor"}, ConfigValue{Text: "agente\n"}); err != nil {
+		t.Fatalf("Put en un proyecto real: %v", err)
+	}
+}

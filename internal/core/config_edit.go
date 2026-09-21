@@ -426,6 +426,9 @@ func ConfigItemPutWith(r InventoryRoots, ref ConfigRef, v ConfigValue, opts Conf
 	if err := cfgEditable(r, t, ref); err != nil {
 		return ConfigWrite{}, err
 	}
+	if err := cfgRequireProjectDir(t.Layer); err != nil {
+		return ConfigWrite{}, err
+	}
 	if err := cfgRefuseProjectSecret(t, v); err != nil {
 		return ConfigWrite{}, err
 	}

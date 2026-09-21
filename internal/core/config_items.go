@@ -25,6 +25,7 @@ package core
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -244,6 +245,22 @@ func cfgWriteLayer(layer ConfigLayer) (ConfigLayer, error) {
 		return layer, nil
 	}
 	return ConfigLayer{}, fmt.Errorf("capa desconocida %q (valen: global, profile, project, desktop)", layer.Level)
+}
+
+// cfgRequireProjectDir exige que la carpeta del proyecto exista antes de
+// escribir nada en ella. La ruta llega de un campo de texto libre (P-20), y
+// con un typo el MkdirAll de más abajo crearía el árbol .claude entero —con
+// instructions, la propia carpeta— en un repo que no existe: lo guardado se
+// vería bien y no lo leería nadie nunca.
+func cfgRequireProjectDir(layer ConfigLayer) error {
+	if layer.Level != "project" {
+		return nil
+	}
+	dir := filepath.Clean(layer.Name)
+	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
+		return fmt.Errorf("no existe la carpeta del proyecto %s", dir)
+	}
+	return nil
 }
 
 // cfgInLayer dice si la procedencia de un item cae dentro de la capa que se
