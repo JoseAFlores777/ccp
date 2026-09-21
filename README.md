@@ -987,6 +987,11 @@ ccp sync apply latest --yes            # apply it (it takes a snapshot first)
   stored, listed and printed. `?region=` and `?endpoint=` do go in it — they are the address.
 - **Applying is a restore**, with the same rules as `ccp snapshot restore`: without `--yes` you get the plan
   and nothing is written, and `--only <path>` brings back just one part. `--plan` asks for the plan alone.
+- **`ccp sync verify` checks the history, and `pull`/`apply` check it too.** A signature says that *that* link
+  is genuine, never that the one next to it is still there: deleting `snaps/<id>.json` — or a shared folder
+  that already brought `objects/` and not yet the newest record — leaves a `latest` that points at an **old**
+  snapshot. What catches it is this machine's own state, which remembers the id of everything it uploaded.
+  `pull` warns, `apply` refuses (`--force` applies it anyway) and `verify` exits 1 so a cron notices.
 - **`ccp sync remote rm <name>` only forgets it here.** Nothing is deleted in the folder or the bucket:
   removing a remote must not be the accidental way to lose every machine's configuration.
 - With more than one destination, say which with `--remote <name>` — `ccp` will not guess and publish into the

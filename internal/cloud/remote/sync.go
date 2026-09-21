@@ -360,3 +360,28 @@ func openSnapshot(ctx context.Context, r Remote, acct *crypt.Account, rid string
 	}
 	return &m, nil
 }
+
+// Verify comprueba la historia del destino contra lo que ESTE equipo subió.
+//
+// La firma de un eslabón dice que ESE eslabón es auténtico, nunca que no falta
+// el de al lado: cortar la cadena por la cabeza —borrar `snaps/<id>.json`, o
+// una carpeta de iCloud que ya trajo `objects/` y todavía no el registro más
+// nuevo— no deja ningún padre roto. Lo único que lo delata es el estado local,
+// que guarda el id remoto de cada snapshot que este equipo publicó; por eso
+// `pushed` no es un extra, es el dato que hace útil a la verificación.
+func Verify(ctx context.Context, r Remote, acct *crypt.Account, f client.Files) (client.ChainReport, error) {
+	links, err := r.Chain(ctx)
+	if err != nil {
+		return client.ChainReport{}, err
+	}
+	state, err := f.LoadState()
+	if err != nil {
+		return client.ChainReport{}, err
+	}
+	pushed := make([]string, 0, len(state.Pushed))
+	for _, rid := range state.Pushed {
+		pushed = append(pushed, rid)
+	}
+	sort.Strings(pushed)
+	return client.VerifyChain(acct, links, pushed), nil
+}

@@ -14,6 +14,7 @@ var catalogSync = map[string]map[Lang]string{
   remote rm <name>                forget one here (nothing is deleted in the destination)
   push [<snapshot>] [--json]      upload the local snapshots the destination does not have
   pull [<id>|latest]              download one into the local store
+  verify [--json]                 check the destination's history against what this machine uploaded
   apply [<id>|latest] [--plan]    bring this machine to that snapshot; --yes writes
        [--only <lpath>] [--yes] [--force]  --force applies it even if the
                                   destination lost some content
@@ -35,6 +36,7 @@ CCP_SYNC_S3_ACCESS_KEY / CCP_SYNC_S3_SECRET_KEY (or the AWS ones), never from th
   remote rm <nombre>              lo olvida aquí (en el destino no se borra nada)
   push [<snapshot>] [--json]      sube los snapshots locales que el destino no tiene
   pull [<id>|latest]              baja uno al almacén local
+  verify [--json]                 comprueba la historia del destino contra lo que subió esta máquina
   apply [<id>|latest] [--plan]    deja esta máquina en ese snapshot; --yes escribe
        [--only <ruta>] [--yes] [--force]   --force lo aplica aunque el
                                   destino haya perdido algún contenido
@@ -49,6 +51,26 @@ Todo se sella en esta máquina antes de salir: quien opera la carpeta o el bucke
 bultos que no sabe abrir. CCP_SYNC_PASSPHRASE y CCP_SYNC_RECOVERY dan los secretos sin
 preguntar; las credenciales del bucket salen de CCP_SYNC_S3_ACCESS_KEY /
 CCP_SYNC_S3_SECRET_KEY (o de las de AWS), nunca de la URL.`,
+	},
+	"cli.sync.chain_ok": {
+		En: "%s keeps the whole history: %d links, every signature from this vault.",
+		Es: "%s conserva la historia entera: %d eslabones, todas las firmas de esta bóveda.",
+	},
+	"cli.sync.chain_bad": {
+		En: "The destination's history does NOT add up: %d problem(s) in %d links.",
+		Es: "La historia del destino NO cuadra: %d problema(s) en %d eslabones.",
+	},
+	"cli.sync.chain_hint": {
+		En: "Nothing was deleted here: your snapshots are on this machine (ccp snapshot list). Until you know why, 'latest' in that destination may be an old snapshot.",
+		Es: "Aquí no se ha borrado nada: tus snapshots siguen en esta máquina (ccp snapshot list). Hasta saber por qué, «latest» de ese destino puede ser un snapshot viejo.",
+	},
+	"cli.sync.fault.dropped": {
+		En: "this machine uploaded it and the destination no longer has it",
+		Es: "esta máquina lo subió y el destino ya no lo tiene",
+	},
+	"cli.sync.apply_chain_blocked": {
+		En: "Nothing was applied: the destination does not keep the whole history, so that snapshot may not be the newest. --force applies it anyway.",
+		Es: "No se ha aplicado nada: el destino no conserva la historia entera, así que ese snapshot puede no ser el más nuevo. --force lo aplica igual.",
 	},
 	"cli.sync.unknown_sub": {En: "sync: unknown subcommand '%s'", Es: "sync: subcomando desconocido '%s'"},
 	"cli.sync.unknown_opt": {En: "sync: unknown option or extra argument '%s'", Es: "sync: opción desconocida o argumento de más '%s'"},

@@ -364,3 +364,73 @@ func borraUnObjetoDe(t *testing.T, destino string) {
 		t.Fatal(err)
 	}
 }
+
+// snapsDe son los registros que hay ahora mismo en la carpeta destino.
+func snapsDe(t *testing.T, destino string) map[string]bool {
+	t.Helper()
+	ents, err := os.ReadDir(filepath.Join(destino, "snaps"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]bool{}
+	for _, e := range ents {
+		out[e.Name()] = true
+	}
+	return out
+}
+
+// Borrar el registro más nuevo de la carpeta hacía que `apply latest --yes`
+// restaurara el ANTERIOR, pisando la configuración de ahora y saliendo 0 sin
+// un solo aviso. La cadena sale de los registros, así que cortarla por la
+// cabeza no deja ningún padre roto; lo que lo delata es el estado de este
+// equipo, que recuerda haber subido ese id.
+func TestSyncApplyNoRetrocedeSiElDestinoPerdioElUltimo(t *testing.T) {
+	t.Setenv("CCP_SYNC_PASSPHRASE", fraseSync)
+	destino := t.TempDir()
+	_, src := snapEnv(t)
+	ajustes := filepath.Join(src, "settings.json")
+	if code, out, errs := snapRun(t, "snapshot", "create"); code != 0 {
+		t.Fatalf("create: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "sync", "remote", "add", "icloud", "file://"+destino); code != 0 {
+		t.Fatalf("remote add: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "sync", "push"); code != 0 {
+		t.Fatalf("push: %d %q %q", code, out, errs)
+	}
+	viejos := snapsDe(t, destino)
+	if err := os.WriteFile(ajustes, []byte(`{"theme":"NUEVO"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code, out, errs := snapRun(t, "snapshot", "create"); code != 0 {
+		t.Fatalf("segundo create: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "sync", "push"); code != 0 {
+		t.Fatalf("segundo push: %d %q %q", code, out, errs)
+	}
+	// Quien opera la carpeta borra el registro del más nuevo.
+	for name := range snapsDe(t, destino) {
+		if !viejos[name] {
+			if err := os.Remove(filepath.Join(destino, "snaps", name)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if err := os.WriteFile(ajustes, []byte(`{"theme":"ACTUAL"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, out, errs := snapRun(t, "sync", "apply", "latest", "--yes")
+	if code == 0 {
+		t.Fatalf("apply retrocedió sin avisar: %d %q %q", code, out, errs)
+	}
+	if got, _ := os.ReadFile(ajustes); string(got) != `{"theme":"ACTUAL"}` {
+		t.Fatalf("pisó la configuración de ahora: %q", got)
+	}
+	if !strings.Contains(errs, "subió") {
+		t.Fatalf("no dijo qué falta: %q", errs)
+	}
+	// Y `sync verify` cuenta lo mismo por su cuenta, para un cron.
+	if code, out, errs = snapRun(t, "sync", "verify"); code != 1 || !strings.Contains(out, "NO cuadra") {
+		t.Fatalf("sync verify: %d %q %q", code, out, errs)
+	}
+}
