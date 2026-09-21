@@ -212,14 +212,52 @@ func settingsDangers(from, to []byte) []Danger {
 // configuración del servidor, no qué binario se lanza.
 func mcpServers(m map[string]any) map[string]any {
 	out := map[string]any{}
-	srv, _ := m["mcpServers"].(map[string]any)
-	for name, v := range srv {
+	collect(out, "", m["mcpServers"])
+	// Los de ámbito proyecto viven en `projects.<ruta>.mcpServers` y viajan en
+	// el mismo blob (core.ClaudeJSONConfig los captura y ClaudeJSONApplyConfig
+	// los vuelve a escribir): mirar solo el primer nivel dejaba pasar un
+	// `command` entero sin preguntar. La clave lleva la ruta porque dos
+	// proyectos con un servidor homónimo no son el mismo servidor.
+	projects, _ := m["projects"].(map[string]any)
+	for proj, v := range projects {
 		o, ok := v.(map[string]any)
 		if !ok {
-			out[name] = v
 			continue
 		}
-		out[name] = []any{o["command"], o["args"]}
+		collect(out, proj+"\x00", o["mcpServers"])
+	}
+	return out
+}
+
+// collect vuelca, con prefijo, lo que de cada servidor acaba ejecutándose.
+func collect(out map[string]any, prefix string, v any) {
+	srv, _ := v.(map[string]any)
+	for name, sv := range srv {
+		o, ok := sv.(map[string]any)
+		if !ok {
+			out[prefix+name] = sv
+			continue
+		}
+		out[prefix+name] = []any{o["command"], o["args"]}
+	}
+}
+
+// projectAllowedTools aplana `projects.<ruta>.allowedTools`, la lista de
+// permisos por repo del .claude.json: amplía lo que Claude Code puede correr
+// ahí igual que `permissions.allow` de un settings.json, y viaja en el mismo
+// blob. La ruta va en la clave: permitir algo en otro proyecto es permitir
+// algo nuevo.
+func projectAllowedTools(m map[string]any) map[string]bool {
+	out := map[string]bool{}
+	projects, _ := m["projects"].(map[string]any)
+	for proj, v := range projects {
+		o, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		for s := range strList(o["allowedTools"]) {
+			out[proj+"\x00"+s] = true
+		}
 	}
 	return out
 }
@@ -233,12 +271,22 @@ func mcpDangers(from, to []byte) []Danger {
 	if !okA {
 		a = map[string]any{}
 	}
+	var out []Danger
 	was, now := mcpServers(a), mcpServers(b)
 	for name, v := range now {
 		// Quitar un servidor no ejecuta nada: solo se mira lo que llega.
 		if old, had := was[name]; !had || !reflect.DeepEqual(old, v) {
-			return []Danger{DangerMCP}
+			out = append(out, DangerMCP)
+			break
 		}
 	}
-	return nil
+	// Solo si amplía, como en settings.json: restringir se aplica solo.
+	wasTools := projectAllowedTools(a)
+	for s := range projectAllowedTools(b) {
+		if !wasTools[s] {
+			out = append(out, DangerPermissions)
+			break
+		}
+	}
+	return out
 }
