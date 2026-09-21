@@ -802,6 +802,18 @@ still the primary source.
 - **Signatures are checked against your own key.** Every snapshot is signed with a key derived from the vault
   key, and `pull` verifies it with the public half derived here — never with one the server hands over. A
   compromised server can refuse to serve you; it cannot slip in, alter or reorder a snapshot.
+- **The history is a chain, and `ccp cloud verify` walks all of it.** Each snapshot's signature covers the id
+  of its parent, so `verify` catches a link that was rewritten (`bad_signature`), one taken out of the middle
+  (`broken_link`), one taken off the head (`dropped` — it knows what this machine uploaded), a date that
+  contradicts the parents (`out_of_order`) and ids that repeat or loop. It exits 1 if anything does not add
+  up, which is what a cron wants.
+- **Retention never breaks the chain.** A server may be configured to prune old snapshots
+  (`CCP_CLOUD_RETENTION_DAILY` / `_WEEKLY` / `_MONTHLY`; with none of them it keeps everything, the default).
+  Pruning takes the manifest and the blobs — all it occupies — and leaves the link: id, parent, date, digest
+  and signature. That is deliberate: a hole left by retention would look exactly like a hole left by a
+  compromised server, and then `verify` would be a warning you learn to ignore. A pruned snapshot cannot be
+  downloaded (the CLI says so); yours is still on the machine that made it. **Pinned snapshots are never
+  pruned**: `ccp snapshot pin <id>` (or giving one a label) travels up on the next `push`.
 - **Blobs never pass through the API.** They go straight between this machine and the storage, with
   pre-signed URLs. Anything over 64 MiB is left behind and `push` says which.
 - **Paths are translated between machines.** A snapshot taken under `/Users/ana` and restored where HOME is

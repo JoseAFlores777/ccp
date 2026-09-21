@@ -50,6 +50,14 @@ CCP_CLOUD_PASSPHRASE y CCP_CLOUD_RECOVERY dan los secretos sin preguntarlos.`,
 		En: "The history is intact: %d links, every signature from this account.",
 		Es: "La historia está intacta: %d eslabones, todas las firmas de esta cuenta.",
 	},
+	"cli.cloud.verify_pruned": {
+		En: "%d link(s) keep only their signature: the server's retention took their content, and they still hold the chain together.",
+		Es: "%d eslabón(es) conservan solo su firma: la retención del servidor se llevó su contenido, y siguen sosteniendo la cadena.",
+	},
+	"cli.cloud.snapshot_pruned": {
+		En: "The server's retention took that snapshot: its link is still in the chain, its content is not. If this machine made it, it is still here: ccp snapshot list",
+		Es: "La retención del servidor se llevó ese snapshot: su eslabón sigue en la cadena, su contenido no. Si lo hizo esta máquina, sigue aquí: ccp snapshot list",
+	},
 	"cli.cloud.verify_bad": {
 		En: "The history does NOT add up: %d problem(s) in %d links.",
 		Es: "La historia NO cuadra: %d problema(s) en %d eslabones.",

@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -116,5 +117,63 @@ func TestVerifyChainDetectaUnCicloYUnIDRepetido(t *testing.T) {
 	rep = VerifyChain(b, append(dos, dos[1]), nil)
 	if !tiene(rep, FaultDuplicateID) {
 		t.Fatalf("un id repetido tenía que salir como %s: %v", FaultDuplicateID, codes(rep))
+	}
+}
+
+// Fijar un snapshot DESPUÉS de subirlo es el caso normal: uno se da cuenta de
+// que ese importa más tarde. Si el fijado local no llega a la nube, la
+// retención del servidor podaría justo lo que dijiste que se conserva.
+func TestPushSincronizaElFijadoDeLoQueYaEstaArriba(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, nil)
+	files, a, st := r.machine(t, "mac")
+	acct, _, m := seed(t, a, st)
+	if _, err := Push(ctx, a, acct, st, files, ""); err != nil {
+		t.Fatal(err)
+	}
+	links, err := a.Chain(ctx)
+	if err != nil || len(links) != 1 || links[0].Pinned {
+		t.Fatalf("recién subido no está fijado: %+v, %v", links, err)
+	}
+	etiqueta := "antes del viaje"
+	if _, err := st.SetPin(m.ID, true, &etiqueta); err != nil {
+		t.Fatal(err)
+	}
+	rep, err := Push(ctx, a, acct, st, files, "")
+	if err != nil || rep.Pinned != 1 {
+		t.Fatalf("Push = %+v, %v; quiero 1 fijado sincronizado", rep, err)
+	}
+	if links, _ = a.Chain(ctx); !links[0].Pinned {
+		t.Fatalf("el fijado local no llegó a la nube: %+v", links)
+	}
+	// Y soltarlo también viaja: si no, fijar sería irreversible en la nube.
+	// También hay que quitarle la etiqueta: una etiqueta conserva igual que
+	// un fijado, aquí y en la poda local.
+	sin := ""
+	if _, err := st.SetPin(m.ID, false, &sin); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Push(ctx, a, acct, st, files, ""); err != nil {
+		t.Fatal(err)
+	}
+	if links, _ = a.Chain(ctx); links[0].Pinned {
+		t.Fatalf("soltarlo no llegó a la nube: %+v", links)
+	}
+}
+
+// La poda del servidor y la comprobación de la cadena se cruzan aquí: una
+// lápida SIGUE siendo un eslabón. Si se borrara la fila, el hueco sería idéntico
+// al que deja un servidor que te quita un snapshot, y esta comprobación pasaría
+// a dar un falso positivo cada día hasta que nadie la mirara.
+func TestVerifyChainNoConfundeUnaPodaConUnRobo(t *testing.T) {
+	a, links := cadena(t, 3)
+	links[1].Pruned = true
+	todos := []string{links[0].ID, links[1].ID, links[2].ID}
+	rep := VerifyChain(a, links, todos)
+	if !rep.OK() {
+		t.Fatalf("una lápida no es una falta: %v", codes(rep))
+	}
+	if rep.Pruned != 1 || rep.Links != 3 {
+		t.Fatalf("la lápida se cuenta y sigue contando como eslabón: %+v", rep)
 	}
 }

@@ -24,9 +24,10 @@ type Mem struct {
 	devices map[string]map[string]Device // usuario -> id
 	blobs   map[string]map[string]int64  // usuario -> blob -> tamaño
 	snaps   map[string]map[string]Snapshot
-	refs    map[string]map[string][]string // usuario -> snapshot -> blobs
-	revs    map[string]map[string]Revision // usuario -> id de revisión
-	heads   map[string]map[string]string   // usuario -> dispositivo -> cabeza de su cadena
+	refs    map[string]map[string][]string  // usuario -> snapshot -> blobs
+	blobAt  map[string]map[string]time.Time // usuario -> blob -> cuándo se registró
+	revs    map[string]map[string]Revision  // usuario -> id de revisión
+	heads   map[string]map[string]string    // usuario -> dispositivo -> cabeza de su cadena
 	audit   []string
 }
 
@@ -35,7 +36,8 @@ func NewMem() *Mem {
 	return &Mem{
 		users: map[string]User{}, vaults: map[string]Vault{}, devices: map[string]map[string]Device{},
 		blobs: map[string]map[string]int64{}, snaps: map[string]map[string]Snapshot{}, refs: map[string]map[string][]string{},
-		revs: map[string]map[string]Revision{}, heads: map[string]map[string]string{},
+		blobAt: map[string]map[string]time.Time{},
+		revs:   map[string]map[string]Revision{}, heads: map[string]map[string]string{},
 	}
 }
 
@@ -176,8 +178,21 @@ func (m *Mem) CommitSnapshot(_ context.Context, userID string, s Snapshot, newBl
 		m.refs[userID] = map[string][]string{}
 	}
 	maps.Copy(m.blobs[userID], incoming)
+	if m.blobAt[userID] == nil {
+		m.blobAt[userID] = map[string]time.Time{}
+	}
+	for id := range incoming {
+		if _, ya := m.blobAt[userID][id]; !ya {
+			m.blobAt[userID][id] = time.Now()
+		}
+	}
 	s.DeviceName = d.Name
 	s.Manifest, s.Sig = bytes.Clone(s.Manifest), bytes.Clone(s.Sig)
+	// El digest se fija al escribir, como en Postgres: calcularlo al leer haría
+	// que una lápida —que ya no tiene manifiesto— cambiara de digest y su firma
+	// dejara de verificar.
+	sum := sha256.Sum256(s.Manifest)
+	s.Digest = hex.EncodeToString(sum[:])
 	m.snaps[userID][s.ID] = s
 	m.refs[userID][s.ID] = append([]string(nil), refs...)
 	return true, nil
@@ -188,10 +203,10 @@ func (m *Mem) Snapshots(_ context.Context, userID, deviceID string, limit int) (
 	defer m.mu.Unlock()
 	var out []Snapshot
 	for _, s := range m.snaps[userID] {
-		if deviceID != "" && s.DeviceID != deviceID {
+		if deviceID != "" && s.DeviceID != deviceID || s.Pruned {
 			continue
 		}
-		s.Manifest, s.Sig = nil, nil
+		s.Manifest, s.Sig, s.Digest = nil, nil, ""
 		out = append(out, s)
 	}
 	// Desempata por id: dos snapshots del mismo instante salían en orden
@@ -208,6 +223,54 @@ func (m *Mem) Snapshots(_ context.Context, userID, deviceID string, limit int) (
 	return out, nil
 }
 
+// PruneSnapshots: ver el contrato en store.go.
+func (m *Mem) PruneSnapshots(_ context.Context, userID string, ids []string, before time.Time) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, id := range ids {
+		s, ok := m.snaps[userID][id]
+		if !ok || s.Pruned {
+			continue
+		}
+		s.Pruned, s.Manifest, s.Size = true, nil, 0
+		m.snaps[userID][id] = s
+		delete(m.refs[userID], id)
+	}
+	vivos := map[string]bool{}
+	for sid, refs := range m.refs[userID] {
+		if m.snaps[userID][sid].Pruned {
+			continue
+		}
+		for _, b := range refs {
+			vivos[b] = true
+		}
+	}
+	libres := []string{}
+	for b := range m.blobs[userID] {
+		if vivos[b] || !m.blobAt[userID][b].Before(before) {
+			continue
+		}
+		libres = append(libres, b)
+		delete(m.blobs[userID], b)
+		delete(m.blobAt[userID], b)
+	}
+	sort.Strings(libres)
+	return libres, nil
+}
+
+// SetPinned: ver el contrato en store.go.
+func (m *Mem) SetPinned(_ context.Context, userID, id string, pinned bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, ok := m.snaps[userID][id]
+	if !ok {
+		return ErrNotFound
+	}
+	s.Pinned = pinned
+	m.snaps[userID][id] = s
+	return nil
+}
+
 // Chain: ver el contrato en store.go.
 func (m *Mem) Chain(_ context.Context, userID string, limit int) ([]Snapshot, error) {
 	m.mu.Lock()
@@ -217,8 +280,6 @@ func (m *Mem) Chain(_ context.Context, userID string, limit int) ([]Snapshot, er
 	}
 	out := []Snapshot{}
 	for _, s := range m.snaps[userID] {
-		sum := sha256.Sum256(s.Manifest)
-		s.Digest = hex.EncodeToString(sum[:])
 		s.Manifest, s.Sig = nil, bytes.Clone(s.Sig)
 		out = append(out, s)
 	}
@@ -243,7 +304,7 @@ func (m *Mem) Snapshot(_ context.Context, userID, id string) (Snapshot, error) {
 	}
 	// Se devuelve copia: quien llama no debe poder reescribir el manifiesto
 	// guardado, que en Postgres sería una fila.
-	s.Manifest, s.Sig = bytes.Clone(s.Manifest), bytes.Clone(s.Sig)
+	s.Manifest, s.Sig, s.Digest = bytes.Clone(s.Manifest), bytes.Clone(s.Sig), ""
 	return s, nil
 }
 

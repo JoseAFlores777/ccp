@@ -25,6 +25,9 @@ type PushReport struct {
 	// sellado. Ninguna de las dos se sube; el snapshot sí.
 	Missing  []string `json:"missing"`
 	TooLarge []string `json:"too_large"`
+	// Pinned: snapshots que ya estaban arriba y a los que se les puso al día
+	// el fijado (campo nuevo, no forma cambiada).
+	Pinned int `json:"pinned"`
 }
 
 func sortedKeys[V any](m map[string]V) []string {
@@ -66,7 +69,54 @@ func Push(ctx context.Context, a *API, acct *crypt.Account, st *snapshot.Store, 
 		}
 		rep.Snapshots++
 	}
+	if err := syncPins(ctx, a, st, state, &rep); err != nil {
+		return rep, err
+	}
 	return rep, nil
+}
+
+// syncPins pone al día, de lo que ya está arriba, lo que está fijado. Fijar es
+// del cliente porque el servidor no puede saberlo: «fijado» es la bandera del
+// manifiesto o el hecho de tener etiqueta, y el manifiesto viaja sellado. Y va
+// aquí, en cada `push`, porque fijar DESPUÉS de subir es el caso normal —uno
+// se da cuenta de que ese snapshot importa más tarde— y publicarlo otra vez no
+// cambiaría nada: el id ya está y el servidor contesta que sí, que ya lo tiene.
+//
+// Si dos máquinas no opinan lo mismo de un snapshot, gana la última que hace
+// push. Un fijado de más no cuesta nada; lo que no puede pasar es que se poda
+// algo que alguien dijo que se conserva.
+func syncPins(ctx context.Context, a *API, st *snapshot.Store, state State, rep *PushReport) error {
+	ms, err := st.List()
+	if err != nil {
+		return err
+	}
+	quiere := map[string]bool{} // id en la nube -> fijado que dice esta máquina
+	for _, m := range ms {
+		if cloudID, up := state.Pushed[m.ID]; up {
+			quiere[cloudID] = m.Pinned || m.Label != ""
+		}
+	}
+	if len(quiere) == 0 {
+		return nil
+	}
+	links, err := a.Chain(ctx)
+	if err != nil {
+		return err
+	}
+	for _, l := range links {
+		// Una lápida ya no tiene contenido que conservar: fijarla no salva nada.
+		want, mine := quiere[l.ID]
+		if !mine || l.Pruned || l.Pinned == want {
+			continue
+		}
+		if err := a.PinSnapshot(ctx, l.ID, want); err != nil {
+			// Se dice en voz alta: un fijado que no llega es un snapshot que
+			// la retención del servidor puede podar creyendo que sobra.
+			return fmt.Errorf("no se pudo poner al día lo fijado de %s: %w", snapshot.Short(l.ID), err)
+		}
+		rep.Pinned++
+	}
+	return nil
 }
 
 func pushOne(ctx context.Context, a *API, acct *crypt.Account, st *snapshot.Store, m *snapshot.Manifest, rep *PushReport) (string, error) {
@@ -133,7 +183,8 @@ func pushOne(ctx context.Context, a *API, acct *crypt.Account, st *snapshot.Stor
 		return "", err
 	}
 	in := api.SnapshotIn{ID: cloudID, Parent: parent, Created: m.Created, Manifest: sealed,
-		Sig: acct.Sign(cloudID, parent, sealed), Blobs: sortedKeys(local)}
+		Sig: acct.Sign(cloudID, parent, sealed), Blobs: sortedKeys(local),
+		Pinned: m.Pinned || m.Label != ""}
 	_, err = a.CommitSnapshot(ctx, in)
 	var apiErr *APIError
 	if errors.As(err, &apiErr) && apiErr.Code == api.CodeMissingBlobs {

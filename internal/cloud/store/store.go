@@ -71,6 +71,12 @@ type Snapshot struct {
 	// manifiesto contra lo que dijera quien lo mandó. Vacío en Snapshot() y en
 	// los listados, que ya llevan el manifiesto o no lo necesitan.
 	Digest string
+	// Pruned marca una lápida: la retención se llevó su manifiesto y sus
+	// blobs, y la fila se queda con lo que sostiene la cadena (id, padre,
+	// fecha, digest y firma). No se sirve como snapshot —no queda nada que
+	// restaurar— pero sí como eslabón: borrarla dejaría un hueco idéntico al
+	// que deja un servidor que te quita un snapshot.
+	Pruned bool
 }
 
 // Revision es una revisión deseada: el estado al que el portal pide que llegue
@@ -122,6 +128,18 @@ type Store interface {
 	// tirón; media cadena no verifica nada, así que el límite es un tope de
 	// seguridad (api.MaxChainLinks), no una paginación.
 	Chain(ctx context.Context, userID string, limit int) ([]Snapshot, error)
+	// PruneSnapshots convierte en lápidas los snapshots ids: les quita el
+	// manifiesto y sus referencias, y borra los blobs que ningún snapshot vivo
+	// siga usando y que se registraran antes de before. La fila NO se borra
+	// (ver Snapshot.Pruned). Devuelve los blobs liberados para que quien llama
+	// los quite del almacenamiento: primero la base y después el bucket,
+	// porque un objeto huérfano en el bucket es basura y una fila que apunta a
+	// un objeto que ya no está es un snapshot roto.
+	PruneSnapshots(ctx context.Context, userID string, ids []string, before time.Time) ([]string, error)
+	// SetPinned fija o suelta un snapshot. Un fijado no se poda nunca, y por
+	// eso fijar es del cliente: «fijado» es la bandera del manifiesto o el
+	// hecho de tener etiqueta, y el manifiesto viaja sellado.
+	SetPinned(ctx context.Context, userID, id string, pinned bool) error
 	// PublishRevision guarda una revisión deseada como cabeza de la cadena de
 	// su dispositivo. r.Prev debe ser la cabeza actual ("" si no hay ninguna)
 	// o devuelve ErrConflict, igual que un id repetido; un dispositivo que no

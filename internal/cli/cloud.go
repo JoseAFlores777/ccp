@@ -101,6 +101,14 @@ func (c cloudCmd) usage(key string, a ...any) int {
 
 // fail traduce los errores con solución conocida a su mensaje.
 func (c cloudCmd) fail(err error) int {
+	var apiErr *client.APIError
+	if errors.As(err, &apiErr) && apiErr.Code == api.CodeGone {
+		// «Ya no está» y «nunca estuvo» piden cosas distintas de quien lo
+		// busca: el eslabón sigue en la cadena y el snapshot local, si esta
+		// máquina lo hizo, también.
+		fmt.Fprintln(c.err, i18n.T(c.lang, "cli.cloud.snapshot_pruned"))
+		return 1
+	}
 	switch {
 	case errors.Is(err, client.ErrNotLoggedIn):
 		fmt.Fprintln(c.err, i18n.T(c.lang, "cli.cloud.not_logged_in"))
@@ -674,6 +682,9 @@ func (c cloudCmd) verify(args []string) int {
 			return 0
 		}
 		return 1
+	}
+	if rep.Pruned > 0 {
+		fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.verify_pruned", rep.Pruned))
 	}
 	if rep.OK() {
 		fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.verify_ok", rep.Links))

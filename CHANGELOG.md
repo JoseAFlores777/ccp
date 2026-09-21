@@ -23,6 +23,25 @@
   - La fecha **no va firmada** y por eso no ordena nada: el orden lo dibujan los padres. Lo que caza
     `out_of_order` es una fecha que miente (el listado del portal sale de ella), no un reordenamiento de la
     historia, que es imposible sin la clave de cuenta.
+- **Retención configurable en el servidor, y podar no rompe la cadena** (spec §10.3.1, F3-1).
+  `CCP_CLOUD_RETENTION_DAILY` / `_WEEKLY` / `_MONTHLY` encienden la misma política que la poda local (§8.3);
+  sin ninguna de las tres el servidor **guarda todos**, que es el valor por defecto del plan y lo que hacía
+  hasta ahora. El barrido corre dentro de la publicación que hace crecer la historia, como mucho una vez al
+  día por cuenta, y es siempre «lo mejor que se pueda»: no poder liberar sitio no es razón para rechazar un
+  snapshot.
+  - **Podar se lleva el contenido y deja el eslabón.** Del snapshot podado se van el manifiesto y sus blobs
+    —todo lo que ocupa— y la fila se queda como lápida con su id, su padre, su fecha, su digest y su firma.
+    Borrarla entera dejaría un hueco **indistinguible** del que deja un servidor comprometido, y `ccp cloud
+    verify` se convertiría en un aviso que hay que ignorar cada día, o sea en ninguna comprobación. Bajar uno
+    podado responde `410 gone` y el CLI lo dice entero: el eslabón sigue, el contenido no, y si lo hizo esta
+    máquina sigue aquí.
+  - **Un fijado no se poda jamás**, y fijar después de subirlo es el caso normal: `ccp snapshot pin` (o poner
+    una etiqueta) viaja a la nube en el siguiente `push`, que ahora sincroniza lo fijado de lo que ya está
+    arriba y lo cuenta en su informe. Publicar otra vez no habría servido: el id ya está.
+  - Un blob se borra del bucket **después** de la base y nunca antes de la gracia de una hora: un objeto que
+    se queda es basura que recoge la siguiente poda, y una fila que apuntara a un objeto que ya no está sería
+    un snapshot roto. Un blob recién subido puede ser de un `push` a medias, que sube los blobs antes que el
+    snapshot que los nombra.
 
 - **P-21 Nube en la app: la cuenta, la bóveda, tus equipos y lo que espera tu confirmación** (spec §10.3,
   F2-5, [ADR 0014](docs/adr/0014-portal-proposes-machine-applies.md)). Es el otro extremo del portal: lo que

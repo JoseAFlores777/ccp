@@ -45,6 +45,7 @@ type config struct {
 	portal                                        bool
 	dbPort                                        int
 	s3                                            blobs.S3Config
+	retention                                     server.Retention
 }
 
 // dsn es la DSN de palabras clave, SIN contraseña (va aparte a OpenPG): una
@@ -91,6 +92,35 @@ func loadConfig() (config, error) {
 		Region: get("CCP_CLOUD_S3_REGION", "us-east-1"), Bucket: get("CCP_CLOUD_S3_BUCKET", "ccp-blobs"),
 		AccessKey: get("CCP_CLOUD_S3_ACCESS_KEY", ""), SecretKey: get("CCP_CLOUD_S3_SECRET_KEY", ""),
 	}
+	// Retención: sin ninguna de las tres, el servidor guarda TODOS los
+	// snapshots, que es lo que dice §10.3.1. Un número mal escrito para el
+	// arranque en vez de quedarse en cero: un cero silencioso aquí no poda de
+	// más, pero esconde que el despliegue creía estar podando.
+	var malas []string
+	num := func(k string) int {
+		v := os.Getenv(k)
+		if v == "" {
+			return 0
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			malas = append(malas, k)
+			return 0
+		}
+		return n
+	}
+	c.retention = server.Retention{
+		Daily: num("CCP_CLOUD_RETENTION_DAILY"), Weekly: num("CCP_CLOUD_RETENTION_WEEKLY"),
+		Monthly: num("CCP_CLOUD_RETENTION_MONTHLY"),
+		// Un blob recién subido no se poda aunque no lo nombre nadie: puede ser
+		// de un push a medias, que sube los blobs antes que su snapshot.
+		Grace: time.Hour,
+		// Y la historia de una cuenta no se recorre en cada publicación.
+		Every: 24 * time.Hour,
+	}
+	if len(malas) > 0 {
+		return c, fmt.Errorf("no son un número de periodos: %s", strings.Join(malas, ", "))
+	}
 	if len(missing) > 0 {
 		return c, fmt.Errorf("faltan variables de entorno: %s", strings.Join(missing, ", "))
 	}
@@ -121,7 +151,7 @@ func run(log *slog.Logger) error {
 	h := server.New(server.Config{
 		Store: pg, Blobs: bl, Verifier: server.NewOIDCVerifier(c.issuer, c.jwks, c.audience),
 		Issuer: c.issuer, ClientID: c.clientID, PortalClientID: c.portalClientID,
-		Portal: web, Log: log, Ready: readyFunc(pg, bl, c.jwks),
+		Portal: web, Log: log, Ready: readyFunc(pg, bl, c.jwks), Retention: c.retention,
 	})
 	// Los timeouts de lectura/escritura son largos a propósito: por aquí pasan
 	// subidas y bajadas de blobs, no solo JSON de unos pocos kilobytes.

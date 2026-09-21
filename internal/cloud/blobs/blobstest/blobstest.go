@@ -146,6 +146,14 @@ func (m *Mem) Put(_ context.Context, key string, data []byte) error {
 }
 
 // Ping siempre va: la memoria no se cae.
+// Delete borra la clave. Que no exista no es un error.
+func (m *Mem) Delete(_ context.Context, key string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.data, key)
+	return nil
+}
+
 func (m *Mem) Ping(context.Context) error { return nil }
 
 // RunContract es lo que toda implementación de blobs.Blobs tiene que cumplir:
@@ -213,6 +221,17 @@ func RunContract(t *testing.T, b blobs.Blobs) {
 	}
 	if got, ok, err := b.Get(ctx, otra); err != nil || !ok || !bytes.Equal(got, body) {
 		t.Fatalf("Get tras Put = %q %v %v", got, ok, err)
+	}
+	// Delete es la poda: borrar lo que ya no está tiene que salir bien, o un
+	// barrido se pararía en el primer objeto que otro barrido ya se llevó.
+	if err := b.Delete(ctx, otra); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if _, ok, err := b.Get(ctx, otra); err != nil || ok {
+		t.Fatalf("tras Delete, Get = %v, %v", ok, err)
+	}
+	if err := b.Delete(ctx, otra); err != nil {
+		t.Fatalf("Delete repetido: %v", err)
 	}
 	if err := b.Ping(ctx); err != nil {
 		t.Fatalf("Ping: %v", err)

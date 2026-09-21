@@ -127,6 +127,21 @@ func (b *S3) Put(ctx context.Context, key string, data []byte) error {
 	return err
 }
 
+// Delete borra key. Un objeto que ya no está no es un error: S3 devuelve 204
+// igual, y los compatibles que contestan 404 se tratan como lo que son —lo que
+// se pedía ya no está—, porque la poda tiene que poder reintentarse entera.
+func (b *S3) Delete(ctx context.Context, key string) error {
+	_, err := b.internal.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: &b.bucket, Key: &key})
+	if err != nil {
+		var nk *types.NoSuchKey
+		var re *awshttp.ResponseError
+		if errors.As(err, &nk) || (errors.As(err, &re) && re.HTTPStatusCode() == http.StatusNotFound) {
+			return nil
+		}
+	}
+	return err
+}
+
 // Ping comprueba que el bucket está ahí (lo usa /readyz).
 func (b *S3) Ping(ctx context.Context) error {
 	_, err := b.internal.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: &b.bucket})

@@ -314,7 +314,8 @@ func (p *PG) CommitSnapshot(ctx context.Context, userID string, s Snapshot, newB
 	return true, tx.Commit(ctx)
 }
 
-const snapCols = `s.id, s.parent, s.device_id::text, d.name, s.created, s.size, s.pinned`
+const snapCols = `s.id, s.parent, s.device_id::text, d.name, s.created, s.size, s.pinned,
+	s.pruned_at IS NOT NULL`
 
 func (p *PG) Snapshots(ctx context.Context, userID, deviceID string, limit int) ([]Snapshot, error) {
 	if !IsUUID(userID) {
@@ -327,7 +328,7 @@ func (p *PG) Snapshots(ctx context.Context, userID, deviceID string, limit int) 
 	// salían en orden arbitrario y `limit` se quedaba con cualquiera de ellos.
 	rows, err := p.pool.Query(ctx, `SELECT `+snapCols+` FROM snapshots s
 		JOIN devices d ON d.id = s.device_id
-		WHERE s.user_id = $1::uuid AND ($2 = '' OR s.device_id::text = $2)
+		WHERE s.user_id = $1::uuid AND s.pruned_at IS NULL AND ($2 = '' OR s.device_id::text = $2)
 		ORDER BY s.created DESC, s.id DESC LIMIT $3`, userID, deviceID, limit)
 	if err != nil {
 		return nil, err
@@ -336,12 +337,75 @@ func (p *PG) Snapshots(ctx context.Context, userID, deviceID string, limit int) 
 	out := []Snapshot{}
 	for rows.Next() {
 		var s Snapshot
-		if err := rows.Scan(&s.ID, &s.Parent, &s.DeviceID, &s.DeviceName, &s.Created, &s.Size, &s.Pinned); err != nil {
+		if err := rows.Scan(&s.ID, &s.Parent, &s.DeviceID, &s.DeviceName, &s.Created, &s.Size, &s.Pinned, &s.Pruned); err != nil {
 			return nil, err
 		}
 		out = append(out, s)
 	}
 	return out, rows.Err()
+}
+
+// PruneSnapshots: ver el contrato en store.go. Todo en una transacción, y los
+// blobs solo se borran de la base: quitarlos del bucket es cosa de quien llama,
+// después, porque el orden inverso dejaría filas apuntando a objetos que ya no
+// están.
+func (p *PG) PruneSnapshots(ctx context.Context, userID string, ids []string, before time.Time) ([]string, error) {
+	if !IsUUID(userID) || len(ids) == 0 {
+		return []string{}, nil
+	}
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }() // no-op tras Commit
+
+	if _, err := tx.Exec(ctx, `UPDATE snapshots SET pruned_at = now(), manifest = ''::bytea, size = 0
+		WHERE user_id = $1::uuid AND id = ANY($2::text[]) AND pruned_at IS NULL`, userID, ids); err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM snapshot_blobs
+		WHERE user_id = $1::uuid AND snapshot_id = ANY($2::text[])`, userID, ids); err != nil {
+		return nil, err
+	}
+	rows, err := tx.Query(ctx, `DELETE FROM blobs b
+		WHERE b.user_id = $1::uuid AND b.created_at < $2
+		  AND NOT EXISTS (SELECT 1 FROM snapshot_blobs sb
+			WHERE sb.user_id = b.user_id AND sb.blob_id = b.id)
+		RETURNING b.id`, userID, before)
+	if err != nil {
+		return nil, err
+	}
+	libres := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		libres = append(libres, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sort.Strings(libres)
+	return libres, tx.Commit(ctx)
+}
+
+// SetPinned: ver el contrato en store.go.
+func (p *PG) SetPinned(ctx context.Context, userID, id string, pinned bool) error {
+	if !IsUUID(userID) {
+		return ErrNotFound
+	}
+	tag, err := p.pool.Exec(ctx, `UPDATE snapshots SET pinned = $3
+		WHERE user_id = $1::uuid AND id = $2`, userID, id, pinned)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // Chain: ver el contrato en store.go.
@@ -353,7 +417,7 @@ func (p *PG) Chain(ctx context.Context, userID string, limit int) ([]Snapshot, e
 		limit = api.MaxChainLinks
 	}
 	rows, err := p.pool.Query(ctx, `SELECT s.id, s.parent, s.device_id::text, s.created,
-		encode(s.manifest_sha256, 'hex'), s.sig, s.pinned FROM snapshots s
+		encode(s.manifest_sha256, 'hex'), s.sig, s.pinned, s.pruned_at IS NOT NULL FROM snapshots s
 		WHERE s.user_id = $1::uuid
 		ORDER BY s.created DESC, s.id DESC LIMIT $2`, userID, limit)
 	if err != nil {
@@ -363,7 +427,7 @@ func (p *PG) Chain(ctx context.Context, userID string, limit int) ([]Snapshot, e
 	out := []Snapshot{}
 	for rows.Next() {
 		var s Snapshot
-		if err := rows.Scan(&s.ID, &s.Parent, &s.DeviceID, &s.Created, &s.Digest, &s.Sig, &s.Pinned); err != nil {
+		if err := rows.Scan(&s.ID, &s.Parent, &s.DeviceID, &s.Created, &s.Digest, &s.Sig, &s.Pinned, &s.Pruned); err != nil {
 			return nil, err
 		}
 		out = append(out, s)
@@ -379,7 +443,7 @@ func (p *PG) Snapshot(ctx context.Context, userID, id string) (Snapshot, error) 
 	err := p.pool.QueryRow(ctx, `SELECT `+snapCols+`, s.manifest, s.sig FROM snapshots s
 		JOIN devices d ON d.id = s.device_id
 		WHERE s.user_id = $1::uuid AND s.id = $2`, userID, id).
-		Scan(&s.ID, &s.Parent, &s.DeviceID, &s.DeviceName, &s.Created, &s.Size, &s.Pinned, &s.Manifest, &s.Sig)
+		Scan(&s.ID, &s.Parent, &s.DeviceID, &s.DeviceName, &s.Created, &s.Size, &s.Pinned, &s.Pruned, &s.Manifest, &s.Sig)
 	return s, notFound(err)
 }
 
