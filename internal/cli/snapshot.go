@@ -151,6 +151,7 @@ type snapSummary struct {
 	Pinned    bool   `json:"pinned"`
 	Items     int    `json:"items"`
 	Secrets   int    `json:"secrets"`
+	Bytes     int64  `json:"bytes"`
 	Unchanged bool   `json:"unchanged,omitempty"`
 }
 
@@ -158,8 +159,21 @@ func snapSummaryOf(m *snapshot.Manifest, unchanged bool) snapSummary {
 	return snapSummary{
 		ID: m.ID, Parent: m.Parent, Created: m.Created.UTC().Format(time.RFC3339),
 		Machine: m.Machine, Trigger: m.Trigger, Label: m.Label, Pinned: m.Pinned,
-		Items: len(m.Items), Secrets: countClass(m, snapshot.ClassSecret), Unchanged: unchanged,
+		Items: len(m.Items), Secrets: countClass(m, snapshot.ClassSecret),
+		Bytes: snapBytes(m), Unchanged: unchanged,
 	}
+}
+
+// snapBytes suma lo que captura un manifiesto. No es lo que ocupa en disco: los
+// blobs se comparten entre snapshots, así que el segundo de dos snapshots casi
+// iguales no añade casi nada. Es el tamaño de lo capturado, que es lo que la
+// línea de tiempo necesita para decir de qué estamos hablando.
+func snapBytes(m *snapshot.Manifest) int64 {
+	var n int64
+	for _, it := range m.Items {
+		n += it.Size
+	}
+	return n
 }
 
 func countClass(m *snapshot.Manifest, class snapshot.Class) int {
