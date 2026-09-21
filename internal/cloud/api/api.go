@@ -258,6 +258,11 @@ type RevisionIn struct {
 	Snapshot string `json:"snapshot"`
 	// Base es el último aplicado sobre el que van esos cambios.
 	Base string `json:"base"`
+	// Group es el grupo al que se publica esta tanda, si se publica a uno.
+	// NO entra en la firma: lo firmado ata la orden a su máquina, que es lo
+	// que impide desviarla; la etiqueta solo sirve para contar el resultado
+	// por dispositivo dentro del grupo. Campo nuevo, forma sin cambiar.
+	Group string `json:"group,omitempty"`
 	// Body es el conjunto de cambios, sellado. Opaco para el servidor.
 	Body    []byte    `json:"body"`
 	Sig     []byte    `json:"sig"`
@@ -278,6 +283,8 @@ type RevisionMeta struct {
 	Updated    time.Time `json:"updated"`
 	// By es el dispositivo que la publicó (el portal también es uno).
 	By string `json:"by"`
+	// Group es el grupo con el que se publicó, si fue a uno.
+	Group string `json:"group,omitempty"`
 }
 
 // Revision es una revisión deseada completa (GET /v1/revisions/{id} y

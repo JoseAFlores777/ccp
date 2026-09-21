@@ -19,7 +19,7 @@ import (
 func toRevMeta(r store.Revision) api.RevisionMeta {
 	return api.RevisionMeta{ID: r.ID, Prev: r.Prev, DeviceID: r.DeviceID, DeviceName: r.DeviceName,
 		Snapshot: r.Snapshot, Base: r.Base, Created: r.Created, State: r.State, Reason: r.Reason,
-		Updated: r.Updated, By: r.By}
+		Updated: r.Updated, By: r.By, Group: r.Group}
 }
 
 func toRevFull(r store.Revision) api.Revision {
@@ -53,7 +53,8 @@ func (s *srv) publishRevision(w http.ResponseWriter, r *http.Request, rc reqCtx)
 	}
 	okID := func(s string) bool { return s == "" || api.ValidID(s) }
 	if !api.ValidID(in.ID) || !okID(in.Prev) || !okID(in.Snapshot) || !okID(in.Base) ||
-		!store.IsUUID(in.DeviceID) || len(in.Sig) != 64 || in.Created.IsZero() {
+		!store.IsUUID(in.DeviceID) || len(in.Sig) != 64 || in.Created.IsZero() ||
+		(in.Group != "" && !store.IsUUID(in.Group)) {
 		writeError(w, http.StatusBadRequest, api.CodeBadRequest, "revisión inválida")
 		return
 	}
@@ -73,6 +74,19 @@ func (s *srv) publishRevision(w http.ResponseWriter, r *http.Request, rc reqCtx)
 		s.internal(w, r, err)
 		return
 	}
+	// Una etiqueta de un grupo que no existe se rechaza: la orden se pondría
+	// igual, pero no saldría en el estado de ningún grupo, y quien la publicó
+	// se quedaría mirando una lista vacía sin saber que escribió mal el id.
+	if in.Group != "" {
+		if _, err := s.cfg.Store.Group(r.Context(), rc.user.ID, in.Group); err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				writeError(w, http.StatusNotFound, api.CodeNotFound, "grupo no encontrado")
+				return
+			}
+			s.internal(w, r, err)
+			return
+		}
+	}
 	// A un equipo revocado no se le manda nada: no va a volver a preguntar, y
 	// dejar la orden ahí la pinta en el portal como pendiente para siempre.
 	if target.Revoked {
@@ -81,7 +95,7 @@ func (s *srv) publishRevision(w http.ResponseWriter, r *http.Request, rc reqCtx)
 	}
 	got, err := s.cfg.Store.PublishRevision(r.Context(), rc.user.ID, store.Revision{
 		ID: in.ID, Prev: in.Prev, DeviceID: in.DeviceID, Snapshot: in.Snapshot, Base: in.Base,
-		Body: in.Body, Sig: in.Sig, Created: in.Created.UTC(), By: rc.device.ID})
+		Body: in.Body, Sig: in.Sig, Created: in.Created.UTC(), By: rc.device.ID, Group: in.Group})
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, api.CodeNotFound, "dispositivo no encontrado")
