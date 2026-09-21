@@ -481,22 +481,29 @@ func TestServeSnapshotLoQueLlamaLaGui(t *testing.T) {
 	src := os.Getenv("CCP_CLAUDE_SRC")
 	os.WriteFile(filepath.Join(src, "settings.json"), []byte(`{"a":1}`), 0o644)
 
-	_, r := serveRun(t, req(1, "snapshot.create", map[string]any{"label": "", "with_state": false}))
+	_, r := serveRun(t, req(1, "snapshot.create", map[string]any{"label": "antes de los MCP", "with_state": false}))
 	var s snapSummary
 	mustResult(t, r["1"], &s)
 
 	// Fijar sin tocar la etiqueta, y etiquetar sin tocar el fijado. Van en dos
 	// sesiones porque serve atiende una tanda en paralelo y aquí el orden es
-	// justo lo que se comprueba.
+	// justo lo que se comprueba. El snapshot nace ETIQUETADO a propósito: con
+	// la etiqueta vacía, «conservar» y «borrar» dan el mismo resultado y el
+	// test no distinguiría un `label` null que pierde el guardián — que es
+	// justo lo que pasaría al desfijar desde el detalle, donde la GUI manda
+	// label null, y la etiqueta es lo que protege al snapshot de la poda.
 	var pinned, labelled snapSummary
 	_, r = serveRun(t, req(2, "snapshot.pin", map[string]any{"id": s.ID, "pinned": true, "label": nil}))
 	mustResult(t, r["2"], &pinned)
-	_, r = serveRun(t, req(3, "snapshot.pin", map[string]any{"id": s.ID, "pinned": true, "label": "antes de los MCP"}))
+	// Etiquetar manda el `pinned` ACTUAL, como hace la pantalla: si el método
+	// dependiera de que le llegue true, un snapshot fijado se soltaría al
+	// renombrarlo.
+	_, r = serveRun(t, req(3, "snapshot.pin", map[string]any{"id": s.ID, "pinned": pinned.Pinned, "label": "después de los MCP"}))
 	mustResult(t, r["3"], &labelled)
-	if !pinned.Pinned || pinned.Label != "" {
-		t.Errorf("label null no debe inventar etiqueta: %+v", pinned)
+	if !pinned.Pinned || pinned.Label != "antes de los MCP" {
+		t.Errorf("label null no debe tocar la etiqueta: %+v", pinned)
 	}
-	if !labelled.Pinned || labelled.Label != "antes de los MCP" {
+	if !labelled.Pinned || labelled.Label != "después de los MCP" {
 		t.Errorf("etiquetar no debe desfijar: %+v", labelled)
 	}
 
