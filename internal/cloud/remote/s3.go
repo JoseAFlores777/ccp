@@ -195,6 +195,33 @@ func (b *S3) Put(ctx context.Context, key string, data []byte) error {
 	return err
 }
 
+// preconditionFailed reconoce el «ya existía» de un PutObject condicional. El
+// estándar es 412; algunos compatibles contestan 409 al mismo caso.
+func preconditionFailed(err error) bool {
+	var re *awshttp.ResponseError
+	if !errors.As(err, &re) {
+		return false
+	}
+	return re.HTTPStatusCode() == http.StatusPreconditionFailed ||
+		re.HTTPStatusCode() == http.StatusConflict
+}
+
+// PutIfAbsent usa `If-None-Match: *`, que S3 resuelve del lado del servidor:
+// es la única forma de que dos equipos creando la bóveda a la vez no acaben
+// con uno de los dos pisado en silencio. Un bucket compatible que no lo
+// implemente contestará 501 y el error sube tal cual —mejor negarse a crear
+// la bóveda que crearla creyendo que había exclusión.
+func (b *S3) PutIfAbsent(ctx context.Context, key string, data []byte) (bool, error) {
+	k := b.key(key)
+	_, err := b.c.PutObject(ctx, &s3.PutObjectInput{Bucket: &b.cfg.Bucket, Key: &k,
+		Body: bytes.NewReader(data), ContentLength: aws.Int64(int64(len(data))),
+		IfNoneMatch: aws.String("*")})
+	if preconditionFailed(err) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // List pagina hasta el final. Un bucket devuelve como mucho 1000 claves por
 // respuesta, y quedarse en la primera página daría una historia incompleta
 // —que es exactamente lo que la verificación de la cadena llama robo—.

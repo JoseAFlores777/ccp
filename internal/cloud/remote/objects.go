@@ -29,6 +29,14 @@ type Objects interface {
 	// Put guarda el objeto entero, sobrescribiendo. Tiene que ser atómico:
 	// un lector puede estar mirando la carpeta mientras se escribe.
 	Put(ctx context.Context, key string, data []byte) error
+	// PutIfAbsent guarda el objeto SOLO si la clave no está, y dice si lo
+	// creó él. Existe por una sola clave, `remote.json`: comprobar y luego
+	// escribir no es exclusión —dos equipos apuntando a la misma carpeta a
+	// la vez, y el segundo pisa la bóveda del primero sin error ninguno, que
+	// deja sin abrir todo lo que aquel haya publicado—. Está en la interfaz
+	// y no en un tipo aparte a propósito: un transporte que no sepa hacerlo
+	// no tiene que compilar como si supiera.
+	PutIfAbsent(ctx context.Context, key string, data []byte) (bool, error)
 	// List devuelve las claves bajo prefix, ordenadas. Un prefijo sin nada
 	// devuelve la lista vacía, no un error.
 	List(ctx context.Context, prefix string) ([]string, error)
@@ -173,6 +181,41 @@ func (d *Dir) Put(_ context.Context, key string, data []byte) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), p)
+}
+
+// PutIfAbsent crea el archivo con O_CREAT|O_EXCL sobre el destino FINAL, no
+// por tmp+rename: el rename pisa siempre, así que la exclusión tiene que ser
+// la del propio open. Se pierde a cambio la atomicidad frente al demonio que
+// sincroniza la carpeta, y se acepta porque la única clave que pasa por aquí
+// es `remote.json`, que son cientos de bytes; para los blobs sigue mandando
+// Put. Sobre un NFS/SMB serio O_EXCL es exclusivo; sobre una carpeta que
+// replica un demonio (iCloud, Dropbox) nada puede ver lo que aún no ha
+// bajado, y eso no lo arregla ninguna primitiva local.
+func (d *Dir) PutIfAbsent(_ context.Context, key string, data []byte) (bool, error) {
+	p, err := d.path(key)
+	if err != nil {
+		return false, err
+	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+		return false, err
+	}
+	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if errors.Is(err, fs.ErrExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		_ = os.Remove(p)
+		return false, err
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(p)
+		return false, err
+	}
+	return true, nil
 }
 
 // List recorre el prefijo. Un prefijo que no existe no es un error: una

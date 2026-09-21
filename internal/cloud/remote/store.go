@@ -104,6 +104,13 @@ func (s *Store) Vault(ctx context.Context) (api.Vault, error) {
 // todo lo que haya publicado, y el caso real no es un ataque sino apuntar dos
 // cuentas a la misma carpeta sin darse cuenta. Rotar las envolturas sobre la
 // MISMA AK es otra operación (§10.2) y aún no pasa por aquí.
+//
+// La negativa la decide PutIfAbsent, no la lectura previa. Esa lectura sigue
+// estando porque da el error bueno —«ya hay bóveda» frente a «el remote.json
+// lo escribió un ccp más nuevo»—, pero entre ella y la escritura cabe el
+// `sync remote add` del otro equipo, y con un Put normal el segundo pisaba al
+// primero devolviendo nil: a partir de ahí quien abre la carpeta obtiene la
+// AK del segundo y lo del primero queda ilegible para siempre, en silencio.
 func (s *Store) PutVault(ctx context.Context, v api.Vault) error {
 	if _, err := s.Vault(ctx); err == nil {
 		return ErrVaultExists
@@ -114,7 +121,14 @@ func (s *Store) PutVault(ctx context.Context, v api.Vault) error {
 	if err != nil {
 		return err
 	}
-	return s.o.Put(ctx, keyRemote, append(data, '\n'))
+	creada, err := s.o.PutIfAbsent(ctx, keyRemote, append(data, '\n'))
+	if err != nil {
+		return err
+	}
+	if !creada {
+		return ErrVaultExists
+	}
+	return nil
 }
 
 // Missing pregunta por los blobs uno a uno, pero solo por el tamaño: traerse
