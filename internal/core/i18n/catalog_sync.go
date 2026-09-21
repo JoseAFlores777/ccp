@@ -81,6 +81,14 @@ CCP_SYNC_S3_SECRET_KEY (o de las de AWS), nunca de la URL.`,
 		En: "The vault was created in the destination, but this machine could not save its key: run `ccp sync remote add` again with the same passphrase.",
 		Es: "La bóveda se creó en el destino, pero este equipo no pudo guardar su clave: vuelve a ejecutar `ccp sync remote add` con la misma frase.",
 	},
+	"cli.sync.vault_gone": {
+		En: "The destination '%s' has no vault any more: it was emptied, or its remote.json did not reach this machine. Add it again with `ccp sync remote add %s` before uploading or downloading anything.",
+		Es: "El destino '%s' ya no tiene bóveda: se vació, o su remote.json no llegó a este equipo. Vuelve a añadirlo con `ccp sync remote add %s` antes de subir o bajar nada.",
+	},
+	"cli.sync.vault_other": {
+		En: "The vault in '%s' is not the one this machine's key opens: another machine created it there. Add it again with `ccp sync remote add %s` and its passphrase; what was published with the previous vault cannot be read from this one.",
+		Es: "La bóveda de '%s' no es la que abre la clave de este equipo: otra máquina la creó ahí. Vuelve a añadirlo con `ccp sync remote add %s` y su frase; lo publicado con la bóveda anterior no se puede leer desde esta.",
+	},
 	"cli.sync.locked": {
 		En: "The destination '%s' is locked on this machine: run `ccp sync remote rm %s` and add it again with its passphrase.",
 		Es: "El destino '%s' está bloqueado en este equipo: ejecuta `ccp sync remote rm %s` y vuelve a añadirlo con su frase.",
