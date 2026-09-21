@@ -94,6 +94,9 @@ func New(c Config) http.Handler {
 	mux.Handle("GET /v1/groups/{id}/status", s.authed(s.groupStatus, true))
 	mux.Handle("PUT /v1/groups/{id}", s.authed(s.updateGroup, true))
 	mux.Handle("DELETE /v1/groups/{id}", s.authed(s.deleteGroup, true))
+	// El registro de auditoría: solo lectura, y solo de la propia cuenta
+	// (ver audit.go).
+	mux.Handle("GET /v1/audit", s.authed(s.listAudit, true))
 	mux.Handle("GET /v1/vault", s.authed(s.getVault, true))
 	mux.Handle("PUT /v1/vault", s.authed(s.putVault, true))
 	mux.Handle("POST /v1/blobs/presign", s.authed(s.presign, true))

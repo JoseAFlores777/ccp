@@ -290,3 +290,36 @@ func (a *API) SetRevisionState(ctx context.Context, id, state, reason string) (a
 	return out, a.do(ctx, http.MethodPost, "/v1/revisions/"+url.PathEscape(id)+"/state",
 		api.RevisionStateIn{State: state, Reason: reason}, &out)
 }
+
+// AuditQuery acota una lectura del registro de auditoría. El cero es «lo
+// último de la cuenta».
+type AuditQuery struct {
+	Device string
+	Action string
+	Since  time.Time
+	Limit  int
+}
+
+// Audit lee el registro de auditoría de la cuenta (§10.5): quién hizo qué y
+// cuándo. Nunca qué configuración había dentro — el servidor no la puede leer.
+func (a *API) Audit(ctx context.Context, q AuditQuery) ([]api.AuditEntry, error) {
+	v := url.Values{}
+	if q.Device != "" {
+		v.Set("device", q.Device)
+	}
+	if q.Action != "" {
+		v.Set("action", q.Action)
+	}
+	if !q.Since.IsZero() {
+		v.Set("since", q.Since.UTC().Format(time.RFC3339Nano))
+	}
+	if q.Limit > 0 {
+		v.Set("limit", strconv.Itoa(q.Limit))
+	}
+	path := "/v1/audit"
+	if len(v) > 0 {
+		path += "?" + v.Encode()
+	}
+	var out []api.AuditEntry
+	return out, a.do(ctx, http.MethodGet, path, nil, &out)
+}
