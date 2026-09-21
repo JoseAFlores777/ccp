@@ -20,6 +20,7 @@ import (
 
 	"github.com/mattn/go-isatty"
 
+	"github.com/JoseAFlores777/ccp/internal/cloud/agent"
 	"github.com/JoseAFlores777/ccp/internal/cloud/api"
 	"github.com/JoseAFlores777/ccp/internal/cloud/client"
 	"github.com/JoseAFlores777/ccp/internal/cloud/crypt"
@@ -66,6 +67,12 @@ func dispatchCloud(args []string, stdout, stderr io.Writer) int {
 		return c.devices(args)
 	case "revoke":
 		return c.revoke(args)
+	case "agent":
+		return c.agent(args)
+	case "review":
+		return c.review(args)
+	case "policy":
+		return c.policy(args)
 	case "help", "-h", "--help":
 		fmt.Fprintln(stdout, i18n.T(c.lang, "cli.cloud.usage"))
 		return 0
@@ -343,10 +350,12 @@ func (c cloudCmd) status(args []string) int {
 		}
 	}
 	pending := c.pendingPush()
+	review, _, _ := agent.LoadReview(c.files)
 	if a.flags["--json"] {
 		return snapJSON(c.out, c.err, map[string]any{
 			"logged_in": loggedIn, "server": cfg.Server, "email": cfg.Email, "device_id": cfg.DeviceID,
 			"device_name": cfg.DeviceName, "vault": vault, "pending_push": pending,
+			"policy": policyOf(cfg), "pending_review": len(review.Pending),
 		})
 	}
 	if !loggedIn {
@@ -358,6 +367,10 @@ func (c cloudCmd) status(args []string) int {
 	fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.status_device", cfg.DeviceName))
 	fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.status_vault", i18n.T(c.lang, "cli.cloud.vault_"+vault)))
 	fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.status_pending", pending))
+	fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.status_policy", i18n.T(c.lang, "cli.cloud.policy_"+policyOf(cfg))))
+	if len(review.Pending) > 0 {
+		fmt.Fprintln(c.out, warnLine(c.out, i18n.T(c.lang, "cli.cloud.agent_waiting", len(review.Pending))))
+	}
 	return 0
 }
 
