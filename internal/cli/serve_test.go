@@ -524,6 +524,12 @@ func TestServeSnapshotLoQueLlamaLaGui(t *testing.T) {
 	if len(list) != 1 {
 		t.Errorf("la poda en seco no borra: quedan %d", len(list))
 	}
+
+	// Anclada a un plan que ya no vale: no borra nada y lo dice.
+	_, r = serveRun(t, req(7, "snapshot.prune", map[string]any{"dry_run": false, "ids": []string{s.ID}}))
+	if r["7"].Error == nil {
+		t.Errorf("podar con un id que no sobra debería fallar: %s", r["7"].Result)
+	}
 }
 
 // Exportar e importar desde la GUI: la frase viaja vacía cuando no hay que

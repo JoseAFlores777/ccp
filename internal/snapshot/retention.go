@@ -1,6 +1,7 @@
 package snapshot
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -66,12 +67,50 @@ type PruneReport struct {
 // grace no se toca aunque parezca huérfano: puede ser de una captura en curso
 // que aún no escribió su manifiesto.
 func Prune(st *Store, p Policy, now time.Time, grace time.Duration, dryRun bool) (PruneReport, error) {
+	return PruneOnly(st, p, now, grace, dryRun, nil)
+}
+
+// ErrPruneStale dice que el plan que se confirmó ya no describe el almacén.
+var ErrPruneStale = errors.New("snapshot: el plan de poda ya no vale")
+
+// PruneOnly es Prune anclada a los ids de un dry-run previo: borra solo esos y
+// deja intacto lo demás aunque la retención, recalculada ahora, quisiera
+// llevarse más. Entre enseñar el plan y confirmarlo puede nacer otro snapshot
+// (una captura diaria, la foto de seguridad de otra operación) y ese ocuparía
+// el hueco diario, dejando sin razones al que lo tenía: se borraría un
+// manifiesto que nadie llegó a ver en el diálogo. Si alguno de los ids ya no
+// está o ha dejado de sobrar, no se borra nada: el plan mostrado mintió y toca
+// volver a calcularlo. only nil = sin ancla (el camino de la CLI).
+func PruneOnly(st *Store, p Policy, now time.Time, grace time.Duration, dryRun bool, only []string) (PruneReport, error) {
 	var rep PruneReport
 	ms, err := st.List()
 	if err != nil {
 		return rep, err
 	}
 	keep := Retain(ms, p)
+	if only != nil {
+		want := map[string]bool{}
+		for _, id := range only {
+			want[id] = true
+		}
+		have := map[string]bool{}
+		for _, m := range ms {
+			if !keep[m.ID] {
+				have[m.ID] = true
+			}
+		}
+		for id := range want {
+			if !have[id] {
+				return rep, fmt.Errorf("%w: %s ya no está entre los que sobran", ErrPruneStale, id)
+			}
+		}
+		// Lo que sobra pero no se consintió se conserva: caerá en la próxima poda.
+		for id := range have {
+			if !want[id] {
+				keep[id] = true
+			}
+		}
+	}
 	live := map[string]bool{}
 	for _, m := range ms {
 		if keep[m.ID] {
