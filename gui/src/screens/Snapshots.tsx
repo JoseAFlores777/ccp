@@ -224,7 +224,17 @@ function PlanRestauracion({ id, plan, onDone }: { id: string; plan: SnapPlan; on
       <button className="btn lg primary" style={{ marginTop: 14 }} disabled={total === 0} onClick={apply}>
         {t('Restaurar lo marcado')}
       </button>
-      <CliBar cmd={cmd} />
+      {/* Sin nada marcado no hay equivalente: `--only` vacío NO significa «nada»
+       *  sino «todo» (selectItems devuelve el plan entero), así que ofrecer el
+       *  comando aquí entregaría, en el estado «no quiero restaurar nada», la
+       *  línea más destructiva de la pantalla. */}
+      {chosen.length > 0 ? (
+        <CliBar cmd={cmd} />
+      ) : (
+        <Note kind="warn" style={{ marginTop: 16 }}>
+          {t('Sin nada marcado no hay equivalente CLI: «ccp snapshot restore» sin «--only» restauraría el plan entero.')}
+        </Note>
+      )}
     </Card>
   );
 }
