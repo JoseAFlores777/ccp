@@ -70,6 +70,16 @@ type Pending struct {
 }
 
 // Skipped es algo que la revisión pedía y no se pudo hacer.
+// Los motivos de un «sin aplicar» son CÓDIGOS estables, no prosa: el CLI y la
+// GUI los traducen (los del motor de restauración viajan tal cual y comparten
+// catálogo con `ccp snapshot restore`). Poner aquí una frase en español la
+// colaba sin traducir en la salida en inglés y en la app.
+const (
+	ReasonNoDelete     = "no_delete_on_restore"
+	ReasonNoCloudData  = "no_cloud_data"
+	ReasonNotConfirmed = "not_confirmed"
+)
+
 type Skipped struct {
 	LPath  string `json:"lpath"`
 	Reason string `json:"reason"`
@@ -311,10 +321,10 @@ func applyRevision(ctx context.Context, o Opts, rev api.Revision, out *Outcome) 
 		case ActionRemove:
 			// El motor de restauración no borra nada (§8.3): decirlo es más
 			// honesto que fingir que la revisión se aplicó entera.
-			out.Skipped = append(out.Skipped, Skipped{LPath: d.LPath, Reason: "ccp no borra archivos al restaurar"})
+			out.Skipped = append(out.Skipped, Skipped{LPath: d.LPath, Reason: ReasonNoDelete})
 		case ActionTake:
 			if sinDatos[d.LPath] {
-				out.Skipped = append(out.Skipped, Skipped{LPath: d.LPath, Reason: "sus datos no están en la nube"})
+				out.Skipped = append(out.Skipped, Skipped{LPath: d.LPath, Reason: ReasonNoCloudData})
 				continue
 			}
 			why := dangersOf(o, d)

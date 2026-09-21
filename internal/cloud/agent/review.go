@@ -60,7 +60,7 @@ func Resolve(ctx context.Context, o Opts, approve []string) (*Outcome, error) {
 			take = append(take, p.LPath)
 			continue
 		}
-		out.Skipped = append(out.Skipped, Skipped{LPath: p.LPath, Reason: "no se confirmó en la máquina"})
+		out.Skipped = append(out.Skipped, Skipped{LPath: p.LPath, Reason: ReasonNotConfirmed})
 	}
 
 	if len(take) > 0 {

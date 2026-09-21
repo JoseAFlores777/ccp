@@ -53,6 +53,19 @@ func (c cloudCmd) agentOpts() (agent.Opts, error) {
 	return cloudAgentOpts(c.ctx, c.home, c.files)
 }
 
+// skipReason traduce el código de un «sin aplicar». Son dos familias: la del
+// agente y la del motor de restauración, que ya tenía catálogo propio porque
+// `ccp snapshot restore` pinta los mismos códigos. Un código que no conocemos
+// sale crudo antes que desaparecer: el JSON lo lleva igual.
+func (c cloudCmd) skipReason(code string) string {
+	for _, pre := range []string{"cli.cloud.reason_", "cli.snapshot.reason_"} {
+		if t := i18n.T(c.lang, pre+code); t != pre+code {
+			return t
+		}
+	}
+	return code
+}
+
 // printOutcome cuenta una pasada. El orden es el de la pregunta que se hace
 // quien lo lee: qué se escribió, qué espera a una persona, qué chocó.
 func (c cloudCmd) printOutcome(out *agent.Outcome) {
@@ -63,7 +76,7 @@ func (c cloudCmd) printOutcome(out *agent.Outcome) {
 		fmt.Fprintln(c.out, mute(c.out, i18n.T(c.lang, "cli.cloud.agent_pre", snapshot.Short(out.PreSnapshot))))
 	}
 	for _, s := range out.Skipped {
-		fmt.Fprintln(c.out, warnLine(c.out, i18n.T(c.lang, "cli.cloud.agent_skipped", s.LPath, s.Reason)))
+		fmt.Fprintln(c.out, warnLine(c.out, i18n.T(c.lang, "cli.cloud.agent_skipped", s.LPath, c.skipReason(s.Reason))))
 	}
 	if len(out.Conflicts) > 0 {
 		fmt.Fprintln(c.out, warnLine(c.out, i18n.T(c.lang, "cli.cloud.agent_conflicts", len(out.Conflicts), strings.Join(out.Conflicts, ", "))))

@@ -31,6 +31,21 @@ var catalogCloudAgent = map[string]map[Lang]string{
 		En: "Not applied: %s (%s)",
 		Es: "Sin aplicar: %s (%s)",
 	},
+	// Motivos de un «sin aplicar» que pone el propio agente. Los del motor de
+	// restauración (missing_blob, project_missing…) viven en catalog_snapshot.go
+	// y se comparten con `ccp snapshot restore`.
+	"cli.cloud.reason_no_delete_on_restore": {
+		En: "ccp does not delete files when restoring",
+		Es: "ccp no borra archivos al restaurar",
+	},
+	"cli.cloud.reason_no_cloud_data": {
+		En: "its data is not in the cloud",
+		Es: "sus datos no están en la nube",
+	},
+	"cli.cloud.reason_not_confirmed": {
+		En: "it was not confirmed on this machine",
+		Es: "no se confirmó en la máquina",
+	},
 	"cli.cloud.agent_conflicts": {
 		En: "%d paths changed here and in the revision, so they were left alone: %s",
 		Es: "%d rutas cambiaron aquí y en la revisión, así que se quedaron como estaban: %s",
