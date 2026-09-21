@@ -342,8 +342,13 @@ func applyRevision(ctx context.Context, o Opts, rev api.Revision, out *Outcome) 
 	}
 
 	if len(auto) > 0 {
+		// Los proyectos se mapean a las carpetas de ESTA máquina antes de
+		// escribir (§11): la orden viene de otra, donde el repo cuelga de otra
+		// ruta, y sin esto todo lo del proyecto se salta por «project_missing»
+		// aunque el clon esté aquí con el mismo remoto.
+		proyectos := core.SnapshotProjects(desired, core.ProjectMapInputsFor(o.Home, o.Src))
 		rep, err := core.SnapshotRestore(o.Home, o.Src, o.Store, desired.ID, core.SnapshotRestoreOpts{
-			Only: auto, Now: o.now(), Machine: o.Machine})
+			Only: auto, Projects: ResolvedProjects(proyectos), Now: o.now(), Machine: o.Machine})
 		if err != nil {
 			return closeRev(ctx, o, out, api.RevFailed, "falló al aplicar: "+err.Error())
 		}

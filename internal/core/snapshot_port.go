@@ -467,3 +467,7 @@ func pendingCommand(cmd string, look func(string) (string, error)) string {
 	}
 	return mcpMissingCommand(cmd, "", look)
 }
+
+// ProjectKey es la identidad portable de un proyecto (§11), la misma que usan
+// los snapshots: el remoto de git normalizado, o la ruta si no tiene.
+func ProjectKey(path, remote string) string { return projectKey(path, remote) }
