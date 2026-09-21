@@ -205,3 +205,87 @@ func reconcileManaged(managed []string, servers, want map[string]any) []string {
 	}
 	return out
 }
+
+// desktopPendingPath marca que un perfil tiene proyección pendiente porque su
+// ventana estaba abierta. Estado derivado, en state/ (fuera de snapshots).
+func desktopPendingPath(home, name string) string {
+	return filepath.Join(profileStateDir(home, name), "desktop-pending.json")
+}
+
+// DesktopProjectionPending dice si ese perfil tiene una proyección esperando al
+// próximo arranque de su ventana.
+func DesktopProjectionPending(home, name string) bool {
+	return fileExists(desktopPendingPath(home, name))
+}
+
+// ProjectMCPToDesktop escribe los MCP efectivos con destino desktop en el
+// claude_desktop_config.json de la ventana del perfil, conservando preferences y
+// cualquier clave desconocida. Dos reglas salen de ADR 0016:
+//   - solo stdio: una entrada http/sse la descarta Desktop («Skipped invalid MCP
+//     server config entries»), así que no se escribe y se informa (M3);
+//   - con la ventana corriendo NO se escribe: Desktop no relee en caliente (M3) y
+//     reescribe el archivo desde su copia en memoria (M5), así que se deja
+//     pendiente y se aplica al arrancar, donde ya se espeja el cc-home.
+//
+// `running` lo decide quien llama (core no ejecuta ps).
+func ProjectMCPToDesktop(home, name string, eff []MCPEntry, running bool) (MCPProjection, error) {
+	p := MCPProjection{Target: MCPTargetDesktop}
+	if name == "" {
+		return p, nil
+	}
+	dir := DesktopDataDir(home, name)
+	if _, err := os.Stat(dir); err != nil {
+		return p, nil // esa ventana no se ha usado nunca: nada que proyectar
+	}
+	p.File = filepath.Join(dir, "claude_desktop_config.json")
+	want := mcpWant(eff, MCPTargetDesktop, &p)
+	if running {
+		// Lo que se sabe de M5 no basta para escribir con la ventana viva.
+		if err := writeFileAtomic(desktopPendingPath(home, name), []byte("{}\n"), 0o600); err != nil {
+			return p, err
+		}
+		p.Deferred = true
+		return p, nil
+	}
+
+	managedPath := filepath.Join(dir, ".ccp-managed-mcp.json")
+	live, err := os.ReadFile(p.File)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return p, fmt.Errorf("no se pudo leer %s: %w", p.File, err)
+	}
+	doc := map[string]any{}
+	if len(bytes.TrimSpace(live)) > 0 {
+		if doc, err = decodeJSONObject(live); err != nil {
+			return p, fmt.Errorf("%s no es JSON válido; no se toca: %w", p.File, err)
+		}
+	}
+	servers, _ := doc["mcpServers"].(map[string]any)
+	if servers == nil {
+		servers = map[string]any{}
+	}
+	managed := reconcileManaged(readManaged(managedPath), servers, want)
+	servers, now, changed := projectMCPInto(servers, want, managed, &p)
+	if changed {
+		if len(servers) == 0 {
+			delete(doc, "mcpServers")
+		} else {
+			doc["mcpServers"] = servers
+		}
+		out, err := marshalIndent(doc)
+		if err != nil {
+			return p, err
+		}
+		perm := os.FileMode(0o600)
+		if fi, err := os.Stat(p.File); err == nil {
+			perm = fi.Mode().Perm()
+		}
+		if err := writeFileAtomic(p.File, out, perm); err != nil {
+			return p, fmt.Errorf("no se pudo escribir %s: %w", p.File, err)
+		}
+	}
+	if err := writeManaged(managedPath, now); err != nil {
+		return p, err
+	}
+	_ = os.Remove(desktopPendingPath(home, name)) // ya está aplicado
+	return p, nil
+}
