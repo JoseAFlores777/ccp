@@ -642,6 +642,31 @@ y restaura como una unidad.
   dispositivo muestra «login pendiente» por perfil y abre Terminal con `ccp profile login <n>`, igual
   que hoy.
 
+> **Estado en F4-1 (implementado).** Los grupos existen de punta a punta: `store.Group` + `/v1/groups`,
+> `ccp cloud groups [add|set|rm|status]` y, en el portal, el bloque de grupos en Dispositivos más un botón
+> por grupo en «Aplicar a…» y en «Restaurar en…». Cuatro cosas que el código fijó y el plan no decía:
+>
+> - **Un grupo no manda: aplicar a un grupo es publicar N órdenes, una firmada por máquina.** La etiqueta del
+>   grupo va **fuera** de la firma. Lo firmado ata cada revisión a SU dispositivo, que es exactamente lo que
+>   impide desviarla; si el grupo entrara en la firma, cambiar quién está dentro —algo que el servidor sí
+>   puede hacer, porque la membresía no va firmada— invalidaría órdenes ya puestas o, peor, cambiaría a quién
+>   obedece una orden ya firmada. Un servidor que manipule la etiqueta solo puede estropear un listado.
+> - **En el portal la etiqueta se DERIVA de lo marcado, no se recuerda.** Pulsar el grupo y luego marcar una
+>   casilla más dejaba una orden diciendo «esto fue el grupo» sobre una lista que ya no era la suya, y el
+>   estado del grupo contaba entonces órdenes que nunca fueron de él.
+> - **El estado por dispositivo tiene dos silencios a propósito.** Un miembro sin ninguna orden del grupo sale
+>   como «sin órdenes» y no como «pendiente» —no hay ninguna orden suya pendiente de nada—, y un equipo al que
+>   se sacó del grupo sigue saliendo mientras tenga una orden viva, marcado: sacarle del grupo no la retira,
+>   y esconderle dejaría una orden viva sin nadie que la contara. Por lo mismo, borrar un grupo no borra las
+>   revisiones publicadas con su etiqueta; lo que se pierde es el nombre que las enseña juntas.
+> - **Un equipo revocado no entra en un grupo** (no va a volver a preguntar, así que su orden quedaría
+>   pendiente para siempre), y publicar con la etiqueta de un grupo que no existe se rechaza, en vez de dejar
+>   una orden que no aparece en el estado de ningún grupo.
+>
+> Lo que falta de F4 sigue siendo la auditoría en el portal, la rotación de AK, la envoltura X25519 por
+> dispositivo y las excepciones por máquina de §11. Los grupos tampoco están en la app (P-21): la pantalla
+> Nube es de ESTA máquina, y quien ordena a varias es el portal.
+
 > **Estado en F2-5 (implementado).** La pantalla **Nube** de la app (P-21, `gui/src/screens/Nube.tsx`) es el
 > otro extremo del portal: cuenta, bóveda, equipos, la política de este dispositivo y lo que el agente dejó en
 > `review.json`. Tres cosas que el código fijó:
@@ -1006,7 +1031,7 @@ Dokploy v0.30.4, un solo servidor.
 | F1 | **Implementado.** Bóveda, dispositivos, push/pull de snapshots (`ccp cloud`), el backend `ccp-cloud` y la traducción del HOME al restaurar. Falta **desplegar el API**, pendiente de autorización del usuario | D, I | L | Una segunda Mac se desbloquea con la frase de bóveda y trae el historial de la primera |
 | F2 | **Implementado.** Portal: dispositivos, historial, diff, editor y «Aplicar a…»; P-21 Nube en la app | F1 | M | Desde el portal se edita la configuración de un snapshot, se aplica a una máquina y ésta confirma allí lo ejecutable |
 | F3 | **Implementado.** Restaurar desde el portal. **F3-1**: cadena firmada comprobable (`ccp cloud verify`) y retención en el servidor. **F3-2**: descarga `.ccpsnap` / `.tar.gz` desde el CLI y desde el portal. **F3-3**: los tres caminos de restauración (app, portal, máquina nueva) con el mapeo de §11. **F3-4**: documentación (README, README.es, CHANGELOG, CLAUDE.md y §10.3.1 · §11 · §12 de este spec) | F2 | L | «Restaurar en <máquina>» en el portal deja la máquina en ese snapshot, con lo ejecutable confirmado en local |
-| F4 | Grupos, auditoría, rotación de AK, envoltura X25519 por dispositivo (aplazada de F3) y las excepciones por máquina de §11 (`machines:`, `ccp.local.yaml`) | F3 | M | Un cambio aplicado a un grupo aparece como `aplicada` en cada máquina |
+| F4 | Grupos (**F4-1, implementado**), auditoría, rotación de AK, envoltura X25519 por dispositivo (aplazada de F3) y las excepciones por máquina de §11 (`machines:`, `ccp.local.yaml`) | F3 | M | Un cambio aplicado a un grupo aparece como `aplicada` en cada máquina |
 | E | (aplazado, D10) `ccp sync` sobre carpeta o S3 | D | M | — |
 
 **Dos vías en paralelo tras la Fase 0 (D10):**

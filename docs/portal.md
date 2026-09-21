@@ -185,6 +185,30 @@ configuration.
 The result is reported **per machine**, because publishing for three and failing on the third is two orders
 placed and one that was not.
 
+### Groups, and why a group cannot command
+
+The Devices screen manages **device groups** («all my Macs»): a name and some machines. Both «Apply to…» and
+«Restore on…» show a button per group that ticks its machines in one go — that is all a group does there. What
+goes out is still **one signed revision per machine**, and the group id travels as a tag **outside** the
+signature.
+
+That last part is the whole design. What the signature binds is the destination device, which is what stops an
+order being redirected; the membership of a group is not signed and the server can rewrite it. With the tag
+outside, a server that tampers with it can only spoil a listing. With it inside, editing a group after the
+fact would either invalidate orders that were already placed or — far worse — change who obeys an order that
+was already signed.
+
+For the same reason the tag is **derived** from what is ticked rather than remembered: picking a group and
+then ticking one more box used to leave an order claiming «this was the group» over a list that was no longer
+the group's, and the group's status would then count orders that were never its own.
+
+«Status» on a group says how the last order of that group went on each machine, and it is careful about two
+things. A member with no order of that group reads *no orders*, never *pending* — there is no order of its own
+pending anything. And a machine you took out of the group keeps showing, marked, while it still has a live
+order: taking it out does not withdraw what was published to it, so hiding it would leave a live order with
+nobody counting it. Deleting a group deletes no revisions either; what is lost is the name that showed them
+together.
+
 ### Why the API serves blobs
 
 `GET /v1/blobs/{id}` and `PUT /v1/blobs/{id}` exist for the portal, and only for it: everything else uploads
