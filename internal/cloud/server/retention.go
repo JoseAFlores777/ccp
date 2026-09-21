@@ -56,6 +56,7 @@ func (r Retention) Enabled() bool { return r.Daily > 0 || r.Weekly > 0 || r.Mont
 // tiene que cambiar con ella.
 func retain(list []store.Snapshot, p Retention) map[string]bool {
 	keep := map[string]bool{}
+	visto := map[string]bool{}
 	sorted := append([]store.Snapshot(nil), list...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Created.After(sorted[j].Created) })
 	for _, s := range sorted {
@@ -72,6 +73,21 @@ func retain(list []store.Snapshot, p Retention) map[string]bool {
 	}
 	if len(sorted) > 0 {
 		keep[sorted[0].ID] = true
+	}
+	// Suelo por dispositivo: el más reciente con contenido de CADA equipo, antes
+	// de los cubos. La cadena que se barre es la de la cuenta entera, así que un
+	// portátil que sube a diario echa de los cubos al sobremesa apagado y se
+	// lleva la única copia en la nube de su último estado —justo lo que hay que
+	// bajar cuando esa máquina muere. La analogía con `snapshot.Retain` no vale
+	// aquí: allí toda la historia es de una sola máquina.
+	for _, s := range sorted {
+		if s.Pruned || s.DeviceID == "" {
+			continue
+		}
+		if !visto[s.DeviceID] {
+			visto[s.DeviceID] = true
+			keep[s.ID] = true
+		}
 	}
 	// Las lápidas no entran en los cubos: ya no ocupan nada, y dejarlas
 	// gastar el hueco de su día podaría al que sí tiene contenido.

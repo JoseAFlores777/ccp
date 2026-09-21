@@ -811,7 +811,9 @@ still the primary source.
   Pruning takes the manifest and the blobs — all it occupies — and leaves the link: id, parent, date, digest
   and signature. That is deliberate: a hole left by retention would look exactly like a hole left by a
   compromised server, and then `verify` would be a warning you learn to ignore. A pruned snapshot cannot be
-  downloaded (the CLI says so); yours is still on the machine that made it. **Pinned snapshots are never
+  downloaded (the CLI says so); yours is still on the machine that made it. **Every device always keeps its
+  most recent snapshot with content**, because the sweep covers the whole account and an idle machine would
+  otherwise lose its only cloud copy right when it is needed. **Pinned snapshots are never
   pruned**: `ccp snapshot pin <id>` (or giving one a label) travels up on the next `push`.
 - **Restoring reaches this machine by three roads, and all three end in the same engine** (the `snapshot
   restore` of §8.3: it plans, takes a safety snapshot first, applies selectively and regenerates the

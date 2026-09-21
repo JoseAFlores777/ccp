@@ -229,3 +229,24 @@ func TestUnBorradoQueFallaSeReintentaEnLaPodaSiguiente(t *testing.T) {
 		t.Fatal("el blob que no se pudo borrar se quedó huérfano para siempre")
 	}
 }
+
+// El suelo por dispositivo: la única copia en la nube de una máquina apagada
+// no se poda porque otra máquina suba a diario. Sin él, `retain` mezcla la
+// historia de toda la cuenta y el sobremesa se queda sin contenido justo para
+// el caso de uso de F3 («máquina nueva»).
+func TestRetainConservaElUltimoVivoDeCadaDispositivo(t *testing.T) {
+	base := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	var list []store.Snapshot
+	for i := 0; i < 12; i++ {
+		list = append(list, store.Snapshot{
+			ID:       "lap-" + string(rune('a'+i)),
+			DeviceID: "lap",
+			Created:  base.AddDate(0, 0, -i),
+		})
+	}
+	list = append(list, store.Snapshot{ID: "desk", DeviceID: "desk", Created: base.AddDate(0, 0, -10)})
+	keep := retain(list, Retention{Daily: 7, Weekly: 4, Monthly: 6})
+	if !keep["desk"] {
+		t.Fatalf("el único snapshot del sobremesa no se poda: %v", keep)
+	}
+}
