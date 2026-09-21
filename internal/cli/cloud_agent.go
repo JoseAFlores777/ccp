@@ -247,8 +247,12 @@ func (c cloudCmd) policy(args []string) int {
 	if !ok {
 		return 1
 	}
+	// Sin sesión también: decidir de antemano que aquí no se aplica nada
+	// solo es razonable ANTES de dar de alta la máquina, y exigir la sesión
+	// obligaba a pasar por el estado que se quiere evitar. `serve` ya lo
+	// toleraba (srvCloudSetPolicy) y el CLI decía que no a lo mismo.
 	cfg, err := c.files.LoadConfig()
-	if err != nil {
+	if err != nil && !errors.Is(err, client.ErrNotLoggedIn) {
 		return c.fail(err)
 	}
 	if len(a.pos) == 0 {
