@@ -58,6 +58,22 @@ func serveRegistry() map[string]serveMethod {
 		"config.reset":      w(srvConfigReset),
 		"config.setEditor":  w(srvConfigSetEditor),
 
+		// El editor de P-20 (C4). config.effective es el conmutador «Efectivo»
+		// de esa pantalla y es exactamente lo que profiles.effective ya
+		// devolvía: se registra el nombre que el diseño usa, no una segunda
+		// implementación que se desincronice de la primera.
+		"config.items":       r(srvConfigItems),
+		"config.item.get":    r(srvConfigItemGet),
+		"config.item.put":    w(srvConfigItemPut),
+		"config.item.delete": w(srvConfigItemDelete),
+		"config.effective":   r(srvProfilesEffective),
+
+		"mcp.list":       r(srvMCPList),
+		"mcp.put":        w(srvMCPPut),
+		"mcp.delete":     w(srvMCPDelete),
+		"mcp.setTargets": w(srvMCPSetTargets),
+		"mcp.disable":    w(srvMCPDisable),
+
 		"memory.list":   r(srvMemoryList),
 		"memory.add":    w(srvMemoryAdd),
 		"memory.remove": w(srvMemoryRemove),
