@@ -169,10 +169,37 @@ func TestVaultIsCreatedOnce(t *testing.T) {
 	if !me.HasVault {
 		t.Fatal("/v1/me no ve la bóveda")
 	}
-	bad := v
-	bad.SignPub = []byte{1}
-	if code := e.call("PUT", "/v1/vault", e.iss.AccessToken(), dev, bad, nil); code != 400 && code != 409 {
-		t.Fatalf("bóveda inválida = %d", code)
+}
+
+// TestVaultRejectsInvalid comprueba la validación de PUT /v1/vault desde una
+// cuenta que AÚN NO tiene bóveda: con una cuenta que ya la tiene, el 409 del
+// conflicto tapa al 400 y el test pasaría aunque se borrase la validación
+// entera. Una bóveda con sign_pub corto guardada rompería el checkAK de cada
+// unlock, en todos los equipos.
+func TestVaultRejectsInvalid(t *testing.T) {
+	e := newEnv(t)
+	e.iss.As("beto", "beto@example.com")
+	tok := e.iss.AccessToken()
+	dev := e.newDevice(tok, "mac")
+	ok := api.Vault{KDF: json.RawMessage(`{"time":3}`), PassphraseWrap: []byte("p"), RecoveryWrap: []byte("r"), SignPub: bytes.Repeat([]byte{1}, 32)}
+	for name, mut := range map[string]func(*api.Vault){
+		"sign_pub corto":   func(v *api.Vault) { v.SignPub = []byte{1} },
+		"sign_pub largo":   func(v *api.Vault) { v.SignPub = bytes.Repeat([]byte{1}, 33) },
+		"sin sign_pub":     func(v *api.Vault) { v.SignPub = nil },
+		"kdf vacío":        func(v *api.Vault) { v.KDF = nil },
+		"kdf no es objeto": func(v *api.Vault) { v.KDF = json.RawMessage(`[1,2]`) },
+		"envoltura vacía":  func(v *api.Vault) { v.PassphraseWrap = nil },
+		"envoltura de más": func(v *api.Vault) { v.RecoveryWrap = bytes.Repeat([]byte{1}, 4097) },
+	} {
+		bad := ok
+		mut(&bad)
+		if code := e.call("PUT", "/v1/vault", tok, dev, bad, nil); code != 400 {
+			t.Errorf("%s: PUT /v1/vault = %d, quiero 400", name, code)
+		}
+	}
+	// Ninguna de las inválidas puede haber quedado guardada.
+	if code := e.call("GET", "/v1/vault", tok, dev, nil, nil); code != 404 {
+		t.Fatalf("tras los rechazos hay bóveda: GET = %d, quiero 404", code)
 	}
 }
 
