@@ -2,8 +2,9 @@
 
 La interfaz gráfica de ccp: qué cuenta de Claude usa cada carpeta, cuánto uso le
 queda a cada una, la rotación entre cuentas, las conversaciones y los préstamos,
-las ventanas de Desktop y el diagnóstico. Todo lo que hace tiene su comando en la
-CLI, y cada pantalla enseña cuál es.
+las ventanas de Desktop, la configuración de Claude capa por capa y el
+diagnóstico. Todo lo que hace tiene su comando en la CLI, y cada pantalla enseña
+cuál es.
 
 Está hecha con [Tauri 2](https://tauri.app) (Rust) y React. El diseño de
 referencia es `docs/ui-design/ccp Interfaz - standalone.html`.
@@ -40,6 +41,30 @@ React (gui/src)  ──invoke──▶  Rust (gui/src-tauri)  ──stdin/stdout
    apuntando al instalado, que es el que seguirá ahí cuando la app se cierre.
 
 Ajustes → «Acerca de esta app» dice cuál se está usando y por qué.
+
+### La pantalla Configuración (P-20)
+
+Es el editor unificado: arriba la capa (global · perfil · proyecto · ventana), a
+la izquierda los tipos y en el centro los elementos con su procedencia y sus
+distintivos de dónde aplican (CLI · Code · Chat). Absorbe P-05 —el conmutador
+«Efectivo» es la vista fusionada de una cuenta, con lo tapado marcado— y la vista
+de solo-gestionado de P-15.
+
+- **Nada se reimplementa.** La lista sale de `config.items` y las escrituras van
+  por `config.item.*` y `mcp.*`, así que las barreras son las de `core`: la capa
+  que declara cada cosa, el secreto en claro que no puede acabar en el `.mcp.json`
+  de un repo, el archivo que esa capa no leería. La terminal (`ccp mcp`) y la
+  ventana no pueden acabar contando cosas distintas.
+- **Los secretos se enseñan enmascarados** y lo que el usuario no toca se
+  restituye al guardar; la línea de CLI que se ofrece para copiar escribe `…` en
+  el valor, y un `${VARIABLE}` se enseña entero porque no es el secreto, es dónde
+  está.
+- **«Llevar a…» es el mismo elemento con otra capa**: `core` decide el archivo,
+  así que no hay una ruta nueva por destino, y copiar no borra el origen.
+- Tras cada escritura se dice dónde quedó, a quién regeneró y qué ventana de
+  Desktop se queda con los MCP de antes hasta reiniciarla (`restart_pending`). La
+  proyección la hace la propia escritura: llamar a `profiles.sync` después sería
+  una segunda escritura para nada.
 
 ## Desarrollo
 

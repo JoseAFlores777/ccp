@@ -62,7 +62,7 @@ Pulsa `e` sobre un perfil para su **vista de perfil**: qué configuración aplic
 <img src="docs/screenshots/cli-help.png" alt="ccp help — CLI coloreado" width="620">
 </div>
 
-¿Prefieres una ventana? También hay una **app de escritorio** (`gui/`, Tauri, beta): las mismas cuentas, carpetas, conversaciones, rotación y ventanas de Desktop, más un **mapa de cuentas** donde los respaldos se conectan arrastrando flechas y nada se escribe hasta revisar y aplicar. Usa el motor que ya tienes (`ccp serve --stdio`), enseña el comando equivalente de cada pantalla y abre una Terminal para lo que solo puede hacerse en una terminal (un `/login`, un handoff, una sesión supervisada). Cómo compilarla y desarrollarla: [gui/README.md](gui/README.md).
+¿Prefieres una ventana? También hay una **app de escritorio** (`gui/`, Tauri, beta): las mismas cuentas, carpetas, conversaciones, rotación y ventanas de Desktop, una pantalla **Configuración** donde se lee y se edita en un solo sitio toda la configuración de Claude, capa por capa, y un **mapa de cuentas** donde los respaldos se conectan arrastrando flechas y nada se escribe hasta revisar y aplicar. Usa el motor que ya tienes (`ccp serve --stdio`), enseña el comando equivalente de cada pantalla y abre una Terminal para lo que solo puede hacerse en una terminal (un `/login`, un handoff, una sesión supervisada). Cómo compilarla y desarrollarla: [gui/README.md](gui/README.md).
 
 ---
 
@@ -828,6 +828,15 @@ ccp mcp targets [<nombre> [cli|desktop|cli,desktop|none]]
 La capa es `global`, `profile[:<nombre>]`, `project[:<ruta>]` o `desktop[:<nombre>]` (solo lectura), y **sin `--scope` es el perfil activo de la terminal**. `--env CLAVE=valor` acompaña a la forma stdio y `--header CLAVE=valor` a la remota; las tres formas (el comando tras `--`, `--url`, el JSON) no se mezclan.
 
 Dos negativas son la razón de ser del comando: la **ventana de Desktop** recibe los MCP del perfil pero no los declara —escribir ahí lo desharía el siguiente sync, así que te dice que lo declares en el perfil—, y un **secreto en claro en el `.mcp.json` de un proyecto** —un archivo que viaja en el repo— se niega señalando `${VARIABLE}`. Después de cada escritura dice a quién regeneró y qué ventana se queda con los MCP de antes hasta que la reinicies.
+
+#### La pantalla **Configuración** — las mismas capas, en la app
+
+La app de escritorio edita todo esto desde una sola pantalla: arriba la capa (global · perfil · proyecto · ventana), a la izquierda los tipos (instrucciones, MCP, skills, agentes, comandos, hooks, permisos, variables, plugins, estilos, barra de estado y el resto de `settings.json`) y en el centro cada elemento con **de dónde viene** y **dónde aplica** (CLI · Code · Chat). Un conmutador **Efectivo** enseña el resultado fusionado de una cuenta, con lo que queda tapado marcado como tal.
+
+- Lo que se ve y no se edita dice por qué, con las mismas palabras que la terminal: lo trae un plugin, lo fija `managed-settings`, lo proyecta `ccp` desde el overlay.
+- Los secretos de un MCP se enseñan **enmascarados**, y lo que dejes enmascarado se restituye al guardar: el editor no tiene por qué revelar un token para dejarte cambiar el argumento de al lado.
+- Las **acciones de capa** («llevar a…») mueven un elemento a la global, a otro perfil o a un proyecto. Es el mismo elemento con otra capa, así que acaba en el archivo que elige `core`; copiar no borra el origen, porque la capa más específica sigue ganando.
+- Tras cada escritura dice dónde quedó, a quién regeneró y qué ventana de Desktop se queda con los MCP de antes hasta que la reinicies. Cada pantalla enseña su equivalente de CLI, que son exactamente los comandos de arriba.
 
 ### Editar `ccp.yaml` — `ccp config edit`
 
