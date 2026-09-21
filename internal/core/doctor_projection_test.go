@@ -178,3 +178,30 @@ func TestDoctorCCHomeSymlinkNonLeafNombraElRemedioQueLoArregla(t *testing.T) {
 		t.Errorf("tras el espejo el hallazgo sigue: %+v", c)
 	}
 }
+
+// El remedio que el hallazgo nombra tiene que existir. `ccp instruct add` no
+// parsea flags —junta args[2:] en el texto— y toma el perfil de CCP_PROFILE, así
+// que un `--profile <n>` inventado se concatenaría al JSON y, quitándolo, la
+// declaración aterrizaría en el perfil de la terminal y no en el auditado.
+func TestDoctorMCPOnlyDesktopNombraUnaInvocacionQueExiste(t *testing.T) {
+	home, _ := mcpFixture(t)
+	dd := DesktopDataDir(home, "work")
+	mustWrite(t, filepath.Join(dd, "claude_desktop_config.json"),
+		`{"mcpServers":{"slack":{"command":"npx","args":["slack"]}}}`)
+	for _, lang := range []i18n.Lang{i18n.Es, i18n.En} {
+		checks, err := Doctor(lang, home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c, ok := findCode(checks, "mcp_unmanaged_only_desktop")
+		if !ok {
+			t.Fatalf("[%v] sin hallazgo no hay nada que comprobar: %+v", lang, checks)
+		}
+		if strings.Contains(c.Label, "--profile") {
+			t.Errorf("[%v] el remedio inventa un flag que el CLI no lee: %q", lang, c.Label)
+		}
+		if !strings.Contains(c.Label, "CCP_PROFILE=work") {
+			t.Errorf("[%v] el remedio no fija el perfil auditado: %q", lang, c.Label)
+		}
+	}
+}
