@@ -5,7 +5,7 @@ snapshot with a diff between any two of them. It is served **by the `ccp-cloud` 
 origin as the API, and it opens the vault **in the tab** — the account key is derived there from your vault
 passphrase and never leaves the browser.
 
-What it shows today (F2-3):
+What it does today (F2-3 reads, F2-4 edits and publishes):
 
 - **Devices**: name, platform, ccp version, last contact, the profiles that machine has, how many snapshots it
   has sent, and its state against the revision the portal published for it (`pending`, `applied`, `partial`,
@@ -14,8 +14,17 @@ What it shows today (F2-3):
   its signature checks out.
 - **Diff** between any two snapshots, grouped by area (`ccp`, `global`, each profile, each project) and
   filterable by path.
+- **Editor** of one snapshot's configuration, in P-20's model: layer (ccp · global · each profile · each
+  project · each Desktop window), type (Instructions · MCP · Settings · Skills · Agents · Commands · Plugins ·
+  Shortcuts · Keys), and per item its path, where it applies (CLI · Code · Chat, [ADR 0016](adr/0016-what-desktop-reads-from-a-profile.md))
+  and, when it cannot be edited here, why.
+- **«Apply to…»**, which publishes the edit as a **signed desired revision** to the machines you pick.
 
-Publishing a revision or restoring from the portal is **not** here yet: that is F3. Today the portal reads.
+Two things it deliberately does not do. It does not **restore**: the portal proposes and the machine applies
+([ADR 0014](adr/0014-portal-proposes-machine-applies.md)), and there is no connection from here to anything.
+And it does not **create or delete** items — an edit changes files that already exist, because `ccp` does not
+delete on restore either, and inventing a logical path from the browser is how you get a file nobody can
+place.
 
 ## How it is built
 
@@ -33,6 +42,9 @@ internal/cloud/portal/
   web/js/api.js    the /v1 client
   web/js/vault.js  the account key, in memory only
   web/js/model.js  diff, profiles, areas — no DOM, no network
+  web/js/config.js P-20: layers, types, provenance, where it applies
+  web/js/snap.js   building a snapshot in the browser: canonical JSON, ids, sealing, signing
+  web/js/publish.js «Apply to…»: upload, commit, sign one revision per machine
   web/js/app.js    the views
 ```
 
@@ -117,3 +129,54 @@ result has three states and the portal paints all three — `firma ✓`, `firma 
 means *this browser cannot verify Ed25519*, which is not the same as valid; saying «fine» because nobody could
 look is exactly what `ccp desktop doctor` is forbidden to do ([ADR 0009](adr/0009-desktop-identity-is-not-durable.md)).
 Ed25519 in WebCrypto needs Chrome 137+, Safari 17+ or Firefox 130+.
+
+## Editing, and what «Apply to…» actually publishes
+
+The unit in the portal is the **file** of the snapshot, not the configuration entry: what the tab has in front
+of it is a manifest, not the machine. So the typed editors of the GUI — the MCP form, hooks by event — are not
+here; what you edit is the file's text, with its JSON checked before it is accepted. What *is* reproduced is
+P-20's classification, which is what makes two hundred paths navigable. The one exception is a `settings.json`:
+one file that holds several of P-20's types, so it opens in sections (`permissions`, `env`, `hooks`,
+`statusLine`, `model`, `outputStyle`) and anything `ccp` does not recognise travels whole in «Settings» —
+showing half a file and then saving it would drop the other half.
+
+Anything marked `secret` (an `api_key`, an `mcp.json`, a `claude_desktop_config.json`) is **not painted until
+you ask for it**. The account key is in this tab, so the portal *can* show it; showing it because you clicked a
+row in a list is a different thing, and someone walking past reads it too.
+
+«Apply to…» does four things, in this order, and the order is the point:
+
+1. builds the new manifest over the one you edited — only the edited items change hash and size;
+2. seals and uploads the blobs of what you edited, **before** the snapshot that names them, so a connection
+   that drops halfway leaves nothing pointing at what is not there;
+3. commits the snapshot, sealed and signed with the account key;
+4. publishes **one revision per machine**, each chained onto that machine's own head, each signed with the
+   recipient inside the signature.
+
+The revision's `base` is the snapshot you edited, and that is what makes this an **edit and not a restore**:
+the machine uses it as the base of its three-way merge, so whatever it changed on its own since then stays
+(`keep`) and only what you touched here is applied. A path you edited that the machine also changed comes out
+as a `conflict` instead of being silently overwritten. Applying to a machine the snapshot did not come from
+works the same way and is therefore conservative: it carries your edit over, not that other machine's whole
+configuration.
+
+The result is reported **per machine**, because publishing for three and failing on the third is two orders
+placed and one that was not.
+
+### Why the API serves blobs
+
+`GET /v1/blobs/{id}` and `PUT /v1/blobs/{id}` exist for the portal, and only for it: everything else uploads
+and downloads with presigned URLs that never touch the API. A tab cannot. Its CSP only lets it out to its own
+origin and to Keycloak, and widening it would not be enough — the bucket would have to answer CORS to the tab,
+which is deployment configuration that is invisible from the code and fails in the browser and in no log. What
+travels through those two endpoints is still sealed: the server moves parcels it cannot open, exactly as
+before.
+
+### What is checked, and where
+
+`snap_test.mjs` compares the browser's manifest against `json.Marshal`'s, byte for byte — the machine
+**recomputes** the id when it stores it (`snapshot.Store.SaveManifest` refuses one that does not match), so an
+«equivalent» JSON is a snapshot that uploads fine and that nobody can then save. `publish_test.mjs` publishes
+against a fake API and Go then plays the agent: it verifies the signature, opens the manifest and saves it in a
+real store. And `config_test.mjs` takes its inventory of logical paths from `core`, not from a list written by
+hand, so the day `ccp` captures a new file the test fails instead of the portal quietly showing it as «Other».

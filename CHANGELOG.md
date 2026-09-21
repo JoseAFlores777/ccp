@@ -4,6 +4,36 @@
 
 ### Added
 
+- **El portal edita la configuración y la publica: «Aplicar a…»** (spec §10.3, F2-4,
+  [`docs/portal.md`](docs/portal.md)). El mismo modelo de **P-20** sobre el manifiesto de un snapshot —capa
+  (ccp · global · cada perfil · cada proyecto · cada ventana de Desktop), tipo (Instrucciones · MCP · Ajustes ·
+  Skills · Agents · Commands · Plugins · Atajos · Claves), la ruta, **dónde aplica** (CLI · Code · Chat,
+  [ADR 0016](docs/adr/0016-what-desktop-reads-from-a-profile.md)) y, en lo que no se edita desde ahí, **por
+  qué**—. Al terminar, «Aplicar a…» publica lo editado como una **revisión deseada firmada** a las máquinas
+  que elijas; cada una la aplica cuando su agente contacte, y lo ejecutable lo sigue confirmando una persona
+  allí ([ADR 0014](docs/adr/0014-portal-proposes-machine-applies.md)).
+  - **Es una edición, no una restauración.** La `base` de la revisión es el snapshot que se editó, así que la
+    máquina lo usa de base de su merge a tres bandas: lo que ella cambió por su cuenta desde entonces se
+    queda, y una ruta que cambió en los dos sitios sale como **conflicto** en vez de pisarse. El portal no
+    restaura nada por sí mismo ni abre ninguna conexión hacia ninguna máquina.
+  - **La unidad es el archivo del snapshot**, porque lo que el portal tiene delante es un manifiesto y no la
+    máquina: se edita su texto, con el JSON validado, y no hay formularios por tipo como en la GUI. La
+    excepción son los ajustes: un `settings.json` es un archivo con varios tipos de P-20 dentro, así que se
+    abre por secciones (`permissions`, `env`, `hooks`, `statusLine`, `model`, `outputStyle`) y lo que ccp no
+    reconoce viaja **entero**, porque enseñar medio archivo y luego guardarlo pierde la otra mitad.
+  - **Lo que lleva claves no se pinta hasta que lo pides.** La clave de cuenta está en la pestaña, así que el
+    portal *puede* enseñar un `api_key` o un `claude_desktop_config.json`; enseñarlo por haber pulsado en una
+    lista es otra cosa, y basta con que alguien pase por detrás.
+  - **El navegador fabrica el snapshot**: sella los blobs de lo editado, monta el manifiesto y lo firma con la
+    clave de cuenta. Lo delicado es el id, porque la máquina lo **recalcula** al guardarlo, así que el JSON
+    del navegador sale byte a byte como el de `json.Marshal` —con su orden de campos, sus `omitempty` y el
+    escapado de `<`, `>` y `&` que `JSON.stringify` no hace—. Los vectores los genera Go, y el test de
+    publicación hace luego de agente: verifica, abre y **guarda** en un `snapshot.Store` de verdad.
+  - **El API sirve blobs por su mismo origen** (`GET`/`PUT /v1/blobs/{id}`), y solo por el portal: una pestaña
+    no puede hablar con el bucket —su CSP solo deja salir hacia su propio origen y hacia Keycloak, y ampliarla
+    no bastaría porque el bucket tendría que responder CORS—. Lo que pasa por ahí sigue sellado.
+  - La demo tiene ahora contenido de verdad y valida lo que el portal sube como lo validaría el agente:
+    `CCP_PORTAL_DEMO=1 go test ./internal/cloud/portal -run Demo -v`.
 - **El portal web: cuenta, dispositivos y línea de tiempo** (spec §10.3, F2-3,
   [`docs/portal.md`](docs/portal.md)). Lo sirve el propio `ccp-cloud` en la raíz del mismo host que el API, y
   se despliega con él: no hay bundler, ni npm, ni paquete generado que mantener al día con el código, solo
@@ -29,8 +59,7 @@
     propio origen y el de Keycloak. `/v1/info` gana `portal_client_id` (campo añadido, forma intacta) porque
     la pestaña lo necesita antes de tener sesión. `CCP_CLOUD_PORTAL=0` apaga el portal;
     `CCP_CLOUD_OIDC_PORTAL_CLIENT_ID` cambia el cliente.
-  - Publicar revisiones desde el portal es F3; hoy lee. Para mirarlo sin desplegar nada:
-    `CCP_PORTAL_DEMO=1 go test ./internal/cloud/portal -run Demo -v`.
+  - Para mirarlo sin desplegar nada: `CCP_PORTAL_DEMO=1 go test ./internal/cloud/portal -run Demo -v`.
 - **`ccp cloud agent`: el portal propone y esta máquina aplica** (spec §10.3,
   [ADR 0014](docs/adr/0014-portal-proposes-machine-applies.md)). El portal publica una **revisión deseada**
   firmada con la clave de cuenta —que el servidor no tiene— y dirigida a un dispositivo concreto; la máquina
@@ -240,6 +269,12 @@
 
 ### Fixed
 
+- **El portal buscaba `projects/` donde ccp escribe `project/`.** Los cambios de un repo salían agrupados en
+  «otros» en la línea de tiempo, sin nombre de proyecto. Lo encontró el test nuevo del modelo de P-20, que
+  toma su inventario de rutas lógicas de `core` en vez de una lista escrita a mano.
+- **Un caso de los tests de revisiones dejaba de probar lo que decía una de cada dieciséis veces.** Derivaba
+  el «dispositivo desconocido» cambiándole el último dígito al del portal, y ese dígito ya era el mismo con
+  esa probabilidad: entonces el desconocido era el propio portal, que sí existe.
 - **La pista de `ccp instruct add profile mcp` ya no promete que `global` llega a todos los perfiles.**
   `global` escribe en `~/.claude.json`, que solo lee `default`: cada perfil official lee su propio
   `cc-home/.claude.json`. Ahora sugiere `project` (el `.mcp.json` del repo, que ven todos) y dice a quién
