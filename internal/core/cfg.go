@@ -378,9 +378,14 @@ func CfgRegenerateReport(home, name, src string) (SettingsDrift, error) {
 	if err != nil {
 		return d, err
 	}
-	// La proyección de los MCP va en TODA regeneración, por el mismo motivo que
-	// la adopción de la deriva: si solo la hiciera `profile sync`, cualquier otro
-	// camino dejaría el destino desfasado (spec §6.1).
+	// La proyección va en TODA regeneración, por el mismo motivo que la adopción
+	// de la deriva: si solo la hiciera `profile sync`, cualquier otro camino
+	// dejaría el destino desfasado (spec §6.1 y §6.2).
+	if dirs, aerr := ProjectProfileArtifacts(home, name, src); aerr != nil {
+		d.MCPErr = aerr.Error()
+	} else {
+		d.Artifacts = dirs
+	}
 	projectProfileMCP(home, name, src, &d)
 	return d, nil
 }
