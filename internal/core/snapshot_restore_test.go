@@ -235,3 +235,29 @@ func TestSnapshotRestorePreSnapshotLlevaElEstado(t *testing.T) {
 		t.Error("el snapshot pre-restore no lleva el transcript que el restore va a sustituir")
 	}
 }
+
+// Un paso de proyecto se identifica por 12 hex: sin la ruta real, dos repos con
+// regla son dos casillas indistinguibles en el plan, y marcar la equivocada
+// sobrescribe el settings.local.json del otro repo. El plan lleva el Meta del
+// elemento para que quien lo enseña pueda decir en qué carpeta va a escribir.
+func TestSnapshotRestorePlanLlevaLaRutaDelProyecto(t *testing.T) {
+	home, src, repo, st, m := captureFixture(t)
+	rep, err := SnapshotRestore(home, src, st, m.ID, SnapshotRestoreOpts{DryRun: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := projectKey(repo, "git@github.com:Org/App.git")
+	var seen bool
+	for _, s := range rep.Steps {
+		if !strings.HasPrefix(s.LPath, "project/"+key+"/") {
+			continue
+		}
+		seen = true
+		if s.Meta["path"] != repo {
+			t.Errorf("%s: Meta[path] = %q, se esperaba %q", s.LPath, s.Meta["path"], repo)
+		}
+	}
+	if !seen {
+		t.Fatal("el plan no trae ningún paso del proyecto")
+	}
+}

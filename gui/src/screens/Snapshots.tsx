@@ -30,13 +30,31 @@ function groupOf(lpath: string): string {
   return p[0] === 'desktop' || p[0] === 'project' ? p.slice(0, 2).join('/') : p[0];
 }
 
-function groupLabel(g: string): string {
+/** El nombre de un grupo de proyecto es la clave portable: 12 hex del sha256
+ *  del remoto. Eso no dice en qué carpeta se va a escribir, y restaurar el
+ *  proyecto equivocado sobrescribe un settings.local.json que nadie tiene en
+ *  git. La ruta viaja en el meta del elemento (y ahora también en el del paso
+ *  del plan), así que se enseña ella y el hash queda para el tooltip. */
+function groupLabel(g: string, meta?: Record<string, string>): string {
   const [head, name] = g.split('/');
   if (head === 'ccp') return t('ccp · cuentas, reglas y overlays');
   if (head === 'claude') return t('~/.claude · la configuración global');
   if (head === 'desktop') return t('Ventana de Desktop · {n}', { n: name });
-  if (head === 'project') return t('Proyecto · {n}', { n: name });
+  if (head === 'project') {
+    const where = meta?.path ? tilde(meta.path) : (meta?.remote ?? '');
+    return where ? t('Proyecto · {w}', { w: where }) : t('Proyecto · {n}', { n: name });
+  }
   return g;
+}
+
+/** El detalle que no cabe en la etiqueta: para un proyecto, la clave y el
+ *  remoto, que es lo que hace comparable un snapshot de otra máquina. */
+function groupTitle(g: string, meta?: Record<string, string>): string {
+  if (!g.startsWith('project/')) return '';
+  const parts = [t('clave {k}', { k: g.slice('project/'.length) })];
+  if (meta?.path) parts.push(meta.path);
+  if (meta?.remote) parts.push(meta.remote);
+  return parts.join(' · ');
 }
 
 /** Las rutas de clase «state» (conversaciones y préstamos). El plan no trae la
@@ -105,7 +123,7 @@ function ItemGroups({ items }: { items: SnapItem[] }) {
       {groups.map(([g, its]) => (
         <div key={g} style={{ marginTop: 10 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
-            <span className="label">{groupLabel(g)}</span>
+            <span className="label" title={groupTitle(g, its[0]?.meta)}>{groupLabel(g, its[0]?.meta)}</span>
             <span className="mono" style={{ fontSize: 10.5, color: 'var(--ink-4)' }}>
               {t('{n} · {b}', { n: String(its.length), b: bytes(its.reduce((a, x) => a + x.size, 0)) })}
             </span>
@@ -242,8 +260,8 @@ function PlanRestauracion({ id, plan, onDone }: { id: string; plan: SnapPlan; on
               disabled={writes(ss) === 0}
               onChange={(e) => setGroup(ss, e.target.checked)}
             />
-            <span style={{ fontSize: 13 }}>
-              {groupLabel(g)}
+            <span style={{ fontSize: 13 }} title={groupTitle(g, ss[0]?.meta)}>
+              {groupLabel(g, ss[0]?.meta)}
               {ss.some((s) => isStatePath(s.lpath)) && ` ${t('· incluye conversaciones guardadas')}`}
             </span>
             <span style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>
