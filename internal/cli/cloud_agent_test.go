@@ -217,3 +217,24 @@ func TestPrintOutcomeTraduceMotivos(t *testing.T) {
 		}
 	}
 }
+
+// publicaRevisionGrupo es lo mismo, pero marcando la tanda con el grupo al que
+// se publicó: es lo que mira `ccp cloud groups status`.
+func publicaRevisionGrupo(t *testing.T, home, id, snap, group string) {
+	t.Helper()
+	ctx := context.Background()
+	files := client.NewFiles(home)
+	cfg, cl, err := client.Session(ctx, files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	acct, err := client.Account(files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parts := crypt.RevisionParts{ID: id, Device: cfg.DeviceID, Snapshot: snap}
+	if _, err := cl.PublishRevision(ctx, api.RevisionIn{ID: id, DeviceID: cfg.DeviceID,
+		Snapshot: snap, Sig: acct.SignRevision(parts), Created: time.Now(), Group: group}); err != nil {
+		t.Fatal(err)
+	}
+}

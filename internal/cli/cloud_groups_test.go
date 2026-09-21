@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // Grupos de dispositivos desde el CLI: crearlos, editarlos, verlos y mirar el
@@ -141,5 +143,47 @@ func TestCloudGruposRenombrarConservaMiembros(t *testing.T) {
 	gs = gs[:0]
 	if json.Unmarshal([]byte(out), &gs) != nil || len(gs) != 1 || len(gs[0].Members) != 0 {
 		t.Fatalf("grupo vaciado = %q", out)
+	}
+}
+
+// El estado de cada equipo es un código del protocolo, no prosa: la tabla lo
+// tiene que traducir como traduce su cabecera. Antes salía crudo del servidor
+// y la fila quedaba mitad en español, mitad en inglés.
+func TestCloudGruposStatusTraduceElEstado(t *testing.T) {
+	url := cloudServer(t)
+	t.Setenv("CCP_NO_BROWSER", "1")
+	t.Setenv("CCP_CLOUD_PASSPHRASE", "frase de la bóveda larga")
+	home, _ := snapEnv(t)
+
+	if code, out, errs := snapRun(t, "cloud", "login", url, "--name", "mac-a"); code != 0 {
+		t.Fatalf("login: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "init"); code != 0 {
+		t.Fatalf("init: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "snapshot", "create"); code != 0 {
+		t.Fatalf("snapshot: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "push"); code != 0 {
+		t.Fatalf("push: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "groups", "add", "Macs", "mac-a"); code != 0 {
+		t.Fatalf("groups add: %d %q %q", code, out, errs)
+	}
+	code, out, errs := snapRun(t, "cloud", "groups", "--json")
+	var gs []struct {
+		ID string `json:"id"`
+	}
+	if code != 0 || json.Unmarshal([]byte(out), &gs) != nil || len(gs) != 1 {
+		t.Fatalf("groups --json: %d %q %q", code, out, errs)
+	}
+	publicaRevisionGrupo(t, home, revUno, subidoAlaNube(t, home), gs[0].ID)
+
+	code, out, errs = snapRun(t, "cloud", "groups", "status", "Macs")
+	if code != 0 {
+		t.Fatalf("groups status: %d %q %q", code, out, errs)
+	}
+	if !strings.Contains(out, i18n.T(i18n.Es, "cli.cloud.rev_pending")) || strings.Contains(out, "pending") {
+		t.Fatalf("el estado sale sin traducir: %q", out)
 	}
 }

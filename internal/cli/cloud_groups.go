@@ -246,7 +246,7 @@ func (c cloudCmd) groupsStatus(args []string) int {
 		estado := i18n.T(c.lang, "cli.cloud.group_state_none")
 		cuando := ""
 		if m.Revision != "" {
-			estado = m.State
+			estado = c.revState(m.State)
 			cuando = m.Updated.Local().Format("2006-01-02 15:04")
 		}
 		nota := m.Reason

@@ -66,6 +66,18 @@ func (c cloudCmd) skipReason(code string) string {
 	return code
 }
 
+// revState traduce el estado de una revisión. Es un código del protocolo, así
+// que la tabla y el informe lo tienen que pintar en el idioma del resto de la
+// línea; un estado que el servidor estrene y aquí no esté sale crudo antes que
+// convertirse en el nombre de una clave que no existe.
+func (c cloudCmd) revState(state string) string {
+	key := "cli.cloud.rev_" + state
+	if t := i18n.T(c.lang, key); t != key {
+		return t
+	}
+	return state
+}
+
 // printOutcome cuenta una pasada. El orden es el de la pregunta que se hace
 // quien lo lee: qué se escribió, qué espera a una persona, qué chocó.
 func (c cloudCmd) printOutcome(out *agent.Outcome) {
@@ -85,7 +97,7 @@ func (c cloudCmd) printOutcome(out *agent.Outcome) {
 		fmt.Fprintln(c.out, warnLine(c.out, i18n.T(c.lang, "cli.cloud.agent_waiting", len(out.Pending))))
 	}
 	if out.State != "" {
-		fmt.Fprintln(c.out, mute(c.out, i18n.T(c.lang, "cli.cloud.agent_state", i18n.T(c.lang, "cli.cloud.rev_"+out.State))))
+		fmt.Fprintln(c.out, mute(c.out, i18n.T(c.lang, "cli.cloud.agent_state", c.revState(out.State))))
 	}
 }
 
