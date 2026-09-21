@@ -4,6 +4,33 @@
 
 ### Added
 
+- **El portal web: cuenta, dispositivos y línea de tiempo** (spec §10.3, F2-3,
+  [`docs/portal.md`](docs/portal.md)). Lo sirve el propio `ccp-cloud` en la raíz del mismo host que el API, y
+  se despliega con él: no hay bundler, ni npm, ni paquete generado que mantener al día con el código, solo
+  módulos ES empotrados con `go:embed`.
+  - **La bóveda se abre en el navegador.** Entras con Keycloak (código de autorización + PKCE, cliente
+    público `ccp-portal`) y el portal pide la **frase de bóveda**: la clave de cuenta se deriva en la pestaña
+    con Argon2id y no sale de ahí. Vive solo en memoria y se olvida al cerrar la pestaña o tras 15 minutos sin
+    tocar nada. También vale el código de recuperación.
+  - **Argon2id y XChaCha20-Poly1305 van escritos a mano** (`web/js/crypto.js`): no están en ningún navegador,
+    y traerlos de una dependencia —con su build y su cadena de suministro— para la única página que toca la
+    clave de cuenta era peor negocio que escribirlos. Lo que WebCrypto sí trae (HKDF, SHA-256, Ed25519) sale
+    de ahí. `crypto_test.mjs` los ejecuta bajo node contra vectores que genera el propio Go, así que «el
+    navegador abre lo que `ccp` sella» es un test y no una esperanza.
+  - **Dispositivos**: último contacto, versión de ccp, los perfiles de cada equipo y su estado frente a la
+    revisión publicada, con cuántas rutas difieren. **Línea de tiempo** por máquina y **diff entre dos
+    snapshots cualesquiera**, agrupado por área (ccp, global, cada perfil, cada proyecto) y filtrable. El
+    diff del portal se compara en los tests contra `snapshot.Diff`: dos diffs que no coinciden sobre los
+    mismos snapshots son dos verdades y nadie sabría cuál mirar.
+  - **La firma tiene tres respuestas**: válida, alterada y «este navegador no sabe verificar Ed25519», que no
+    es lo mismo que válida ([ADR 0009](docs/adr/0009-desktop-identity-is-not-durable.md)). Se comprueba con la
+    pública **derivada de la clave de cuenta**, no con la que manda el servidor.
+  - **CSP estricta y nada de terceros**: `default-src 'none'`, `script-src 'self'`, `connect-src` solo el
+    propio origen y el de Keycloak. `/v1/info` gana `portal_client_id` (campo añadido, forma intacta) porque
+    la pestaña lo necesita antes de tener sesión. `CCP_CLOUD_PORTAL=0` apaga el portal;
+    `CCP_CLOUD_OIDC_PORTAL_CLIENT_ID` cambia el cliente.
+  - Publicar revisiones desde el portal es F3; hoy lee. Para mirarlo sin desplegar nada:
+    `CCP_PORTAL_DEMO=1 go test ./internal/cloud/portal -run Demo -v`.
 - **`ccp cloud agent`: el portal propone y esta máquina aplica** (spec §10.3,
   [ADR 0014](docs/adr/0014-portal-proposes-machine-applies.md)). El portal publica una **revisión deseada**
   firmada con la clave de cuenta —que el servidor no tiene— y dirigida a un dispositivo concreto; la máquina

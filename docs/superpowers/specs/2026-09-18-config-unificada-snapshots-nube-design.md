@@ -641,6 +641,24 @@ y restaura como una unidad.
   dispositivo muestra «login pendiente» por perfil y abre Terminal con `ccp profile login <n>`, igual
   que hoy.
 
+> **Estado en F2-3 (implementado).** El portal lo sirve el propio `ccp-cloud` en la raíz de su host
+> (`internal/cloud/portal`, [`docs/portal.md`](../../portal.md)), con login de Keycloak por código de
+> autorización + PKCE y la bóveda abierta en la pestaña. Dos desvíos de lo escrito arriba, los dos a
+> propósito:
+>
+> - **Argon2id no va en WASM, va en JavaScript** (`web/js/crypto.js`), y con él XChaCha20-Poly1305, que
+>   tampoco está en ningún navegador. Un `.wasm` obliga a un paso de compilación y a una dependencia
+>   binaria en la única página que toca la clave de cuenta; escrito a mano, el portal no tiene build y lo
+>   que se revisa es código legible. Cuesta ~1,3 s con los parámetros de producción (64 MiB, 3 pasadas, 4
+>   carriles), midiendo en node, y la derivación cede el hilo entre segmentos para que la pantalla pinte
+>   el progreso. Los vectores los genera el propio Go: `crypto_test.mjs`.
+> - **Lo de F2-3 es leer**: dispositivos con perfiles y deriva, línea de tiempo por máquina y diff entre
+>   dos snapshots cualesquiera. El editor de configuración, «aplicar a…», los grupos y la descarga de
+>   §10.3.1 no están; publicar una revisión desde el portal es F3.
+>
+> El diff del portal se compara en los tests contra `snapshot.Diff` (`model_test.mjs`), y la firma se
+> pinta en tres estados, porque «este navegador no sabe verificar Ed25519» no es «firma válida».
+
 ### 10.3.1 Historial, descarga y restauración
 
 **Historial.**
