@@ -839,7 +839,7 @@ Dokploy v0.30.4, un solo servidor.
 | A | **Implementado.** `ccp scan`, `ccp adopt`, P-19 | 0 | M | En esta máquina aparecen los 6 MCP de Desktop y se proponen como global |
 | B | **Implementado.** Proyección de MCP a CLI y a Desktop; skills y agents por perfil; hooks y permisos editables; deriva | 0, A | L | Un MCP añadido al perfil `work` aparece en `claude` y en la ventana de `work` tras `profile sync` |
 | C | **Implementado.** P-20 + editores + serve y CLI `ccp mcp` | B | L | Todo lo de §3 se puede leer desde la GUI, y editar lo que es editable |
-| D | `ccp snapshot *`, retención, restore selectivo, P-17 → Snapshots | A (clasificación) | M | Un restore selectivo de un solo MCP deja la proyección al día |
+| D | **Implementado.** `ccp snapshot *`, retención, restore selectivo, P-17 → Snapshots | A (clasificación) | M | Un restore selectivo de un solo MCP deja la proyección al día |
 | I | Infra: stack `ccp-cloud` en Dokploy (Postgres + Keycloak en `ccp-auth.joseiz.com` con realm `ccp` + Alarik en `ccp-s3.joseiz.com`), desde `deploy/ccp-cloud/` | — | S | Un login de prueba por flujo de dispositivo obtiene un token con `aud: ccp-api` |
 | F1 | Vault, dispositivos, push/pull de snapshots | D, I | L | Una segunda Mac se desbloquea con la frase de bóveda y trae el historial de la primera |
 | F2 | Portal: dispositivos, historial, diff, descarga | F1 | M | Desde `ccp.joseiz.com` se descarga un `.ccpsnap` y se importa en otra máquina |
