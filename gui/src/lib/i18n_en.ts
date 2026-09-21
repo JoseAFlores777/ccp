@@ -36,6 +36,8 @@ export const en: Record<string, string> = {
   "Desbloquear la bóveda": "Unlock the vault",
   "Pide la frase de bóveda y deja la clave de cuenta lista en este equipo. Se hace en una terminal porque esa frase no pasa por esta app.": "Asks for the vault passphrase and leaves the account key ready on this device. It runs in a terminal because that passphrase does not go through this app.",
   "Desbloquear": "Unlock",
+  "Rotar las claves de acceso": "Rotate the access keys",
+  "Cambia la frase de bóveda y el código de recuperación sin tocar la clave de cuenta: lo que ya subiste se sigue abriendo. Los equipos ya desbloqueados lo siguen estando, incluido uno que hayas revocado si se quedó con una copia. Se hace en una terminal porque la frase nueva no pasa por esta app.": "Changes the vault passphrase and the recovery code without touching the account key: what you already uploaded still opens. Devices that were already unlocked stay unlocked \u2014 including one you revoked, if it kept a copy. It runs in a terminal because the new passphrase does not go through this app.",
   "No se pudo preguntar al servidor por la bóveda: cuenta como desconocida, no como ausente.": "The server could not be asked about the vault: that counts as unknown, not as missing.",
   "Aplicado: {n} cambios": "Applied: {n} changes",
   "Rechazado: no se escribió nada": "Rejected: nothing was written",

@@ -105,6 +105,16 @@ function Cuenta({ st, reload }: { st: CloudStatus | null; reload: () => void }) 
             {t('Desbloquear')}
           </button>
         )}
+        {st?.vault === 'unlocked' && (
+          <button
+            className="btn"
+            onClick={() => term(t('Rotar las claves de acceso'),
+              t('Cambia la frase de bóveda y el código de recuperación sin tocar la clave de cuenta: lo que ya subiste se sigue abriendo. Los equipos ya desbloqueados lo siguen estando, incluido uno que hayas revocado si se quedó con una copia. Se hace en una terminal porque la frase nueva no pasa por esta app.'),
+              ['ccp', 'cloud', 'rotate'])}
+          >
+            {t('Rotar las claves de acceso')}
+          </button>
+        )}
         {st?.vault === 'unknown' && st?.logged_in && (
           <Note kind="unk">{t('No se pudo preguntar al servidor por la bóveda: cuenta como desconocida, no como ausente.')}</Note>
         )}
