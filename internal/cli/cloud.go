@@ -62,6 +62,8 @@ func dispatchCloud(args []string, stdout, stderr io.Writer) int {
 		return c.push(args)
 	case "pull":
 		return c.pull(args)
+	case "restore":
+		return c.restore(args)
 	case "list", "ls":
 		return c.list(args)
 	case "verify":
@@ -562,35 +564,17 @@ func (c cloudCmd) pull(args []string) int {
 	if err != nil {
 		return c.fail(err)
 	}
-	device := ""
-	if name := a.val("--device"); name != "" {
-		d, err := c.findDevice(cl, name)
-		if err != nil {
-			return c.fail(err)
-		}
-		device = d.ID
+	ref := ""
+	if len(a.pos) == 1 {
+		ref = a.pos[0]
 	}
-	list, err := cl.Snapshots(c.ctx, device, 1000)
-	if err != nil {
-		return c.fail(err)
-	}
-	if len(list) == 0 {
+	target, err := c.pickSnapshot(cl, a.val("--device"), ref)
+	if errors.Is(err, errCloudNoSnapshots) {
 		fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.pull_none"))
 		return 0
 	}
-	target := list[0].ID // «latest» por defecto: la lista viene del más nuevo al más viejo
-	if len(a.pos) == 1 && a.pos[0] != "latest" {
-		var found []string
-		for _, s := range list {
-			if strings.HasPrefix(s.ID, a.pos[0]) {
-				found = append(found, s.ID)
-			}
-		}
-		if len(found) != 1 || len(a.pos[0]) < 4 {
-			fmt.Fprintln(c.err, i18n.T(c.lang, "cli.cloud.pull_ambiguous", a.pos[0]))
-			return 1
-		}
-		target = found[0]
+	if err != nil {
+		return c.fail(err)
 	}
 	if dest != "" {
 		return c.pullToFile(cl, acct, target, dest, a.flags["--decrypted"], a.flags["--yes"])
@@ -605,6 +589,45 @@ func (c cloudCmd) pull(args []string) int {
 	}
 	fmt.Fprintln(c.out, mute(c.out, i18n.T(c.lang, "cli.cloud.pull_hint", snapshot.Short(m.ID))))
 	return 0
+}
+
+// errCloudNoSnapshots: la cuenta (o ese equipo) no tiene ninguno todavía. No
+// es un fallo, así que quien llama decide qué sale por pantalla.
+var errCloudNoSnapshots = errors.New("no hay snapshots en la nube")
+
+// pickSnapshot traduce «latest», vacío o un prefijo de id al id entero de un
+// snapshot de la nube. Lo comparten `pull` y `restore`: dos formas de nombrar
+// el mismo snapshot serían dos formas de equivocarse de snapshot.
+func (c cloudCmd) pickSnapshot(cl *client.API, deviceRef, ref string) (string, error) {
+	device := ""
+	if deviceRef != "" {
+		d, err := c.findDevice(cl, deviceRef)
+		if err != nil {
+			return "", err
+		}
+		device = d.ID
+	}
+	list, err := cl.Snapshots(c.ctx, device, 1000)
+	if err != nil {
+		return "", err
+	}
+	if len(list) == 0 {
+		return "", errCloudNoSnapshots
+	}
+	// «latest» por defecto: la lista viene del más nuevo al más viejo.
+	if ref == "" || ref == "latest" {
+		return list[0].ID, nil
+	}
+	var found []string
+	for _, s := range list {
+		if strings.HasPrefix(s.ID, ref) {
+			found = append(found, s.ID)
+		}
+	}
+	if len(found) != 1 || len(ref) < 4 {
+		return "", errors.New(i18n.T(c.lang, "cli.cloud.pull_ambiguous", ref))
+	}
+	return found[0], nil
 }
 
 // pullToFile baja un snapshot a un archivo y no al almacén: el equipo que lo

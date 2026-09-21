@@ -435,26 +435,33 @@ func planWrites(r *core.SnapshotRestoreReport) int {
 }
 
 func (c snapCmd) printPlan(r *core.SnapshotRestoreReport) {
-	fmt.Fprintln(c.out, boldLine(c.out, i18n.T(c.lang, "cli.snapshot.restore_plan", snapshot.Short(r.Snapshot))))
+	printRestorePlan(c.out, c.lang, r)
+}
+
+// printRestorePlan pinta un plan de restauración. Lo comparten `ccp snapshot
+// restore` y `ccp cloud restore`: son la misma operación —el motor de §8.3— y
+// dos impresoras del mismo plan acabarían contando lo mismo de dos maneras.
+func printRestorePlan(w io.Writer, lang i18n.Lang, r *core.SnapshotRestoreReport) {
+	fmt.Fprintln(w, boldLine(w, i18n.T(lang, "cli.snapshot.restore_plan", snapshot.Short(r.Snapshot))))
 	same := 0
 	for _, s := range r.Steps {
 		switch s.Action {
 		case "same":
 			same++
 		case "write", "merge":
-			fmt.Fprintf(c.out, "  %s  %s\n", i18n.T(c.lang, "cli.snapshot.act_"+s.Action), s.LPath)
+			fmt.Fprintf(w, "  %s  %s\n", i18n.T(lang, "cli.snapshot.act_"+s.Action), s.LPath)
 		case "skip":
-			fmt.Fprintf(c.out, "  %s  %s  (%s)\n", i18n.T(c.lang, "cli.snapshot.act_skip"), s.LPath,
-				i18n.T(c.lang, "cli.snapshot.reason_"+s.Reason))
+			fmt.Fprintf(w, "  %s  %s  (%s)\n", i18n.T(lang, "cli.snapshot.act_skip"), s.LPath,
+				i18n.T(lang, "cli.snapshot.reason_"+s.Reason))
 		}
 	}
 	if same > 0 {
-		fmt.Fprintln(c.out, mute(c.out, i18n.T(c.lang, "cli.snapshot.restore_same", same)))
+		fmt.Fprintln(w, mute(w, i18n.T(lang, "cli.snapshot.restore_same", same)))
 	}
 	// El snapshot viene de otra máquina: lo que se escribe no es literalmente
 	// lo que guardó, y decirlo aquí es la única ocasión antes de escribirlo.
 	if r.HomeFrom != "" {
-		fmt.Fprintln(c.out, mute(c.out, i18n.T(c.lang, "cli.snapshot.home_translated", r.HomeFrom, r.HomeTo)))
+		fmt.Fprintln(w, mute(w, i18n.T(lang, "cli.snapshot.home_translated", r.HomeFrom, r.HomeTo)))
 	}
 }
 
