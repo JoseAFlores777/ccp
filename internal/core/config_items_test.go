@@ -581,3 +581,22 @@ func TestConfigItemPutDesktopSoloMCP(t *testing.T) {
 		t.Fatalf("no debería existir settings.json en el data dir: %v", err)
 	}
 }
+
+// serve acepta cualquier referencia que le llegue, y una con Entry pero sin Key
+// no tiene ninguna lista donde escribir: cfgRefPath devuelve un Path vacío. Eso
+// tiene que ser un error de parámetro, no un panic dentro del escritor JSON.
+func TestConfigItemEntrySinClave(t *testing.T) {
+	r := invFixture(t)
+	ref := ConfigRef{
+		Layer: ConfigLayer{Level: "global"},
+		Type:  CfgTypePermissions,
+		Name:  "sinDosPuntos",
+		Entry: "Bash(ls)",
+	}
+	if _, err := ConfigItemPut(r, ref, ConfigValue{Text: "Bash(ls)"}); err == nil {
+		t.Fatal("una entrada sin clave debería dar error")
+	}
+	if _, err := ConfigItemDelete(r, ref); err == nil {
+		t.Fatal("borrar una entrada sin clave debería dar error")
+	}
+}
