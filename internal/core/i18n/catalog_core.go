@@ -62,5 +62,31 @@ func init() {
 			En: "Profile '%s' (%s): NO key (ccp key %s).",
 			Es: "Perfil '%s' (%s): SIN key (ccp key %s).",
 		},
+
+		// --- doctor_projection.go: hallazgos de la proyeccion (spec 6.4) ---
+		"doctor.projection_stale": {
+			En: "Profile '%s': what it declares is not projected where the apps read it (ccp profile sync %s).",
+			Es: "Perfil '%s': lo que declara no está proyectado donde lo leen las apps (ccp profile sync %s).",
+		},
+		"doctor.projection_error": {
+			En: "Profile '%s': the projection could not be checked (%s).",
+			Es: "Perfil '%s': no se pudo comprobar la proyección (%s).",
+		},
+		"doctor.desktop_restart_pending": {
+			En: "Profile '%s': its Desktop window has MCP waiting; only starting that window applies them.",
+			Es: "Perfil '%s': su ventana de Desktop tiene MCP esperando; solo arrancar esa ventana los aplica.",
+		},
+		"doctor.mcp_command_missing": {
+			En: "Profile '%s': the command of %s does not resolve, so that server will not start.",
+			Es: "Perfil '%s': el command de %s no resuelve, así que ese servidor no arranca.",
+		},
+		"doctor.mcp_only_desktop": {
+			En: "Profile '%s': %s live only in its Desktop chat config; declare them (ccp instruct add profile mcp … --profile %s) or they exist on no other machine.",
+			Es: "Perfil '%s': %s solo viven en la config del chat de su Desktop; decláralos (ccp instruct add profile mcp … --profile %s) o no existen en ninguna otra máquina.",
+		},
+		"doctor.cc_home_symlink_nonleaf": {
+			En: "Profile '%s': %s are directory symlinks under its cc-home and Desktop rejects them, so its Code tab will not open (ccp profile sync %s).",
+			Es: "Perfil '%s': %s son symlinks de directorio bajo su cc-home y Desktop los rechaza, así que su pestaña Code no abre (ccp profile sync %s).",
+		},
 	})
 }
