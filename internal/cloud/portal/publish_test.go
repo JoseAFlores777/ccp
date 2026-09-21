@@ -86,6 +86,37 @@ func TestLoQuePublicaElPortalLoPuedeGuardarUnaMaquina(t *testing.T) {
 	}
 	comprobarSnapshot(t, acct, got)
 	comprobarRevisiones(t, acct, got)
+	comprobarRestore(t, acct, out+".restore", v.CloudID)
+}
+
+// comprobarRestore repite lo del agente sobre las órdenes de «Restaurar en…»:
+// la firma tiene que verificar CON la base vacía. Si se firmara una cosa y se
+// publicara otra, la máquina rechazaría la orden y el portal no se enteraría.
+func comprobarRestore(t *testing.T, acct *crypt.Account, path, cloudID string) {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Revisions []api.RevisionIn `json:"revisions"`
+	}
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Revisions) != 2 {
+		t.Fatalf("esperaba una orden de restauración por equipo, salieron %d", len(got.Revisions))
+	}
+	for _, r := range got.Revisions {
+		parts := crypt.RevisionParts{ID: r.ID, Prev: r.Prev, Device: r.DeviceID,
+			Snapshot: r.Snapshot, Base: r.Base, Body: r.Body}
+		if err := acct.VerifyRevision(parts, r.Sig); err != nil {
+			t.Fatalf("la orden de restauración para %s no verifica: %v", r.DeviceID, err)
+		}
+		if r.Base != "" || r.Snapshot != cloudID {
+			t.Fatalf("una restauración nombra el snapshot y va sin base: %+v", r)
+		}
+	}
 }
 
 // comprobarSnapshot hace lo que hace client.Pull y luego el almacén local:
