@@ -641,6 +641,24 @@ y restaura como una unidad.
   dispositivo muestra «login pendiente» por perfil y abre Terminal con `ccp profile login <n>`, igual
   que hoy.
 
+> **Estado en F2-4 (implementado).** El portal ya edita y publica: el modelo de P-20 sobre el manifiesto de
+> un snapshot (capa · tipo · procedencia · dónde aplica · por qué algo no se edita) y «Aplicar a…», que sube
+> lo editado, publica el snapshot sellado y firma **una revisión por equipo**, encadenada sobre la cabeza de
+> cada uno. Tres decisiones que el código fijó y el plan no decía:
+>
+> - **La `base` de la revisión es el snapshot que se editó**, y eso es lo que hace que esto sea una edición y
+>   no una restauración: la máquina la usa de base del merge, así que lo que ella cambió por su cuenta se
+>   queda y un choque sale como `conflicto` en vez de pisarse. Restaurar desde el portal (§10.3.1, punto 2)
+>   sigue sin estar.
+> - **La unidad es el archivo del snapshot, no la entrada de configuración**: el portal tiene delante un
+>   manifiesto, no la máquina, así que los editores por tipo de la GUI (el formulario de un MCP, los hooks por
+>   evento) no están; lo que se reproduce es la clasificación. Un `settings.json` sí se abre por secciones,
+>   porque es un archivo con varios tipos de P-20 dentro. Ni crear ni borrar elementos: el restore tampoco
+>   borra, y inventar una ruta lógica desde el navegador es fabricar un archivo que nadie sabe dónde poner.
+> - **El API sirve los blobs** (`GET`/`PUT /v1/blobs/{id}`) porque una pestaña no puede hablar con el bucket:
+>   su CSP solo deja salir hacia su propio origen y hacia Keycloak, y ampliarla no bastaría —el bucket tendría
+>   que responder CORS—. Lo que pasa por ahí sigue sellado.
+>
 > **Estado en F2-3 (implementado).** El portal lo sirve el propio `ccp-cloud` en la raíz de su host
 > (`internal/cloud/portal`, [`docs/portal.md`](../../portal.md)), con login de Keycloak por código de
 > autorización + PKCE y la bóveda abierta en la pestaña. Dos desvíos de lo escrito arriba, los dos a
@@ -653,8 +671,8 @@ y restaura como una unidad.
 >   carriles), midiendo en node, y la derivación cede el hilo entre segmentos para que la pantalla pinte
 >   el progreso. Los vectores los genera el propio Go: `crypto_test.mjs`.
 > - **Lo de F2-3 es leer**: dispositivos con perfiles y deriva, línea de tiempo por máquina y diff entre
->   dos snapshots cualesquiera. El editor de configuración, «aplicar a…», los grupos y la descarga de
->   §10.3.1 no están; publicar una revisión desde el portal es F3.
+>   dos snapshots cualesquiera. El editor y «aplicar a…» llegaron en F2-4 (arriba); los grupos y la descarga
+>   de §10.3.1 siguen sin estar.
 >
 > El diff del portal se compara en los tests contra `snapshot.Diff` (`model_test.mjs`), y la firma se
 > pinta en tres estados, porque «este navegador no sabe verificar Ed25519» no es «firma válida».
