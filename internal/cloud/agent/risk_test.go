@@ -179,3 +179,34 @@ func TestPeligroSettingsEnvYHelpers(t *testing.T) {
 	// Lo que no ejecuta nada sigue aplicándose solo.
 	mustEmpty(t, Dangers(item("claude/settings.json", 0o644), base, []byte(`{"model":"haiku","env":{"FOO":"1"}}`)))
 }
+
+// Quitar un `deny` o un `ask`, o abrir un directorio nuevo, también amplía:
+// en Claude Code `deny` tiene precedencia, así que borrarlo con un `allow`
+// amplio ya puesto deja ejecución directa sin prompt — justo el umbral que la
+// barrera dice proteger. La enumeración del spec («allow, defaultMode») se
+// quedaba corta respecto de la regla que la encabeza.
+func TestPermisosQueAmplianPorQuitarDenyOAskOAbrirDirectorios(t *testing.T) {
+	base := []byte(`{"permissions":{"allow":["Bash(ls)"],"deny":["Bash(curl:*)","Read(./.env)"],"ask":["Bash(rm:*)"]}}`)
+	casos := []struct {
+		name string
+		to   string
+	}{
+		{"quita deny", `{"permissions":{"allow":["Bash(ls)"],"ask":["Bash(rm:*)"]}}`},
+		{"quita ask", `{"permissions":{"allow":["Bash(ls)"],"deny":["Bash(curl:*)","Read(./.env)"]}}`},
+		{"abre directorios", `{"permissions":{"allow":["Bash(ls)"],"deny":["Bash(curl:*)","Read(./.env)"],"ask":["Bash(rm:*)"],"additionalDirectories":["/","~/.ssh"]}}`},
+	}
+	for _, c := range casos {
+		t.Run(c.name, func(t *testing.T) {
+			if ds := Dangers(item("claude/settings.json", 0o644), base, []byte(c.to)); !has(ds, DangerPermissions) {
+				t.Fatalf("esperaba %s: %v", DangerPermissions, ds)
+			}
+		})
+	}
+}
+
+// Y al revés: añadir un deny/ask o cerrar un directorio sigue aplicándose solo.
+func TestPermisosQueCierranDenyAskYDirectoriosSeAplicanSolos(t *testing.T) {
+	base := []byte(`{"permissions":{"allow":["Bash(ls)"],"deny":["Bash(curl:*)"],"additionalDirectories":["/tmp","/var"]}}`)
+	to := []byte(`{"permissions":{"allow":["Bash(ls)"],"deny":["Bash(curl:*)","Bash(rm:*)"],"ask":["Bash(mv:*)"],"additionalDirectories":["/tmp"]}}`)
+	mustEmpty(t, Dangers(item("claude/settings.json", 0o644), base, to))
+}
