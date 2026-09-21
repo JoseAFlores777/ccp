@@ -3,11 +3,14 @@
 // cerrar la pestaña o tras 15 minutos sin tocar nada (spec §10.2).
 import * as c from './crypto.js';
 import * as api from './api.js';
+import * as snap from './snap.js';
 
 const IDLE_MS = 15 * 60 * 1000;
 
 let ak = null;
 let dataKey = null;
+let idsKey = null;
+let signSeed = null;
 let signPub = null;
 let signPubDerived = false;
 let lastTouch = 0;
@@ -20,9 +23,8 @@ export function touch() { lastTouch = Date.now(); }
 export function idleFor() { return Date.now() - lastTouch; }
 
 export function lock() {
-  if (ak) ak.fill(0);
-  if (dataKey) dataKey.fill(0);
-  ak = dataKey = signPub = null;
+  for (const k of [ak, dataKey, idsKey, signSeed]) if (k) k.fill(0);
+  ak = dataKey = idsKey = signSeed = signPub = null;
   signPubDerived = false;
   cache.clear();
 }
@@ -53,9 +55,31 @@ export async function unlock({ passphrase, recovery, onProgress }) {
   if (derived && !c.eq(derived, stored)) throw new Error('la bóveda abre, pero su clave no corresponde a esta cuenta');
   ak = opened;
   dataKey = await c.deriveSubkey(ak, 'ccp/v1/data');
+  idsKey = await c.deriveSubkey(ak, 'ccp/v1/ids');
+  signSeed = await c.deriveSubkey(ak, 'ccp/v1/sign');
   signPub = derived || stored;
   signPubDerived = derived !== null;
   touch();
+}
+
+// keys son las subclaves de uso, las que necesita quien fabrica un snapshot
+// (snap.js). La AK no sale de aquí ni siquiera para eso: lo que se presta son
+// las derivadas, y siguen viviendo solo en memoria de la pestaña.
+export function keys() {
+  if (!ak) throw new Error('la bóveda está cerrada');
+  return { data: dataKey, ids: idsKey, sign: signSeed };
+}
+
+// blobOf baja un blob y lo abre. El id que viaja es el de la nube (un HMAC),
+// y el contenido se comprueba contra el hash local del manifiesto: un bulto
+// cambiado por el camino no pasa por aquí como si fuera el archivo.
+export async function blobOf(item) {
+  const id = await snap.blobID(idsKey, item.hash);
+  const sealed = await api.blob(id);
+  const data = await snap.openBlob(dataKey, id, sealed, snap.MaxBlobSize);
+  if (!data) throw new Error('el contenido de ' + item.lpath + ' no abre con esta bóveda');
+  if ((await snap.localHash(data)) !== item.hash) throw new Error('el contenido de ' + item.lpath + ' llegó alterado');
+  return data;
 }
 
 // signatureChecked dice si las firmas se pueden verificar en este navegador.

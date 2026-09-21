@@ -69,6 +69,34 @@ export async function ensureDevice(userID, name) {
   return d.id;
 }
 
+// blob baja un blob sellado por el MISMO origen que el resto del API. El
+// portal no puede ir al bucket: su CSP solo deja salir hacia aquí y hacia
+// Keycloak, y el bucket tampoco responde CORS a una pestaña.
+export async function blob(id) {
+  const t = await oidc.token(clientID);
+  if (!t) throw new ApiError(401, 'unauthorized', 'la sesión ha caducado');
+  const r = await fetch('/v1/blobs/' + encodeURIComponent(id),
+    { headers: { authorization: 'Bearer ' + t, 'x-ccp-device': device } });
+  if (!r.ok) throw new ApiError(r.status, 'blob', 'no se pudo bajar un contenido (' + r.status + ')');
+  return new Uint8Array(await r.arrayBuffer());
+}
+
+// putBlob sube uno. 201 es «lo subí yo» y 200 «ya estaba»; ninguno es error.
+export async function putBlob(id, sealed) {
+  const t = await oidc.token(clientID);
+  if (!t) throw new ApiError(401, 'unauthorized', 'la sesión ha caducado');
+  const r = await fetch('/v1/blobs/' + encodeURIComponent(id), {
+    method: 'PUT',
+    headers: { authorization: 'Bearer ' + t, 'x-ccp-device': device, 'content-type': 'application/octet-stream' },
+    body: sealed,
+  });
+  if (!r.ok) throw new ApiError(r.status, 'blob', 'no se pudo subir un contenido (' + r.status + ')');
+}
+
+export const presign = (op, ids) => req('POST', '/v1/blobs/presign', { op, ids });
+export const commitSnapshot = (in_) => req('POST', '/v1/snapshots', in_);
+export const publishRevision = (in_) => req('POST', '/v1/revisions', in_);
+
 export const me = () => req('GET', '/v1/me');
 export const devices = () => req('GET', '/v1/devices');
 export const vault = () => req('GET', '/v1/vault');
