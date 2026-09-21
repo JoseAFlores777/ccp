@@ -271,6 +271,12 @@ func ConfigItems(r InventoryRoots, layer ConfigLayer) (ConfigList, error) {
 	if write.Level == "global" {
 		look = write
 	}
+	// La capa pedida se recorre aunque el inventario no la conociera: una
+	// carpeta sin regla y en la que nunca se abrió Claude Code sigue siendo la
+	// que el usuario nombró, y sus archivos están ahí.
+	if look.Level == "project" {
+		r.ExtraProjects = append(append([]string{}, r.ExtraProjects...), filepath.Clean(look.Name))
+	}
 	inv := BuildInventory(r)
 	out := ConfigList{Layer: layer, Items: []ConfigItem{}, Probes: []InvProbe{}}
 	used := map[string]bool{}
