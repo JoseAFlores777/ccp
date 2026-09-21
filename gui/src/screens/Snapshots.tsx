@@ -489,7 +489,9 @@ export function Snapshots() {
       </Card>
 
       {sel && <Detalle s={sel} onPlan={(p) => { setPick(sel.id); setPlan({ id: sel.id, plan: p }); setDone(null); }} />}
-      {sel && <Cambios from={sel.id} list={snaps} />}
+      {/* `key` obliga a remontar al cambiar de fila: si no, el `to` elegido
+          sobrevive y se acaba comparando el snapshot contra sí mismo. */}
+      {sel && <Cambios key={sel.id} from={sel.id} list={snaps} />}
       {plan && !done && <PlanRestauracion key={plan.id} id={plan.id} plan={plan.plan} onDone={(r) => { setDone(r); setPlan(null); }} />}
 
       {done && (
