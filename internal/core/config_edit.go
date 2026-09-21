@@ -12,6 +12,8 @@ package core
 // escritor.
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -334,16 +336,84 @@ func cfgEditable(r InventoryRoots, t cfgTarget, ref ConfigRef) error {
 	return nil
 }
 
+// cfgRefuseClash niega la escritura cuando el destino ya tiene otro contenido.
+// No compara contra el disco crudo sino contra ConfigItemGet, que es lo que la
+// pantalla enseñaría de ese elemento: una clave dentro de un settings.json no
+// choca porque el archivo exista, choca porque la clave esté con otro valor.
+// Escribir lo mismo que ya hay no es una pérdida y pasa.
+func cfgRefuseClash(r InventoryRoots, t cfgTarget, ref ConfigRef, v ConfigValue) error {
+	cur, err := ConfigItemGet(r, ref)
+	if err != nil {
+		// Un destino ilegible es justo el caso en el que no se pisa a ciegas.
+		return err
+	}
+	if !cur.Exists || cfgSameValue(t.Format, cur, v) {
+		return nil
+	}
+	return fmt.Errorf("%s ya está en %s con otro contenido (%s): míralo primero, y si de verdad quieres reemplazarlo dilo explícitamente",
+		ref.Name, cfgLayerWord(t.Layer), t.File)
+}
+
+// cfgLayerWord nombra la capa para el mensaje, sin depender del catálogo i18n
+// (core no habla de presentación).
+func cfgLayerWord(l ConfigLayer) string {
+	if l.Name == "" {
+		return l.Level
+	}
+	return l.Level + " " + l.Name
+}
+
+// cfgSameValue compara el valor que hay con el que se quiere escribir. El JSON
+// pasa por una normalización con UseNumber porque los dos lados llegan de
+// decodificadores distintos (el disco y el NDJSON de serve).
+func cfgSameValue(format string, cur, v ConfigValue) bool {
+	if format == CfgFormatText || format == CfgFormatEntry {
+		return cur.Text == v.Text
+	}
+	return jsonEqual(cfgNormalizeJSON(cur.JSON), cfgNormalizeJSON(v.JSON))
+}
+
+func cfgNormalizeJSON(v any) any {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return v
+	}
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.UseNumber()
+	var out any
+	if err := dec.Decode(&out); err != nil {
+		return v
+	}
+	return out
+}
+
+// ConfigItemPutOpts modula la escritura. IfAbsent es la barrera de las acciones
+// de capa («llevar a…»): esa ruta no edita lo que hay en el destino, trae lo de
+// otra capa, así que pisar un contenido distinto lo borra sin copia —no pasa
+// por withSafetySnapshot ni por el rescate del drift—. Editar de frente sigue
+// sin barrera: ahí el usuario mira lo que cambia.
+type ConfigItemPutOpts struct{ IfAbsent bool }
+
 // ConfigItemPut escribe el valor de un elemento y regenera lo que toque.
 // Devuelve el archivo tocado aunque la regeneración falle: el cambio está en
 // disco y decir lo contrario sería peor que el fallo.
 func ConfigItemPut(r InventoryRoots, ref ConfigRef, v ConfigValue) (ConfigWrite, error) {
+	return ConfigItemPutWith(r, ref, v, ConfigItemPutOpts{})
+}
+
+// ConfigItemPutWith es ConfigItemPut con opciones.
+func ConfigItemPutWith(r InventoryRoots, ref ConfigRef, v ConfigValue, opts ConfigItemPutOpts) (ConfigWrite, error) {
 	t, err := cfgResolve(r, ref)
 	if err != nil {
 		return ConfigWrite{}, err
 	}
 	if err := cfgEditable(r, t, ref); err != nil {
 		return ConfigWrite{}, err
+	}
+	if opts.IfAbsent {
+		if err := cfgRefuseClash(r, t, ref, v); err != nil {
+			return ConfigWrite{}, err
+		}
 	}
 	switch t.Format {
 	case CfgFormatText:

@@ -398,3 +398,38 @@ func TestConfigItemPutRechazaArchivoQueLaCapaNoLee(t *testing.T) {
 		t.Fatalf("Put global: %v", err)
 	}
 }
+
+// El «llevar a otra capa» de la GUI escribe el valor del origen en la capa
+// destino. Si el destino ya tiene otro contenido, pisarlo lo pierde sin copia
+// (esa ruta no pasa por ningún snapshot), así que con IfAbsent se niega.
+func TestConfigItemPutIfAbsentNoPisaElDestino(t *testing.T) {
+	r := invFixture(t)
+	l, err := ConfigItems(r, ConfigLayer{Level: "profile", Name: "work"})
+	if err != nil {
+		t.Fatalf("ConfigItems: %v", err)
+	}
+	ref := cfgMustRef(t, l, CfgTypeInstructions, "CLAUDE.md")
+	antes, err := os.ReadFile(ref.Source)
+	if err != nil {
+		t.Fatalf("leer el destino: %v", err)
+	}
+
+	opts := ConfigItemPutOpts{IfAbsent: true}
+	if _, err := ConfigItemPutWith(r, ref, ConfigValue{Text: "global\n"}, opts); err == nil {
+		t.Fatal("pisó el CLAUDE.md del perfil sin decir nada")
+	} else if !strings.Contains(err.Error(), ref.Source) {
+		t.Errorf("el error no dice qué archivo: %v", err)
+	}
+	if b, _ := os.ReadFile(ref.Source); string(b) != string(antes) {
+		t.Errorf("el destino quedó %q, quería %q", b, antes)
+	}
+
+	// Escribir lo mismo que ya está no es una pérdida: pasa.
+	if _, err := ConfigItemPutWith(r, ref, ConfigValue{Text: string(antes)}, opts); err != nil {
+		t.Errorf("un contenido idéntico no debería chocar: %v", err)
+	}
+	// Y sin la barrera se sigue escribiendo, que es editar.
+	if _, err := ConfigItemPut(r, ref, ConfigValue{Text: "global\n"}); err != nil {
+		t.Errorf("Put: %v", err)
+	}
+}

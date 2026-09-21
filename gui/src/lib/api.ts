@@ -540,11 +540,15 @@ export const api = {
   // reiniciar: la proyección la hace la propia escritura, no una llamada aparte.
   configItems: (layer: ConfigLayer) => ccpCall<ConfigList>('config.items', { layer }),
   configItem: (ref: ConfigRef) => ccpCall<ConfigValue>('config.item.get', { ref }),
-  configItemPut: (ref: ConfigRef, value: ConfigValue) => ccpCall<ConfigWrite>('config.item.put', { ref, value }),
+  // ifAbsent: escribe solo si el destino no tiene ya otro contenido. Lo pide
+  // la acción de capa («llevar a…»), que no edita lo que hay allí sino que
+  // trae lo de otra capa: pisarlo lo perdería sin copia.
+  configItemPut: (ref: ConfigRef, value: ConfigValue, ifAbsent = false) =>
+    ccpCall<ConfigWrite>('config.item.put', { ref, value, if_absent: ifAbsent }),
   configItemDelete: (ref: ConfigRef) => ccpCall<ConfigWrite>('config.item.delete', { ref }),
   mcpList: (layer: ConfigLayer) => ccpCall<McpRow[]>('mcp.list', { layer }),
-  mcpPut: (layer: ConfigLayer, name: string, def: Record<string, unknown>) =>
-    ccpCall<ConfigWrite>('mcp.put', { layer, name, def }),
+  mcpPut: (layer: ConfigLayer, name: string, def: Record<string, unknown>, ifAbsent = false) =>
+    ccpCall<ConfigWrite>('mcp.put', { layer, name, def, if_absent: ifAbsent }),
   mcpDelete: (layer: ConfigLayer, name: string) => ccpCall<ConfigWrite>('mcp.delete', { layer, name }),
   mcpSetTargets: (name: string, targets: string[]) => ccpCall<ConfigWrite>('mcp.setTargets', { name, targets }),
   // Un solo método para el conmutador: `enabled` permite volver atrás sin una
