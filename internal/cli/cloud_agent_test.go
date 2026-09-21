@@ -139,6 +139,33 @@ func TestCloudAgentAplicaYReviewConfirma(t *testing.T) {
 	if code, out, errs = snapRun(t, "cloud", "review"); code != 0 || !strings.Contains(out, "Nada") && !strings.Contains(out, "nada") {
 		t.Fatalf("ya no queda nada: %d %q %q", code, out, errs)
 	}
+
+	// El vacío tiene la MISMA forma que el lleno: quien hace `.applied[]` no
+	// puede fallar según el estado de la máquina.
+	code, out, errs = snapRun(t, "cloud", "review", "--json")
+	if code != 0 {
+		t.Fatalf("review --json vacío: %d %q %q", code, out, errs)
+	}
+	vacias(t, "review --json", out, "pending", "conflicts", "applied", "skipped")
+	code, out, errs = snapRun(t, "cloud", "agent", "--once", "--json")
+	if code != 0 {
+		t.Fatalf("agent --once --json sin revisión: %d %q %q", code, out, errs)
+	}
+	vacias(t, "agent --once --json", out, "applied", "pending", "conflicts", "skipped")
+}
+
+// vacias exige que cada clave sea una lista vacía y nunca null.
+func vacias(t *testing.T, que, out string, keys ...string) {
+	t.Helper()
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(out), &m); err != nil {
+		t.Fatalf("%s: %v: %q", que, err, out)
+	}
+	for _, k := range keys {
+		if string(m[k]) != "[]" {
+			t.Fatalf("%s: %q tenía que ser [] y fue %q", que, k, string(m[k]))
+		}
+	}
 }
 
 func TestCloudPolicy(t *testing.T) {
