@@ -64,6 +64,22 @@ type MCPProjection struct {
 	Deferred      bool     `json:"deferred"`       // la ventana está corriendo: se aplica al arrancar
 }
 
+// normalized devuelve la proyección con sus cuatro listas como array vacío en
+// vez de nil. Las proyecciones viajan en el JSON del CLI y del protocolo, donde
+// la convención es que ninguna lista salga null: `append` sobre el valor cero
+// las deja nil cuando esa proyección no escribió (ni retiró, ni saltó) nada.
+func (p MCPProjection) normalized() MCPProjection {
+	nz := func(v []string) []string {
+		if v == nil {
+			return []string{}
+		}
+		return v
+	}
+	p.Written, p.Removed = nz(p.Written), nz(p.Removed)
+	p.Conflicts, p.RemoteSkipped = nz(p.Conflicts), nz(p.RemoteSkipped)
+	return p
+}
+
 // Empty dice si no hubo nada que contar.
 func (p MCPProjection) Empty() bool {
 	return len(p.Written) == 0 && len(p.Removed) == 0 && len(p.Conflicts) == 0 &&

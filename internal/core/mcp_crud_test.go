@@ -352,3 +352,23 @@ func TestMCPPutCreaElOverlayEn0600(t *testing.T) {
 		t.Errorf("modo de overlay/mcp.json = %o, quiero 600", fi.Mode().Perm())
 	}
 }
+
+// Las cuatro listas de cada proyección salen siempre como array, nunca nil: el
+// JSON de la superficie legible por máquina no distingue vacío de null y la GUI
+// las tipa como string[]. Aquí una escritura que solo añade deja Removed,
+// Conflicts y RemoteSkipped sin llenar.
+func TestMCPWriteNuncaDevuelveListasNil(t *testing.T) {
+	r, _ := mcpCRUDFixture(t)
+	w, err := MCPPut(r, perfilLayer("work"), "nuevo", map[string]any{"command": "npx"})
+	if err != nil {
+		t.Fatalf("MCPPut: %v", err)
+	}
+	if len(w.MCP) == 0 {
+		t.Fatalf("sin proyecciones que comprobar")
+	}
+	for _, p := range w.MCP {
+		if p.Written == nil || p.Removed == nil || p.Conflicts == nil || p.RemoteSkipped == nil {
+			t.Errorf("%s/%s dejó una lista nil: %+v", p.Profile, p.Target, p.MCPProjection)
+		}
+	}
+}
