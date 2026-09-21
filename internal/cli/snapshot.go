@@ -451,6 +451,11 @@ func (c snapCmd) printPlan(r *core.SnapshotRestoreReport) {
 	if same > 0 {
 		fmt.Fprintln(c.out, mute(c.out, i18n.T(c.lang, "cli.snapshot.restore_same", same)))
 	}
+	// El snapshot viene de otra máquina: lo que se escribe no es literalmente
+	// lo que guardó, y decirlo aquí es la única ocasión antes de escribirlo.
+	if r.HomeFrom != "" {
+		fmt.Fprintln(c.out, mute(c.out, i18n.T(c.lang, "cli.snapshot.home_translated", r.HomeFrom, r.HomeTo)))
+	}
 }
 
 func (c snapCmd) prune(args []string) int {

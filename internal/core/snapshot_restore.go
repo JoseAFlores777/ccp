@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -125,6 +126,11 @@ type SnapshotRestoreReport struct {
 	PreSnapshot string                `json:"pre_snapshot,omitempty"`
 	Steps       []SnapshotRestoreStep `json:"steps"`
 	Regenerated []string              `json:"regenerated"`
+	// HomeFrom/HomeTo solo se rellenan cuando el snapshot viene de una máquina
+	// con otro HOME: quien enseña el plan tiene que poder decir que las rutas
+	// absolutas se reescriben, porque no es lo que el snapshot guardó.
+	HomeFrom string `json:"home_from,omitempty"`
+	HomeTo   string `json:"home_to,omitempty"`
 }
 
 func selectItems(items []snapshot.Item, only []string) []snapshot.Item {
@@ -163,9 +169,27 @@ func SnapshotRestore(home, src string, st *snapshot.Store, ref string, o Snapsho
 		tgt  snapTarget
 		data []byte
 	}
-	rep := &SnapshotRestoreReport{Snapshot: m.ID, Steps: []SnapshotRestoreStep{}, Regenerated: []string{}}
+	// Otra máquina, otro HOME: las rutas absolutas se traducen al restaurar
+	// (spec §11). Sin esto una regla de carpeta de /Users/ana no resuelve nada
+	// aquí y el proyecto que la acompaña se salta por «project_missing».
+	userHome, _ := os.UserHomeDir()
+	homeFrom, homeTo := "", ""
+	if m.Home != "" && userHome != "" && m.Home != userHome {
+		homeFrom, homeTo = m.Home, userHome
+	}
+	rep := &SnapshotRestoreReport{
+		Snapshot: m.ID, Steps: []SnapshotRestoreStep{}, Regenerated: []string{},
+		HomeFrom: homeFrom, HomeTo: homeTo,
+	}
 	var todo []pending
 	for _, it := range items {
+		// La ruta del proyecto se traduce antes de resolver el destino: es lo
+		// que decide si la carpeta existe en esta máquina.
+		if p, ok := it.Meta["path"]; ok && homeFrom != "" {
+			meta := maps.Clone(it.Meta)
+			meta["path"] = translateHomePath(p, homeFrom, homeTo)
+			it.Meta = meta
+		}
 		step := SnapshotRestoreStep{LPath: it.LPath, Meta: it.Meta}
 		tgt, err := snapshotTarget(home, src, it)
 		switch {
@@ -178,6 +202,11 @@ func SnapshotRestore(home, src string, st *snapshot.Store, ref string, o Snapsho
 			if gerr != nil {
 				step.Action, step.Reason = "skip", "missing_blob"
 				break
+			}
+			// Las conversaciones no se reescriben: son historia, y las rutas
+			// que llevan dentro describen dónde ocurrió, no dónde escribir.
+			if it.Class != snapshot.ClassState {
+				data = translateHome(data, homeFrom, homeTo)
 			}
 			// Un ccp.yaml que este binario no puede leer aborta todo el restore
 			// antes de tocar nada: restaurar el resto contra el ccp.yaml viejo

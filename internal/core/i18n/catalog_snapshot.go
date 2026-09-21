@@ -91,6 +91,10 @@ CCP_SNAPSHOT_PASSPHRASE da la frase sin preguntarla.`,
 		Es: "Restaurado. La configuración anterior quedó en el snapshot %s.",
 	},
 	"cli.snapshot.regenerated": {En: "Profiles regenerated: %s", Es: "Perfiles regenerados: %s"},
+	"cli.snapshot.home_translated": {
+		En: "Paths from %s rewritten to %s (this machine's HOME).",
+		Es: "Rutas de %s reescritas a %s (el HOME de esta máquina).",
+	},
 
 	"cli.snapshot.pruned": {
 		En: "Deleted %d snapshots and %d unused blobs; %d kept.",
