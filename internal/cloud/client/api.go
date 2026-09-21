@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -50,17 +51,24 @@ func (e *APIError) Error() string {
 }
 
 func (a *API) do(ctx context.Context, method, path string, in, out any) error {
+	_, err := a.doStatus(ctx, method, path, in, out)
+	return err
+}
+
+// doStatus es do y además el código de la respuesta: hace falta para el 204 de
+// «no hay revisión pendiente», que no es un error y tampoco trae cuerpo.
+func (a *API) doStatus(ctx context.Context, method, path string, in, out any) (int, error) {
 	var body io.Reader
 	if in != nil {
 		b, err := json.Marshal(in)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		body = bytes.NewReader(b)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, a.base+path, body)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if in != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -70,7 +78,7 @@ func (a *API) do(ctx context.Context, method, path string, in, out any) error {
 	}
 	resp, err := a.hc.Do(req)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
@@ -80,12 +88,12 @@ func (a *API) do(ctx context.Context, method, path string, in, out any) error {
 		if e.Message == "" {
 			e.Message = resp.Status
 		}
-		return e
+		return resp.StatusCode, e
 	}
-	if out == nil {
-		return nil
+	if out == nil || resp.StatusCode == http.StatusNoContent {
+		return resp.StatusCode, nil
 	}
-	return json.NewDecoder(io.LimitReader(resp.Body, 64<<20)).Decode(out)
+	return resp.StatusCode, json.NewDecoder(io.LimitReader(resp.Body, 64<<20)).Decode(out)
 }
 
 // Me devuelve la cuenta de este token.
@@ -216,4 +224,57 @@ func retry(ctx context.Context, fn func() (retryable bool, err error)) error {
 		}
 	}
 	return err
+}
+
+// ErrNoRevision es «no hay nada que aplicar». El servidor responde 204 y no
+// 404 a propósito, y aquí se distingue por su propio valor: un agente que
+// pregunta cada pocos minutos no puede llenar el log de errores que no lo son.
+var ErrNoRevision = errors.New("cloud: no hay ninguna revisión pendiente")
+
+// PublishRevision publica una revisión deseada para un dispositivo. La firma
+// la pone quien tenga la clave de cuenta; el servidor solo la guarda.
+func (a *API) PublishRevision(ctx context.Context, in api.RevisionIn) (api.Revision, error) {
+	var out api.Revision
+	return out, a.do(ctx, http.MethodPost, "/v1/revisions", in, &out)
+}
+
+// PendingRevision devuelve la revisión que ESTE dispositivo tiene que aplicar,
+// entera (con cuerpo y firma, que es lo que hay que verificar antes de tocar
+// nada). ErrNoRevision cuando no hay ninguna.
+func (a *API) PendingRevision(ctx context.Context) (api.Revision, error) {
+	var out api.Revision
+	code, err := a.doStatus(ctx, http.MethodGet, "/v1/revisions/pending", nil, &out)
+	if err != nil {
+		return api.Revision{}, err
+	}
+	if code == http.StatusNoContent {
+		return api.Revision{}, ErrNoRevision
+	}
+	return out, nil
+}
+
+// Revision baja una revisión entera por su id.
+func (a *API) Revision(ctx context.Context, id string) (api.Revision, error) {
+	var out api.Revision
+	return out, a.do(ctx, http.MethodGet, "/v1/revisions/"+url.PathEscape(id), nil, &out)
+}
+
+// Revisions lista las revisiones de la cuenta, de la más nueva a la más vieja,
+// sin cuerpo ni firma. device vacío = todas.
+func (a *API) Revisions(ctx context.Context, device string, limit int) ([]api.RevisionMeta, error) {
+	q := url.Values{"limit": {strconv.Itoa(limit)}}
+	if device != "" {
+		q.Set("device", device)
+	}
+	var out []api.RevisionMeta
+	return out, a.do(ctx, http.MethodGet, "/v1/revisions?"+q.Encode(), nil, &out)
+}
+
+// SetRevisionState informa del resultado. Solo lo acepta el servidor del
+// dispositivo destinatario, y solo una vez: quien la cierra dice la última
+// palabra sobre esa orden.
+func (a *API) SetRevisionState(ctx context.Context, id, state, reason string) (api.RevisionMeta, error) {
+	var out api.RevisionMeta
+	return out, a.do(ctx, http.MethodPost, "/v1/revisions/"+url.PathEscape(id)+"/state",
+		api.RevisionStateIn{State: state, Reason: reason}, &out)
 }

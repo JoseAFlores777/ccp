@@ -46,6 +46,10 @@ type Config struct {
 	Email      string `json:"email"`
 	DeviceID   string `json:"device_id"`
 	DeviceName string `json:"device_name"`
+	// Policy es la política de este dispositivo frente a las revisiones que
+	// llegan del portal (spec §10.3): "auto" aplica solo lo no ejecutable,
+	// "manual" no aplica nada sin confirmación. Vacío = auto.
+	Policy string `json:"policy,omitempty"`
 }
 
 // State recuerda qué hay arriba: id local -> id en la nube.
@@ -162,10 +166,35 @@ func (f Files) SaveState(s State) error { return f.write("state.json", s) }
 // bóveda, y usarla contra otra cuenta sellaría y firmaría blobs que nadie —ni
 // quien los subió— podrá volver a leer, marcados además como ya subidos.
 func (f Files) ForgetVault() error {
-	for _, name := range []string{"vault.key", "state.json"} {
+	for _, name := range []string{"vault.key", "state.json", "review.json"} {
 		if err := os.Remove(f.path(name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
+	}
+	return nil
+}
+
+// SaveJSON y LoadJSON guardan un archivo cualquiera del directorio de nube con
+// los permisos del resto (0700 el directorio, 0600 el archivo) y por
+// tmp+rename. Existen para el agente, que vive en su propio paquete porque
+// importa el motor de snapshots: sin esto tendría que reimplementar la
+// escritura o dar la vuelta a las dependencias.
+func (f Files) SaveJSON(name string, v any) error { return f.write(name, v) }
+
+// LoadJSON devuelve false y ningún error cuando el archivo no existe: para el
+// agente, «todavía no hay nada» es un estado normal, no un fallo.
+func (f Files) LoadJSON(name string, v any) (bool, error) {
+	err := f.read(name, v)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// RemoveJSON borra uno de esos archivos; que no esté no es un error.
+func (f Files) RemoveJSON(name string) error {
+	if err := os.Remove(f.path(name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
 	}
 	return nil
 }
@@ -176,7 +205,7 @@ func (f Files) ForgetVault() error {
 // sesión sea esa —volver a subir no cuesta nada, saltarse un snapshot que
 // arriba no está sí—.
 func (f Files) Forget() error {
-	for _, name := range []string{"token.json", "vault.key", "state.json"} {
+	for _, name := range []string{"token.json", "vault.key", "state.json", "review.json"} {
 		if err := os.Remove(f.path(name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
