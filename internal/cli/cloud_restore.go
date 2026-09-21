@@ -8,6 +8,7 @@ package cli
 // Termina donde terminan los tres: el motor de restauración de §8.3.
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -58,6 +59,12 @@ func (c cloudCmd) restore(args []string) int {
 		ref = a.pos[0]
 	}
 	target, err := c.pickSnapshot(o.API, a.val("--device"), ref)
+	if errors.Is(err, errCloudNoSnapshots) {
+		// No tener ninguno no es un fallo: es el estado de una cuenta recién
+		// creada, y el mensaje tiene que ser el mismo que el de `pull`.
+		fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.pull_none"))
+		return 0
+	}
 	if err != nil {
 		return c.fail(err)
 	}
