@@ -202,3 +202,30 @@ func TestMCPRmDeLoQueNoEstaFalla(t *testing.T) {
 		t.Fatalf("rm inexistente: %d %q %q", code, out, errs)
 	}
 }
+
+// Un --env en un servidor remoto (o un --header en uno stdio) no se puede
+// guardar en silencio: los pares se validan al teclearlos, así que el usuario
+// cree que viajaron, y el servidor acaba guardado sin credenciales fallando al
+// autenticar sin que nada explique por qué.
+func TestMCPAddNoSeTragaEnvNiHeadersDelTransporteAjeno(t *testing.T) {
+	mcpEnv(t)
+	cj := os.Getenv("CCP_CLAUDE_SRC") + ".json"
+	code, _, errs := snapRun(t, "mcp", "add", "gh", "--scope", "global",
+		"--url", "https://x.example/mcp", "--env", "GITHUB_TOKEN=${GH}")
+	if code == 0 {
+		b, _ := os.ReadFile(cj)
+		t.Fatalf("--env en un remoto salió 0; quedó %s", b)
+	}
+	if !strings.Contains(errs, "env") {
+		t.Errorf("el error no nombra env: %q", errs)
+	}
+	code, _, errs = snapRun(t, "mcp", "add", "fs", "--scope", "global",
+		"--header", "Authorization=${FS}", "--", "npx", "fs")
+	if code == 0 {
+		b, _ := os.ReadFile(cj)
+		t.Fatalf("--header en un stdio salió 0; quedó %s", b)
+	}
+	if !strings.Contains(errs, "headers") {
+		t.Errorf("el error no nombra headers: %q", errs)
+	}
+}

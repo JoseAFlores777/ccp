@@ -435,6 +435,12 @@ func mcpDefFrom(lang i18n.Lang, a snapArgs, raw string, cmd []string, hasCmd boo
 		if env != nil {
 			def["env"] = env
 		}
+		// Los headers de un stdio no se descartan aquí: van a la definición
+		// para que ValidateMCPServer diga de quién son. Tragárselos dejaba el
+		// servidor guardado sin lo que el usuario creyó haber escrito.
+		if headers != nil {
+			def["headers"] = headers
+		}
 		return def, nil
 	}
 	if _, ok := def["type"]; !ok {
@@ -443,6 +449,11 @@ func mcpDefFrom(lang i18n.Lang, a snapArgs, raw string, cmd []string, hasCmd boo
 	def["url"] = url
 	if headers != nil {
 		def["headers"] = headers
+	}
+	// Lo mismo al revés: un --env en un remoto viaja para que el validador
+	// explique que las credenciales de uno remoto van en headers.
+	if env != nil {
+		def["env"] = env
 	}
 	return def, nil
 }
