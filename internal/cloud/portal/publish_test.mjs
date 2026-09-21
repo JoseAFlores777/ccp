@@ -22,8 +22,10 @@ const keys = {
 const subidos = {};
 const api = {
   putBlob: async (id, sealed) => { subidos[id] = c.b64e(sealed); },
-  // Todo lo del manifiesto base ya estaba arriba; lo editado, solo si se subió.
-  presign: async (_op, ids) => ids.map((id) => ({ id, exists: v.known.includes(id) || id in subidos })),
+  // `exists` sale del REGISTRO del servidor, no del bucket: un blob recién
+  // subido con PUT /v1/blobs aún no está registrado, y es justo lo que el
+  // portal no puede dar por perdido.
+  presign: async (_op, ids) => ids.map((id) => ({ id, exists: v.known.includes(id) })),
   commitSnapshot: async (in_) => { commit = in_; return { id: in_.id }; },
   revisions: async (dev) => (v.heads[dev] ? [{ id: v.heads[dev] }] : []),
   publishRevision: async (r) => { revisiones.push(r); return r; },
@@ -41,7 +43,9 @@ const out = await publish({ api, keys }, {
 });
 
 check('sube solo lo editado', out.uploaded === edits.size, out.uploaded);
-check('nada se queda sin datos', out.missing.length === 0, out.missing.join(', '));
+check('lo recién subido cuenta como que está', out.missing.length === 0, out.missing.join(', '));
+check('el commit nombra todos los blobs, incluido el nuevo',
+  commit.blobs.length === v.manifest.items.length, commit.blobs.length);
 check('una revisión por equipo', out.results.length === v.devices.length && out.results.every((r) => r.ok),
   JSON.stringify(out.results));
 check('el padre es el snapshot editado', out.manifest.parent === v.manifest.id, out.manifest.parent);

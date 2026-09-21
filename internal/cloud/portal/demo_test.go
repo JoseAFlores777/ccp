@@ -185,13 +185,20 @@ func serveDemo(t *testing.T, acct *crypt.Account, w crypt.Wraps, devs []api.Devi
 		blobs[r.PathValue("id")] = b
 		rw.WriteHeader(http.StatusCreated)
 	})
+	// `exists` sale del REGISTRO, no del bucket, como en el servidor de verdad:
+	// un blob recién subido no está registrado hasta que se acepta el snapshot
+	// que lo nombra. La demo lo imita porque, contestando desde el bucket,
+	// tapaba que el portal dejara fuera del commit justo lo editado.
+	conocidos := map[string]bool{}
+	for id := range blobs {
+		conocidos[id] = true
+	}
 	mux.HandleFunc("POST /v1/blobs/presign", func(rw http.ResponseWriter, r *http.Request) {
 		var in api.PresignReq
 		_ = json.NewDecoder(r.Body).Decode(&in)
 		out := []api.PresignItem{}
 		for _, id := range in.IDs {
-			_, ok := blobs[id]
-			out = append(out, api.PresignItem{ID: id, Exists: ok})
+			out = append(out, api.PresignItem{ID: id, Exists: conocidos[id]})
 		}
 		send(rw, out)
 	})
@@ -199,6 +206,14 @@ func serveDemo(t *testing.T, acct *crypt.Account, w crypt.Wraps, devs []api.Devi
 		var in api.SnapshotIn
 		if !demoSnapshot(t, rw, r, acct, &in) {
 			return
+		}
+		for _, id := range in.Blobs {
+			if _, ok := blobs[id]; !ok {
+				t.Errorf("el portal comprometió un snapshot que nombra un blob que no subió: %s", id)
+				http.Error(rw, `{"code":"missing_blobs","message":"faltan blobs"}`, http.StatusConflict)
+				return
+			}
+			conocidos[id] = true
 		}
 		meta := api.SnapshotMeta{ID: in.ID, Parent: in.Parent, DeviceID: devs[0].ID, DeviceName: "portal",
 			Created: in.Created, Size: int64(len(in.Manifest))}
