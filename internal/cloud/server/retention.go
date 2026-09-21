@@ -121,26 +121,35 @@ func (s *srv) sweep(ctx context.Context, r *http.Request, userID string) {
 			sobran = append(sobran, sn.ID)
 		}
 	}
-	if len(sobran) == 0 {
-		return
-	}
+	// Aunque no sobre ningún snapshot se sigue: la poda anterior pudo dejar
+	// blobs que el bucket no aceptó borrar, y esta es la vuelta que los
+	// reintenta.
 	libres, err := s.cfg.Store.PruneSnapshots(ctx, userID, sobran, s.cfg.Now().Add(-p.Grace))
 	if err != nil {
 		s.cfg.Log.Error("retención: no se pudo podar", "err", err, "req", reqID(r))
 		return
 	}
-	// Del bucket, después de la base y uno a uno: un objeto que se queda es
-	// basura que la siguiente poda recoge, y una fila que apuntara a un objeto
-	// que ya no está sería un snapshot roto.
-	borrados := 0
+	// Del bucket, después de la base y uno a uno: una fila que apuntara a un
+	// objeto que ya no está sería un snapshot roto. El que no se pueda borrar
+	// se queda apuntado en la base (`libres` lo volverá a traer la próxima
+	// vez); solo se olvida el que se fue de verdad.
+	idos := []string{}
 	for _, id := range libres {
 		if err := s.cfg.Blobs.Delete(ctx, blobs.Key(userID, id)); err != nil {
-			s.cfg.Log.Error("retención: blob que se queda en el almacenamiento", "err", err, "blob", id)
+			s.cfg.Log.Error("retención: blob que se queda en el almacenamiento, se reintentará", "err", err, "blob", id)
 			continue
 		}
-		borrados++
+		idos = append(idos, id)
 	}
-	s.cfg.Log.Info("retención", "user", userID, "podados", len(sobran), "blobs", borrados)
+	if err := s.cfg.Store.ForgetBlobs(ctx, userID, idos); err != nil {
+		// Olvidarlos es lo único que queda: no hacerlo solo cuesta un borrado
+		// repetido, que el almacenamiento acepta (ver blobs.Blobs.Delete).
+		s.cfg.Log.Error("retención: no se pudo olvidar los blobs borrados", "err", err, "req", reqID(r))
+	}
+	if len(sobran) == 0 && len(idos) == 0 {
+		return
+	}
+	s.cfg.Log.Info("retención", "user", userID, "podados", len(sobran), "blobs", len(idos))
 }
 
 // sweepDue dice si toca barrer y, si toca, lo apunta. Sin esto, cada

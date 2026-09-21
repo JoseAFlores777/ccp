@@ -26,6 +26,7 @@ type Mem struct {
 	snaps   map[string]map[string]Snapshot
 	refs    map[string]map[string][]string  // usuario -> snapshot -> blobs
 	blobAt  map[string]map[string]time.Time // usuario -> blob -> cuándo se registró
+	basura  map[string]map[string]bool      // usuario -> blob liberado que aún ocupa el bucket
 	revs    map[string]map[string]Revision  // usuario -> id de revisión
 	heads   map[string]map[string]string    // usuario -> dispositivo -> cabeza de su cadena
 	audit   []string
@@ -36,8 +37,8 @@ func NewMem() *Mem {
 	return &Mem{
 		users: map[string]User{}, vaults: map[string]Vault{}, devices: map[string]map[string]Device{},
 		blobs: map[string]map[string]int64{}, snaps: map[string]map[string]Snapshot{}, refs: map[string]map[string][]string{},
-		blobAt: map[string]map[string]time.Time{},
-		revs:   map[string]map[string]Revision{}, heads: map[string]map[string]string{},
+		blobAt: map[string]map[string]time.Time{}, basura: map[string]map[string]bool{},
+		revs: map[string]map[string]Revision{}, heads: map[string]map[string]string{},
 	}
 }
 
@@ -245,17 +246,34 @@ func (m *Mem) PruneSnapshots(_ context.Context, userID string, ids []string, bef
 			vivos[b] = true
 		}
 	}
-	libres := []string{}
+	if m.basura[userID] == nil {
+		m.basura[userID] = map[string]bool{}
+	}
 	for b := range m.blobs[userID] {
 		if vivos[b] || !m.blobAt[userID][b].Before(before) {
 			continue
 		}
-		libres = append(libres, b)
+		// Apuntado antes de soltarlo: ver el contrato en store.go.
+		m.basura[userID][b] = true
 		delete(m.blobs[userID], b)
 		delete(m.blobAt[userID], b)
 	}
+	libres := []string{}
+	for b := range m.basura[userID] {
+		libres = append(libres, b)
+	}
 	sort.Strings(libres)
 	return libres, nil
+}
+
+// ForgetBlobs: ver el contrato en store.go.
+func (m *Mem) ForgetBlobs(_ context.Context, userID string, ids []string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, id := range ids {
+		delete(m.basura[userID], id)
+	}
+	return nil
 }
 
 // SetPinned: ver el contrato en store.go.

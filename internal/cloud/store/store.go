@@ -129,13 +129,20 @@ type Store interface {
 	// seguridad (api.MaxChainLinks), no una paginación.
 	Chain(ctx context.Context, userID string, limit int) ([]Snapshot, error)
 	// PruneSnapshots convierte en lápidas los snapshots ids: les quita el
-	// manifiesto y sus referencias, y borra los blobs que ningún snapshot vivo
-	// siga usando y que se registraran antes de before. La fila NO se borra
-	// (ver Snapshot.Pruned). Devuelve los blobs liberados para que quien llama
-	// los quite del almacenamiento: primero la base y después el bucket,
-	// porque un objeto huérfano en el bucket es basura y una fila que apunta a
-	// un objeto que ya no está es un snapshot roto.
+	// manifiesto y sus referencias, y libera los blobs que ningún snapshot vivo
+	// siga usando y que se registraran antes de before. La fila del snapshot NO
+	// se borra (ver Snapshot.Pruned). Devuelve los blobs liberados para que
+	// quien llama los quite del almacenamiento: primero la base y después el
+	// bucket, porque una fila que apunta a un objeto que ya no está es un
+	// snapshot roto. Un blob liberado queda APUNTADO como pendiente hasta que
+	// se confirme con ForgetBlobs, y cada llamada devuelve también los
+	// pendientes de antes: sin esa nota, un borrado que falló en el bucket no
+	// lo nombraría nadie nunca más y el objeto ocuparía sitio para siempre.
+	// Con ids vacío no poda nada, pero sigue devolviendo los pendientes.
 	PruneSnapshots(ctx context.Context, userID string, ids []string, before time.Time) ([]string, error)
+	// ForgetBlobs olvida los blobs ids: lo que llama lo hace DESPUÉS de que el
+	// objeto se haya ido del bucket, y solo con los que se fueron de verdad.
+	ForgetBlobs(ctx context.Context, userID string, ids []string) error
 	// SetPinned fija o suelta un snapshot. Un fijado no se poda nunca, y por
 	// eso fijar es del cliente: «fijado» es la bandera del manifiesto o el
 	// hecho de tener etiqueta, y el manifiesto viaja sellado.
