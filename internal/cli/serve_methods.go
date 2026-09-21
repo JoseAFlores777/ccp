@@ -126,6 +126,9 @@ func serveRegistry() map[string]serveMethod {
 		// bóveda no debe cruzar el puente.
 		"cloud.status":        r(srvCloudStatus),
 		"cloud.devices":       r(srvCloudDevices),
+		"cloud.snapshots":     r(srvCloudSnapshots),
+		"cloud.restorePlan":   w(srvCloudRestorePlan),
+		"cloud.restore":       w(srvCloudRestore),
 		"cloud.review":        r(srvCloudReview),
 		"cloud.reviewResolve": w(srvCloudReviewResolve),
 		"cloud.setPolicy":     w(srvCloudSetPolicy),

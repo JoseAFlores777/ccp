@@ -15,6 +15,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"time"
 
 	"github.com/JoseAFlores777/ccp/internal/cloud/agent"
@@ -190,4 +191,90 @@ func srvCloudRevoke(s *server, raw json.RawMessage) (any, error) {
 		return nil, err
 	}
 	return map[string]any{"device": p.Device}, nil
+}
+
+// srvCloudSnapshots — el historial de la cuenta para la pantalla Nube: los
+// snapshots de TODAS las máquinas, no solo los de esta. `here` sale del estado
+// local porque la nube no puede saberlo: el id de allá arriba es un MAC del de
+// aquí y solo esta máquina ata los dos.
+func srvCloudSnapshots(s *server, raw json.RawMessage) (any, error) {
+	p, err := params[struct {
+		Device string `json:"device"`
+		Limit  int    `json:"limit"`
+	}](raw)
+	if err != nil {
+		return nil, err
+	}
+	if p.Limit <= 0 || p.Limit > 1000 {
+		p.Limit = 1000
+	}
+	files := s.cloudFiles()
+	ctx := context.Background()
+	_, cl, err := client.Session(ctx, files)
+	if err != nil {
+		return nil, err
+	}
+	list, err := cl.Snapshots(ctx, p.Device, p.Limit)
+	if err != nil {
+		return nil, err
+	}
+	state, _ := files.LoadState()
+	here := map[string]bool{}
+	for _, cloudID := range state.Pushed {
+		here[cloudID] = true
+	}
+	type row struct {
+		api.SnapshotMeta
+		Here bool `json:"here"`
+	}
+	out := make([]row, 0, len(list))
+	for _, m := range list {
+		out = append(out, row{m, here[m.ID]})
+	}
+	return out, nil
+}
+
+// srvCloudRestorePlan y srvCloudRestore son el camino 1 de §10.3.1: la app de
+// esta máquina restaura un snapshot de cualquier equipo. El plan es también el
+// diff contra el estado vivo —el motor dice qué escribiría en cada ruta—, así
+// que no hay una segunda forma de calcularlo que pueda decir otra cosa.
+//
+// El plan va en la lista de ESCRITURA aunque no toque la configuración: para
+// poder calcularlo hay que bajar el snapshot, y eso escribe en el almacén y en
+// el estado local (`state.json`), que es un read-modify-write. Dos planes a la
+// vez por el carril de lectura se pisarían ahí.
+func srvCloudRestorePlan(s *server, raw json.RawMessage) (any, error) {
+	return srvCloudRestoreRun(s, raw, true)
+}
+
+func srvCloudRestore(s *server, raw json.RawMessage) (any, error) {
+	return srvCloudRestoreRun(s, raw, false)
+}
+
+func srvCloudRestoreRun(s *server, raw json.RawMessage, dry bool) (any, error) {
+	p, err := params[struct {
+		Snapshot string            `json:"snapshot"`
+		Only     []string          `json:"only"`
+		Projects map[string]string `json:"projects"`
+	}](raw)
+	if err != nil {
+		return nil, err
+	}
+	if p.Snapshot == "" {
+		return nil, badParams("falta el snapshot que restaurar")
+	}
+	for key, dir := range p.Projects {
+		// Una ruta relativa se resolvería contra el directorio del proceso de
+		// la app, que no es el de nadie: se rechaza en vez de adivinar.
+		if !filepath.IsAbs(dir) {
+			return nil, badParams("la carpeta del proyecto %s tiene que ser absoluta", key)
+		}
+	}
+	ctx := context.Background()
+	o, err := cloudAgentOpts(ctx, s.home, s.cloudFiles())
+	if err != nil {
+		return nil, err
+	}
+	return agent.Restore(ctx, o, p.Snapshot, agent.RestoreOpts{
+		Only: p.Only, Projects: p.Projects, DryRun: dry})
 }
