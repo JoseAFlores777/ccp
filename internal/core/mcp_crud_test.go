@@ -327,3 +327,28 @@ func TestMCPPutDeduceElTransporteComoLaProyeccion(t *testing.T) {
 		t.Fatalf("se guardó como %q: %v", mcpKind(def), def)
 	}
 }
+
+// TestMCPPutCreaElOverlayEn0600 fija el modo del archivo que nace con el
+// editor: overlay/mcp.json lleva los env y headers de los MCP del perfil (y ccp
+// empuja ahí los secretos, porque la capa de proyecto los rechaza), así que no
+// puede nacer 0644 dentro de directorios 0755. Lo mismo que ya hacen la
+// proyección a cc-home/.claude.json y el snapshot, que lo declara ClassSecret.
+func TestMCPPutCreaElOverlayEn0600(t *testing.T) {
+	r, home := mcpCRUDFixture(t)
+	file := mcpProfileFile(home, "work")
+	if err := os.Remove(file); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := MCPPut(r, perfilLayer("work"), "gh", map[string]any{
+		"command": "npx", "args": []any{"srv"},
+		"env": map[string]any{"GITHUB_TOKEN": "sk-FAKE"}}); err != nil {
+		t.Fatalf("MCPPut: %v", err)
+	}
+	fi, err := os.Stat(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o600 {
+		t.Errorf("modo de overlay/mcp.json = %o, quiero 600", fi.Mode().Perm())
+	}
+}
