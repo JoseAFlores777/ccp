@@ -547,8 +547,15 @@ func (c cloudCmd) push(args []string) int {
 }
 
 func (c cloudCmd) pull(args []string) int {
-	a, ok := c.args(args, nil, []string{"--device"}, 1)
+	a, ok := c.args(args, []string{"--decrypted", "--yes"}, []string{"--device", "-o", "--output"}, 1)
 	if !ok {
+		return 1
+	}
+	dest := a.val("-o", "--output")
+	if dest == "" && (a.flags["--decrypted"] || a.flags["--yes"]) {
+		// Sin -o no hay archivo que descifrar: lo que baja al almacén va
+		// sellado como todo lo demás. Decirlo es mejor que ignorar la opción.
+		fmt.Fprintln(c.err, i18n.T(c.lang, "cli.cloud.pull_needs_output"))
 		return 1
 	}
 	cl, acct, st, err := c.ready()
@@ -585,6 +592,9 @@ func (c cloudCmd) pull(args []string) int {
 		}
 		target = found[0]
 	}
+	if dest != "" {
+		return c.pullToFile(cl, acct, target, dest, a.flags["--decrypted"], a.flags["--yes"])
+	}
 	m, missing, err := client.Pull(c.ctx, cl, acct, st, c.files, target)
 	if err != nil {
 		return c.fail(err)
@@ -595,6 +605,81 @@ func (c cloudCmd) pull(args []string) int {
 	}
 	fmt.Fprintln(c.out, mute(c.out, i18n.T(c.lang, "cli.cloud.pull_hint", snapshot.Short(m.ID))))
 	return 0
+}
+
+// pullToFile baja un snapshot a un archivo y no al almacén: el equipo que lo
+// descarga puede no tener ninguno, y lo que se lleva se abre en otro. Cifrado
+// (.ccpsnap) es lo de serie; descifrado escribe los archivos en claro, y eso
+// hay que decirlo cuando entre ellos hay claves.
+func (c cloudCmd) pullToFile(cl *client.API, acct *crypt.Account, target, dest string, decrypted, yes bool) int {
+	m, get, missing, err := client.Download(c.ctx, cl, acct, target)
+	if err != nil {
+		return c.fail(err)
+	}
+	secrets := snapshot.HasSecrets(m)
+	if decrypted && secrets && !yes {
+		// Se avisa ANTES de escribir nada: un archivo con las claves dentro
+		// que ya existe no se desescribe con un mensaje.
+		fmt.Fprintln(c.err, i18n.T(c.lang, "cli.cloud.pull_plain_warn"))
+		return 1
+	}
+	var pass []byte
+	if !decrypted && secrets {
+		p, err := readSnapPassphrase(c.lang, c.err, true)
+		if err != nil {
+			return c.fail(err)
+		}
+		pass = p
+	}
+	write := func(w io.Writer) error {
+		if decrypted {
+			lost, err := snapshot.ExportPlain(m, get, w)
+			missing = append(missing, lost...)
+			return err
+		}
+		return snapshot.ExportFrom(m, get, w, pass)
+	}
+	if err := writeDownload(dest, secrets, write); err != nil {
+		return c.fail(err)
+	}
+	key := "cli.cloud.pulled_file"
+	if decrypted {
+		key = "cli.cloud.pulled_file_plain"
+	}
+	fmt.Fprintln(c.out, okLine(c.out, i18n.T(c.lang, key, snapshot.Short(m.ID), dest)))
+	if len(missing) > 0 {
+		fmt.Fprintln(c.out, warnLine(c.out, i18n.T(c.lang, "cli.cloud.pull_missing", len(missing))))
+	}
+	if !decrypted {
+		fmt.Fprintln(c.out, mute(c.out, i18n.T(c.lang, "cli.cloud.pull_file_hint", dest)))
+	}
+	return 0
+}
+
+// writeDownload escribe por tmp+rename: un archivo a medias con extensión de
+// snapshot es peor que ninguno, porque quien lo encuentre lo dará por bueno.
+// Con secretos dentro nace 0600, cifrados o no.
+func writeDownload(dest string, secrets bool, write func(io.Writer) error) error {
+	perm := os.FileMode(0o644)
+	if secrets {
+		perm = 0o600
+	}
+	tmp := dest + ".tmp"
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, perm)
+	if err != nil {
+		return err
+	}
+	err = write(f)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Rename(tmp, dest)
+	}
+	if err != nil {
+		_ = os.Remove(tmp)
+	}
+	return err
 }
 
 func (c cloudCmd) list(args []string) int {

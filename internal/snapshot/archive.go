@@ -51,6 +51,23 @@ func secretOnly(items []Item) map[string]bool {
 	return out
 }
 
+// BlobGetter devuelve el contenido de un hash, o ErrNotFound si no lo tiene.
+// Es lo único que Export necesita del almacén, y por eso viaja como función:
+// quien baja un snapshot de la nube (`ccp cloud pull -o`) tiene los contenidos
+// en memoria y ningún almacén local donde mirar.
+type BlobGetter func(hash string) ([]byte, error)
+
+// HasSecrets dice si el snapshot trae elementos de clase secret. Lo pregunta
+// quien va a escribirlo en claro, para avisar antes de hacerlo.
+func HasSecrets(m *Manifest) bool {
+	for _, it := range m.Items {
+		if it.Class == ClassSecret {
+			return true
+		}
+	}
+	return false
+}
+
 // Export escribe el snapshot ref en w como .ccpsnap. Sin passphrase, los blobs
 // secretos no se incluyen; con ella, van sellados con una clave derivada.
 func Export(st *Store, ref string, w io.Writer, passphrase []byte) (*Manifest, error) {
@@ -58,25 +75,30 @@ func Export(st *Store, ref string, w io.Writer, passphrase []byte) (*Manifest, e
 	if err != nil {
 		return nil, err
 	}
+	return m, ExportFrom(m, st.GetBlob, w, passphrase)
+}
+
+// ExportFrom es Export con los contenidos de donde sea.
+func ExportFrom(m *Manifest, get BlobGetter, w io.Writer, passphrase []byte) error {
 	head := archiveHead{Format: archiveFormat, Snapshot: m.ID, Secrets: secretsOmitted}
 	var key []byte
 	if len(passphrase) > 0 {
 		p, err := vault.NewKDFParams()
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if key, err = vault.DeriveKey(passphrase, p); err != nil {
-			return nil, err
+			return err
 		}
 		head.Secrets, head.KDF = secretsSealed, &p
 	}
 	gzw := gzip.NewWriter(w)
 	tw := tar.NewWriter(gzw)
 	if err := writeJSONEntry(tw, archiveHeader, head); err != nil {
-		return nil, err
+		return err
 	}
 	if err := writeJSONEntry(tw, archiveManifest, m); err != nil {
-		return nil, err
+		return err
 	}
 	sealed := secretOnly(m.Items)
 	hashes := make([]string, 0, len(sealed))
@@ -88,33 +110,40 @@ func Export(st *Store, ref string, w io.Writer, passphrase []byte) (*Manifest, e
 		if sealed[h] && key == nil {
 			continue
 		}
-		data, err := st.GetBlob(h)
+		data, err := get(h)
 		if errors.Is(err, ErrNotFound) {
 			continue // nunca llegó a este almacén (p. ej. se importó sin secretos)
 		}
 		if err != nil {
-			return nil, err
+			return err
 		}
 		body, err := gz(data)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if sealed[h] {
 			if body, err = vault.Seal(key, body, []byte(h)); err != nil {
-				return nil, err
+				return err
 			}
 		}
 		if err := writeEntry(tw, archiveObjects+h, body); err != nil {
-			return nil, err
+			return err
 		}
 	}
+	return closeArchive(tw, gzw)
+}
+
+// closeArchive cierra el tar y el gzip por ese orden: el gzip solo tiene los
+// bytes completos después de cerrar el tar, y un .ccpsnap al que le falta el
+// final del gzip no lo lee nadie.
+func closeArchive(tw *tar.Writer, gzw *gzip.Writer) error {
 	if err := tw.Close(); err != nil {
-		return nil, fmt.Errorf("snapshot: tar: %w", err)
+		return fmt.Errorf("snapshot: tar: %w", err)
 	}
 	if err := gzw.Close(); err != nil {
-		return nil, fmt.Errorf("snapshot: gzip: %w", err)
+		return fmt.Errorf("snapshot: gzip: %w", err)
 	}
-	return m, nil
+	return nil
 }
 
 func writeEntry(tw *tar.Writer, name string, data []byte) error {

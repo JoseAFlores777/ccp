@@ -16,6 +16,7 @@ var catalogCloud = map[string]map[Lang]string{
   unlock [--recovery]                 unlock the vault on this machine
   push [<snapshot>] [--json]          upload the local snapshots the cloud does not have
   pull [<id>|latest] [--device <n>]   download a snapshot into the local store
+       [-o <file>] [--decrypted]      …or into a file: .ccpsnap, or a readable .tar.gz with --yes
   list [--json]                       snapshots in the cloud, from every machine
   verify [--json]                     check the whole signed history for tampering
   devices [--json]                    machines of the account
@@ -35,6 +36,7 @@ CCP_CLOUD_PASSPHRASE and CCP_CLOUD_RECOVERY give the secrets without asking.`,
   unlock [--recovery]                 desbloquea la bóveda en este equipo
   push [<snapshot>] [--json]          sube los snapshots locales que la nube no tiene
   pull [<id>|latest] [--device <n>]   baja un snapshot al almacén local
+       [-o <archivo>] [--decrypted]   …o a un archivo: .ccpsnap, o un .tar.gz legible con --yes
   list [--json]                       snapshots en la nube, de todos los equipos
   verify [--json]                     comprueba que nadie ha tocado la historia firmada
   devices [--json]                    equipos de la cuenta
@@ -171,4 +173,22 @@ CCP_CLOUD_PASSPHRASE y CCP_CLOUD_RECOVERY dan los secretos sin preguntarlos.`,
 	"cli.cloud.device_needed":  {En: "cloud revoke: which device? ccp cloud devices lists them.", Es: "cloud revoke: ¿qué dispositivo? ccp cloud devices los enseña."},
 	"cli.cloud.revoked":        {En: "Device «%s» revoked: its session can no longer use the cloud, nor register another device.", Es: "Dispositivo «%s» revocado: su sesión ya no puede usar la nube ni dar de alta otro equipo."},
 	"cli.cloud.revoke_self":    {En: "That is this machine; to disconnect it use: ccp cloud logout", Es: "Ese es este equipo; para desconectarlo usa: ccp cloud logout"},
+}
+
+// F3-2: bajar un snapshot a un archivo (spec §10.3.1). Lo cifrado se importa
+// en otra máquina; lo descifrado se lee con cualquier tar y por eso avisa.
+func init() { register(catalogCloudDownload) }
+
+var catalogCloudDownload = map[string]map[Lang]string{
+	"cli.cloud.pull_needs_output": {
+		En: "--decrypted and --yes only make sense with -o <file>: what goes into the local store is always sealed.",
+		Es: "--decrypted y --yes solo tienen sentido con -o <archivo>: lo que baja al almacén local va siempre sellado.",
+	},
+	"cli.cloud.pull_plain_warn": {
+		En: "This snapshot contains your keys and they would be written in the clear. Repeat with --yes if that is what you want.",
+		Es: "Este snapshot contiene tus claves y se escribirían en claro. Repite con --yes si es lo que quieres.",
+	},
+	"cli.cloud.pulled_file":       {En: "Snapshot %s downloaded to %s (encrypted).", Es: "Snapshot %s bajado a %s (cifrado)."},
+	"cli.cloud.pulled_file_plain": {En: "Snapshot %s downloaded to %s IN THE CLEAR.", Es: "Snapshot %s bajado a %s EN CLARO."},
+	"cli.cloud.pull_file_hint":    {En: "To open it on another machine: ccp snapshot import %s", Es: "Para abrirlo en otra máquina: ccp snapshot import %s"},
 }

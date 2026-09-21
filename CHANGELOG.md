@@ -4,6 +4,22 @@
 
 ### Added
 
+- **Un snapshot de la nube se puede bajar a un archivo** (spec §10.3.1, F3-2): `ccp cloud pull <id> -o
+  copia.ccpsnap` escribe el `.ccpsnap` cifrado —el mismo que abre `ccp snapshot import` con su frase— y
+  `-o copia.tar.gz --decrypted` escribe los archivos en claro, legibles con cualquier `tar`. El camino no
+  toca el almacén local, porque la máquina que descarga puede no tener ninguno: `client.Download` deja el
+  manifiesto y los contenidos en memoria y de ahí sale el archivo.
+  - **Bajar a un archivo no se salta la firma.** `pull` y `pull -o` comparten `openSnapshot` y `fetchBlobs`:
+    la firma de la cuenta, el manifiesto que corresponde a su id en la nube y el hash de cada contenido se
+    comprueban igual. Una segunda ruta de descarga con su propia verificación habría sido, tarde o
+    temprano, una ruta con menos verificación.
+  - **Lo descifrado avisa antes de existir.** Si el snapshot trae claves, `--decrypted` no escribe nada
+    hasta que se repite con `--yes`: un archivo con tus claves dentro no se desescribe con un mensaje.
+    Nace `0600` aunque vaya cifrado, y por tmp+rename, porque un `.ccpsnap` a medias lo dará por bueno
+    quien lo encuentre.
+  - Lo que la nube no tenía se cuenta, no se inventa: en el `.tar.gz` esa ruta no se escribe (un archivo
+    vacío en su sitio pasaría por el archivo de verdad) y sale en el aviso de «elementos sin datos».
+
 - **`ccp cloud verify`: la historia es una cadena firmada, y ahora se comprueba entera** (spec §10.3.1,
   F3-1). La firma de cada snapshot ata su id, su padre y su manifiesto desde F1, pero nadie comparaba nunca
   dos eslabones: un cliente que verifica de uno en uno —lo que hacía `pull`— sabe que *ese* snapshot es
