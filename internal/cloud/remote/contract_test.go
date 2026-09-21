@@ -94,12 +94,20 @@ func runContract(t *testing.T, open func(t *testing.T) remote.Remote) {
 		if err != nil || len(missing) != 2 {
 			t.Fatalf("Missing = %v, %v", missing, err)
 		}
+		// Subir y PUBLICAR: en la nube el registro de blobs se llena al
+		// publicar, así que hasta entonces un blob ya subido puede seguir
+		// contando como que falta. Volver a subirlo no cuesta nada —el id es
+		// el HMAC de su contenido—; lo que no puede pasar es que uno ya
+		// publicado se dé por ausente, porque entonces no habría restauración.
 		if err := r.PutBlob(t.Context(), b1, []byte("sellado uno")); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := r.CommitSnapshot(t.Context(), commitFixture("s1", "", []string{b1})); err != nil {
 			t.Fatal(err)
 		}
 		missing, err = r.Missing(t.Context(), []string{b1, b2})
 		if err != nil || len(missing) != 1 || missing[0] != b2 {
-			t.Fatalf("Missing tras subir = %v, %v", missing, err)
+			t.Fatalf("Missing tras publicar = %v, %v", missing, err)
 		}
 		got := map[string][]byte{}
 		missing, err = r.Fetch(t.Context(), []string{b1, b2}, func(id string, data []byte) error {
