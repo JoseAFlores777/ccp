@@ -21,7 +21,40 @@
   - Las **credenciales de S3 salen del entorno** (`CCP_SYNC_S3_ACCESS_KEY`/`CCP_SYNC_S3_SECRET_KEY`, o
     las de AWS) y nunca de la URL, que se guarda, se lista y se imprime. `?region=` y `?endpoint=` sí
     van en ella: son la dirección, no un secreto.
-  - Todavía no hay `ccp sync` (E2): ningún camino del binario llega a este paquete.
+  - Ya hay `ccp sync` (E2), abajo.
+
+- **`ccp sync`: publicar la configuración en una carpeta o un bucket (E2)** — `internal/cli/sync.go`
+  sobre `remote.Push`/`Pull`/`Pick`. `ccp sync remote add|list|rm`, `ccp sync push`, `ccp sync pull` y
+  `ccp sync apply [<id>|latest] [--plan]`. Sin cuentas, sin dispositivos y sin auditoría: una carpeta
+  no sabe quién escribió en ella y contarlo sería inventárselo. Lo que sí hay es lo que importa: lo
+  que sale va sellado y firmado con la clave de la bóveda.
+  - **Subir y bajar se escribe una sola vez** (`internal/cloud/remote/sync.go`), contra la interfaz
+    `Remote`, así que la carpeta, el bucket y la nube pasan por el mismo código. Dos diferencias con
+    el camino de la nube, las dos por lo que el destino **no** tiene: no hay prefirmadas —se pregunta
+    en lote qué falta y se suben esos— y no hay fijado aparte, porque una carpeta no poda nada y el
+    `pinned` viaja dentro del registro.
+  - **`remote add` registra Y abre la bóveda**, porque son una sola decisión. La primera máquina la
+    crea (y enseña el código de recuperación **antes** de tocar el disco, como `cloud init`: de él
+    solo queda la envoltura y no se puede reemitir) y la segunda la desbloquea con la misma frase,
+    sin que ninguna tenga que saber cuál de las dos es. `CCP_SYNC_PASSPHRASE` y `CCP_SYNC_RECOVERY`
+    dan los secretos sin preguntar.
+  - **El nombre del destino se valida antes de abrir nada**: acaba siendo un directorio bajo
+    `<CCP_HOME>/sync/<nombre>`, y un nombre imposible después de crear la bóveda dejaría una carpeta
+    que hay que limpiar a mano. El mismo nombre con otra URL se rechaza: serían dos bóvedas
+    compartiendo el directorio de estado, y la clave de una no abre la otra.
+  - **`remote rm` borra lo de aquí y nunca lo del destino.** Quitar un remoto no puede ser la forma
+    accidental de perder la configuración de todas las máquinas; el mensaje lo dice.
+  - **`apply` baja primero, también con `--plan`**: no se puede planear lo que no se tiene, y bajar
+    solo añade al almacén local. Sin `--yes` enseña el plan y sale 1, como `ccp snapshot restore`
+    —es la misma operación destructiva—; `--plan` pide solo el plan y sale 0. El plan lo pinta el
+    mismo `printRestorePlan` que `snapshot restore` y `cloud restore`.
+  - **Con más de un destino no se adivina cuál**: se pide `--remote <nombre>`. Adivinar es publicar
+    en la carpeta equivocada.
+  - Los destinos se guardan en `<CCP_HOME>/sync/remotes.json`, **no** en `ccp.yaml`: `ccp.yaml` es la
+    configuración que viaja dentro de los snapshots, y una carpeta de iCloud es de esta máquina. Un
+    `pull` traería si no la lista de destinos de otro equipo, con rutas que aquí no existen.
+  - Como `cloud`, `snapshot`, `backup` y `serve`, `sync` **no** entra en la completion: ese texto es
+    contrato golden. Sí entra en `ccp help`.
 
 - **Robustez de la nube (F4-3)**: lo que hace que un servidor apretado, caído o simplemente viejo no se
   lleve por delante un push ni llene la pantalla de ruido. Nada de esto cambia la forma de ningún mensaje:

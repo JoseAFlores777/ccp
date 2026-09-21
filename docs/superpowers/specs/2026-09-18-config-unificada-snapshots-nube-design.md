@@ -543,7 +543,19 @@ Tamaño: **M**.
 > - **La cadena se arma leyendo los registros**, que son inmutables, y no de un índice: en una carpeta
 >   donde escriben dos equipos a la vez el índice es justo lo que se queda atrás.
 >
-> Falta E2 —`ccp sync remote add|push|pull|apply`—: hoy ningún camino del binario llega al paquete.
+> **Estado en E2 (implementado).** `ccp sync remote add|list|rm`, `ccp sync push`, `ccp sync pull` y
+> `ccp sync apply [<id>|latest] [--plan]` (`internal/cli/sync.go`), sobre `remote.Push`/`Pull`/`Pick`
+> (`internal/cloud/remote/sync.go`), que es el mismo trabajo que el cliente de la nube escrito una
+> sola vez contra la interfaz `Remote`. Cuatro decisiones que el plan no fijaba:
+>
+> - **`remote add` registra y abre la bóveda**, porque son una sola decisión: la primera máquina la
+>   crea y la segunda la desbloquea con la misma frase, sin que ninguna tenga que saber cuál es.
+> - **El nombre del destino se valida antes de abrir nada** —acaba siendo `<CCP_HOME>/sync/<nombre>`—
+>   y el mismo nombre con otra URL se rechaza: serían dos bóvedas compartiendo el estado local.
+> - **`apply` baja también con `--plan`** (no se puede planear lo que no se tiene, y bajar solo añade
+>   al almacén) y **sin `--yes` sale 1** enseñando el plan, que es la regla de `snapshot restore`.
+> - **Los destinos no van en `ccp.yaml`** sino en `<CCP_HOME>/sync/remotes.json`: `ccp.yaml` viaja
+>   dentro de los snapshots, y un `pull` traería la lista de carpetas de otra máquina.
 
 ## 10. Subproyecto F: backend, cuentas y portal
 
