@@ -114,3 +114,7 @@ pre { background: var(--papel); border: 1px solid var(--linea); border-radius: 8
 .dialogo h2 { margin: 0; font-size: 17px; }
 .dialogo label { display: flex; gap: 8px; align-items: baseline; padding: 6px 0; }
 .dialogo .botones { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* Grupos de dispositivos: el bloque va bajo la tabla de equipos. */
+.grupos { margin-top: 28px; }
+.grupos .botones { display: flex; gap: 10px; margin-top: 10px; }

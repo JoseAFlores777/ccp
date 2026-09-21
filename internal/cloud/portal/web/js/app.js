@@ -250,7 +250,8 @@ async function renderDevices() {
   // Se pide el máximo que acepta el API de una vez: el último snapshot de un
   // equipo y la cabeza de sus revisiones tienen que salir aunque otra máquina
   // haya subido cien desde entonces.
-  const [devs, snaps, revs] = await Promise.all([api.devices(), api.snapshots('', 1000), api.revisions('', 100)]);
+  const [devs, snaps, revs, grupos] = await Promise.all([
+    api.devices(), api.snapshots('', 1000), api.revisions('', 100), api.groups()]);
   const ultimo = new Map(), cuenta = new Map(), cabeza = new Map();
   for (const s of snaps) {
     cuenta.set(s.device_id, (cuenta.get(s.device_id) || 0) + 1);
@@ -290,7 +291,74 @@ async function renderDevices() {
       el('thead', {}, el('tr', {},
         ['Equipo', 'Plataforma', 'ccp', 'Último contacto', 'Perfiles', 'Snapshots', 'Estado'].map((h) => el('th', {}, h)))),
       el('tbody', {}, filas)),
-    devs.length === 0 ? el('p', {}, 'Aún no hay equipos dados de alta.') : null);
+    devs.length === 0 ? el('p', {}, 'Aún no hay equipos dados de alta.') : null,
+    seccionGrupos(devs, grupos));
+}
+
+// ------------------------------------------------------------------- grupos
+
+// seccionGrupos pinta los grupos de dispositivos («todas mis Macs», §10.3). Un
+// grupo es una etiqueta con miembros y NO autoriza nada: aplicar a uno sigue
+// siendo publicar una revisión firmada por máquina. Por eso aquí solo se
+// gestionan y se mira cómo les fue; quien ordena algo es «Aplicar a…».
+function seccionGrupos(devs, grupos) {
+  const nombre = (id) => (devs.find((d) => d.id === id) || {}).name || id.slice(0, 8);
+  return el('div', { class: 'grupos' },
+    el('h2', {}, 'Grupos'),
+    el('p', { class: 'flojo' },
+      'Un grupo es un nombre y unos equipos. No manda: al aplicarle algo se publica una revisión firmada ' +
+      'por máquina, y cada una decide lo suyo. Sirve para no ir marcando las mismas casillas cada vez.'),
+    grupos.length === 0 ? el('p', { class: 'flojo' }, 'Todavía no hay ninguno.') : null,
+    el('table', { class: 'tabla' }, el('tbody', {}, grupos.map((g) => el('tr', {},
+      el('td', {}, g.name),
+      el('td', { class: 'flojo' }, g.members.length === 0 ? 'sin equipos' : g.members.map(nombre).join(', ')),
+      el('td', {},
+        el('button', { class: 'lig', onclick: () => dialogoEstadoGrupo(g) }, 'estado'),
+        el('button', { class: 'lig', onclick: () => dialogoGrupo(devs, g) }, 'editar'),
+        el('button', { class: 'lig', onclick: () => borraGrupo(g) }, 'borrar')))))),
+    el('div', { class: 'botones' },
+      el('button', { onclick: () => dialogoGrupo(devs, null) }, 'Nuevo grupo')));
+}
+
+// dialogoGrupo crea o reescribe un grupo. Los miembros van ENTEROS y no por
+// diferencias: mandar la lista que se ve es lo único que no depende de qué
+// versión del grupo tenía uno delante.
+function dialogoGrupo(devs, g) {
+  const caja = el('div', { class: 'caja' });
+  const fondo = el('div', { class: 'dialogo', onclick: (e) => { if (e.target === fondo) fondo.remove(); } }, caja);
+  document.body.append(fondo);
+  // Un equipo revocado no entra: no va a volver a preguntar, así que una orden
+  // suya se quedaría pendiente para siempre.
+  const elegibles = devs.filter((d) => !d.revoked && d.platform !== 'portal');
+  const marcados = new Set(g ? g.members.filter((id) => elegibles.some((d) => d.id === id)) : []);
+  const campo = el('input', { type: 'text', value: g ? g.name : '', placeholder: 'todas mis Macs' });
+  const aviso = el('p', { class: 'mal' });
+  const filas = elegibles.map((d) => {
+    const ch = el('input', { type: 'checkbox', checked: marcados.has(d.id) || null });
+    ch.addEventListener('change', () => { ch.checked ? marcados.add(d.id) : marcados.delete(d.id); });
+    return el('label', {}, ch, el('span', {}, d.name), el('span', { class: 'flojo' }, ` · ${d.platform || '—'}`));
+  });
+  const guardar = el('button', { class: 'grande', onclick: async () => {
+    guardar.disabled = true;
+    aviso.textContent = '';
+    const in_ = { name: campo.value.trim(), members: [...marcados] };
+    try {
+      if (g) await api.updateGroup(g.id, in_); else await api.createGroup(in_);
+      fondo.remove();
+      renderDevices();
+    } catch (e) {
+      guardar.disabled = false;
+      aviso.textContent = e.message;
+    }
+  } }, g ? 'Guardar' : 'Crear');
+  rellena(caja,
+    el('h2', {}, g ? 'Editar grupo' : 'Nuevo grupo'),
+    el('label', {}, el('span', {}, 'Nombre'), campo),
+    ...filas,
+    elegibles.length === 0 ? el('p', { class: 'flojo' }, 'No hay equipos que meter todavía.') : null,
+    aviso,
+    el('div', { class: 'botones' },
+      el('button', { class: 'lig', onclick: () => fondo.remove() }, 'Cancelar'), guardar));
 }
 
 // cargaPerfiles rellena una fila cuando llega su manifiesto. Va aparte porque
@@ -314,6 +382,69 @@ async function cargaPerfiles(snap, celda, rev, deriva) {
     celda.className = 'mal';
     celda.textContent = e.message;
   }
+}
+
+// borraGrupo borra el grupo, nunca las órdenes publicadas con su etiqueta:
+// esas siguen su curso en cada máquina y lo que se pierde es el nombre que las
+// enseña juntas. Por eso se confirma.
+function borraGrupo(g) {
+  const caja = el('div', { class: 'caja' });
+  const fondo = el('div', { class: 'dialogo', onclick: (e) => { if (e.target === fondo) fondo.remove(); } }, caja);
+  document.body.append(fondo);
+  const aviso = el('p', { class: 'mal' });
+  const borrar = el('button', { class: 'grande', onclick: async () => {
+    borrar.disabled = true;
+    aviso.textContent = '';
+    try {
+      await api.deleteGroup(g.id);
+      fondo.remove();
+      renderDevices();
+    } catch (e) {
+      borrar.disabled = false;
+      aviso.textContent = e.message;
+    }
+  } }, 'Borrar');
+  rellena(caja,
+    el('h2', {}, `Borrar el grupo «${g.name}»`),
+    el('p', { class: 'flojo' },
+      'Las revisiones ya publicadas con su etiqueta siguen su curso en cada máquina: no se retira ninguna. ' +
+      'Lo que se pierde es el nombre que las enseña juntas.'),
+    aviso,
+    el('div', { class: 'botones' },
+      el('button', { class: 'lig', onclick: () => fondo.remove() }, 'Cancelar'), borrar));
+}
+
+// dialogoEstadoGrupo enseña cómo le fue a cada equipo la última orden
+// publicada al grupo. Dos cosas que NO dice, a propósito: un miembro sin
+// ninguna orden sale como «sin órdenes» y no como «pendiente» —no hay ninguna
+// orden suya pendiente de nada—, y un equipo al que se sacó del grupo sigue
+// saliendo mientras tenga una orden viva, marcado, porque sacarle del grupo no
+// la retira.
+function dialogoEstadoGrupo(g) {
+  const caja = el('div', { class: 'caja' }, el('p', { class: 'flojo' }, 'Leyendo…'));
+  const fondo = el('div', { class: 'dialogo', onclick: (e) => { if (e.target === fondo) fondo.remove(); } }, caja);
+  document.body.append(fondo);
+  api.groupStatus(g.id).then((st) => {
+    const filas = (st.members || []).map((m) => {
+      const [txt, tit] = m.revision ? (ESTADOS[m.state] || [m.state, '']) : ['sin órdenes', 'A este equipo no se le ha publicado ninguna con esta etiqueta'];
+      const clase = !m.revision ? 'flojo' : m.state === 'applied' ? 'ok'
+        : m.state === 'pending' || m.state === 'partial' ? 'pend' : 'mal';
+      return el('tr', {},
+        el('td', {}, m.device_name,
+          m.member ? null : el('span', { class: 'etiqueta' }, 'ya no está en el grupo'),
+          m.revoked ? el('span', { class: 'etiqueta mal' }, 'revocado') : null),
+        el('td', { class: clase, title: tit }, txt),
+        el('td', { class: 'flojo' }, m.revision ? hace(m.updated) : '—'),
+        el('td', { class: 'flojo' }, m.reason || ''));
+    });
+    rellena(caja,
+      el('h2', {}, `Grupo «${st.group.name}»`),
+      el('p', { class: 'flojo' }, plural(st.group.members.length, 'equipo', 'equipos') + ' en el grupo.'),
+      el('table', { class: 'tabla' }, el('tbody', {}, filas)),
+      filas.length === 0 ? el('p', { class: 'flojo' }, 'El grupo está vacío.') : null,
+      el('div', { class: 'botones' },
+        el('button', { class: 'grande', onclick: () => fondo.remove() }, 'Cerrar')));
+  }).catch((e) => caja.replaceChildren(el('p', { class: 'mal' }, e.message)));
 }
 
 // ------------------------------------------------------------ línea de tiempo
@@ -729,19 +860,26 @@ function dialogoRestaurar(s, deviceID) {
   const caja = el('div', { class: 'caja' }, el('p', { class: 'flojo' }, 'Leyendo equipos…'));
   const fondo = el('div', { class: 'dialogo', onclick: (e) => { if (e.target === fondo) fondo.remove(); } }, caja);
   document.body.append(fondo);
-  api.devices().then((devs) => {
+  Promise.all([api.devices(), api.groups()]).then(([devs, grupos]) => {
     const elegibles = devs.filter((d) => !d.revoked && d.platform !== 'portal');
     const marcados = new Set(elegibles.some((d) => d.id === deviceID) ? [deviceID] : []);
+    const casillas = new Map();
     const filas = elegibles.map((d) => {
       const ch = el('input', { type: 'checkbox', checked: marcados.has(d.id) || null });
+      casillas.set(d.id, ch);
       ch.addEventListener('change', () => { ch.checked ? marcados.add(d.id) : marcados.delete(d.id); sincroniza(); });
       return el('label', {}, ch, el('span', {}, d.name),
         el('span', { class: 'flojo' }, ` · ${d.platform || '—'} · último contacto ${hace(d.last_seen)}`),
         d.id === deviceID ? el('span', { class: 'etiqueta' }, 'de aquí salió') : null);
     });
-    const aceptar = el('button', { class: 'grande', onclick: () => restaura([...marcados], elegibles, caja, s) }, 'Restaurar');
+    const aceptar = el('button', { class: 'grande',
+      onclick: () => restaura([...marcados], elegibles, caja, s, grupoActivo(grupos, elegibles, marcados)) }, 'Restaurar');
+    const nota = el('span', { class: 'flojo' });
     const sincroniza = () => {
+      for (const [id, ch] of casillas) ch.checked = marcados.has(id);
       aceptar.disabled = ![...marcados].some((id) => elegibles.some((d) => d.id === id));
+      const g = grupos.find((x) => x.id === grupoActivo(grupos, elegibles, marcados));
+      nota.textContent = g ? ` (queda anotado como el grupo «${g.name}»)` : '';
     };
     sincroniza();
     rellena(caja,
@@ -753,20 +891,22 @@ function dialogoRestaurar(s, deviceID) {
       el('p', { class: 'flojo' },
         'Lo que ejecuta código (hooks, comandos de MCP, barra de estado) lo confirma una persona en esa máquina. ' +
         'El portal nunca restaura por sí mismo: propone, y la máquina ejecuta.'),
+      botonesDeGrupo(grupos, elegibles, marcados, sincroniza),
       ...filas,
+      nota,
       elegibles.length === 0 ? el('p', { class: 'mal' }, 'No hay ningún equipo al que publicar.') : null,
       el('div', { class: 'botones' },
         el('button', { class: 'lig', onclick: () => fondo.remove() }, 'Cancelar'), aceptar));
   }).catch((e) => caja.replaceChildren(el('p', { class: 'mal' }, e.message)));
 }
 
-async function restaura(ids, elegibles, caja, s) {
+async function restaura(ids, elegibles, caja, s, group) {
   const paso = el('p', { class: 'flojo' }, 'Empezando…');
   caja.replaceChildren(el('h2', {}, 'Publicando'), paso);
   try {
     const out = await publicar.restore({ api, keys: vault.keys() }, {
       snapshot: s.id,
-      devices: elegibles.filter((d) => ids.includes(d.id)),
+      devices: elegibles.filter((d) => ids.includes(d.id)), group,
       onStep: (t) => { paso.textContent = t; },
     });
     rellena(caja,
@@ -784,6 +924,46 @@ async function restaura(ids, elegibles, caja, s) {
   }
 }
 
+// ------------------------------------------------- elegir equipos por grupo
+
+// miembrosDe son los miembros de un grupo que HOY se pueden publicar: un
+// revocado o un equipo dado de baja sigue en la lista del grupo y no hay a
+// quién mandarle nada.
+function miembrosDe(g, elegibles) {
+  return g.members.filter((id) => elegibles.some((d) => d.id === id));
+}
+
+// grupoActivo se DERIVA de lo marcado en vez de recordarse: el usuario puede
+// pulsar un grupo y luego marcar una casilla más, y una etiqueta guardada
+// diría «esto fue el grupo» sobre una lista que ya no es la suya — el estado
+// del grupo contaría entonces órdenes que nunca fueron de él, o daría por
+// aplicada una tanda a la que le faltaba una máquina.
+function grupoActivo(grupos, elegibles, marcados) {
+  const ids = [...marcados];
+  if (ids.length === 0) return '';
+  const g = grupos.find((x) => {
+    const m = miembrosDe(x, elegibles);
+    return m.length > 0 && publicar.mismoConjunto(m, ids);
+  });
+  return g ? g.id : '';
+}
+
+// botonesDeGrupo pinta un botón por grupo que marca sus equipos de una vez.
+// No publica: solo mueve las casillas, y lo que sale publicado es lo que se ve
+// marcado. Un grupo sin ningún equipo publicable sale desactivado, en vez de
+// dejar pulsarlo para no marcar nada.
+function botonesDeGrupo(grupos, elegibles, marcados, aplicaMarcas) {
+  if (grupos.length === 0) return null;
+  return el('p', { class: 'flojo' }, 'Grupos: ', grupos.map((g) => {
+    const m = miembrosDe(g, elegibles);
+    return el('button', {
+      class: 'lig', disabled: m.length === 0 || null,
+      title: m.length === 0 ? 'ninguno de sus equipos se puede publicar hoy' : m.length + ' equipos',
+      onclick: () => { marcados.clear(); m.forEach((id) => marcados.add(id)); aplicaMarcas(); },
+    }, g.name);
+  }));
+}
+
 // ----------------------------------------------------------- «Aplicar a…»
 
 // dialogoAplicar pregunta a qué equipos va la orden. Viene marcado el equipo
@@ -794,7 +974,7 @@ function dialogoAplicar(capas) {
   const caja = el('div', { class: 'caja' }, el('p', { class: 'flojo' }, 'Leyendo equipos…'));
   const fondo = el('div', { class: 'dialogo', onclick: (e) => { if (e.target === fondo) fondo.remove(); } }, caja);
   document.body.append(fondo);
-  api.devices().then((devs) => {
+  Promise.all([api.devices(), api.groups()]).then(([devs, grupos]) => {
     // El portal es un equipo más para la auditoría, pero no tiene disco donde
     // aplicar nada; un equipo revocado no va a volver a preguntar.
     const elegibles = devs.filter((d) => !d.revoked && d.platform !== 'portal');
@@ -804,18 +984,26 @@ function dialogoAplicar(capas) {
     // una lista de destinos que al filtrarse se quedaba vacía.
     const marcados = new Set(elegibles.some((d) => d.id === edicion.meta.device_id)
       ? [edicion.meta.device_id] : []);
+    const casillas = new Map();
     const filas = elegibles.map((d) => {
       const ch = el('input', { type: 'checkbox', checked: marcados.has(d.id) || null });
+      casillas.set(d.id, ch);
       ch.addEventListener('change', () => { ch.checked ? marcados.add(d.id) : marcados.delete(d.id); sincroniza(); });
       return el('label', {}, ch, el('span', {}, d.name),
         el('span', { class: 'flojo' }, ` · ${d.platform || '—'} · último contacto ${hace(d.last_seen)}`),
         d.id === edicion.meta.device_id ? el('span', { class: 'etiqueta' }, 'de aquí salió') : null);
     });
-    const aceptar = el('button', { class: 'grande', onclick: () => aplicar([...marcados], elegibles, caja, capas) }, 'Publicar');
+    const aceptar = el('button', { class: 'grande',
+      onclick: () => aplicar([...marcados], elegibles, caja, capas, grupoActivo(grupos, elegibles, marcados)) }, 'Publicar');
+    const nota = el('span', { class: 'flojo' });
     // Lo que habilita el botón es que quede al menos un destino REAL: contar
     // los marcados a secas prometía una publicación que no llegaba a nadie.
     const sincroniza = () => {
+      for (const [id, ch] of casillas) ch.checked = marcados.has(id);
       aceptar.disabled = ![...marcados].some((id) => elegibles.some((d) => d.id === id));
+      const gid = grupoActivo(grupos, elegibles, marcados);
+      const g = grupos.find((x) => x.id === gid);
+      nota.textContent = g ? ` (queda anotado como el grupo «${g.name}»)` : '';
     };
     sincroniza();
     rellena(caja,
@@ -824,20 +1012,22 @@ function dialogoAplicar(capas) {
         plural(edicion.edits.size, 'archivo editado', 'archivos editados') +
         '. Se publica una revisión firmada por equipo; cada máquina la aplica cuando su agente contacte. ' +
         'Lo que ejecuta código (hooks, comandos de MCP, barra de estado) lo confirma una persona allí.'),
+      botonesDeGrupo(grupos, elegibles, marcados, sincroniza),
       ...filas,
+      nota,
       elegibles.length === 0 ? el('p', { class: 'mal' }, 'No hay ningún equipo al que publicar.') : null,
       el('div', { class: 'botones' },
         el('button', { class: 'lig', onclick: () => fondo.remove() }, 'Cancelar'), aceptar));
   }).catch((e) => caja.replaceChildren(el('p', { class: 'mal' }, e.message)));
 }
 
-async function aplicar(ids, elegibles, caja, capas) {
+async function aplicar(ids, elegibles, caja, capas, group) {
   const paso = el('p', { class: 'flojo' }, 'Empezando…');
   caja.replaceChildren(el('h2', {}, 'Publicando'), paso);
   try {
     const out = await publicar.publish({ api, keys: vault.keys() }, {
       base: edicion.base, baseCloud: edicion.snapID, edits: edicion.edits,
-      devices: elegibles.filter((d) => ids.includes(d.id)),
+      devices: elegibles.filter((d) => ids.includes(d.id)), group,
       onStep: (t) => { paso.textContent = t; },
     });
     // Lo editado ya está publicado: dejarlo marcado como pendiente invitaría a

@@ -59,7 +59,7 @@ export async function existingBlobs(api, ids) {
 //
 // onStep va contando para que la pantalla no parezca colgada: sellar y subir
 // unos cuantos blobs y luego hablar con el API por cada equipo lleva su rato.
-export async function publish({ api, keys }, { base, baseCloud, edits, devices, now, onStep }) {
+export async function publish({ api, keys }, { base, baseCloud, edits, devices, group, now, onStep }) {
   const paso = (t) => { if (onStep) onStep(t); };
   // Sin equipos no hay nada que publicar, y seguir adelante es peor que no
   // hacer nada: subiría los blobs y crearía un snapshot en la nube sin una
@@ -101,7 +101,7 @@ export async function publish({ api, keys }, { base, baseCloud, edits, devices, 
   paso('Publicando el snapshot…');
   const meta = await api.commitSnapshot({ ...built.in, blobs });
 
-  const resultados = await ordena({ api, keys }, { snapshot: built.in.id, base: baseCloud || '', devices, paso });
+  const resultados = await ordena({ api, keys }, { snapshot: built.in.id, base: baseCloud || '', devices, group, paso });
   return { snapshot: built.in.id, meta, manifest: built.manifest, uploaded: subidos.size, missing: sinDatos, results: resultados };
 }
 
@@ -111,7 +111,7 @@ export async function publish({ api, keys }, { base, baseCloud, edits, devices, 
 //
 // El resultado se cuenta POR EQUIPO: publicar para tres y fallar en el tercero
 // no es un fallo, son dos órdenes puestas y una que no.
-async function ordena({ api, keys }, { snapshot: snapID, base, devices, paso }) {
+async function ordena({ api, keys }, { snapshot: snapID, base, devices, group, paso }) {
   const resultados = [];
   for (const d of devices) {
     try {
@@ -122,9 +122,13 @@ async function ordena({ api, keys }, { snapshot: snapID, base, devices, paso }) 
       const id = randomID();
       const parts = { id, prev, device: d.id, snapshot: snapID, base: base || '' };
       const sig = await snap.signRevision(keys.sign, parts, new Uint8Array(0));
+      // El grupo va FUERA de la firma a propósito: lo firmado ata la orden a
+      // SU máquina, que es lo que impide desviarla. La etiqueta solo sirve
+      // para contar después el resultado por equipo dentro del grupo, así que
+      // un servidor que la cambiara solo estropearía un listado.
       const rev = await api.publishRevision({
         id, prev, device_id: d.id, snapshot: snapID, base: base || '',
-        sig: c.b64e(sig), created: new Date().toISOString(),
+        group: group || '', sig: c.b64e(sig), created: new Date().toISOString(),
       });
       resultados.push({ device: d, ok: true, revision: rev.id });
     } catch (e) {
@@ -144,14 +148,14 @@ async function ordena({ api, keys }, { snapshot: snapID, base, devices, paso }) 
 // tres bandas y lo que ella cambió por su cuenta se queda; sin ella, la orden
 // es absoluta —«llega a este snapshot»— y lo deseado gana. Lo ejecutable
 // sigue pidiendo confirmación allí: el portal propone, la máquina ejecuta.
-export async function restore({ api, keys }, { snapshot: snapID, devices, onStep }) {
+export async function restore({ api, keys }, { snapshot: snapID, devices, group, onStep }) {
   if (!snapID) throw new Error('no se dijo qué snapshot restaurar');
   // Sin equipos no hay nada que ordenar, y decirlo es mejor que enseñar
   // «Publicado» sobre una lista de destinos vacía.
   if (!devices || devices.length === 0) {
     throw new Error('no hay ningún equipo al que publicar: la orden no se puso en ninguna parte');
   }
-  const results = await ordena({ api, keys }, { snapshot: snapID, base: '', devices, paso: onStep });
+  const results = await ordena({ api, keys }, { snapshot: snapID, base: '', devices, group, paso: onStep });
   return { snapshot: snapID, results };
 }
 
@@ -174,4 +178,16 @@ export async function headRevision(api, deviceID) {
     throw new Error('no se pudo determinar la última revisión de este equipo; vuelve a intentarlo');
   }
   return cabezas[0].id;
+}
+
+// mismoConjunto dice si dos listas de ids son el mismo conjunto. Lo usa el
+// diálogo para decidir si la orden sigue siendo «la del grupo»: en cuanto el
+// usuario marca o desmarca un equipo, la etiqueta se cae. Poner el nombre de
+// un grupo sobre una lista que ya no es la suya haría que el estado del grupo
+// contara órdenes que nunca fueron de él, o diera por aplicada una tanda a la
+// que le faltaba una máquina.
+export function mismoConjunto(a, b) {
+  if (a.length !== b.length) return false;
+  const s = new Set(a);
+  return b.every((x) => s.has(x));
 }
