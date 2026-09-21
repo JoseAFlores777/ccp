@@ -770,8 +770,11 @@ ccp cloud push                            # sube lo que la nube no tiene
 # la otra máquina
 ccp cloud login https://ccp.example.com
 ccp cloud unlock                          # la frase de la bóveda (no la contraseña de la cuenta)
-ccp cloud pull latest                     # lo baja al almacén local
-ccp snapshot restore latest               # enseña el plan; con --yes lo aplica
+ccp cloud pull latest                     # lo baja al almacén local; te dice el id
+ccp snapshot restore <id>                 # el id que acaba de decir el pull, NO `latest`:
+                                          # `latest` es el más reciente por fecha de creación,
+                                          # y el bajado conserva la fecha de la otra máquina.
+                                          # enseña el plan; con --yes lo aplica
 
 ccp cloud status      # servidor, cuenta, equipo, bóveda y cuántos quedan por subir
 ccp cloud list        # snapshots en la nube, de todos los equipos

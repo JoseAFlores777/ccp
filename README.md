@@ -772,8 +772,11 @@ ccp cloud push                            # uploads what the cloud does not have
 # the other machine
 ccp cloud login https://ccp.example.com
 ccp cloud unlock                          # the vault passphrase (not your account password)
-ccp cloud pull latest                     # downloads it into the local store
-ccp snapshot restore latest               # shows the plan; add --yes to apply it
+ccp cloud pull latest                     # downloads it into the local store; it prints the id
+ccp snapshot restore <id>                 # the id the pull just printed, NOT `latest`:
+                                          # `latest` is the newest by creation date, and the
+                                          # downloaded one keeps the other machine's date.
+                                          # shows the plan; add --yes to apply it
 
 ccp cloud status      # server, account, machine, vault, how many are pending
 ccp cloud list        # snapshots in the cloud, from every machine
