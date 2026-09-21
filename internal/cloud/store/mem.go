@@ -360,6 +360,12 @@ func (m *Mem) Snapshot(_ context.Context, userID, id string) (Snapshot, error) {
 func (m *Mem) PublishRevision(_ context.Context, userID string, r Revision) (Revision, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	// `By` es obligatorio, como en Postgres: sin él, la memoria aceptaría una
+	// revisión que el servidor de verdad rechaza, y el test que la escribiera
+	// saldría verde hasta llegar a producción. Pasó con este mismo contrato.
+	if !IsUUID(r.By) {
+		return Revision{}, ErrNotFound
+	}
 	d, ok := m.devices[userID][r.DeviceID]
 	if !ok {
 		return Revision{}, ErrNotFound

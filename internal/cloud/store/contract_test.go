@@ -255,6 +255,12 @@ func runRevisionContract(t *testing.T, s Store) {
 		Body: []byte("x"), Sig: []byte("f"), Created: now, By: d2.ID}); !errors.Is(err, ErrNotFound) {
 		t.Fatal("aceptó una revisión para un dispositivo que no existe")
 	}
+	// Y tampoco sin quién la publica: la orden se audita por `By`, así que una
+	// sin publicador no se puede contar a nadie.
+	if _, err := s.PublishRevision(ctx, u.ID, Revision{ID: hexID('d'), DeviceID: d.ID,
+		Body: []byte("x"), Sig: []byte("f"), Created: now}); !errors.Is(err, ErrNotFound) {
+		t.Fatal("aceptó una revisión sin publicador")
+	}
 	if _, err := s.PublishRevision(ctx, u.ID, r1); !errors.Is(err, ErrConflict) {
 		t.Fatal("aceptó dos veces el mismo id de revisión")
 	}
@@ -328,5 +334,22 @@ func runRevisionContract(t *testing.T, s Store) {
 	}
 	if l, _ := s.Revisions(ctx, other.ID, "", 10); len(l) != 0 {
 		t.Fatal("las revisiones de un usuario se listan desde otro")
+	}
+
+	// Una orden que solo nombra un snapshot no trae cuerpo, y es la que publica
+	// el portal al restaurar: el servidor la acepta a propósito, así que el
+	// almacén tiene que guardarla igual que la que sí trae cambios.
+	// En su propio equipo, para no mover la cabeza de ninguna cadena de arriba.
+	d3, err := s.CreateDevice(ctx, u.ID, Device{Name: "tercera"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	soloSnap := Revision{ID: hexID('7'), DeviceID: d3.ID, Snapshot: hexID('1'),
+		Sig: []byte("f"), Created: now, By: d2.ID}
+	if _, err := s.PublishRevision(ctx, u.ID, soloSnap); err != nil {
+		t.Fatalf("una revisión sin cuerpo que nombra un snapshot: %v", err)
+	}
+	if v, err := s.Revision(ctx, u.ID, soloSnap.ID); err != nil || len(v.Body) != 0 || v.Snapshot != hexID('1') {
+		t.Fatalf("vuelve distinta de como entró: %+v, %v", v, err)
 	}
 }

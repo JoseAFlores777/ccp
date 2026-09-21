@@ -528,6 +528,15 @@
 
 ### Fixed
 
+- **Publicar una revisión que solo nombra un snapshot ya no muere contra Postgres.** El servidor acepta
+  a propósito una orden sin cuerpo cuando nombra un snapshot —es la que publica el portal al restaurar—,
+  pero en Go un `[]byte` nil viaja como `NULL` y `revisions.body` es `NOT NULL`: el caso más normal de
+  todos devolvía un 500 (`SQLSTATE 23502`). No lo vio nadie porque las pruebas del servidor, del agente y
+  del CLI corren contra el Store de **memoria**, que acepta nil; salió al correr por primera vez la
+  integración contra un Postgres real. `PG.PublishRevision` guarda ahora un valor vacío, el contrato
+  compartido fija el caso, y el `Mem` exige `By` como ya hacía Postgres para que la asimetría que lo
+  escondía no vuelva a aparecer en otra columna.
+
 - **`ccp sync` comprueba la cadena, y ya existe `ccp sync verify`.** Borrar `snaps/<id>.json` del destino
   —quien opera la carpeta, o un iCloud que ya trajo `objects/` y todavía no el registro más nuevo— dejaba
   un `latest` apuntando al snapshot **anterior**: `ccp sync apply latest --yes` restauraba una configuración

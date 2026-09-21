@@ -6173,7 +6173,7 @@ Nota: `TestPGContract` (Task 7) borra las tablas al empezar. Con `-p 1`, los
 paquetes corren de uno en uno y el orden no importa: cada test migra lo que
 necesita.
 
-- [~] **Step 4: Ejecutarlo**
+- [x] **Step 4: Ejecutarlo**
 
 Run: `bash deploy/ccp-cloud/integration.sh`
 Expected: PASS en `internal/cloud/store` (`TestPGContract`), `internal/cloud/blobs`
@@ -6185,10 +6185,14 @@ Si es un problema de sumas de comprobación, confirma que `NewS3` fija
 `RequestChecksumCalculation: WhenRequired`. Es el hallazgo que esta prueba
 existe para encontrar **antes** de desplegar.
 
-Pendiente: en la máquina donde se escribió esto el demonio de Docker no
-estaba levantado (`docker info` no conecta), así que la pila no se llegó a
-ejecutar. Los tests quedan escritos y saltan solos sin ella; el job de CI la
-levanta en cada push.
+Ejecutado el 2026-09-21 con la pila local (Postgres 17.11 + Alarik
+1.0.0-beta-16): 11 paquetes en verde, sin saltos. Encontró lo que esta prueba
+existe para encontrar, y no fue el PUT prefirmado: una revisión que solo nombra
+un snapshot llegaba con `Body` nil a una columna `NOT NULL`, así que el caso
+normal del portal —«restaura esto en esa máquina»— habría devuelto un 500
+contra un Postgres de verdad. Ninguna prueba lo vio porque todas corrían contra
+el Store de memoria, que acepta nil. Arreglado en `PG.PublishRevision`
+(`bytesOrEmpty`) y fijado en el contrato compartido.
 
 - [x] **Step 5: El job de CI — `.github/workflows/cloud-integration` en `ci.yml`**
 

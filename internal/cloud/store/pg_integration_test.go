@@ -5,6 +5,7 @@ package store
 import (
 	"context"
 	"os"
+	"regexp"
 	"testing"
 	"time"
 )
@@ -13,6 +14,36 @@ import (
 //
 //	CCP_CLOUD_TEST_DSN='host=127.0.0.1 port=55432 user=postgres password=test dbname=postgres sslmode=disable' \
 //	  go test -tags integration ./internal/cloud/store/
+//
+// migrationTables saca las tablas del propio migrationFS en vez de repetirlas a
+// mano. La lista escrita a mano se queda vieja en cuanto alguien añade una
+// migración, y el fallo que produce no se parece a su causa: la base «limpia»
+// conserva la tabla nueva pero pierde schema_migrations, así que la siguiente
+// prueba vuelve a migrar desde cero y muere con «relation ... already exists».
+// Pasó de verdad con 0006_blob_trash.sql.
+func migrationTables(t *testing.T) []string {
+	t.Helper()
+	ents, err := migrationFS.ReadDir("migrations")
+	if err != nil {
+		t.Fatalf("leer migraciones: %v", err)
+	}
+	re := regexp.MustCompile(`(?im)^\s*CREATE TABLE\s+(?:IF NOT EXISTS\s+)?([a-z_]+)`)
+	var out []string
+	for _, e := range ents {
+		b, err := migrationFS.ReadFile("migrations/" + e.Name())
+		if err != nil {
+			t.Fatalf("leer %s: %v", e.Name(), err)
+		}
+		for _, m := range re.FindAllStringSubmatch(string(b), -1) {
+			out = append(out, m[1])
+		}
+	}
+	if len(out) == 0 {
+		t.Fatal("ninguna migración crea tablas: el patrón dejó de encajar")
+	}
+	return out
+}
+
 func openTestPG(t *testing.T) *PG {
 	t.Helper()
 	dsn := os.Getenv("CCP_CLOUD_TEST_DSN")
@@ -26,7 +57,7 @@ func openTestPG(t *testing.T) *PG {
 	}
 	t.Cleanup(pg.Close)
 	// Base limpia en cada ejecución: el contrato crea usuarios con subs fijos.
-	for _, tbl := range []string{"audit_log", "revisions", "snapshot_blobs", "snapshots", "blobs", "devices", "vaults", "users", "schema_migrations"} {
+	for _, tbl := range append(migrationTables(t), "schema_migrations") {
 		if _, err := pg.pool.Exec(ctx, "DROP TABLE IF EXISTS "+tbl+" CASCADE"); err != nil {
 			t.Fatalf("limpiar %s: %v", tbl, err)
 		}
@@ -68,7 +99,8 @@ func TestPGSnapshotsDesempataPorID(t *testing.T) {
 	}
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	for _, id := range []string{hexID('1'), hexID('2'), hexID('3')} {
-		if _, err := pg.CommitSnapshot(ctx, u.ID, Snapshot{ID: id, DeviceID: d.ID, Created: now}, nil, nil); err != nil {
+		snap := Snapshot{ID: id, DeviceID: d.ID, Created: now, Manifest: []byte("m"), Sig: []byte("f")}
+		if _, err := pg.CommitSnapshot(ctx, u.ID, snap, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
