@@ -19,6 +19,11 @@ What it does today (F2-3 reads, F2-4 edits and publishes):
   Shortcuts · Keys), and per item its path, where it applies (CLI · Code · Chat, [ADR 0016](adr/0016-what-desktop-reads-from-a-profile.md))
   and, when it cannot be edited here, why.
 - **«Apply to…»**, which publishes the edit as a **signed desired revision** to the machines you pick.
+- **Download** of any snapshot, built **in the tab**: a `.ccpsnap` sealed with a passphrase you type (the
+  same file `ccp snapshot import` opens), or a readable `.tar.gz` with the files themselves. The plain one
+  is only offered once you tick the box that says, in those words, that your keys go in the clear. Without
+  a passphrase the `.ccpsnap` leaves the secrets out instead of carrying them in the clear inside something
+  called «encrypted».
 
 The other half is on the machine: the app's **Cloud** screen (P-21) and `ccp cloud review` are where what
 runs code gets confirmed, path by path, by someone sitting at that machine. A revision published here stays
@@ -49,6 +54,7 @@ internal/cloud/portal/
   web/js/config.js P-20: layers, types, provenance, where it applies
   web/js/snap.js   building a snapshot in the browser: canonical JSON, ids, sealing, signing
   web/js/publish.js «Apply to…»: upload, commit, sign one revision per machine
+  web/js/download.js the .ccpsnap and the readable .tar.gz, assembled in memory (tar + PAX included)
   web/js/app.js    the views
 ```
 
@@ -65,6 +71,12 @@ go test ./internal/cloud/portal            # needs node on PATH; it skips withou
 
 `model_test.mjs` does the same for the diff: the portal's diff is compared against `snapshot.Diff`. Two diffs
 that disagree about the same two snapshots are two truths, and nobody would know which to look at.
+
+`download_test.mjs` is the same idea with the judge on the other side: node builds the two downloads and
+**Go opens them** — `snapshot.Import` for the `.ccpsnap` (passphrase included, and a wrong one has to fail)
+and `archive/tar` for the plain one. A tar written by hand in a browser is exactly the kind of thing that
+looks right until someone tries to open it a month later, so the test carries a path longer than the 100
+bytes a ustar header holds: that one only survives if the PAX extension is really being written.
 
 ## Looking at it without deploying anything
 

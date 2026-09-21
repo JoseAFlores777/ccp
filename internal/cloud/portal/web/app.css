@@ -53,6 +53,11 @@ input[type=password], input[type=search], input[type=text] {
   font: inherit; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--linea);
   background: var(--papel); color: var(--tinta); min-width: 280px;
 }
+select {
+  font: inherit; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--linea);
+  background: var(--papel); color: var(--tinta);
+}
+.dialogo select, .dialogo input[type=password] { width: 100%; min-width: 0; }
 .centro { max-width: 460px; margin: 12vh auto; text-align: center; display: grid; gap: 12px; justify-items: center; }
 .centro p { margin: 0; }
 pre { background: var(--papel); border: 1px solid var(--linea); border-radius: 8px; padding: 10px 14px; }

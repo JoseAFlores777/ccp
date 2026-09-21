@@ -93,7 +93,7 @@ export const snapshotID = (idsKey, localID) => (localID ? mac(idsKey, 'snapshot'
 
 // ------------------------------------------------------------------- sellado
 
-async function gzip(data) {
+export async function gzip(data) {
   const cs = new CompressionStream('gzip');
   const w = cs.writable.getWriter();
   w.write(data);

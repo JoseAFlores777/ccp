@@ -19,7 +19,19 @@
     quien lo encuentre.
   - Lo que la nube no tenía se cuenta, no se inventa: en el `.tar.gz` esa ruta no se escribe (un archivo
     vacío en su sitio pasaría por el archivo de verdad) y sale en el aviso de «elementos sin datos».
-
+- **El portal también descarga, y el archivo lo arma la pestaña** (spec §10.3.1, F3-2). Botón «descargar»
+  en la línea de tiempo: `.ccpsnap` sellado con una frase que se escribe ahí (el mismo que abre `ccp
+  snapshot import`) o `.tar.gz` legible. Los contenidos se bajan y se descifran en el navegador y el tar se
+  escribe a mano —extensión PAX incluida, porque una ruta de perfil pasa de los 100 bytes de la cabecera
+  ustar—, así que nada de esto pasa por el servidor, que no podría componerlo aunque quisiera.
+  - **Lo descifrado no sale sin decirlo.** Con claves dentro, el botón no se enciende hasta que se marca la
+    casilla que dice, con esas palabras, que van en claro. La regla vive en `downloadReady` y no en el
+    diálogo, para poder afirmarla por su nombre en un test.
+  - **Sin frase, lo secreto no viaja.** Un `.ccpsnap` que se llamara «cifrado» llevando la clave dentro
+    sería lo peor de los dos mundos: se omite, como hace `ccp snapshot export` sin `--with-secrets`.
+  - Quien juzga la descarga es `ccp`: `download_test.mjs` la arma con node y Go la abre con
+    `snapshot.Import` y con `archive/tar`. Un tar escrito a mano en un navegador es justo lo que parece
+    correcto hasta que alguien intenta abrirlo un mes después.
 - **`ccp cloud verify`: la historia es una cadena firmada, y ahora se comprueba entera** (spec §10.3.1,
   F3-1). La firma de cada snapshot ata su id, su padre y su manifiesto desde F1, pero nadie comparaba nunca
   dos eslabones: un cliente que verifica de uno en uno —lo que hacía `pull`— sabe que *ese* snapshot es
