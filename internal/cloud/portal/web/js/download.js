@@ -61,6 +61,23 @@ function paxRegistro(clave, valor) {
 
 function relleno(n) { return (BLOQUE - (n % BLOQUE)) % BLOQUE; }
 
+// cabe100 recorta hasta que el texto entra en el campo de 100 bytes de la
+// cabecera ustar, por límite de CARÁCTER y no de byte: cortar por byte parte
+// una tilde, el U+FFFD que sale de ahí ocupa más, y así se desborda un campo
+// justo intentando encogerlo.
+function cabe100(txt) {
+  while (c.utf8(txt).length > 100) txt = txt.slice(0, -1);
+  return txt;
+}
+
+// nombreCorto es el nombre de repuesto que va en la cabecera cuando la ruta de
+// verdad viaja en la extensión PAX: el último tramo, que es lo que identifica
+// al archivo para quien lea el tar sin entender PAX.
+function nombreCorto(bytes) {
+  const txt = new TextDecoder().decode(bytes);
+  return cabe100(txt.slice(txt.lastIndexOf('/') + 1));
+}
+
 // entrada devuelve los bloques de un archivo: la extensión PAX cuando el
 // nombre no cabe en la cabecera (rutas de perfil largas lo pasan de sobra), la
 // cabecera y el contenido con su relleno a 512.
@@ -69,11 +86,10 @@ function entrada(nombre, datos, modo, mtime) {
   const partes = [];
   if (bytes.length > 100) {
     const reg = paxRegistro('path', nombre);
-    partes.push(cabecera('PaxHeaders/' + (bytes.length % 100000), reg.length, 0o600, mtime, 'x'));
+    const corto = nombreCorto(bytes);
+    partes.push(cabecera(cabe100('PaxHeaders.0/' + corto), reg.length, 0o600, mtime, 'x'));
     partes.push(reg, new Uint8Array(relleno(reg.length)));
-    // El nombre corto es el que se ve si alguien lee el tar sin entender PAX:
-    // se queda con la cola de la ruta, que es lo que la identifica.
-    nombre = new TextDecoder().decode(bytes.slice(bytes.length - 100)).replace(/^[^/]*\//, '');
+    nombre = corto;
   }
   partes.push(cabecera(nombre, datos.length, modo, mtime));
   partes.push(datos, new Uint8Array(relleno(datos.length)));
