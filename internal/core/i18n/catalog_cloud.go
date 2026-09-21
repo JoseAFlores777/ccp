@@ -191,6 +191,13 @@ CCP_CLOUD_PASSPHRASE y CCP_CLOUD_RECOVERY dan los secretos sin preguntarlos.`,
 	"cli.cloud.device_needed":  {En: "cloud revoke: which device? ccp cloud devices lists them.", Es: "cloud revoke: ¿qué dispositivo? ccp cloud devices los enseña."},
 	"cli.cloud.revoked":        {En: "Device «%s» revoked: its session can no longer use the cloud, nor register another device.", Es: "Dispositivo «%s» revocado: su sesión ya no puede usar la nube ni dar de alta otro equipo."},
 	"cli.cloud.revoke_self":    {En: "That is this machine; to disconnect it use: ccp cloud logout", Es: "Ese es este equipo; para desconectarlo usa: ccp cloud logout"},
+	// Lo que implica para lo ya publicado: no se comprueba si la había, se
+	// dice lo que pasa con ella. Un equipo revocado no vuelve a preguntar,
+	// así que una orden suya abierta se pintaría pendiente para siempre.
+	"cli.cloud.revoke_orders": {
+		En: "Any order it had pending is now closed: it was never going to apply it.",
+		Es: "La orden que tuviera pendiente queda cerrada: ya no la iba a aplicar.",
+	},
 }
 
 // F3-2: bajar un snapshot a un archivo (spec §10.3.1). Lo cifrado se importa

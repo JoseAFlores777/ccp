@@ -946,6 +946,7 @@ func (c cloudCmd) revoke(args []string) int {
 		return c.fail(err)
 	}
 	fmt.Fprintln(c.out, okLine(c.out, i18n.T(c.lang, "cli.cloud.revoked", d.Name)))
+	fmt.Fprintln(c.out, mute(c.out, i18n.T(c.lang, "cli.cloud.revoke_orders")))
 	return 0
 }
 

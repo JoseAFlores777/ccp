@@ -213,11 +213,23 @@ func (p *PG) SeenDevice(ctx context.Context, userID, deviceID string, at time.Ti
 
 // RevokeDevice es idempotente y conserva el primer instante: COALESCE deja la
 // revocación original en pie si alguien vuelve a revocar el mismo equipo.
+//
+// Va en una transacción con el cierre de su orden pendiente porque son el
+// mismo hecho: un equipo revocado no vuelve a preguntar, así que una orden
+// suya que siguiera abierta se pintaría como «pendiente» para siempre. El
+// WHERE state = 'pending' toca como mucho una fila (el índice único de las
+// pendientes) y no reescribe un resultado ya contado.
 func (p *PG) RevokeDevice(ctx context.Context, userID, deviceID string, at time.Time) error {
 	if !IsUUID(userID) || !IsUUID(deviceID) {
 		return ErrNotFound
 	}
-	tag, err := p.pool.Exec(ctx, `UPDATE devices SET revoked_at = COALESCE(revoked_at, $3)
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }() // no-op tras Commit
+
+	tag, err := tx.Exec(ctx, `UPDATE devices SET revoked_at = COALESCE(revoked_at, $3)
 		WHERE user_id = $1::uuid AND id = $2::uuid`, userID, deviceID, at)
 	if err != nil {
 		return err
@@ -225,7 +237,12 @@ func (p *PG) RevokeDevice(ctx context.Context, userID, deviceID string, at time.
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
-	return nil
+	if _, err := tx.Exec(ctx, `UPDATE revisions SET state = $3, updated = $4
+		WHERE user_id = $1::uuid AND device_id = $2::uuid AND state = $5`,
+		userID, deviceID, api.RevRevoked, at, api.RevPending); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (p *PG) KnownBlobs(ctx context.Context, userID string, ids []string) (map[string]int64, error) {
