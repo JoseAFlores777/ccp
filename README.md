@@ -62,7 +62,7 @@ No TTY, or prefer the terminal? Everything is in the CLI, with the same palette:
 <img src="docs/screenshots/cli-help.png" alt="ccp help — colored CLI" width="620">
 </div>
 
-Prefer a window? There is also a **desktop app** (`gui/`, Tauri, beta): the same accounts, folders, conversations, rotation and Desktop windows, a **Configuration** screen where every layer of your Claude config is read and edited in one place, and an **account map** where fallbacks are wired by dragging arrows and nothing is written until you review and apply. It runs the engine you already have (`ccp serve --stdio`), shows the CLI equivalent of every screen, and opens a Terminal for the things only a terminal can do (a `/login`, a handoff, a supervised session). Build and development notes: [gui/README.md](gui/README.md).
+Prefer a window? There is also a **desktop app** (`gui/`, Tauri, beta): the same accounts, folders, conversations, rotation and Desktop windows, a **Configuration** screen where every layer of your Claude config is read and edited in one place, a **Snapshots** screen with the history of that configuration — including the plan of any restore, before it writes — and an **account map** where fallbacks are wired by dragging arrows and nothing is written until you review and apply. It runs the engine you already have (`ccp serve --stdio`), shows the CLI equivalent of every screen, and opens a Terminal for the things only a terminal can do (a `/login`, a handoff, a supervised session). Build and development notes: [gui/README.md](gui/README.md).
 
 ---
 
@@ -735,6 +735,26 @@ What a snapshot captures:
 - **Secrets in an exported file** only travel with `--with-secrets`, sealed with a passphrase of at least 12
   characters that `ccp` asks for without echo (`CCP_SNAPSHOT_PASSPHRASE` gives it in scripts). Without it,
   the file carries no secrets, and importing it says which items came without data.
+
+#### The **Snapshots** screen — the history, in the app
+
+The desktop app shows that same history as a timeline: label, what triggered it, when, how much it captured and
+whether it is pinned. Picking one shows **what it captures**, grouped by part (ccp, `~/.claude`, each Desktop
+window, each project), and from there you pin it, label it, export it or compare it.
+
+- **Restoring takes two steps and the first one writes nothing.** The app asks for the plan, shows step by step
+  what it would write, what it would merge, what already matches and what it skips — and why — and applies only
+  once you tick the parts you want and type the confirmation word. It is the same as the terminal, where without
+  `--yes` a restore is just a plan. When it finishes it names the prior snapshot, which is the way back.
+- **The checkboxes are the `--only` parts**, so the CLI line it offers to copy does exactly what the button does.
+- **Comparing against "what is there right now"** answers the real question — what changed since then — without
+  restoring anything.
+- **Pruning shows first what it would take with it**: how many remain, how many blobs are freed and the ids that
+  are going.
+- A snapshot's size is **what it captures**, not what it occupies: two similar snapshots share the same blobs and
+  only what is new is stored.
+- The `.tar.gz` copies of `ccp backup` are still in **Settings**: they are the old format, good for moving a
+  configuration to another machine by hand.
 
 ## Detect the machine — `ccp scan` and `ccp adopt`
 

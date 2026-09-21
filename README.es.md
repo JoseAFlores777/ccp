@@ -62,7 +62,7 @@ Pulsa `e` sobre un perfil para su **vista de perfil**: qué configuración aplic
 <img src="docs/screenshots/cli-help.png" alt="ccp help — CLI coloreado" width="620">
 </div>
 
-¿Prefieres una ventana? También hay una **app de escritorio** (`gui/`, Tauri, beta): las mismas cuentas, carpetas, conversaciones, rotación y ventanas de Desktop, una pantalla **Configuración** donde se lee y se edita en un solo sitio toda la configuración de Claude, capa por capa, y un **mapa de cuentas** donde los respaldos se conectan arrastrando flechas y nada se escribe hasta revisar y aplicar. Usa el motor que ya tienes (`ccp serve --stdio`), enseña el comando equivalente de cada pantalla y abre una Terminal para lo que solo puede hacerse en una terminal (un `/login`, un handoff, una sesión supervisada). Cómo compilarla y desarrollarla: [gui/README.md](gui/README.md).
+¿Prefieres una ventana? También hay una **app de escritorio** (`gui/`, Tauri, beta): las mismas cuentas, carpetas, conversaciones, rotación y ventanas de Desktop, una pantalla **Configuración** donde se lee y se edita en un solo sitio toda la configuración de Claude, capa por capa, una pantalla **Snapshots** con el historial de esa configuración —y el plan de cualquier restauración antes de escribir nada— y un **mapa de cuentas** donde los respaldos se conectan arrastrando flechas y nada se escribe hasta revisar y aplicar. Usa el motor que ya tienes (`ccp serve --stdio`), enseña el comando equivalente de cada pantalla y abre una Terminal para lo que solo puede hacerse en una terminal (un `/login`, un handoff, una sesión supervisada). Cómo compilarla y desarrollarla: [gui/README.md](gui/README.md).
 
 ---
 
@@ -732,6 +732,27 @@ Qué captura un snapshot:
 - **Los secretos en un archivo exportado** solo viajan con `--with-secrets`, sellados con una frase de al menos
   12 caracteres que `ccp` pide sin eco (`CCP_SNAPSHOT_PASSPHRASE` la da en scripts). Sin ella, el archivo no
   lleva secretos, y al importarlo se dice qué elementos llegaron sin datos.
+
+#### La pantalla **Snapshots** — el historial, en la app
+
+La app de escritorio enseña ese mismo historial en una línea de tiempo: etiqueta, qué lo disparó, cuándo, cuánto
+capturó y si está fijado. Al elegir uno se ve **qué captura**, agrupado por partes (ccp, `~/.claude`, cada ventana
+de Desktop, cada proyecto), y desde ahí se fija, se etiqueta, se exporta o se compara.
+
+- **Restaurar va en dos pasos y el primero no escribe nada.** La app pide el plan, enseña paso a paso qué
+  escribiría, qué fusionaría, qué ya coincide y qué se salta —y por qué—, y solo aplica cuando marcas qué partes
+  quieres y escribes la palabra de confirmación. Es lo mismo que en la terminal, donde sin `--yes` un restore es
+  solo un plan. Al terminar dice cuál es la foto previa, que es por dónde se vuelve atrás.
+- **Las casillas son los `--only`**, así que la línea de CLI que se ofrece para copiar hace exactamente lo mismo
+  que el botón.
+- **Comparar contra «lo que hay ahora mismo»** responde a la pregunta de verdad —qué ha cambiado desde
+  entonces— sin restaurar nada.
+- **Podar enseña antes qué se llevaría por delante**: cuántos quedan, cuántos blobs se liberan y los ids que se
+  van.
+- El tamaño de un snapshot es **lo que captura**, no lo que ocupa: dos snapshots parecidos comparten los mismos
+  blobs y solo se guarda lo nuevo.
+- Las copias `.tar.gz` de `ccp backup` siguen en **Ajustes**: son el formato antiguo, bueno para mover una
+  configuración a mano a otra máquina.
 
 ## Detectar la máquina — `ccp scan` y `ccp adopt`
 

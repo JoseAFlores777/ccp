@@ -143,7 +143,9 @@ gui/
 │   │                 (config_edit.ts), textos de diagnóstico (findings.ts), i18n
 │   ├── components/   marco (Shell), modal de confirmación, hoja de terminal, avisos, piezas de UI
 │   └── screens/      una pantalla por archivo (P-01 … P-20). P-20 Configuración se reparte
-│                     en tres: la pantalla, su tabla de MCP y su vista efectiva
+│                     en tres: la pantalla, su tabla de MCP y su vista efectiva; las copias
+│                     `.tar.gz` (`Copias`) viven dentro de `Ajustes.tsx`, y P-17 Snapshots
+│                     tiene el suyo
 ├── src-tauri/        el puente en Rust (bridge.rs), terminal y Finder (native.rs), config de Tauri
 └── scripts/          sandbox.sh (datos de prueba) y build-sidecar.sh (ccp para el .app)
 ```
