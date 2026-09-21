@@ -109,8 +109,11 @@ func nueva(t *testing.T) *maquina {
 		t.Fatal(err)
 	}
 	// El data dir de Desktop de `default` va a un temporal: el inventario lo
-	// mira y no se toca el de verdad ni para leer.
+	// mira y no se toca el de verdad ni para leer. Y el HOME, igual: aplicar
+	// una revisión pasa por `core.ProjectMapInputsFor`, que lee el HOME del
+	// entorno y rastrea ~/code, ~/Documents y compañía buscando repos.
 	t.Setenv("CCP_DESKTOP_DEFAULT_DATA_DIR", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
 	return &maquina{t: t, url: srv.URL, acct: acct, dev: d.ID, hc: hc, o: Opts{
 		Home: t.TempDir(), Src: filepath.Join(t.TempDir(), ".claude"),
 		API: a, Acct: acct, Store: st, Files: files,
@@ -546,5 +549,25 @@ func TestSiNoSePuedeCerrarLaRevisionElReviewSigueAhi(t *testing.T) {
 		t.Fatal(err)
 	} else if !ok {
 		t.Fatal("review.json se borró aunque la revisión sigue pendiente")
+	}
+}
+
+// El harness monta una máquina entera en temporales, y el HOME cuenta: al
+// aplicar una revisión el motor consulta `core.ProjectMapInputsFor`, que
+// rastrea ~/code, ~/Documents y compañía buscando repos. Con el HOME real eso
+// es lento, distinto en cada máquina y, en macOS, bajo TCC — y el día que un
+// snapshot traiga rutas `project/…` decidiría dónde se escribe.
+func TestElHarnessAislaElHomeDelDesarrollador(t *testing.T) {
+	real, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nueva(t)
+	got, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == real {
+		t.Fatalf("nueva() deja el HOME de verdad (%s); debe ser un temporal", got)
 	}
 }
