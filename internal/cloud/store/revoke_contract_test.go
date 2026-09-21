@@ -21,11 +21,11 @@ func runRevokeContract(t *testing.T, s Store) {
 	d, _ := s.CreateDevice(ctx, u.ID, Device{Name: "mac"})
 	otro, _ := s.CreateDevice(ctx, u.ID, Device{Name: "otra"})
 
-	r1 := Revision{ID: hexID('1'), DeviceID: d.ID, Snapshot: hexID('a'), Sig: []byte("f"), Created: now}
+	r1 := Revision{ID: hexID('1'), DeviceID: d.ID, Snapshot: hexID('a'), Sig: []byte("f"), Created: now, By: d.ID}
 	if _, err := s.PublishRevision(ctx, u.ID, r1); err != nil {
 		t.Fatal(err)
 	}
-	r2 := Revision{ID: hexID('2'), DeviceID: otro.ID, Snapshot: hexID('a'), Sig: []byte("f"), Created: now}
+	r2 := Revision{ID: hexID('2'), DeviceID: otro.ID, Snapshot: hexID('a'), Sig: []byte("f"), Created: now, By: otro.ID}
 	if _, err := s.PublishRevision(ctx, u.ID, r2); err != nil {
 		t.Fatal(err)
 	}

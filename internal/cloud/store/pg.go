@@ -585,7 +585,7 @@ func (p *PG) PublishRevision(ctx context.Context, userID string, r Revision) (Re
 	_, err = tx.Exec(ctx, `INSERT INTO revisions
 		(user_id, id, prev, device_id, snapshot, base, body, sig, created, state, reason, updated, created_by, group_id)
 		VALUES ($1::uuid, $2, $3, $4::uuid, $5, $6, $7, $8, $9, $10, '', $9, $11::uuid, $12)`,
-		userID, r.ID, r.Prev, r.DeviceID, r.Snapshot, r.Base, r.Body, r.Sig, r.Created, api.RevPending, r.By, r.Group)
+		userID, r.ID, r.Prev, r.DeviceID, r.Snapshot, r.Base, bytesOrEmpty(r.Body), r.Sig, r.Created, api.RevPending, r.By, r.Group)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -595,6 +595,20 @@ func (p *PG) PublishRevision(ctx context.Context, userID string, r Revision) (Re
 	}
 	r.DeviceName, r.State, r.Reason, r.Updated = devName, api.RevPending, "", r.Created
 	return r, tx.Commit(ctx)
+}
+
+// bytesOrEmpty convierte un slice nil en uno vacío. `body` es NOT NULL, y en Go
+// un `[]byte` nil viaja a Postgres como NULL: una revisión que solo nombra un
+// snapshot —la que publica el portal al restaurar, y la que el servidor acepta
+// a propósito sin cuerpo— moría con un 23502 convertido en 500. No se vio antes
+// porque todas las pruebas corrían contra el Store de memoria, que acepta nil.
+// Vacío y nulo significan aquí lo mismo («esta orden no trae cambios»), así que
+// se guarda el que la columna admite.
+func bytesOrEmpty(b []byte) []byte {
+	if b == nil {
+		return []byte{}
+	}
+	return b
 }
 
 func (p *PG) PendingRevision(ctx context.Context, userID, deviceID string) (Revision, error) {
