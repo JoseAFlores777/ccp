@@ -205,6 +205,23 @@ func desktopOpen(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
+	// Lo aplazado por tener la ventana viva se aplica AQUÍ, antes de lanzar: es
+	// la acción que el doctor le pide al usuario, así que tiene que ser la que
+	// lo arregla. Un fallo no impide abrir (el marcador se queda y se reintenta).
+	if name != "default" {
+		if dryRun {
+			if core.DesktopProjectionPending(home, name) {
+				fmt.Fprintln(stdout, i18n.T(lang, "cli.desktop.pending_pending", name))
+			}
+		} else if proj, applied, perr := core.ApplyDesktopPending(home, name); perr != nil {
+			fmt.Fprintf(stderr, "[warn] %v\n", perr)
+		} else if applied {
+			done := append(append([]string{}, proj.Written...), proj.Removed...)
+			fmt.Fprintln(stdout, okLine(stdout,
+				i18n.T(lang, "cli.desktop.pending_applied", name, strings.Join(done, ", "))))
+		}
+	}
+
 	plan, err := core.PlanDesktop(desktopHostFor(appHint, core.DesktopDataDir(home, name)), home, name, cfg)
 	if err != nil {
 		fmt.Fprintf(stderr, "[error] %v\n", err)

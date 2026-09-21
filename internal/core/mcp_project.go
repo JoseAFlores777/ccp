@@ -320,3 +320,32 @@ func projectMCPToDesktop(home, name string, eff []MCPEntry, running, dry bool) (
 	_ = os.Remove(desktopPendingPath(home, name)) // ya está aplicado
 	return p, nil
 }
+
+// ApplyDesktopPending aplica la proyección que quedó aplazada por tener la
+// ventana viva. Lo llama el arranque de la ventana (`ccp desktop open` y el
+// lanzador del Dock) ANTES de lanzar, que es el único momento en que el archivo
+// del chat se puede escribir sin que Desktop lo pise desde su copia en memoria.
+// Sin esto el marcador sobrevivía a abrir y cerrar la ventana: el doctor seguía
+// pidiendo justo la acción que no lo arreglaba.
+//
+// Devuelve applied=false cuando no había nada pendiente, para que el front-end
+// no anuncie un trabajo que no hizo.
+func ApplyDesktopPending(home, name string) (MCPProjection, bool, error) {
+	if name == "" || name == "default" || !DesktopProjectionPending(home, name) {
+		return MCPProjection{Target: MCPTargetDesktop}, false, nil
+	}
+	src, err := claudeSrc()
+	if err != nil {
+		return MCPProjection{Target: MCPTargetDesktop}, false, err
+	}
+	global, profile, err := ReadMCPLayers(home, src, name)
+	if err != nil {
+		return MCPProjection{Target: MCPTargetDesktop}, false, err
+	}
+	cfg, err := Load(home)
+	if err != nil {
+		return MCPProjection{Target: MCPTargetDesktop}, false, err
+	}
+	p, err := projectMCPToDesktop(home, name, MCPEffective(cfg, global, profile, name), false, false)
+	return p, err == nil, err
+}

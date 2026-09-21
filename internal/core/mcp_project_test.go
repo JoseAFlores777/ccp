@@ -246,3 +246,32 @@ func TestSyncProyectaElMCPDelPerfilALosDosDestinos(t *testing.T) {
 		t.Error("un MCP de perfil no puede acabar en el global")
 	}
 }
+
+// El arranque de la ventana es la acción que se le pide al usuario cuando queda
+// una proyección aplazada, así que tiene que ser la que la aplica: sin esto el
+// marcador sobrevivía a abrir y cerrar la ventana y el doctor no callaba nunca.
+func TestApplyDesktopPendingAplicaLoAplazado(t *testing.T) {
+	home, src := mcpFixture(t)
+	dd := DesktopDataDir(home, "work")
+	cfgFile := filepath.Join(dd, "claude_desktop_config.json")
+	mustWrite(t, cfgFile, `{"preferences":{}}`)
+
+	if _, err := ProjectMCPToDesktop(home, "work", efectivo(t, home, src, "work"), true); err != nil {
+		t.Fatal(err)
+	}
+	if !DesktopProjectionPending(home, "work") {
+		t.Fatal("no quedó pendiente")
+	}
+
+	p, applied, err := ApplyDesktopPending(home, "work")
+	if err != nil || !applied {
+		t.Fatalf("ApplyDesktopPending = %+v %v %v", p, applied, err)
+	}
+	if DesktopProjectionPending(home, "work") || leeMCPServers(t, cfgFile)["github"] == nil {
+		t.Fatal("el pendiente no se aplicó al arrancar la ventana")
+	}
+	// Sin marcador no hay nada que aplicar: el arranque no reescribe por gusto.
+	if _, applied, err := ApplyDesktopPending(home, "work"); err != nil || applied {
+		t.Fatalf("sin pendiente = %v %v", applied, err)
+	}
+}

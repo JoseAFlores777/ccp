@@ -73,8 +73,8 @@ func init() {
 			Es: "Perfil '%s': no se pudo comprobar la proyección (%s).",
 		},
 		"doctor.desktop_restart_pending": {
-			En: "Profile '%s': its Desktop window has MCP waiting; only starting that window applies them.",
-			Es: "Perfil '%s': su ventana de Desktop tiene MCP esperando; solo arrancar esa ventana los aplica.",
+			En: "Profile '%s': its Desktop window has MCP waiting; starting that window applies them (ccp desktop open %s).",
+			Es: "Perfil '%s': su ventana de Desktop tiene MCP esperando; arrancar esa ventana los aplica (ccp desktop open %s).",
 		},
 		"doctor.mcp_command_missing": {
 			En: "Profile '%s': the command of %s does not resolve, so that server will not start.",

@@ -58,7 +58,7 @@ func doctorProjection(l i18n.Lang, home string, cfg *Config) []DoctorCheck {
 			bad(DoctorProjectionStale, "doctor.projection_stale", name, name)
 		}
 		if DesktopProjectionPending(home, name) {
-			bad(DoctorDesktopRestart, "doctor.desktop_restart_pending", name)
+			bad(DoctorDesktopRestart, "doctor.desktop_restart_pending", name, name)
 		}
 		if miss := doctorMissingCommands(home, src, name, cfg); len(miss) > 0 {
 			bad(DoctorMCPCommandMissing, "doctor.mcp_command_missing", name, strings.Join(miss, ", "))
