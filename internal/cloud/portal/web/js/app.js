@@ -623,7 +623,12 @@ function dialogoAplicar(capas) {
     // El portal es un equipo más para la auditoría, pero no tiene disco donde
     // aplicar nada; un equipo revocado no va a volver a preguntar.
     const elegibles = devs.filter((d) => !d.revoked && d.platform !== 'portal');
-    const marcados = new Set([edicion.meta.device_id]);
+    // El equipo de origen viene marcado solo si es elegible: el snapshot pudo
+    // salir del propio portal o de una máquina ya revocada, y entonces no hay
+    // ni casilla que desmarcar. Marcarlo igual dejaba «Publicar» activo para
+    // una lista de destinos que al filtrarse se quedaba vacía.
+    const marcados = new Set(elegibles.some((d) => d.id === edicion.meta.device_id)
+      ? [edicion.meta.device_id] : []);
     const filas = elegibles.map((d) => {
       const ch = el('input', { type: 'checkbox', checked: marcados.has(d.id) || null });
       ch.addEventListener('change', () => { ch.checked ? marcados.add(d.id) : marcados.delete(d.id); sincroniza(); });
@@ -632,7 +637,11 @@ function dialogoAplicar(capas) {
         d.id === edicion.meta.device_id ? el('span', { class: 'etiqueta' }, 'de aquí salió') : null);
     });
     const aceptar = el('button', { class: 'grande', onclick: () => aplicar([...marcados], elegibles, caja, capas) }, 'Publicar');
-    const sincroniza = () => { aceptar.disabled = marcados.size === 0; };
+    // Lo que habilita el botón es que quede al menos un destino REAL: contar
+    // los marcados a secas prometía una publicación que no llegaba a nadie.
+    const sincroniza = () => {
+      aceptar.disabled = ![...marcados].some((id) => elegibles.some((d) => d.id === id));
+    };
     sincroniza();
     rellena(caja,
       el('h2', {}, 'Aplicar a…'),

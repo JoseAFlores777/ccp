@@ -61,6 +61,14 @@ export async function existingBlobs(api, ids) {
 // unos cuantos blobs y luego hablar con el API por cada equipo lleva su rato.
 export async function publish({ api, keys }, { base, baseCloud, edits, devices, now, onStep }) {
   const paso = (t) => { if (onStep) onStep(t); };
+  // Sin equipos no hay nada que publicar, y seguir adelante es peor que no
+  // hacer nada: subiría los blobs y crearía un snapshot en la nube sin una
+  // sola orden puesta, y la pantalla lo contaría como «Publicado». Se corta
+  // aquí, antes de tocar el API, porque esta es la última puerta común a
+  // todos los caminos que llegan a publicar.
+  if (!devices || devices.length === 0) {
+    throw new Error('no hay ningún equipo al que publicar: la orden no se puso en ninguna parte');
+  }
   paso('Montando el snapshot…');
   const m = await buildEdited(base, edits, { now });
   const built = await snap.buildSnapshot(keys, m);

@@ -71,4 +71,27 @@ const b = await buildEdited(v.manifest, edits, { now: new Date(v.now) });
 check('buildEdited es determinista', JSON.stringify(a) === JSON.stringify(b));
 
 writeFileSync(process.argv[3], JSON.stringify({ commit, revisions: revisiones, blobs: subidos }));
+
+// Publicar sin un solo equipo no es publicar: si el diálogo deja pasar una
+// lista vacía (el equipo de origen revocado, o el propio portal), lo que salía
+// era un snapshot nuevo en la nube, cero órdenes y una pantalla diciendo
+// «Publicado». Aquí tiene que fallar ANTES de tocar nada.
+{
+  const tocado = [];
+  const vacio = {
+    putBlob: async (id) => { tocado.push('putBlob ' + id); },
+    presign: async (_op, ids) => ids.map((id) => ({ id, exists: true })),
+    commitSnapshot: async (in_) => { tocado.push('commitSnapshot'); return { id: in_.id }; },
+    revisions: async () => [],
+    publishRevision: async (r) => { tocado.push('publishRevision'); return r; },
+  };
+  let err = null;
+  try {
+    await publish({ api: vacio, keys }, {
+      base: v.manifest, baseCloud: v.cloud_id, edits, devices: [], now: new Date(v.now),
+    });
+  } catch (e) { err = e; }
+  check('publicar sin equipos falla', err !== null, 'no lanzó');
+  check('y no deja nada hecho en la nube', tocado.length === 0, tocado.join(', '));
+}
 process.exit(fallos === 0 ? 0 : 1);
