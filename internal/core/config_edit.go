@@ -31,6 +31,13 @@ type ConfigValue struct {
 type ConfigWrite struct {
 	File        string   `json:"file"`
 	Regenerated []string `json:"regenerated"`
+	// MCP son las proyecciones que hizo esa regeneración, cada una con el
+	// perfil al que pertenece (C2): tocar la capa global regenera varios, y
+	// «pendiente de reiniciar la ventana» hay que decirlo con nombre. MCPErr
+	// las explica si alguna falló: una proyección rota no impide regenerar,
+	// pero tiene que decirse.
+	MCP    []MCPProjected `json:"mcp,omitempty"`
+	MCPErr string         `json:"mcp_error,omitempty"`
 }
 
 // cfgRefFormat deduce el formato de una referencia sin mirar el disco: una
@@ -516,15 +523,39 @@ func cfgEntryWrite(t cfgTarget, old, want string) error {
 // cc-home/CLAUDE.md, la proyección de MCP y de artefactos) sale de las capas,
 // así que tocar una capa sin regenerar deja al perfil leyendo lo de antes.
 func cfgAfterWrite(r InventoryRoots, t cfgTarget) (ConfigWrite, error) {
-	w := ConfigWrite{File: t.File, Regenerated: []string{}}
 	names, err := cfgRegenTargets(r, t)
 	if err != nil {
-		return w, err
+		return ConfigWrite{File: t.File, Regenerated: []string{}}, err
 	}
+	return cfgRegenerateAll(r, t.File, names)
+}
+
+// cfgRegenerateAll regenera esos perfiles y recoge sus proyecciones de MCP. Lo
+// usan las escrituras de archivo (cfgAfterWrite) y las que no tocan ningún
+// archivo de capa sino el bloque `mcp:` de ccp.yaml (destinos y apagados, C2):
+// las dos dejan desfasado lo generado, así que las dos terminan aquí.
+//
+// La deriva de /config que encuentre la regeneración se queda pendiente como
+// siempre (nadie tira un informe), menos la parte de MCP: esa se DEVUELVE, y
+// dejarla además pendiente la enseñaría dos veces.
+func cfgRegenerateAll(r InventoryRoots, file string, names []string) (ConfigWrite, error) {
+	w := ConfigWrite{File: file, Regenerated: []string{}}
 	for _, n := range names {
-		if err := CfgRegenerate(r.CCPHome, n, r.ClaudeSrc); err != nil {
+		d, err := CfgRegenerateReport(r.CCPHome, n, r.ClaudeSrc)
+		for _, p := range d.MCP {
+			w.MCP = append(w.MCP, MCPProjected{Profile: n, MCPProjection: p})
+		}
+		if d.MCPErr != "" && w.MCPErr == "" {
+			w.MCPErr = d.MCPErr
+		}
+		rest := d
+		rest.MCP, rest.MCPErr = nil, ""
+		if !rest.Empty() {
+			_ = savePendingDrift(r.CCPHome, rest)
+		}
+		if err != nil {
 			return w, fmt.Errorf("se escribió %s pero %s quedó sin regenerar: %w — reinténtalo con: ccp profile sync %s",
-				t.File, n, err, n)
+				file, n, err, n)
 		}
 		w.Regenerated = append(w.Regenerated, n)
 	}
