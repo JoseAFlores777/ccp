@@ -1024,6 +1024,7 @@ export const en: Record<string, string> = {
   "Uno por línea.": "One per line.",
   "CLAVE=valor, una por línea. Escribe ${VARIABLE} y Claude Code la leerá de tu entorno al arrancar; lo que veas como {m} se queda como estaba.": "KEY=value, one per line. Write ${VARIABLE} and Claude Code will read it from your environment at startup; anything shown as {m} stays as it was.",
   "Nombre: valor, una por línea. Lo que veas como {m} se queda como estaba.": "Name: value, one per line. Anything shown as {m} stays as it was.",
+  "Vuelve a escribir el valor de {k}: con ese nombre no había nada guardado y {m} no es un valor.": "Type the value of {k} again: nothing was stored under that name and {m} is not a value.",
   "Entrada en JSON": "Entry as JSON",
   "Solo la entrada del servidor, sin «mcpServers» ni el nombre.": "Just the server's entry, without “mcpServers” or the name.",
   "Un .mcp.json viaja en el repo: un secreto en claro acabaría en git. ccp lo rechaza; escribe ${VARIABLE}.": "A .mcp.json travels in the repo: a secret in the clear would end up in git. ccp refuses it; write ${VARIABLE}.",
