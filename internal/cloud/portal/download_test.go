@@ -201,8 +201,13 @@ func TestDescargaSinFraseNoSeLlevaLasClaves(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(raw), "sk-muy-secreto") {
-		t.Fatal("la clave viaja en claro")
+	// Buscar el literal en `raw` no valdría: el .ccpsnap es un tar.gz y cada
+	// cuerpo va gzippeado aparte, así que la clave no aparecería ni yendo
+	// dentro. Hay que descomprimir las dos capas antes de mirar.
+	for name, cuerpo := range cuerposCcpsnap(t, raw) {
+		if bytes.Contains(cuerpo, []byte("sk-muy-secreto")) {
+			t.Fatalf("la clave viaja en claro dentro de %s", name)
+		}
 	}
 	st, err := snapshot.Open(t.TempDir())
 	if err != nil {
@@ -218,4 +223,38 @@ func TestDescargaSinFraseNoSeLlevaLasClaves(t *testing.T) {
 	if len(rep.Missing) != 1 || rep.Missing[0] != "ccp/profiles/deep/api_key" {
 		t.Fatalf("Missing = %v", rep.Missing)
 	}
+}
+
+// cuerposCcpsnap abre las dos capas de compresión de un .ccpsnap y devuelve el
+// contenido real de cada entrada: el tar.gz de fuera y, cuando se deja, el gzip
+// de cada objeto. Lo que no se descomprime (un objeto sellado) se devuelve tal
+// cual, que es justo lo que hay que mirar para decir que NO está en claro.
+func cuerposCcpsnap(t *testing.T, raw []byte) map[string][]byte {
+	t.Helper()
+	zr, err := gzip.NewReader(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatalf("el .ccpsnap no es un gzip: %v", err)
+	}
+	out := map[string][]byte{}
+	tr := tar.NewReader(zr)
+	for {
+		h, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatalf("el tar del .ccpsnap no se lee: %v", err)
+		}
+		data, err := io.ReadAll(tr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inner, err := gzip.NewReader(bytes.NewReader(data)); err == nil {
+			if plano, err := io.ReadAll(inner); err == nil {
+				data = plano
+			}
+		}
+		out[h.Name] = data
+	}
+	return out
 }
