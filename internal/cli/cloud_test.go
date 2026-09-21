@@ -385,3 +385,69 @@ func TestCloudPolicySinSesionYSobreviveAlAlta(t *testing.T) {
 		t.Fatalf("el alta tiró la política decidida de antemano: %q", out)
 	}
 }
+
+// `ccp cloud verify` comprueba la historia entera, no un snapshot suelto: que
+// cada eslabón lo firmó esta cuenta y que sigue estando todo lo que esta
+// máquina subió. Un snapshot que subimos y ya no está es la única señal de que
+// han cortado la cadena por la cabeza.
+func TestCloudVerifyMiraLaCadenaEntera(t *testing.T) {
+	url := cloudServer(t)
+	t.Setenv("CCP_NO_BROWSER", "1")
+	t.Setenv("CCP_CLOUD_PASSPHRASE", "frase de la bóveda larga")
+	snapEnv(t)
+	if code, out, errs := snapRun(t, "cloud", "login", url, "--name", "mac-a"); code != 0 {
+		t.Fatalf("login: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "init"); code != 0 {
+		t.Fatalf("init: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "snapshot", "create"); code != 0 {
+		t.Fatalf("snapshot create: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "push"); code != 0 {
+		t.Fatalf("push: %d %q %q", code, out, errs)
+	}
+	code, out, errs := snapRun(t, "cloud", "verify", "--json")
+	if code != 0 {
+		t.Fatalf("verify de una historia intacta: %d %q %q", code, out, errs)
+	}
+	var rep struct {
+		Links  *int `json:"links"`
+		Faults *[]struct {
+			Code string `json:"code"`
+			ID   string `json:"id"`
+		} `json:"faults"`
+	}
+	if err := json.Unmarshal([]byte(out), &rep); err != nil || rep.Links == nil || *rep.Links != 1 {
+		t.Fatalf("verify --json = %q (%v)", out, err)
+	}
+	if rep.Faults == nil || *rep.Faults == nil || len(*rep.Faults) != 0 {
+		t.Fatalf("faults tiene que ser un array vacío, no null: %q", out)
+	}
+
+	// El servidor «pierde» un snapshot que esta máquina subió: el estado local
+	// sabe que estaba y verify lo canta.
+	statePath := filepath.Join(os.Getenv("CCP_HOME"), "cloud", "state.json")
+	raw, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var st struct {
+		Pushed map[string]string `json:"pushed"`
+	}
+	if err := json.Unmarshal(raw, &st); err != nil {
+		t.Fatal(err)
+	}
+	st.Pushed["local-que-ya-no-esta"] = strings.Repeat("e", 64)
+	raw, _ = json.Marshal(st)
+	if err := os.WriteFile(statePath, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, out, errs = snapRun(t, "cloud", "verify")
+	if code != 1 {
+		t.Fatalf("verify con un eslabón perdido = %d, quiero 1 (%q %q)", code, out, errs)
+	}
+	if !strings.Contains(out+errs, "eeeeeeee") {
+		t.Fatalf("verify no dice cuál falta: %q %q", out, errs)
+	}
+}

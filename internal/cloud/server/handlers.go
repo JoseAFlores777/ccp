@@ -427,6 +427,24 @@ func (s *srv) listSnapshots(w http.ResponseWriter, r *http.Request, rc reqCtx) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// chain sirve la historia entera para que el cliente la verifique de un tirón
+// (spec §10.3.1). Va sin filtro por dispositivo a propósito: las cadenas se
+// cruzan —una máquina que baja un snapshot ajeno encadena el suyo encima—, y
+// media cadena tendría huecos que no son huecos.
+func (s *srv) chain(w http.ResponseWriter, r *http.Request, rc reqCtx) {
+	list, err := s.cfg.Store.Chain(r.Context(), rc.user.ID, api.MaxChainLinks)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	out := make([]api.ChainLink, 0, len(list))
+	for _, sn := range list {
+		out = append(out, api.ChainLink{ID: sn.ID, Parent: sn.Parent, DeviceID: sn.DeviceID,
+			Created: sn.Created, Digest: sn.Digest, Sig: sn.Sig})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 func (s *srv) getSnapshot(w http.ResponseWriter, r *http.Request, rc reqCtx) {
 	id := r.PathValue("id")
 	if !api.ValidID(id) {

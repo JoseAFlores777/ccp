@@ -152,6 +152,13 @@ func (a *API) Snapshots(ctx context.Context, device string, limit int) ([]api.Sn
 	return out, a.do(ctx, http.MethodGet, "/v1/snapshots?"+q.Encode(), nil, &out)
 }
 
+// Chain baja la historia entera para verificarla (VerifyChain). No lleva
+// manifiestos: son los eslabones, no el contenido.
+func (a *API) Chain(ctx context.Context) ([]api.ChainLink, error) {
+	var out []api.ChainLink
+	return out, a.do(ctx, http.MethodGet, "/v1/snapshots/chain", nil, &out)
+}
+
 // Snapshot baja un snapshot con su manifiesto sellado y su firma.
 func (a *API) Snapshot(ctx context.Context, id string) (api.Snapshot, error) {
 	var s api.Snapshot

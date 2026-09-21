@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"reflect"
@@ -139,6 +141,24 @@ func runContract(t *testing.T, s Store) {
 	}
 	if _, err := s.Snapshot(ctx, other.ID, s1.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatal("un snapshot se ve desde otro usuario")
+	}
+
+	// La cadena: todo, del más nuevo al más viejo, con el digest que calcula
+	// el ALMACÉN sobre el manifiesto que guarda. Que lo calcule aquí y no
+	// quien llama es lo que ata el digest a los bytes escritos.
+	chain, err := s.Chain(ctx, u.ID, 10)
+	if err != nil || len(chain) != 2 || chain[0].ID != s2.ID || chain[1].Parent != "" {
+		t.Fatalf("Chain = %+v, %v", chain, err)
+	}
+	sum := sha256.Sum256([]byte("m1"))
+	if chain[1].Digest != hex.EncodeToString(sum[:]) || string(chain[1].Sig) != "s1" {
+		t.Fatalf("el digest o la firma de la cadena no son los del manifiesto: %+v", chain[1])
+	}
+	if chain[0].Manifest != nil {
+		t.Fatalf("la cadena no lleva manifiestos: %+v", chain[0])
+	}
+	if ajena, _ := s.Chain(ctx, other.ID, 10); len(ajena) != 0 {
+		t.Fatal("la cadena de un usuario se ve desde otro")
 	}
 
 	if err := s.Audit(ctx, u.ID, d2.ID, "snapshot.commit", map[string]any{"id": s1.ID}); err != nil {

@@ -291,8 +291,11 @@ func (p *PG) CommitSnapshot(ctx context.Context, userID string, s Snapshot, newB
 			return false, err
 		}
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO snapshots (user_id, id, parent, device_id, created, manifest, sig, size)
-		VALUES ($1::uuid, $2, $3, $4::uuid, $5, $6, $7, $8)`,
+	// El digest lo calcula Postgres sobre el mismo valor que escribe: así el
+	// hash con el que se verifica la firma no puede describir otros bytes que
+	// los guardados.
+	if _, err := tx.Exec(ctx, `INSERT INTO snapshots (user_id, id, parent, device_id, created, manifest, sig, size, manifest_sha256)
+		VALUES ($1::uuid, $2, $3, $4::uuid, $5, $6, $7, $8, sha256($6))`,
 		userID, s.ID, s.Parent, s.DeviceID, s.Created, s.Manifest, s.Sig, s.Size); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -334,6 +337,33 @@ func (p *PG) Snapshots(ctx context.Context, userID, deviceID string, limit int) 
 	for rows.Next() {
 		var s Snapshot
 		if err := rows.Scan(&s.ID, &s.Parent, &s.DeviceID, &s.DeviceName, &s.Created, &s.Size, &s.Pinned); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// Chain: ver el contrato en store.go.
+func (p *PG) Chain(ctx context.Context, userID string, limit int) ([]Snapshot, error) {
+	if !IsUUID(userID) {
+		return []Snapshot{}, nil
+	}
+	if limit <= 0 {
+		limit = api.MaxChainLinks
+	}
+	rows, err := p.pool.Query(ctx, `SELECT s.id, s.parent, s.device_id::text, s.created,
+		encode(s.manifest_sha256, 'hex'), s.sig, s.pinned FROM snapshots s
+		WHERE s.user_id = $1::uuid
+		ORDER BY s.created DESC, s.id DESC LIMIT $2`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Snapshot{}
+	for rows.Next() {
+		var s Snapshot
+		if err := rows.Scan(&s.ID, &s.Parent, &s.DeviceID, &s.Created, &s.Digest, &s.Sig, &s.Pinned); err != nil {
 			return nil, err
 		}
 		out = append(out, s)

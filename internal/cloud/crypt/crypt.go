@@ -127,11 +127,24 @@ func (a *Account) OpenManifest(id string, sealed []byte) ([]byte, error) {
 	return vault.Open(a.data, sealed, []byte("manifest:"+id))
 }
 
-// signed es lo que se firma: id, padre y el hash del manifiesto sellado. Quien
-// no tiene la AK no puede ni fabricar un snapshot ni reordenar la cadena.
-func signed(id, parent string, sealedManifest []byte) []byte {
+// ManifestDigest es el hash del manifiesto sellado en hexadecimal: lo único
+// del manifiesto que entra en la firma. Existe aparte porque la cadena se
+// verifica desde un listado, donde el manifiesto no viaja —bajar megabytes
+// para recalcular un hash que el servidor ya tiene sería pagar el contenido
+// entero por comprobar la forma de la historia.
+func ManifestDigest(sealedManifest []byte) string {
 	sum := sha256.Sum256(sealedManifest)
-	return []byte("ccp/v1/snapshot\n" + id + "\n" + parent + "\n" + hex.EncodeToString(sum[:]))
+	return hex.EncodeToString(sum[:])
+}
+
+// signedDigest es lo que se firma: id, padre y el hash del manifiesto sellado.
+// Quien no tiene la AK no puede ni fabricar un snapshot ni reordenar la cadena.
+func signedDigest(id, parent, digest string) []byte {
+	return []byte("ccp/v1/snapshot\n" + id + "\n" + parent + "\n" + digest)
+}
+
+func signed(id, parent string, sealedManifest []byte) []byte {
+	return signedDigest(id, parent, ManifestDigest(sealedManifest))
 }
 
 // Sign firma un snapshot sellado.
@@ -143,6 +156,16 @@ func (a *Account) Sign(id, parent string, sealedManifest []byte) []byte {
 // del servidor: un servidor comprometido no puede sustituirla.
 func (a *Account) Verify(id, parent string, sealedManifest, sig []byte) error {
 	if !ed25519.Verify(a.SignPublic(), signed(id, parent, sealedManifest), sig) {
+		return ErrSignature
+	}
+	return nil
+}
+
+// VerifyDigest es Verify cuando del manifiesto solo se tiene su digest, que es
+// como llega la cadena. Falla igual que Verify si alguien tocó el id, el padre
+// o el contenido del eslabón.
+func (a *Account) VerifyDigest(id, parent, digest string, sig []byte) error {
+	if !ed25519.Verify(a.SignPublic(), signedDigest(id, parent, digest), sig) {
 		return ErrSignature
 	}
 	return nil

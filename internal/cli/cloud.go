@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -63,6 +64,8 @@ func dispatchCloud(args []string, stdout, stderr io.Writer) int {
 		return c.pull(args)
 	case "list", "ls":
 		return c.list(args)
+	case "verify":
+		return c.verify(args)
 	case "devices":
 		return c.devices(args)
 	case "revoke":
@@ -628,6 +631,60 @@ func (c cloudCmd) list(args []string) int {
 	}
 	_ = tw.Flush()
 	return 0
+}
+
+// verify comprueba la historia entera (spec §10.3.1). No basta con verificar
+// un snapshot al bajarlo, que es lo que ya hacía `pull`: una firma suelta dice
+// que ESE eslabón es auténtico, nunca que no falta el de al lado. Sale 1 si la
+// cadena tiene alguna falta, para que un cron se entere.
+func (c cloudCmd) verify(args []string) int {
+	a, ok := c.args(args, []string{"--json"}, nil, 0)
+	if !ok {
+		return 1
+	}
+	_, cl, err := client.Session(c.ctx, c.files)
+	if err != nil {
+		return c.fail(err)
+	}
+	acct, err := client.Account(c.files)
+	if err != nil {
+		return c.fail(err)
+	}
+	links, err := cl.Chain(c.ctx)
+	if err != nil {
+		return c.fail(err)
+	}
+	// Lo que esta máquina subió: sin ese dato, cortar la cadena por la cabeza
+	// no deja ningún padre roto que delate nada.
+	state, err := c.files.LoadState()
+	if err != nil {
+		return c.fail(err)
+	}
+	pushed := make([]string, 0, len(state.Pushed))
+	for _, cloudID := range state.Pushed {
+		pushed = append(pushed, cloudID)
+	}
+	sort.Strings(pushed)
+	rep := client.VerifyChain(acct, links, pushed)
+	if a.flags["--json"] {
+		if snapJSON(c.out, c.err, rep) != 0 {
+			return 1
+		}
+		if rep.OK() {
+			return 0
+		}
+		return 1
+	}
+	if rep.OK() {
+		fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.verify_ok", rep.Links))
+		return 0
+	}
+	fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.verify_bad", len(rep.Faults), rep.Links))
+	for _, f := range rep.Faults {
+		fmt.Fprintf(c.out, "  %s  %s\n", snapshot.Short(f.ID), i18n.T(c.lang, "cli.cloud.fault."+f.Code, snapshot.Short(f.Ref)))
+	}
+	fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.verify_hint"))
+	return 1
 }
 
 func (c cloudCmd) findDevice(cl *client.API, ref string) (api.Device, error) {

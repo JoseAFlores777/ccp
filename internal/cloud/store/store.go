@@ -65,6 +65,12 @@ type Snapshot struct {
 	Sig        []byte
 	Size       int64
 	Pinned     bool
+	// Digest es el sha256 hexadecimal del manifiesto, y solo sale: lo calcula
+	// el almacén sobre los bytes que escribe, porque con él se verifica la
+	// firma de la cadena y un digest que viniera de fuera comprobaría al
+	// manifiesto contra lo que dijera quien lo mandó. Vacío en Snapshot() y en
+	// los listados, que ya llevan el manifiesto o no lo necesitan.
+	Digest string
 }
 
 // Revision es una revisión deseada: el estado al que el portal pide que llegue
@@ -110,6 +116,12 @@ type Store interface {
 	// deviceID no está vacío.
 	Snapshots(ctx context.Context, userID, deviceID string, limit int) ([]Snapshot, error)
 	Snapshot(ctx context.Context, userID, id string) (Snapshot, error)
+	// Chain devuelve la historia entera del usuario, del más nuevo al más
+	// viejo y sin manifiestos: id, padre, fecha, digest y firma de cada
+	// eslabón. Es lo que el cliente necesita para verificar la cadena de un
+	// tirón; media cadena no verifica nada, así que el límite es un tope de
+	// seguridad (api.MaxChainLinks), no una paginación.
+	Chain(ctx context.Context, userID string, limit int) ([]Snapshot, error)
 	// PublishRevision guarda una revisión deseada como cabeza de la cadena de
 	// su dispositivo. r.Prev debe ser la cabeza actual ("" si no hay ninguna)
 	// o devuelve ErrConflict, igual que un id repetido; un dispositivo que no
