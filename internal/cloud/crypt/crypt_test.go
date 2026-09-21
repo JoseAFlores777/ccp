@@ -117,3 +117,45 @@ func TestVaultRoundTrip(t *testing.T) {
 		t.Fatal("aceptó una bóveda cuya clave pública no es la suya")
 	}
 }
+
+func TestRevisionSignatureAtaCadaCampo(t *testing.T) {
+	a, ak := acct(t)
+	same, _ := NewAccount(ak)
+	other, _ := acct(t)
+	p := RevisionParts{
+		ID:       "a1",
+		Prev:     "a0",
+		Device:   "11111111-1111-4111-8111-111111111111",
+		Snapshot: "s1",
+		Base:     "s0",
+		Body:     []byte(`{"cambios":1}`),
+	}
+	sig := a.SignRevision(p)
+	if err := same.VerifyRevision(p, sig); err != nil {
+		t.Fatalf("la misma cuenta debe verificar su propia revisión: %v", err)
+	}
+	if err := other.VerifyRevision(p, sig); !errors.Is(err, ErrSignature) {
+		t.Fatalf("otra cuenta no puede validar esta revisión: %v", err)
+	}
+	// Cada campo va dentro de la firma. El dispositivo es el que más importa:
+	// si no fuera firmado, el servidor podría servirle a una máquina la orden
+	// que el portal escribió para otra.
+	for name, tocado := range map[string]RevisionParts{
+		"id":   {ID: "otro", Prev: p.Prev, Device: p.Device, Snapshot: p.Snapshot, Base: p.Base, Body: p.Body},
+		"prev": {ID: p.ID, Prev: "otro", Device: p.Device, Snapshot: p.Snapshot, Base: p.Base, Body: p.Body},
+		"dispositivo": {ID: p.ID, Prev: p.Prev, Device: "22222222-2222-4222-8222-222222222222",
+			Snapshot: p.Snapshot, Base: p.Base, Body: p.Body},
+		"snapshot": {ID: p.ID, Prev: p.Prev, Device: p.Device, Snapshot: "otro", Base: p.Base, Body: p.Body},
+		"base":     {ID: p.ID, Prev: p.Prev, Device: p.Device, Snapshot: p.Snapshot, Base: "otro", Body: p.Body},
+		"cuerpo":   {ID: p.ID, Prev: p.Prev, Device: p.Device, Snapshot: p.Snapshot, Base: p.Base, Body: []byte(`{"cambios":2}`)},
+	} {
+		if err := a.VerifyRevision(tocado, sig); !errors.Is(err, ErrSignature) {
+			t.Fatalf("cambiar %s debe invalidar la firma: %v", name, err)
+		}
+	}
+	// Una revisión no puede pasar por un snapshot ni al revés: el prefijo de
+	// dominio los separa aunque los campos coincidan.
+	if err := a.Verify(p.ID, p.Prev, p.Body, sig); !errors.Is(err, ErrSignature) {
+		t.Fatal("la firma de una revisión no puede valer como la de un snapshot")
+	}
+}

@@ -79,6 +79,13 @@ func New(c Config) http.Handler {
 	mux.Handle("POST /v1/snapshots", s.authed(s.commitSnapshot, true))
 	mux.Handle("GET /v1/snapshots", s.authed(s.listSnapshots, true))
 	mux.Handle("GET /v1/snapshots/{id}", s.authed(s.getSnapshot, true))
+	// `pending` es literal y `{id}` comodín: el ServeMux de Go prefiere el
+	// patrón más específico, así que conviven sin orden que recordar.
+	mux.Handle("POST /v1/revisions", s.authed(s.publishRevision, true))
+	mux.Handle("GET /v1/revisions", s.authed(s.listRevisions, true))
+	mux.Handle("GET /v1/revisions/pending", s.authed(s.pendingRevision, true))
+	mux.Handle("GET /v1/revisions/{id}", s.authed(s.getRevision, true))
+	mux.Handle("POST /v1/revisions/{id}/state", s.authed(s.setRevisionState, true))
 	return s.logged(mux)
 }
 

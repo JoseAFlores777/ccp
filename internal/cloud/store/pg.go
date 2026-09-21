@@ -15,6 +15,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/JoseAFlores777/ccp/internal/cloud/api"
 )
 
 //go:embed migrations/*.sql
@@ -349,6 +351,153 @@ func (p *PG) Snapshot(ctx context.Context, userID, id string) (Snapshot, error) 
 		WHERE s.user_id = $1::uuid AND s.id = $2`, userID, id).
 		Scan(&s.ID, &s.Parent, &s.DeviceID, &s.DeviceName, &s.Created, &s.Size, &s.Pinned, &s.Manifest, &s.Sig)
 	return s, notFound(err)
+}
+
+const revCols = `r.id, r.prev, r.device_id::text, d.name, r.snapshot, r.base, r.created,
+	r.state, r.reason, r.updated, r.created_by::text`
+
+// scanRevision lee revCols (+ body y sig si se piden) en una Revision.
+func scanRevision(row pgx.Row, full bool) (Revision, error) {
+	var r Revision
+	dst := []any{&r.ID, &r.Prev, &r.DeviceID, &r.DeviceName, &r.Snapshot, &r.Base, &r.Created,
+		&r.State, &r.Reason, &r.Updated, &r.By}
+	if full {
+		dst = append(dst, &r.Body, &r.Sig)
+	}
+	return r, row.Scan(dst...)
+}
+
+// PublishRevision: ver el contrato en store.go. Todo en una transacción, que
+// es lo que hace que reemplazar la cabeza y colocar la nueva sean un solo
+// paso: entre los dos no existe un instante con dos pendientes ni con ninguna.
+func (p *PG) PublishRevision(ctx context.Context, userID string, r Revision) (Revision, error) {
+	if !IsUUID(userID) || !IsUUID(r.DeviceID) || !IsUUID(r.By) {
+		return Revision{}, ErrNotFound
+	}
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return Revision{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }() // no-op tras Commit
+
+	var devName string
+	err = tx.QueryRow(ctx, `SELECT name FROM devices WHERE user_id = $1::uuid AND id = $2::uuid`,
+		userID, r.DeviceID).Scan(&devName)
+	if err != nil {
+		return Revision{}, notFound(err)
+	}
+	// La cabeza es el eslabón que nadie encadena, no la fila más reciente: el
+	// `created` lo pone quien publica y una fecha atrasada dejaría la cadena
+	// rota para siempre (la siguiente revisión no encontraría de dónde
+	// colgar). No hay bifurcaciones que desempatar porque publicar exige que
+	// `prev` sea justo esta fila. El FOR UPDATE solo ordena a dos que lleguen
+	// a la vez; quien de verdad impide dos pendientes es el índice único.
+	var head string
+	err = tx.QueryRow(ctx, `SELECT r.id FROM revisions r
+		WHERE r.user_id = $1::uuid AND r.device_id = $2::uuid
+		  AND NOT EXISTS (SELECT 1 FROM revisions c
+			WHERE c.user_id = r.user_id AND c.device_id = r.device_id AND c.prev = r.id)
+		FOR UPDATE`, userID, r.DeviceID).Scan(&head)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return Revision{}, err
+	}
+	if head != r.Prev {
+		return Revision{}, ErrConflict
+	}
+	if head != "" {
+		if _, err := tx.Exec(ctx, `UPDATE revisions SET state = $3, reason = $4, updated = $5
+			WHERE user_id = $1::uuid AND id = $2 AND state = $6`,
+			userID, head, api.RevSuperseded, "reemplazada por "+r.ID, r.Created, api.RevPending); err != nil {
+			return Revision{}, err
+		}
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO revisions
+		(user_id, id, prev, device_id, snapshot, base, body, sig, created, state, reason, updated, created_by)
+		VALUES ($1::uuid, $2, $3, $4::uuid, $5, $6, $7, $8, $9, $10, '', $9, $11::uuid)`,
+		userID, r.ID, r.Prev, r.DeviceID, r.Snapshot, r.Base, r.Body, r.Sig, r.Created, api.RevPending, r.By)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return Revision{}, ErrConflict
+		}
+		return Revision{}, err
+	}
+	r.DeviceName, r.State, r.Reason, r.Updated = devName, api.RevPending, "", r.Created
+	return r, tx.Commit(ctx)
+}
+
+func (p *PG) PendingRevision(ctx context.Context, userID, deviceID string) (Revision, error) {
+	if !IsUUID(userID) || !IsUUID(deviceID) {
+		return Revision{}, ErrNotFound
+	}
+	r, err := scanRevision(p.pool.QueryRow(ctx, `SELECT `+revCols+`, r.body, r.sig FROM revisions r
+		JOIN devices d ON d.id = r.device_id
+		WHERE r.user_id = $1::uuid AND r.device_id = $2::uuid AND r.state = $3`,
+		userID, deviceID, api.RevPending), true)
+	return r, notFound(err)
+}
+
+func (p *PG) Revision(ctx context.Context, userID, id string) (Revision, error) {
+	if !IsUUID(userID) {
+		return Revision{}, ErrNotFound
+	}
+	r, err := scanRevision(p.pool.QueryRow(ctx, `SELECT `+revCols+`, r.body, r.sig FROM revisions r
+		JOIN devices d ON d.id = r.device_id
+		WHERE r.user_id = $1::uuid AND r.id = $2`, userID, id), true)
+	return r, notFound(err)
+}
+
+func (p *PG) Revisions(ctx context.Context, userID, deviceID string, limit int) ([]Revision, error) {
+	if !IsUUID(userID) {
+		return []Revision{}, nil
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := p.pool.Query(ctx, `SELECT `+revCols+` FROM revisions r
+		JOIN devices d ON d.id = r.device_id
+		WHERE r.user_id = $1::uuid AND ($2 = '' OR r.device_id::text = $2)
+		ORDER BY r.created DESC, r.id DESC LIMIT $3`, userID, deviceID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Revision{}
+	for rows.Next() {
+		r, err := scanRevision(rows, false)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// SetRevisionState acota por dispositivo en el propio UPDATE: comprobar antes
+// y escribir después dejaría hueco para que la revisión cambiara en medio.
+func (p *PG) SetRevisionState(ctx context.Context, userID, deviceID, id, state, reason string, at time.Time) (Revision, error) {
+	if !IsUUID(userID) || !IsUUID(deviceID) {
+		return Revision{}, ErrNotFound
+	}
+	tag, err := p.pool.Exec(ctx, `UPDATE revisions SET state = $4, reason = $5, updated = $6
+		WHERE user_id = $1::uuid AND id = $2 AND device_id = $3::uuid AND state = $7`,
+		userID, id, deviceID, state, reason, at, api.RevPending)
+	if err != nil {
+		return Revision{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		// Distinguir «no es tuya» de «ya no estaba pendiente» es lo que deja
+		// al cliente saber si reintentar o callarse.
+		r, err := p.Revision(ctx, userID, id)
+		if err != nil {
+			return Revision{}, err
+		}
+		if r.DeviceID != deviceID {
+			return Revision{}, ErrNotFound
+		}
+		return Revision{}, ErrConflict
+	}
+	return p.Revision(ctx, userID, id)
 }
 
 // Audit solo inserta. user_id y device_id admiten NULL a propósito: hay cosas

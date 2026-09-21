@@ -9,6 +9,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/JoseAFlores777/ccp/internal/cloud/api"
 )
 
 // Mem es un Store en memoria: los tests del servidor y del cliente corren sin
@@ -21,6 +23,8 @@ type Mem struct {
 	blobs   map[string]map[string]int64  // usuario -> blob -> tamaño
 	snaps   map[string]map[string]Snapshot
 	refs    map[string]map[string][]string // usuario -> snapshot -> blobs
+	revs    map[string]map[string]Revision // usuario -> id de revisión
+	heads   map[string]map[string]string   // usuario -> dispositivo -> cabeza de su cadena
 	audit   []string
 }
 
@@ -29,6 +33,7 @@ func NewMem() *Mem {
 	return &Mem{
 		users: map[string]User{}, vaults: map[string]Vault{}, devices: map[string]map[string]Device{},
 		blobs: map[string]map[string]int64{}, snaps: map[string]map[string]Snapshot{}, refs: map[string]map[string][]string{},
+		revs: map[string]map[string]Revision{}, heads: map[string]map[string]string{},
 	}
 }
 
@@ -212,6 +217,103 @@ func (m *Mem) Snapshot(_ context.Context, userID, id string) (Snapshot, error) {
 	// guardado, que en Postgres sería una fila.
 	s.Manifest, s.Sig = bytes.Clone(s.Manifest), bytes.Clone(s.Sig)
 	return s, nil
+}
+
+// PublishRevision: ver el contrato en store.go.
+func (m *Mem) PublishRevision(_ context.Context, userID string, r Revision) (Revision, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	d, ok := m.devices[userID][r.DeviceID]
+	if !ok {
+		return Revision{}, ErrNotFound
+	}
+	if _, dup := m.revs[userID][r.ID]; dup {
+		return Revision{}, ErrConflict
+	}
+	if m.heads[userID][r.DeviceID] != r.Prev {
+		return Revision{}, ErrConflict
+	}
+	if m.revs[userID] == nil {
+		m.revs[userID] = map[string]Revision{}
+	}
+	if m.heads[userID] == nil {
+		m.heads[userID] = map[string]string{}
+	}
+	if head, ok := m.revs[userID][r.Prev]; ok && head.State == api.RevPending {
+		head.State, head.Reason, head.Updated = api.RevSuperseded, "reemplazada por "+r.ID, r.Created
+		m.revs[userID][head.ID] = head
+	}
+	r.DeviceName = d.Name
+	r.State, r.Reason, r.Updated = api.RevPending, "", r.Created
+	r.Body, r.Sig = bytes.Clone(r.Body), bytes.Clone(r.Sig)
+	m.revs[userID][r.ID] = r
+	m.heads[userID][r.DeviceID] = r.ID
+	return r, nil
+}
+
+func (m *Mem) PendingRevision(_ context.Context, userID, deviceID string) (Revision, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	r, ok := m.revs[userID][m.heads[userID][deviceID]]
+	if !ok || r.State != api.RevPending {
+		return Revision{}, ErrNotFound
+	}
+	return cloneRevision(r), nil
+}
+
+func (m *Mem) Revision(_ context.Context, userID, id string) (Revision, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	r, ok := m.revs[userID][id]
+	if !ok {
+		return Revision{}, ErrNotFound
+	}
+	return cloneRevision(r), nil
+}
+
+// cloneRevision copia lo mutable: quien llama no debe poder reescribir lo
+// guardado, que en Postgres sería una fila.
+func cloneRevision(r Revision) Revision {
+	r.Body, r.Sig = bytes.Clone(r.Body), bytes.Clone(r.Sig)
+	return r
+}
+
+func (m *Mem) Revisions(_ context.Context, userID, deviceID string, limit int) ([]Revision, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := []Revision{}
+	for _, r := range m.revs[userID] {
+		if deviceID != "" && r.DeviceID != deviceID {
+			continue
+		}
+		r.Body, r.Sig = nil, nil
+		out = append(out, r)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].Created.Equal(out[j].Created) {
+			return out[i].Created.After(out[j].Created)
+		}
+		return out[i].ID > out[j].ID
+	})
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func (m *Mem) SetRevisionState(_ context.Context, userID, deviceID, id, state, reason string, at time.Time) (Revision, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	r, ok := m.revs[userID][id]
+	if !ok || r.DeviceID != deviceID {
+		return Revision{}, ErrNotFound
+	}
+	if r.State != api.RevPending {
+		return Revision{}, ErrConflict
+	}
+	r.State, r.Reason, r.Updated = state, reason, at
+	m.revs[userID][id] = r
+	return cloneRevision(r), nil
 }
 
 func (m *Mem) Audit(_ context.Context, userID, deviceID, action string, _ map[string]any) error {

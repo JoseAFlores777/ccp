@@ -150,3 +150,101 @@ const (
 	CodeRateLimited  = "rate_limited"
 	CodeInternal     = "internal"
 )
+
+// Estados de una revisión deseada. Son parte del protocolo: el portal los
+// pinta y el almacén guarda exactamente estas cadenas.
+//
+// `superseded` no estaba en el plan (§10.3 nombra cinco) y hizo falta el
+// sexto: publicar una orden nueva sobre otra que la máquina aún no había
+// recogido tenía que cerrar la vieja, y llamar «fallida» a una orden que nunca
+// llegó a ejecutarse es mentir justo donde el usuario busca el motivo.
+const (
+	// RevPending: publicada, la máquina aún no ha informado. Solo la cabeza de
+	// la cadena de un dispositivo puede estar así.
+	RevPending = "pending"
+	// RevApplied: aplicada entera.
+	RevApplied = "applied"
+	// RevPartial: aplicado lo que no hacía falta confirmar; lo ejecutable
+	// (hooks, `command` de MCP, `statusLine`, permisos que amplían) espera.
+	RevPartial = "partial"
+	// RevConflict: el merge a tres bandas chocó y hay que resolverlo a mano.
+	RevConflict = "conflict"
+	// RevFailed: no se pudo aplicar.
+	RevFailed = "failed"
+	// RevSuperseded: la reemplazó otra revisión antes de que la máquina
+	// informara. No es un fallo de la máquina.
+	RevSuperseded = "superseded"
+)
+
+// RevStateReported dice si state es un resultado que puede informar la máquina
+// destinataria. `pending` y `superseded` los pone el servidor, no el cliente.
+func RevStateReported(state string) bool {
+	switch state {
+	case RevApplied, RevPartial, RevConflict, RevFailed:
+		return true
+	}
+	return false
+}
+
+// MaxRevisionBytes es el tope del cuerpo de una revisión (el conjunto de
+// cambios, sellado). Una configuración entera viaja como snapshot y aquí solo
+// va su id; lo que llega por este campo es un delta, y 256 KiB ya es enorme
+// para uno.
+const MaxRevisionBytes = 256 << 10
+
+// RevisionIn publica una revisión deseada (POST /v1/revisions): el estado al
+// que se pide que llegue un dispositivo. Va firmada con la clave de cuenta,
+// que el servidor no tiene: puede negarse a servirla, pero no fabricarla ni
+// cambiarle el destinatario sin que la máquina lo note al verificar.
+type RevisionIn struct {
+	ID string `json:"id"`
+	// Prev es la revisión anterior de ESE dispositivo ("" la primera). Debe
+	// ser la cabeza actual: encadenar es lo que impide que el servidor quite
+	// un eslabón o reordene sin que se vea.
+	Prev     string `json:"prev"`
+	DeviceID string `json:"device_id"`
+	// Snapshot es el snapshot deseado ("" si la revisión solo trae cambios).
+	Snapshot string `json:"snapshot"`
+	// Base es el último aplicado sobre el que van esos cambios.
+	Base string `json:"base"`
+	// Body es el conjunto de cambios, sellado. Opaco para el servidor.
+	Body    []byte    `json:"body"`
+	Sig     []byte    `json:"sig"`
+	Created time.Time `json:"created"`
+}
+
+// RevisionMeta son los metadatos visibles de una revisión deseada.
+type RevisionMeta struct {
+	ID         string    `json:"id"`
+	Prev       string    `json:"prev"`
+	DeviceID   string    `json:"device_id"`
+	DeviceName string    `json:"device_name"`
+	Snapshot   string    `json:"snapshot"`
+	Base       string    `json:"base"`
+	Created    time.Time `json:"created"`
+	State      string    `json:"state"`
+	Reason     string    `json:"reason"`
+	Updated    time.Time `json:"updated"`
+	// By es el dispositivo que la publicó (el portal también es uno).
+	By string `json:"by"`
+}
+
+// Revision es una revisión deseada completa (GET /v1/revisions/{id} y
+// /v1/revisions/pending). Los listados no traen Body ni Sig: para verificar
+// una firma hay que pedir la revisión entera.
+type Revision struct {
+	RevisionMeta
+	Body []byte `json:"body"`
+	Sig  []byte `json:"sig"`
+}
+
+// RevisionStateIn informa del resultado de aplicar una revisión
+// (POST /v1/revisions/{id}/state). Solo la manda el dispositivo destinatario.
+type RevisionStateIn struct {
+	State  string `json:"state"`
+	Reason string `json:"reason"`
+}
+
+// MaxReasonLen es el tope del motivo de un estado. Es un mensaje para una
+// persona, no un volcado de log.
+const MaxReasonLen = 2000
