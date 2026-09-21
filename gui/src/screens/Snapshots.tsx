@@ -378,7 +378,11 @@ export function Snapshots() {
   const { info, mutate, notify, openModal } = useApp();
   const list = useCall(() => api.snapshots(), []);
   const [pick, setPick] = useState('');
-  const [plan, setPlan] = useState<{ id: string; plan: SnapPlan } | null>(null);
+  // `seq` sube con cada plan calculado. Sin él, volver a pulsar «Preparar
+  // restauración» sobre la MISMA fila reutilizaba el panel (misma `key`), y su
+  // selección por defecto seguía siendo la del plan viejo: un plan nuevo con
+  // pasos por escribir salía con todo desmarcado y el botón deshabilitado.
+  const [plan, setPlan] = useState<{ id: string; plan: SnapPlan; seq: number } | null>(null);
   const [done, setDone] = useState<SnapPlan | null>(null);
   const store = info?.home ? `${info.home}/snapshots` : '';
 
@@ -488,11 +492,11 @@ export function Snapshots() {
         <CliBar cmd="ccp snapshot list" />
       </Card>
 
-      {sel && <Detalle s={sel} onPlan={(p) => { setPick(sel.id); setPlan({ id: sel.id, plan: p }); setDone(null); }} />}
+      {sel && <Detalle s={sel} onPlan={(p) => { setPick(sel.id); setPlan((prev) => ({ id: sel.id, plan: p, seq: (prev?.seq ?? 0) + 1 })); setDone(null); }} />}
       {/* `key` obliga a remontar al cambiar de fila: si no, el `to` elegido
           sobrevive y se acaba comparando el snapshot contra sí mismo. */}
       {sel && <Cambios key={sel.id} from={sel.id} list={snaps} />}
-      {plan && !done && <PlanRestauracion key={plan.id} id={plan.id} plan={plan.plan} onDone={(r) => { setDone(r); setPlan(null); }} />}
+      {plan && !done && <PlanRestauracion key={`${plan.id}:${plan.seq}`} id={plan.id} plan={plan.plan} onDone={(r) => { setDone(r); setPlan(null); }} />}
 
       {done && (
         <Card>
