@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -27,6 +28,13 @@ type ConfigValue struct {
 	Text   string `json:"text,omitempty"`
 	JSON   any    `json:"json,omitempty"`
 	Exists bool   `json:"exists"`
+	// Extras son los archivos anexos de una skill (rutas relativas a su
+	// carpeta, sin el SKILL.md). Una skill es una carpeta y este valor solo
+	// lleva un archivo, así que quien la copie a otra capa tiene que saber
+	// qué NO viaja: sin este dato «llevar a…» dejaba una skill rota en el
+	// destino y los anexos huérfanos —e invisibles, porque el inventario
+	// exige SKILL.md— en el origen. Nunca se rellena para otros tipos.
+	Extras []string `json:"extras,omitempty"`
 }
 
 // ConfigWrite cuenta qué se tocó. Regenerated nunca es nil.
@@ -272,6 +280,7 @@ func ConfigItemGet(r InventoryRoots, ref ConfigRef) (ConfigValue, error) {
 	}
 	if t.Format == CfgFormatText {
 		v.Text, v.Exists = string(b), true
+		v.Extras = cfgSkillExtras(t.File)
 		return v, nil
 	}
 	doc, err := decodeOverlayObject(b)
@@ -733,4 +742,27 @@ func cfgRefuseProjectSecret(t cfgTarget, v ConfigValue) error {
 	return fmt.Errorf("%s: %s van en claro y el settings.json del repo viaja en el commit; "+
 		"escribe ${VARIABLE} y deja el valor en tu entorno, o declara esto en un perfil",
 		cfgLayerWord(t.Layer), strings.Join(bad, ", "))
+}
+
+// cfgSkillExtras lista lo que hay en la carpeta de una skill además de su
+// SKILL.md, en rutas relativas a la carpeta y ordenadas. Un error al mirar se
+// traga a propósito: esto informa, y un Get que fallara por no poder listar un
+// directorio dejaría el editor sin abrir por algo accesorio.
+func cfgSkillExtras(file string) []string {
+	if filepath.Base(file) != "SKILL.md" {
+		return nil
+	}
+	dir := filepath.Dir(file)
+	var out []string
+	_ = filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || p == file {
+			return nil //nolint:nilerr // un anexo que no se puede mirar no es un fallo del Get
+		}
+		if rel, err := filepath.Rel(dir, p); err == nil {
+			out = append(out, filepath.ToSlash(rel))
+		}
+		return nil
+	})
+	sort.Strings(out)
+	return out
 }

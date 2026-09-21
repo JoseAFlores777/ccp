@@ -426,6 +426,10 @@ export interface ConfigValue {
   text?: string;
   json?: unknown;
   exists: boolean;
+  /** Los anexos de una skill (rutas relativas a su carpeta, sin el SKILL.md).
+   *  Una skill es una carpeta y este valor solo lleva un archivo: copiarla a
+   *  otra capa sin ellos deja una skill rota. Solo viene en skills. */
+  extras?: string[];
 }
 
 /** Lo que devuelve una escritura del editor. `restart_pending` son los perfiles
