@@ -27,7 +27,10 @@ const api = {
   // portal no puede dar por perdido.
   presign: async (_op, ids) => ids.map((id) => ({ id, exists: v.known.includes(id) })),
   commitSnapshot: async (in_) => { commit = in_; return { id: in_.id }; },
-  revisions: async (dev) => (v.heads[dev] ? [{ id: v.heads[dev] }] : []),
+  // El servidor ordena por `created DESC`, y `created` lo pone quien publica:
+  // con un reloj desajustado la primera fila puede ser un eslabón ya superado.
+  // Por eso el vector las sirve en ese orden torcido a propósito.
+  revisions: async (dev) => (v.chains[dev] || []).map((r) => ({ id: r.id, prev: r.prev || '' })),
   publishRevision: async (r) => { revisiones.push(r); return r; },
 };
 let commit = null;

@@ -40,6 +40,8 @@ func TestLoQuePublicaElPortalLoPuedeGuardarUnaMaquina(t *testing.T) {
 		known = append(known, acct.BlobID(it.(map[string]any)["hash"].(string)))
 	}
 	const devA, devB = "5f1c0e2a-0000-4000-8000-00000000aaaa", "5f1c0e2a-0000-4000-8000-00000000bbbb"
+	const revA1 = "cc" + "00000000000000000000000000000000000000000000000000000000000000"
+	const revA2 = "dd" + "00000000000000000000000000000000000000000000000000000000000000"
 	entrada := map[string]any{
 		"ak": v.AK, "manifest": base, "cloud_id": v.CloudID, "known": known,
 		"now":   time.Date(2026, 9, 22, 8, 0, 0, 0, time.UTC).Format(time.RFC3339),
@@ -48,8 +50,16 @@ func TestLoQuePublicaElPortalLoPuedeGuardarUnaMaquina(t *testing.T) {
 			{"id": devA, "name": "mac-a"},
 			{"id": devB, "name": "mac-b"},
 		},
-		// mac-a ya tiene una orden anterior; mac-b no. Cada cadena es suya.
-		"heads": map[string]string{devA: "cc" + "00000000000000000000000000000000000000000000000000000000000000"},
+		// mac-a ya tiene dos órdenes encadenadas; mac-b ninguna. Cada cadena es
+		// suya. El listado del servidor sale por `created DESC`, y `created` lo
+		// pone quien publica: con un reloj desajustado la más «reciente» por
+		// fecha (r1) es un eslabón ya superado. La cabeza es r2, la que nadie
+		// encadena, y publicar sobre r1 sería un 409 del que no se sale.
+		"chains": map[string][]map[string]string{devA: {
+			{"id": revA1, "prev": ""},
+			{"id": revA2, "prev": revA1},
+		}},
+		"heads": map[string]string{devA: revA2},
 	}
 	dir := t.TempDir()
 	in, out := filepath.Join(dir, "in.json"), filepath.Join(dir, "out.json")
