@@ -81,3 +81,61 @@ func TestSyncProyectaLosArtefactosDelPerfil(t *testing.T) {
 		t.Errorf("la skill del perfil no llegó al cc-home: %v", err)
 	}
 }
+
+// Declarar un artefacto DESPUÉS de que el global ya se espejara tiene que
+// aplicarse igual: «si chocan, gana el perfil» no depende de quién llegó antes.
+// mirrorTree salta toda entrada que ya existe por nombre, así que sin retirar
+// primero el enlace al global la hoja del perfil no se proyectaba nunca, y
+// `profile sync --check` decía «todo al día» sobre ese estado.
+func TestProjectProfileArtifactsElOverlayTardioGanaAlGlobal(t *testing.T) {
+	home, src := mcpFixture(t)
+	mustWrite(t, filepath.Join(src, "commands", "b.md"), "global b\n")
+	ov := cfgOverlayDir(home, "work")
+	mustWrite(t, filepath.Join(ov, "commands", "a.md"), "overlay a\n")
+	if _, err := ProjectProfileArtifacts(home, "work", src); err != nil {
+		t.Fatal(err)
+	}
+
+	// Ahora el usuario declara su propia versión de b.md.
+	mustWrite(t, filepath.Join(ov, "commands", "b.md"), "overlay b\n")
+	chk, err := ProfileProjectionCheck(home, "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !chk.Stale() || len(chk.Artifacts) == 0 {
+		t.Fatalf("el check tiene que ver el artefacto pendiente: %+v", chk)
+	}
+	if _, err := ProjectProfileArtifacts(home, "work", src); err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(ccHomePath(home, "work"), "commands", "b.md")
+	if b, err := os.ReadFile(dst); err != nil || string(b) != "overlay b\n" {
+		t.Fatalf("b.md = %q %v, quiero la versión del perfil", b, err)
+	}
+	if chk, err := ProfileProjectionCheck(home, "work"); err != nil || len(chk.Artifacts) != 0 {
+		t.Fatalf("tras proyectar no queda artefacto pendiente: %+v %v", chk, err)
+	}
+}
+
+// Lo que el usuario puso a mano en el cc-home (un archivo real, o un enlace a
+// otro sitio) sigue sin tocarse: solo se retira el enlace al global que el
+// overlay sombrea.
+func TestProjectProfileArtifactsRespetaLoPuestoAMano(t *testing.T) {
+	home, src := mcpFixture(t)
+	ov := cfgOverlayDir(home, "work")
+	mustWrite(t, filepath.Join(ov, "commands", "a.md"), "overlay a\n")
+	if _, err := ProjectProfileArtifacts(home, "work", src); err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(ccHomePath(home, "work"), "commands", "a.md")
+	if err := os.Remove(dst); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, dst, "a mano\n")
+	if _, err := ProjectProfileArtifacts(home, "work", src); err != nil {
+		t.Fatal(err)
+	}
+	if b, err := os.ReadFile(dst); err != nil || string(b) != "a mano\n" {
+		t.Fatalf("a.md = %q %v, quiero lo puesto a mano", b, err)
+	}
+}

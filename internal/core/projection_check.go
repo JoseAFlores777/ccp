@@ -93,11 +93,13 @@ func ProfileProjectionCheck(home, name string) (ProjectionCheck, error) {
 // artifactsPending son los directorios que ProjectProfileArtifacts cambiaría:
 // los que el perfil declara y cuyo destino sigue siendo el symlink de la siembra,
 // al que le falta alguna hoja, o al que le SOBRA un enlace colgado nuestro.
-// mirrorTree no pisa lo que ya existe, pero empieza por pruneDangling, así que
-// tiene una escritura que no es «crear lo que falta»: borrar un artefacto del
-// overlay (lo que hace `ccp instruct rm profile`) deja un enlace colgado en el
-// cc-home que el sync poda. Sin mirarlo, el check juraba limpio un destino que
-// el siguiente sync sí cambia.
+// mirrorTree no pisa lo que ya existe, pero la proyección tiene dos escrituras
+// más que no son «crear lo que falta»: podar un enlace colgado (borrar un
+// artefacto del overlay, lo que hace `ccp instruct rm profile`, deja uno en el
+// cc-home) y retirar el enlace al global que una hoja del overlay sombrea
+// (overlayShadowedLeaves). Sin mirarlas, el check juraba limpio un destino que
+// el siguiente sync sí cambia —y en el segundo caso, un override del perfil que
+// nunca se había aplicado.
 func artifactsPending(home, name, src string) []string {
 	cch := ccHomePath(home, name)
 	if _, err := os.Stat(cch); err != nil {
@@ -117,6 +119,7 @@ func artifactsPending(home, name, src string) []string {
 		}
 		g := filepath.Join(src, d)
 		if leavesMissing(ov, dst) || leavesMissing(g, dst) ||
+			len(overlayShadowedLeaves(ov, dst, g)) > 0 ||
 			danglingPrunable(ov, dst) || danglingPrunable(g, dst) {
 			out = append(out, d)
 		}
