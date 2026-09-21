@@ -80,6 +80,15 @@ func InstructAdd(ctx InstructCtx, scope, typ, text string) (*AddResult, error) {
 		}); err != nil {
 			return nil, err
 		}
+		// Un MCP de perfil vive en overlay/mcp.json, que es una capa DECLARADA:
+		// hay que regenerar para que llegue a lo que leen la CLI y la ventana
+		// (spec §6.1). El global no: su archivo ya es el destino de `default`.
+		if scope == "profile" {
+			if err := CfgRegenerate(ctx.Home, ctx.ActiveProfile, ctx.Src); err != nil {
+				return nil, err
+			}
+			res.RegenProfil = true
+		}
 		res.Name = name
 		return res, nil
 

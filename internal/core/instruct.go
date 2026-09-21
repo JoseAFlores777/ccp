@@ -88,22 +88,18 @@ func InstructDest(scope, typ, home, activeProfile, src, repoRoot string) (string
 			return filepath.Join(ov, "CLAUDE.md"), nil
 		case "hook":
 			return filepath.Join(ov, "settings.overlay.json"), nil
+		// Desde la Fase B el perfil tiene sus propias capas (spec §6.1 y §6.2):
+		// overlay/mcp.json con la forma de .mcp.json, y overlay/{agents,commands,
+		// skills} que la regeneración proyecta al cc-home. Los códigos 3 y 5, que
+		// decían «esto no existe a nivel de perfil», desaparecen con ellas.
 		case "mcp":
-			return "", &DestError{
-				Code: 5,
-				Msg:  "scope 'profile': MCP por-perfil no está soportado todavía.",
-				// «global» va a ~/.claude.json, que solo lee el perfil default: cada
-				// perfil official lee su propio cc-home/.claude.json. Hasta que llegue
-				// el MCP por perfil (spec 2026-09-18 §6.1), lo único que alcanza a
-				// todos es el scope project.
-				Hint: "Usa 'project' (el .mcp.json de este repo; lo ven todos los perfiles). 'global' solo llega a default.",
-			}
-		case "agent", "command", "skill":
-			return "", &DestError{
-				Code: 3,
-				Msg:  fmt.Sprintf("tipo '%s' no existe a nivel de perfil (se comparten desde global).", typ),
-				Hint: "Usa scope 'global' (aplica a todos los perfiles) o 'project' (acota al repo).",
-			}
+			return filepath.Join(ov, "mcp.json"), nil
+		case "agent":
+			return filepath.Join(ov, "agents"), nil
+		case "command":
+			return filepath.Join(ov, "commands"), nil
+		case "skill":
+			return filepath.Join(ov, "skills"), nil
 		default:
 			return "", &DestError{Code: 1, Msg: fmt.Sprintf("scope/tipo inválido: %q/%q", scope, typ)}
 		}
