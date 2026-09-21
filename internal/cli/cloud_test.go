@@ -65,6 +65,29 @@ func TestCloudEndToEnd(t *testing.T) {
 		t.Fatalf("push: %d %q %q", code, out, errs)
 	}
 
+	// El --json de push habla como el resto del CLI: claves snake_case y
+	// listas que siempre son arrays (un consumidor hace `.missing | length`).
+	code, out, errs = snapRun(t, "cloud", "push", "--json")
+	if code != 0 {
+		t.Fatalf("push --json: %d %q %q", code, out, errs)
+	}
+	var pr struct {
+		Snapshots *int      `json:"snapshots"`
+		Uploaded  *int      `json:"uploaded"`
+		Bytes     *int64    `json:"bytes"`
+		Missing   *[]string `json:"missing"`
+		TooLarge  *[]string `json:"too_large"`
+	}
+	if err := json.Unmarshal([]byte(out), &pr); err != nil {
+		t.Fatalf("push --json ilegible: %v (%q)", err, out)
+	}
+	if pr.Snapshots == nil || pr.Uploaded == nil || pr.Bytes == nil {
+		t.Fatalf("push --json sin claves snake_case: %q", out)
+	}
+	if pr.Missing == nil || *pr.Missing == nil || pr.TooLarge == nil || *pr.TooLarge == nil {
+		t.Fatalf("push --json con listas null: %q", out)
+	}
+
 	// Máquina B: otro CCP_HOME, la misma cuenta.
 	snapEnv(t)
 	if code, out, errs = snapRun(t, "cloud", "login", url, "--name", "mac-b"); code != 0 || !strings.Contains(out, "ccp cloud unlock") {
