@@ -244,6 +244,12 @@ func (c cloudCmd) login(args []string) int {
 	// que `push` sellara y firmara con ella contra la cuenta nueva.
 	switched := false
 	if prev, err := c.files.LoadConfig(); err == nil {
+		// La política es de la MÁQUINA, no de la cuenta: sobrevive tanto a
+		// una re-autenticación (refresh token caducado) como a un cambio de
+		// cuenta. Sin esto, `SaveConfig` —que reescribe config.json entero—
+		// devolvería a `auto` un equipo puesto en `manual`, y el agente
+		// volvería a aplicar solo sin que nadie se entere.
+		cfg.Policy = prev.Policy
 		if prev.Server == server && prev.UserID == me.UserID {
 			if prev.DeviceID != "" {
 				cfg.DeviceID, cfg.DeviceName = prev.DeviceID, prev.DeviceName
