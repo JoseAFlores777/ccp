@@ -6012,7 +6012,7 @@ ejecuta con `-p 1`, porque el test de la persistencia borra tablas.
 - Modify: `internal/cloud/client/client_test.go` (`newRig` pasa a llamar a `newRigWith`)
 - Modify: `.github/workflows/ci.yml` (job `cloud-integration`)
 
-- [ ] **Step 1: La pila — `deploy/ccp-cloud/test-stack.yml`**
+- [x] **Step 1: La pila — `deploy/ccp-cloud/test-stack.yml`**
 
 ```yaml
 # Pila local para los tests de integración de la nube (go test -tags integration).
@@ -6047,7 +6047,7 @@ services:
       - "127.0.0.1:58080:8080"
 ```
 
-- [ ] **Step 2: El script — `deploy/ccp-cloud/integration.sh`**
+- [x] **Step 2: El script — `deploy/ccp-cloud/integration.sh`**
 
 ```bash
 #!/usr/bin/env bash
@@ -6079,7 +6079,7 @@ cd "${root}"
 go test -tags integration -p 1 -count=1 ./internal/cloud/...
 ```
 
-- [ ] **Step 3: Push/pull sobre la pila real — `internal/cloud/client/integration_test.go`**
+- [x] **Step 3: Push/pull sobre la pila real — `internal/cloud/client/integration_test.go`**
 
 Primero refactoriza `newRig` en `client_test.go` para que acepte la persistencia
 y el almacenamiento:
@@ -6173,7 +6173,7 @@ Nota: `TestPGContract` (Task 7) borra las tablas al empezar. Con `-p 1`, los
 paquetes corren de uno en uno y el orden no importa: cada test migra lo que
 necesita.
 
-- [ ] **Step 4: Ejecutarlo**
+- [~] **Step 4: Ejecutarlo**
 
 Run: `bash deploy/ccp-cloud/integration.sh`
 Expected: PASS en `internal/cloud/store` (`TestPGContract`), `internal/cloud/blobs`
@@ -6185,7 +6185,12 @@ Si es un problema de sumas de comprobación, confirma que `NewS3` fija
 `RequestChecksumCalculation: WhenRequired`. Es el hallazgo que esta prueba
 existe para encontrar **antes** de desplegar.
 
-- [ ] **Step 5: El job de CI — `.github/workflows/cloud-integration` en `ci.yml`**
+Pendiente: en la máquina donde se escribió esto el demonio de Docker no
+estaba levantado (`docker info` no conecta), así que la pila no se llegó a
+ejecutar. Los tests quedan escritos y saltan solos sin ella; el job de CI la
+levanta en cada push.
+
+- [x] **Step 5: El job de CI — `.github/workflows/cloud-integration` en `ci.yml`**
 
 Añade un job que corra en `ubuntu-latest` con `actions/setup-go` (misma
 `GO_VERSION`) y ejecute `bash deploy/ccp-cloud/integration.sh`. Los runners de
@@ -6193,7 +6198,7 @@ GitHub ya traen Docker y `docker compose`. **Que no bloquee** los demás jobs
 (sin `needs:` hacia ellos): si Alarik (beta) tiene un mal día, el resto del CI
 sigue dando señal.
 
-- [ ] **Step 6: Gates y commit**
+- [x] **Step 6: Gates y commit**
 
 Mensaje propuesto: `test(cloud): integración contra Postgres y Alarik reales`
 
