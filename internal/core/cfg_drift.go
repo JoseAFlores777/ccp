@@ -216,6 +216,9 @@ type SettingsDrift struct {
 	// una proyección rota no impide regenerar, pero tiene que decirse.
 	MCP    []MCPProjection `json:"mcp,omitempty"`
 	MCPErr string          `json:"mcp_error,omitempty"`
+	// Artifacts son los directorios del perfil (agents, commands, skills,
+	// output-styles) que esta regeneración espejó al cc-home (spec §6.2).
+	Artifacts []string `json:"artifacts,omitempty"`
 	// NotRegenerated: la regeneración falló después de mirar la deriva, así que
 	// cc-home/settings.json sigue como estaba. No cuenta para Empty: el error ya
 	// lo dice; solo cambia cómo se enseña lo demás.
@@ -226,7 +229,7 @@ type SettingsDrift struct {
 func (d SettingsDrift) Empty() bool {
 	return len(d.Adopted) == 0 && len(d.Removed) == 0 && len(d.Conflicts) == 0 &&
 		len(d.Skipped) == 0 && len(d.Unsaved) == 0 && d.Invalid == "" && d.Rescued == "" &&
-		len(d.MCP) == 0 && d.MCPErr == ""
+		len(d.MCP) == 0 && d.MCPErr == "" && len(d.Artifacts) == 0
 }
 
 // adoptSettingsDrift compara el cc-home/settings.json de ahora con la línea base
