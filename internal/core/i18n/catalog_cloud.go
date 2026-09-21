@@ -23,6 +23,8 @@ var catalogCloud = map[string]map[Lang]string{
   verify [--json]                     check the whole signed history for tampering
   devices [--json]                    machines of the account
   revoke <device>                     revoke another machine
+  audit [--device <n>] [--json]       who did what and when (never what the config said)
+       [--action <a>] [--since <d>]
   groups [--json]                     device groups («all my Macs»)
   groups add <name> <machine>…        create one; set/rm change or delete it
   groups status <group> [--json]      how the last revision went on each machine
@@ -48,6 +50,8 @@ CCP_CLOUD_PASSPHRASE and CCP_CLOUD_RECOVERY give the secrets without asking.`,
   verify [--json]                     comprueba que nadie ha tocado la historia firmada
   devices [--json]                    equipos de la cuenta
   revoke <dispositivo>                revoca otro equipo
+  audit [--device <n>] [--json]       quién hizo qué y cuándo (nunca qué decía la configuración)
+       [--action <a>] [--since <f>]
   groups [--json]                     grupos de dispositivos («todas mis Macs»)
   groups add <nombre> <equipo>…       crea uno; set/rm lo cambian o lo borran
   groups status <grupo> [--json]      cómo le fue a cada equipo la última revisión
@@ -282,4 +286,23 @@ var catalogCloudGroups = map[string]map[Lang]string{
 	},
 	"cli.cloud.group_state_none": {En: "no orders", Es: "sin órdenes"},
 	"cli.cloud.group_state_ex":   {En: "(no longer in the group)", Es: "(ya no está en el grupo)"},
+}
+
+// F4-2: el registro de auditoría (spec §10.5). Lo único que el servidor puede
+// contar de una configuración que no puede leer: quién la tocó y cuándo.
+func init() { register(catalogCloudAudit) }
+
+var catalogCloudAudit = map[string]map[Lang]string{
+	"cli.cloud.audit_header": {En: "WHEN\tMACHINE\tACTION\tDETAIL", Es: "CUÁNDO\tEQUIPO\tACCIÓN\tDETALLE"},
+	"cli.cloud.audit_none":   {En: "Nothing recorded yet.", Es: "Todavía no hay nada apuntado."},
+	// Un equipo que ya no está deja su línea: lo apuntado es el id.
+	"cli.cloud.audit_gone": {En: "(gone) %s", Es: "(ya no está) %s"},
+	"cli.cloud.audit_bad_since": {
+		En: "--since needs a date like 2026-09-18 or 2026-09-18T14:00:00Z.",
+		Es: "--since necesita una fecha como 2026-09-18 o 2026-09-18T14:00:00Z.",
+	},
+	"cli.cloud.audit_bad_limit": {
+		En: "--limit must be between 1 and %d.",
+		Es: "--limit tiene que estar entre 1 y %d.",
+	},
 }
