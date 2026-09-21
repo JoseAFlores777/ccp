@@ -22,6 +22,11 @@ const (
 	MaxManifestBytes = 16 << 20
 	// MaxPresignIDs: ids por petición de prefirmado.
 	MaxPresignIDs = 500
+	// MaxCommitIDs: blobs por snapshot al publicarlo. El servidor comprueba
+	// uno a uno en el almacenamiento los que no conoce, así que el tope es lo
+	// que cabe comprobar dentro del timeout de escritura; 20 000 está muy por
+	// encima de cualquier configuración real y aun así se verifica en minutos.
+	MaxCommitIDs = 20_000
 )
 
 // ValidID acepta solo 64 caracteres hexadecimales en minúscula: los ids de

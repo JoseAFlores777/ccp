@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -286,6 +288,14 @@ func TestLimitsAndValidation(t *testing.T) {
 			t.Errorf("%s: presign = %d, quiero 400", name, code)
 		}
 	}
+	muchos := api.SnapshotIn{ID: id("ce"), Created: time.Now(), Manifest: []byte("m"), Sig: bytes.Repeat([]byte{1}, 64),
+		Blobs: make([]string, 0, api.MaxCommitIDs+1)}
+	for i := range api.MaxCommitIDs + 1 {
+		muchos.Blobs = append(muchos.Blobs, fmt.Sprintf("%064x", i))
+	}
+	if code := e.call("POST", "/v1/snapshots", tok, dev, muchos, nil); code != 400 {
+		t.Fatalf("commit con %d blobs = %d, quiero 400", len(muchos.Blobs), code)
+	}
 	bad := api.SnapshotIn{ID: "../x", Created: time.Now(), Manifest: []byte("m"), Sig: bytes.Repeat([]byte{1}, 64)}
 	if code := e.call("POST", "/v1/snapshots", tok, dev, bad, nil); code != 400 {
 		t.Fatalf("id de snapshot inválido = %d", code)
@@ -420,4 +430,63 @@ func TestRevocarArrastraALosHermanosDeSesion(t *testing.T) {
 	if code := e.call("GET", "/v1/devices", otroTok, ajeno, nil, nil); code != 200 {
 		t.Fatalf("otra sesión = %d, quiero 200", code)
 	}
+}
+
+// blobsLentos cuenta cuántos Head hay vivos a la vez y bloquea hasta que el
+// test los suelta, para poder mirar el proceso justo en el peor momento.
+type blobsLentos struct {
+	entrada chan struct{}
+	soltar  chan struct{}
+}
+
+func (b *blobsLentos) PresignPut(context.Context, string, time.Duration) (string, error) {
+	return "", nil
+}
+func (b *blobsLentos) PresignGet(context.Context, string, time.Duration) (string, error) {
+	return "", nil
+}
+func (b *blobsLentos) Ping(context.Context) error { return nil }
+func (b *blobsLentos) Head(context.Context, string) (int64, bool, error) {
+	select { // avisar solo si alguien escucha; si no, no bloquear
+	case b.entrada <- struct{}{}:
+	default:
+	}
+	<-b.soltar
+	return 1, true, nil
+}
+
+// TestHeadAllNoCreaUnaGoroutinePorBlob fija el tope de trabajo en vuelo: el
+// almacenamiento es lento y el usuario manda muchos ids, y aun así el proceso
+// no puede quedarse con una goroutine (y su pila) por id. Antes había un
+// `go` por id con el semáforo DENTRO, así que el bucle nunca se bloqueaba y
+// una sola petición autenticada creaba decenas de miles de goroutines vivas.
+func TestHeadAllNoCreaUnaGoroutinePorBlob(t *testing.T) {
+	const n = 5000
+	bl := &blobsLentos{entrada: make(chan struct{}), soltar: make(chan struct{})}
+	s := &srv{cfg: Config{Blobs: bl}}
+	ids := make([]string, n)
+	for i := range ids {
+		ids[i] = id(string(rune('a' + i%26)))
+	}
+	base := runtime.NumGoroutine()
+	hecho := make(chan struct{})
+	go func() {
+		defer close(hecho)
+		if _, _, err := s.headAll(context.Background(), "u", ids); err != nil {
+			t.Error(err)
+		}
+	}()
+	<-bl.entrada // hay trabajo en vuelo: este es el peor momento
+	// El reparto es asíncrono: se mira durante medio segundo, que es de sobra
+	// para que un `go` por id llegue a las n goroutines.
+	for fin := time.Now().Add(500 * time.Millisecond); time.Now().Before(fin); {
+		if vivas := runtime.NumGoroutine() - base; vivas > 64 {
+			close(bl.soltar)
+			<-hecho
+			t.Fatalf("goroutines vivas = %d con %d ids; quiero un número fijo", vivas, n)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	close(bl.soltar)
+	<-hecho
 }

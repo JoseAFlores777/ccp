@@ -271,7 +271,7 @@ func (s *srv) commitSnapshot(w http.ResponseWriter, r *http.Request, rc reqCtx) 
 	}
 	ids, ok := uniqueIDs(in.Blobs)
 	if !ok || !api.ValidID(in.ID) || (in.Parent != "" && !api.ValidID(in.Parent)) ||
-		len(in.Manifest) == 0 || len(in.Sig) != 64 || in.Created.IsZero() || len(ids) > 200_000 {
+		len(in.Manifest) == 0 || len(in.Sig) != 64 || in.Created.IsZero() || len(ids) > api.MaxCommitIDs {
 		writeError(w, http.StatusBadRequest, api.CodeBadRequest, "snapshot inválido")
 		return
 	}
@@ -326,7 +326,11 @@ func (s *srv) commitSnapshot(w http.ResponseWriter, r *http.Request, rc reqCtx) 
 		Created: snap.Created, Size: total})
 }
 
-// headAll comprueba en el almacenamiento, 8 en paralelo, que existen los blobs.
+// headAll comprueba en el almacenamiento, con 8 obreros fijos, que existen los
+// blobs. Obreros y no una goroutine por id: el número de ids lo elige quien
+// manda la petición, y con el semáforo dentro del `go` el bucle nunca se
+// bloqueaba, así que un commit grande dejaba decenas de miles de goroutines
+// (y sus pilas) vivas a la vez por cada petición en curso.
 func (s *srv) headAll(ctx context.Context, userID string, ids []string) (map[string]int64, []string, error) {
 	type result struct {
 		id     string
@@ -334,32 +338,57 @@ func (s *srv) headAll(ctx context.Context, userID string, ids []string) (map[str
 		exists bool
 		err    error
 	}
-	results := make(chan result, len(ids))
-	sem := make(chan struct{}, 8)
+	const obreros = 8
+	n := min(obreros, len(ids))
+	trabajo := make(chan string)
+	results := make(chan result, n)
 	var wg sync.WaitGroup
-	for _, id := range ids {
+	for range n {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			size, ok, err := s.cfg.Blobs.Head(ctx, blobs.Key(userID, id))
-			results <- result{id, size, ok, err}
+			for id := range trabajo {
+				size, ok, err := s.cfg.Blobs.Head(ctx, blobs.Key(userID, id))
+				results <- result{id, size, ok, err}
+			}
 		}()
 	}
-	wg.Wait()
-	close(results)
+	go func() {
+		defer close(trabajo)
+		for _, id := range ids {
+			select {
+			case trabajo <- id:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
 	sizes := map[string]int64{}
 	var missing []string
+	var firstErr error
+	// Se vacía el canal entero aunque haya error: cortar aquí dejaría a los
+	// obreros bloqueados escribiendo en un canal que nadie lee.
 	for res := range results {
-		if res.err != nil {
-			return nil, nil, res.err
-		}
-		if !res.exists {
+		switch {
+		case res.err != nil:
+			if firstErr == nil {
+				firstErr = res.err
+			}
+		case !res.exists:
 			missing = append(missing, res.id)
-			continue
+		default:
+			sizes[res.id] = res.size
 		}
-		sizes[res.id] = res.size
+	}
+	if firstErr != nil {
+		return nil, nil, firstErr
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
 	}
 	sort.Strings(missing)
 	return sizes, missing, nil
