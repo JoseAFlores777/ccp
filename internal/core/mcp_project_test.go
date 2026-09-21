@@ -157,3 +157,66 @@ func TestProjectMCPToCLIDefaultNoSeProyecta(t *testing.T) {
 		t.Fatalf("default = %+v %v", p, err)
 	}
 }
+
+// El chat de Desktop: solo stdio (M3), conservando preferences y lo ajeno.
+func TestProjectMCPToDesktopSoloStdio(t *testing.T) {
+	home, src := mcpFixture(t)
+	dd := DesktopDataDir(home, "work")
+	cfgFile := filepath.Join(dd, "claude_desktop_config.json")
+	mustWrite(t, cfgFile, `{"preferences":{"theme":"dark"},"mcpServers":{"suyo":{"command":"suyo"}}}`)
+
+	p, err := ProjectMCPToDesktop(home, "work", efectivo(t, home, src, "work"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(p.Written, []string{"fs", "github"}) || !reflect.DeepEqual(p.RemoteSkipped, []string{"jira"}) {
+		t.Fatalf("proyección = %+v (jira es http: Desktop no lo carga)", p)
+	}
+	s := leeMCPServers(t, cfgFile)
+	if s["jira"] != nil || s["suyo"] == nil || s["github"] == nil {
+		t.Fatalf("destino = %v", s)
+	}
+	b, _ := os.ReadFile(cfgFile)
+	if !strings.Contains(string(b), `"theme"`) {
+		t.Errorf("se perdieron las preferences: %s", b)
+	}
+}
+
+// Con la ventana corriendo no se escribe: queda pendiente y se aplica al abrir.
+func TestProjectMCPToDesktopConVentanaAbiertaQuedaPendiente(t *testing.T) {
+	home, src := mcpFixture(t)
+	dd := DesktopDataDir(home, "work")
+	cfgFile := filepath.Join(dd, "claude_desktop_config.json")
+	mustWrite(t, cfgFile, `{"preferences":{}}`)
+	antes, _ := os.ReadFile(cfgFile)
+
+	p, err := ProjectMCPToDesktop(home, "work", efectivo(t, home, src, "work"), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.Deferred || !DesktopProjectionPending(home, "work") {
+		t.Fatalf("proyección = %+v", p)
+	}
+	if ahora, _ := os.ReadFile(cfgFile); string(ahora) != string(antes) {
+		t.Fatal("se escribió con la ventana abierta")
+	}
+	// Al arrancar (ya cerrada) se aplica y el pendiente desaparece.
+	if _, err := ProjectMCPToDesktop(home, "work", efectivo(t, home, src, "work"), false); err != nil {
+		t.Fatal(err)
+	}
+	if DesktopProjectionPending(home, "work") || leeMCPServers(t, cfgFile)["github"] == nil {
+		t.Fatal("el pendiente no se aplicó al arrancar")
+	}
+}
+
+// Una ventana que no se ha usado nunca no se crea desde aquí.
+func TestProjectMCPToDesktopSinVentanaNoCreaNada(t *testing.T) {
+	home, src := mcpFixture(t)
+	p, err := ProjectMCPToDesktop(home, "work", efectivo(t, home, src, "work"), false)
+	if err != nil || !p.Empty() {
+		t.Fatalf("sin data dir = %+v %v", p, err)
+	}
+	if fileExists(filepath.Join(DesktopDataDir(home, "work"), "claude_desktop_config.json")) {
+		t.Error("se creó la config de una ventana que no existe")
+	}
+}
