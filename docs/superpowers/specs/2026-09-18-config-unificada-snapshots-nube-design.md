@@ -613,6 +613,29 @@ y restaura como una unidad.
 > de alta una máquina pasa siempre por escribir la frase (o el código). Ver el
 > [ADR 0015](../../adr/0015-identity-keycloak-vault-separate.md).
 
+> **Estado en F4-2 (implementado, lo de rotar).** Lo que existe es `ccp cloud rotate`: **rotar las claves de
+> ACCESO**, frase y código de recuperación nuevos sobre la MISMA AK (`crypt.RewrapVault`,
+> `PUT /v1/vault/wraps`). Rotar la AK de verdad —nueva clave, re-cifrado de manifiestos, re-envoltura— sigue
+> pendiente, y separarlas fue la decisión: rotar las llaves de la caja es barato, no toca nada de lo
+> publicado y sirve para el caso que se da de verdad (la frase se perdió o se teme que se filtró); cambiar
+> la caja es una operación sobre todo el historial, y mezclarlas habría hecho cara una cosa que no lo es.
+> Tres cosas del código:
+>
+> - **El servidor exige que la clave pública de firma sea la misma.** Es el único freno posible desde ese
+>   lado: no puede abrir una envoltura para comprobar que dentro sigue la misma AK, pero sí ver que la
+>   identidad de firma no se mueve. Sin eso, una petición podría sustituir la bóveda entera y dejar sin
+>   abrir todo lo publicado hasta hoy.
+> - **No se pide la frase vieja.** Se rota desde un equipo que ya tiene la AK abierta, y exigirla impediría
+>   rotar justo en el caso para el que existe. La frase nueva va por `CCP_CLOUD_NEW_PASSPHRASE` y no por
+>   `CCP_CLOUD_PASSPHRASE`: reutilizarla haría que un script «rotara» a la misma frase sin enterarse.
+> - **El código se enseña DESPUÉS de subir**, al revés que en `init`. Allí la bóveda ya estaba creada de
+>   forma irrepetible y el código solo vivía en memoria; aquí, si la subida falla, las envolturas viejas
+>   siguen en pie y un código que no abre nada es peor que ninguno.
+>
+> Y lo que hay que decir en voz alta, y se dice en el CLI, en la app y aquí: **rotar las envolturas no le
+> quita la AK a nadie**. Un equipo ya desbloqueado la tiene en su disco, incluido uno que se revocara y se
+> quedara con su copia. Quitársela es rotar la AK.
+
 ### 10.3 Control desde el portal: «el portal propone, la máquina aplica»
 
 - **Sin puertos entrantes.** Cada máquina tira: `ccp cloud agent` como LaunchAgent, con long-poll o
@@ -663,8 +686,8 @@ y restaura como una unidad.
 >   pendiente para siempre), y publicar con la etiqueta de un grupo que no existe se rechaza, en vez de dejar
 >   una orden que no aparece en el estado de ningún grupo.
 >
-> Lo que falta de F4 sigue siendo la auditoría en el portal, la rotación de AK, la envoltura X25519 por
-> dispositivo y las excepciones por máquina de §11. Los grupos tampoco están en la app (P-21): la pantalla
+> Lo que falta de F4 —tras F4-2, que trajo la auditoría y la rotación de las claves de acceso— es la
+> rotación de la AK misma, la envoltura X25519 por dispositivo y las excepciones por máquina de §11. Los grupos tampoco están en la app (P-21): la pantalla
 > Nube es de ESTA máquina, y quien ordena a varias es el portal.
 
 > **Estado en F2-5 (implementado).** La pantalla **Nube** de la app (P-21, `gui/src/screens/Nube.tsx`) es el
@@ -903,7 +926,7 @@ Tamaño: **XL**. Se parte en:
 - **F2**: portal de solo lectura (dispositivos, historial, diff, **descarga**).
 - **F3**: **restaurar desde el portal** (revisiones firmadas, agente, confirmación local, estado de
   aplicación).
-- **F4**: grupos, auditoría en el portal y rotación de AK.
+- **F4**: grupos (F4-1), auditoría y revocación (F4-2) y rotación de AK (pendiente: lo rotado en F4-2 son las envolturas, no la clave).
 
 ### 10.5 Robustez
 
@@ -956,6 +979,25 @@ Qué significa «robusto» aquí, en requisitos que se pueden probar:
    - Inyección de fallos: matar el proceso a mitad de commit o de GC y comprobar que no queda nada
      inconsistente.
    - Tests de propiedad del merge a tres bandas.
+
+> **Estado en F4-2 (implementado, lo de auditoría y revocación).** El punto 7 decía «auditoría de solo
+> inserción» y eso era la mitad: se apuntaba y nadie lo leía. Ahora se lee —`ccp cloud audit`,
+> `GET /v1/audit`, la pantalla `#/auditoria` del portal— y tres cosas las fijó el código:
+>
+> - **El detalle se poda AL ESCRIBIR, no al leer** (`store.SanitizeAuditDetail`). Un objeto o una lista
+>   anidados se van enteros —son la forma que tiene la configuración— y una cadena larga se recorta a 256
+>   bytes. Podar al leer habría dejado el contenido guardado en la base: el registro es el único sitio donde
+>   un descuido de quien llama puede escribir configuración en claro en un servidor que, por diseño, no
+>   puede leerla.
+> - **Sin límite no son todas**, sino 200. Es lo contrario de `GroupRevisions`, donde «todas» ES la
+>   respuesta; aquí el registro crece sin fin. Y un `since` que no se entiende es un 400, no «desde
+>   siempre»: devolvería el registro entero cuando se pedía un trozo y nadie se daría cuenta.
+> - **Revocar un equipo cierra la orden que tenía pendiente**, en la misma transacción. Hizo falta un
+>   séptimo estado, `revoked`: un equipo revocado no vuelve a preguntar, así que la orden se pintaba
+>   «pendiente» para siempre, pero «fallida» culpa a la máquina de algo que no hizo y «sustituida» dice que
+>   otra la reemplazó, que tampoco pasó.
+>
+> Del punto 7 sigue sin estar la auditoría **global** de `ccp-admin` (lo que hay está acotado a la cuenta).
 
 ### 10.6 Infraestructura existente (inspeccionada el 2026-09-18, solo lectura)
 
@@ -1031,7 +1073,7 @@ Dokploy v0.30.4, un solo servidor.
 | F1 | **Implementado.** Bóveda, dispositivos, push/pull de snapshots (`ccp cloud`), el backend `ccp-cloud` y la traducción del HOME al restaurar. Falta **desplegar el API**, pendiente de autorización del usuario | D, I | L | Una segunda Mac se desbloquea con la frase de bóveda y trae el historial de la primera |
 | F2 | **Implementado.** Portal: dispositivos, historial, diff, editor y «Aplicar a…»; P-21 Nube en la app | F1 | M | Desde el portal se edita la configuración de un snapshot, se aplica a una máquina y ésta confirma allí lo ejecutable |
 | F3 | **Implementado.** Restaurar desde el portal. **F3-1**: cadena firmada comprobable (`ccp cloud verify`) y retención en el servidor. **F3-2**: descarga `.ccpsnap` / `.tar.gz` desde el CLI y desde el portal. **F3-3**: los tres caminos de restauración (app, portal, máquina nueva) con el mapeo de §11. **F3-4**: documentación (README, README.es, CHANGELOG, CLAUDE.md y §10.3.1 · §11 · §12 de este spec) | F2 | L | «Restaurar en <máquina>» en el portal deja la máquina en ese snapshot, con lo ejecutable confirmado en local |
-| F4 | Grupos (**F4-1, implementado**), auditoría, rotación de AK, envoltura X25519 por dispositivo (aplazada de F3) y las excepciones por máquina de §11 (`machines:`, `ccp.local.yaml`) | F3 | M | Un cambio aplicado a un grupo aparece como `aplicada` en cada máquina |
+| F4 | Grupos (**F4-1, implementado**), auditoría y revocación (**F4-2, implementado**), rotación de AK, envoltura X25519 por dispositivo (aplazada de F3) y las excepciones por máquina de §11 (`machines:`, `ccp.local.yaml`) | F3 | M | Un cambio aplicado a un grupo aparece como `aplicada` en cada máquina |
 | E | (aplazado, D10) `ccp sync` sobre carpeta o S3 | D | M | — |
 
 **Dos vías en paralelo tras la Fase 0 (D10):**

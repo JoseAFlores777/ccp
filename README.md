@@ -783,6 +783,8 @@ ccp cloud verify      # the whole signed history: nobody removed, reordered or r
 ccp cloud devices     # your machines; `ccp cloud revoke <id>` throws one out
 ccp cloud groups      # device groups; `groups add "all my Macs" mac-a mac-b`, `set`, `rm --yes`
 ccp cloud groups status "all my Macs"   # how the last order went on each machine of the group
+ccp cloud audit       # who did what and when; --device, --action, --since, --json
+ccp cloud rotate      # new vault passphrase and recovery code (the account key does not change)
 ccp cloud logout      # revoke this machine and delete its token and local vault
 ```
 
@@ -833,6 +835,20 @@ still the primary source.
   *pending* (there is no order of its own pending anything), and a machine you removed from the group keeps
   showing while it still has a live order — taking it out of the group does not withdraw what was published
   to it.
+- **The audit says who did what and when, and nothing about what.** `ccp cloud audit` and the portal's
+  Audit screen read the server's insert-only log: an entry is an action, a machine, a date and a detail made
+  of ids and counters. It cannot say more, because the server cannot read your configuration — and the store
+  prunes the detail as it is written (a nested object or a long string is dropped) so that one careless
+  caller cannot turn the log into the leak the encryption exists to prevent.
+- **Revoking a machine also closes the order it had pending.** A revoked machine never asks again, so an
+  order left open would read *pending* for ever; it is closed as `device revoked`, which is neither *failed*
+  (it did nothing wrong) nor *superseded* (no other order replaced it).
+- **Rotating the access keys is not rotating the account key.** `ccp cloud rotate` gives you a new vault
+  passphrase and a new recovery code over the **same** account key: nothing has to be re-encrypted and
+  everything you already pushed still opens. It does not ask for the old passphrase — that is the one that
+  may have been lost — and it says the part that matters: a machine that was already unlocked stays
+  unlocked, including one you revoked that kept its copy. Taking that copy back is AK rotation, which
+  re-encrypts everything and is not implemented yet.
 - **A new machine maps its own paths.** A snapshot from another machine names projects by their normalised
   git remote, so `ccp cloud restore` looks for each repo here: the path the snapshot carried (translated to
   this HOME), then any folder your rules, your `.claude.json` projects or the usual roots (`~/code`, `~/src`,

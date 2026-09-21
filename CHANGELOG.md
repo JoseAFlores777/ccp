@@ -4,6 +4,28 @@
 
 ### Added
 
+- **Auditoría, revocación con consecuencias y rotación de las claves de acceso (F4-2)**: `ccp cloud audit`,
+  `GET /v1/audit`, la pantalla `#/auditoria` del portal y `ccp cloud rotate`. Es lo único que el servidor
+  puede contar de una configuración que **no puede leer**: quién hizo qué y cuándo.
+  - **El detalle de una línea son ids y contadores, nunca configuración.** El almacén lo poda al escribir
+    (`store.SanitizeAuditDetail`): un objeto o una lista anidados se van enteros —son la forma que tiene la
+    configuración— y una cadena larga se recorta. Sin esa poda, un descuido de quien llama convierte el
+    registro en la fuga que el cifrado de extremo a extremo evita.
+  - **Una lectura sin límite devuelve 200 entradas, no todas.** Al revés que en `GroupRevisions`, donde la
+    respuesta ES la última de cada equipo, aquí el registro crece sin fin. Y un `--since`/`since` que no se
+    entiende es un error, no «desde siempre»: devolvería el registro entero cuando se pedía un trozo.
+  - **Revocar un equipo cierra la orden que tenía pendiente** (estado nuevo `revoked`, séptimo). Un equipo
+    revocado no vuelve a preguntar, así que una orden suya abierta se pintaba «pendiente» para siempre;
+    «fallida» culparía a la máquina de algo que no hizo y «sustituida» diría que otra orden la reemplazó,
+    que tampoco pasó. Va en la misma transacción que la revocación, y la cascada por sesión la arrastra.
+  - **`ccp cloud rotate` rota las claves de ACCESO, no la clave de cuenta**: frase y código de recuperación
+    nuevos sobre la MISMA AK, así que no hay nada que recifrar y todo lo publicado se sigue abriendo. El
+    servidor exige que la clave pública de firma sea la misma —su única forma de ver que la AK no cambió sin
+    poder abrir nada—, no pide la frase vieja (que es justo la que puede haberse perdido) y la nueva va por
+    `CCP_CLOUD_NEW_PASSPHRASE`, porque reutilizar `CCP_CLOUD_PASSPHRASE` sería «rotar» a la misma frase sin
+    enterarse. Y lo dice: rotar las llaves no cambia la caja, así que un equipo ya desbloqueado —incluido uno
+    revocado que se quedara con su copia— la sigue teniendo. Rotar la AK sigue pendiente.
+
 - **Grupos de dispositivos y «aplicar a varios» (F4-1)**: `ccp cloud groups [add|set|rm|status]`, el CRUD en
   `/v1/groups` y, en el portal, el bloque de grupos en Dispositivos más un botón por grupo en «Aplicar a…» y
   en «Restaurar en…». Un grupo es un nombre y unos equipos: **no manda**. Lo que sale sigue siendo una
