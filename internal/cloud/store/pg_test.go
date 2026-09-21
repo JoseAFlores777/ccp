@@ -73,3 +73,14 @@ func TestOpenPGRechazaDSNInvalida(t *testing.T) {
 		t.Fatal("OpenPG aceptó una DSN inválida")
 	}
 }
+
+// El INSERT de CommitSnapshot tiene que escribir `pinned`: el barrido que
+// corre en la MISMA petición lee la fila recién escrita, así que un snapshot
+// que llega fijado y se guarda con el DEFAULT `false` se poda ahí mismo, en la
+// subida que lo creó. El Store de memoria guarda la struct entera y no puede
+// enseñar este fallo: por eso se comprueba la sentencia, sin base de datos.
+func TestCommitSnapshotEscribeElFijado(t *testing.T) {
+	if !strings.Contains(insertSnapshotSQL, "pinned") {
+		t.Fatalf("el INSERT de snapshots no escribe pinned:\n%s", insertSnapshotSQL)
+	}
+}
