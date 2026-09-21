@@ -131,6 +131,10 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 		return dispatchBackup(rest, stdout, stderr)
 	case "snapshot":
 		return dispatchSnapshot(rest, stdout, stderr)
+	// `cloud` tampoco toca el entorno del shell padre (entra por el `*)` del rc)
+	// ni está en la completion, que es contrato golden.
+	case "cloud":
+		return dispatchCloud(rest, stdout, stderr)
 	case "scan":
 		return dispatchScan(rest, stdout, stderr)
 	case "adopt":
