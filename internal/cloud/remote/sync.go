@@ -49,6 +49,11 @@ type PushReport struct {
 	// entera por un archivo que nunca estuvo es peor.
 	Missing  []string `json:"missing"`
 	TooLarge []string `json:"too_large"`
+	// Repaired: contenidos que el destino había perdido de snapshots ya
+	// subidos y que este equipo ha vuelto a poner. Va aparte de Uploaded —que
+	// los cuenta también— porque reponer un hueco y subir algo nuevo no son
+	// la misma noticia para quien lee el resumen.
+	Repaired int `json:"repaired"`
 }
 
 func keysOf[V any](m map[string]V) []string {
@@ -72,6 +77,7 @@ func Push(ctx context.Context, r Remote, acct *crypt.Account, st *snapshot.Store
 	if err != nil {
 		return rep, err
 	}
+	var subidos []*snapshot.Manifest
 	// st.List() va del más nuevo al más viejo y el orden importa: el padre de
 	// un snapshot tiene que estar arriba antes que él, o la cadena tiene un
 	// hueco hasta el siguiente push.
@@ -81,6 +87,13 @@ func Push(ctx context.Context, r Remote, acct *crypt.Account, st *snapshot.Store
 			continue
 		}
 		if _, done := state.Pushed[m.ID]; done {
+			// No se da por bueno: state.json es una creencia de ESTE equipo y
+			// el destino es una carpeta que alguien poda, que iCloud desaloja
+			// o que Dropbox duplica en conflicto. El hueco que quede ahí no lo
+			// arregla nadie más —el equipo que baja solo pide lo que él no
+			// tiene, así que jamás se entera—, así que se apunta para
+			// preguntar por su contenido al final.
+			subidos = append(subidos, m)
 			continue
 		}
 		rid, err := pushOne(ctx, r, acct, st, m, &rep)
@@ -95,7 +108,88 @@ func Push(ctx context.Context, r Remote, acct *crypt.Account, st *snapshot.Store
 		}
 		rep.Snapshots++
 	}
+	if err := repair(ctx, r, acct, st, subidos, &rep); err != nil {
+		return rep, err
+	}
 	return rep, nil
+}
+
+// repair repone el contenido que el destino ha perdido de los snapshots que
+// este equipo ya dio por subidos. Se pregunta UNA vez por todos (Missing va en
+// lote) y solo se resube lo que este equipo todavía tiene: lo que no está aquí
+// no lo puede reponer nadie desde aquí.
+func repair(ctx context.Context, r Remote, acct *crypt.Account, st *snapshot.Store,
+	ms []*snapshot.Manifest, rep *PushReport) error {
+	local := map[string]string{} // id en el destino -> hash local
+	for _, m := range ms {
+		for _, it := range m.Items {
+			if st.HasBlob(it.Hash) {
+				local[acct.BlobID(it.Hash)] = it.Hash
+			}
+		}
+	}
+	if len(local) == 0 {
+		return nil
+	}
+	lpathsOf := func(hash string) []string {
+		var out []string
+		for _, m := range ms {
+			for _, it := range m.Items {
+				if it.Hash == hash {
+					out = append(out, it.LPath)
+				}
+			}
+		}
+		return out
+	}
+	antes := rep.Uploaded
+	err := uploadBlobs(ctx, r, acct, st, keysOf(local), local, lpathsOf, rep)
+	rep.Repaired += rep.Uploaded - antes
+	return err
+}
+
+// uploadBlobs sube los blobs de local (id en el destino -> hash local) que el
+// destino diga que le faltan de entre ids. Preguntar primero no es una
+// optimización cosmética: en un bucket cada subida se paga, y en una carpeta
+// sincronizada reescribir un objeto que ya está lo vuelve a mandar por la red
+// del servicio que la sincroniza.
+//
+// Lo comparten la subida de un snapshot nuevo y la reparación de uno viejo:
+// son el mismo trabajo y dos copias se separarían con el primer arreglo.
+func uploadBlobs(ctx context.Context, r Remote, acct *crypt.Account, st *snapshot.Store,
+	ids []string, local map[string]string, lpathsOf func(string) []string, rep *PushReport) error {
+	falta, err := r.Missing(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for _, id := range falta {
+		hash, ok := local[id]
+		if !ok {
+			continue
+		}
+		data, err := st.GetBlob(hash)
+		if err != nil {
+			return err
+		}
+		sealed, err := acct.SealBlob(id, data)
+		if err != nil {
+			return err
+		}
+		// El tope es el del formato, no el de un destino: el mismo
+		// snapshot puede acabar en una carpeta y en la nube, y un blob
+		// que allí no cabe no puede contar como subido aquí.
+		if len(sealed) > api.MaxBlobBytes {
+			rep.TooLarge = append(rep.TooLarge, lpathsOf(hash)...)
+			delete(local, id)
+			continue
+		}
+		if err := r.PutBlob(ctx, id, sealed); err != nil {
+			return err
+		}
+		rep.Uploaded++
+		rep.Bytes += int64(len(sealed))
+	}
+	return nil
 }
 
 func pushOne(ctx context.Context, r Remote, acct *crypt.Account, st *snapshot.Store,
@@ -117,43 +211,8 @@ func pushOne(ctx context.Context, r Remote, acct *crypt.Account, st *snapshot.St
 		}
 		return out
 	}
-	// upload sube los que el destino diga que le faltan. Preguntar primero no
-	// es una optimización cosmética: en un bucket cada subida se paga, y en
-	// una carpeta sincronizada reescribir un objeto que ya está lo vuelve a
-	// mandar por la red del servicio que la sincroniza.
 	upload := func(ids []string) error {
-		falta, err := r.Missing(ctx, ids)
-		if err != nil {
-			return err
-		}
-		for _, id := range falta {
-			hash, ok := local[id]
-			if !ok {
-				continue
-			}
-			data, err := st.GetBlob(hash)
-			if err != nil {
-				return err
-			}
-			sealed, err := acct.SealBlob(id, data)
-			if err != nil {
-				return err
-			}
-			// El tope es el del formato, no el de un destino: el mismo
-			// snapshot puede acabar en una carpeta y en la nube, y un blob
-			// que allí no cabe no puede contar como subido aquí.
-			if len(sealed) > api.MaxBlobBytes {
-				rep.TooLarge = append(rep.TooLarge, lpathsOf(hash)...)
-				delete(local, id)
-				continue
-			}
-			if err := r.PutBlob(ctx, id, sealed); err != nil {
-				return err
-			}
-			rep.Uploaded++
-			rep.Bytes += int64(len(sealed))
-		}
-		return nil
+		return uploadBlobs(ctx, r, acct, st, ids, local, lpathsOf, rep)
 	}
 	if err := upload(keysOf(local)); err != nil {
 		return "", err

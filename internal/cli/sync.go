@@ -459,10 +459,15 @@ func (c syncCmd) push(args []string) int {
 	if a.flags["--json"] {
 		return snapJSON(c.out, c.err, rep)
 	}
-	if rep.Snapshots == 0 {
+	if rep.Snapshots == 0 && rep.Repaired == 0 {
 		fmt.Fprintln(c.out, i18n.T(c.lang, "cli.sync.push_nothing", e.Name))
-	} else {
+	} else if rep.Snapshots > 0 {
 		fmt.Fprintln(c.out, okLine(c.out, i18n.T(c.lang, "cli.sync.pushed", e.Name, rep.Snapshots, rep.Uploaded, humanBytes(rep.Bytes))))
+	}
+	if rep.Repaired > 0 {
+		// Reponer un hueco del destino no es subir algo nuevo, y confundirlo
+		// con «nada que subir» es justo lo que dejaba el hueco invisible.
+		fmt.Fprintln(c.out, okLine(c.out, i18n.T(c.lang, "cli.sync.push_repaired", rep.Repaired, e.Name)))
 	}
 	if len(rep.Missing) > 0 {
 		fmt.Fprintln(c.out, warnLine(c.out, i18n.T(c.lang, "cli.sync.push_missing", len(rep.Missing))))
@@ -548,7 +553,7 @@ func (c syncCmd) pull(args []string) int {
 // operación destructiva y una regla distinta sería una trampa. --plan es la
 // forma de pedir solo el plan y que eso NO sea un fallo (sale 0).
 func (c syncCmd) apply(args []string) int {
-	a, ok := c.args(args, []string{"--plan", "--dry-run", "--yes", "--json"}, []string{"--only"}, 1)
+	a, ok := c.args(args, []string{"--plan", "--dry-run", "--yes", "--force", "--json"}, []string{"--only"}, 1)
 	if !ok {
 		return 1
 	}
@@ -596,6 +601,18 @@ func (c syncCmd) apply(args []string) int {
 		}
 		return 1
 	}
+	if huecos := planMissingBlob(plan); len(huecos) > 0 && !a.flags["--force"] {
+		// Restaurar «casi todo» y salir 0 es lo que convierte un hueco del
+		// destino en una configuración a medias sin que nadie se entere: una
+		// de esas rutas puede ser ccp/ccp.yaml. Se para antes de tocar nada y
+		// se dice qué falta; --force es para quien ya lo sabe.
+		if a.flags["--json"] {
+			snapJSON(c.out, c.err, plan)
+		}
+		fmt.Fprintln(c.err, warnLine(c.err, i18n.T(c.lang, "cli.sync.apply_missing_blob",
+			len(huecos), strings.Join(huecos, ", "))))
+		return 1
+	}
 	if planWrites(plan) == 0 {
 		if a.flags["--json"] {
 			return snapJSON(c.out, c.err, plan)
@@ -624,4 +641,18 @@ func (c syncCmd) apply(args []string) int {
 // distintas del mismo plan.
 func (c syncCmd) printPlan(r *core.SnapshotRestoreReport) {
 	printRestorePlan(c.out, c.lang, r)
+}
+
+// planMissingBlob son las rutas que el plan se salta porque su contenido no
+// está en el almacén local. En `sync apply` eso no significa «se exportó sin
+// secretos» (el motivo que el plan da) sino que el destino perdió el blob, y
+// esa diferencia decide si la restauración sigue adelante.
+func planMissingBlob(r *core.SnapshotRestoreReport) []string {
+	var out []string
+	for _, s := range r.Steps {
+		if s.Action == "skip" && s.Reason == "missing_blob" {
+			out = append(out, s.LPath)
+		}
+	}
+	return out
 }

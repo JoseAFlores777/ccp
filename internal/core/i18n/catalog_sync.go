@@ -15,7 +15,8 @@ var catalogSync = map[string]map[Lang]string{
   push [<snapshot>] [--json]      upload the local snapshots the destination does not have
   pull [<id>|latest]              download one into the local store
   apply [<id>|latest] [--plan]    bring this machine to that snapshot; --yes writes
-       [--only <lpath>] [--yes]
+       [--only <lpath>] [--yes] [--force]  --force applies it even if the
+                                  destination lost some content
 
   --remote <name>                 which destination, when there is more than one
 
@@ -35,7 +36,8 @@ CCP_SYNC_S3_ACCESS_KEY / CCP_SYNC_S3_SECRET_KEY (or the AWS ones), never from th
   push [<snapshot>] [--json]      sube los snapshots locales que el destino no tiene
   pull [<id>|latest]              baja uno al almacén local
   apply [<id>|latest] [--plan]    deja esta máquina en ese snapshot; --yes escribe
-       [--only <ruta>] [--yes]
+       [--only <ruta>] [--yes] [--force]   --force lo aplica aunque el
+                                  destino haya perdido algún contenido
 
   --remote <nombre>               a qué destino, cuando hay más de uno
 
@@ -99,11 +101,19 @@ CCP_SYNC_S3_SECRET_KEY (o de las de AWS), nunca de la URL.`,
 		En: "%d paths have no content on this machine (imported without secrets): they did not travel.",
 		Es: "%d rutas no tienen contenido en este equipo (importadas sin secretos): no viajaron.",
 	},
+	"cli.sync.push_repaired": {
+		En: "Restored %d contents that %s had lost.",
+		Es: "Repuestos %d contenidos que %s había perdido.",
+	},
 	"cli.sync.push_too_large": {En: "these paths are over the per-file limit and did not travel: %s", Es: "estas rutas pasan del tope por archivo y no viajaron: %s"},
 	"cli.sync.pull_none":      {En: "%s has no snapshots yet.", Es: "%s todavía no tiene snapshots."},
 	"cli.sync.pulled":         {En: "Downloaded from %s: it is now the local snapshot %s.", Es: "Bajado de %s: aquí es el snapshot local %s."},
 	"cli.sync.pull_missing":   {En: "%d paths had no content in the destination.", Es: "%d rutas no tenían contenido en el destino."},
 	"cli.sync.pull_hint":      {En: "To apply it: ccp snapshot restore %s", Es: "Para aplicarlo: ccp snapshot restore %s"},
+	"cli.sync.apply_missing_blob": {
+		En: "%d paths cannot be restored because the destination no longer has their content: %s. Nothing was changed: run `ccp sync push` on a machine that still has them, or repeat with --force to apply the rest.",
+		Es: "%d rutas no se pueden restaurar porque el destino ya no tiene su contenido: %s. No se cambió nada: ejecuta `ccp sync push` en un equipo que todavía las tenga, o repite con --force para aplicar el resto.",
+	},
 	"cli.sync.apply_confirm": {
 		En: "Nothing was changed. Run it again with --yes to apply it (or with --plan to just see it).",
 		Es: "No se cambió nada. Ejecútalo de nuevo con --yes para aplicarlo (o con --plan para solo verlo).",
