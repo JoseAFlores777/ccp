@@ -41,6 +41,7 @@ func serveRegistry() map[string]serveMethod {
 		"profiles.remove":    w(srvProfilesRemove),
 		"profiles.setKey":    w(srvProfilesSetKey),
 		"profiles.sync":      w(srvProfilesSync),
+		"profiles.drift":     r(srvProfilesDrift),
 		"profiles.effective": r(srvProfilesEffective),
 		"overlay.envSet":     w(srvOverlayEnvSet),
 		"overlay.envDel":     w(srvOverlayEnvDel),
@@ -557,20 +558,7 @@ func srvProfilesSync(s *server, raw json.RawMessage) (any, error) {
 		MCP    []core.MCPProjection `json:"mcp"`
 		MCPErr string               `json:"mcp_error"`
 	}
-	nz := func(v []string) []string {
-		if v == nil {
-			return []string{}
-		}
-		return v
-	}
-	nzMCP := func(v []core.MCPProjection) []core.MCPProjection {
-		out := make([]core.MCPProjection, 0, len(v))
-		for _, p := range v {
-			p.Written, p.Removed, p.Conflicts, p.RemoteSkipped = nz(p.Written), nz(p.Removed), nz(p.Conflicts), nz(p.RemoteSkipped)
-			out = append(out, p)
-		}
-		return out
-	}
+	nz, nzMCP := nzStrings, nzMCPProjections
 	out := []row{}
 	for _, d := range drifts {
 		out = append(out, row{
@@ -581,6 +569,64 @@ func srvProfilesSync(s *server, raw json.RawMessage) (any, error) {
 		})
 	}
 	return map[string]any{"ok": true, "drift": out}, nil
+}
+
+// srvProfilesDrift es `ccp profile sync --check` para la GUI: qué cambiaría la
+// proyección de cada perfil, sin escribir nada. Va por r() (lectura) a
+// propósito: no toca disco, así que no tiene por qué serializarse con las
+// escrituras.
+func srvProfilesDrift(s *server, raw json.RawMessage) (any, error) {
+	p, err := params[struct {
+		Name string `json:"name"`
+	}](raw)
+	if err != nil {
+		return nil, err
+	}
+	names := []string{p.Name}
+	if p.Name == "" {
+		if names, err = core.ProfileList(s.home); err != nil {
+			return nil, err
+		}
+	}
+	type row struct {
+		Profile string `json:"profile"`
+		// Stale es la misma regla que decide el exit code del CLI: lo que un
+		// sync arreglaría. La GUI no la recalcula sumando listas, que es como se
+		// desincronizan dos front-ends sobre el mismo dato.
+		Stale     bool                 `json:"stale"`
+		MCP       []core.MCPProjection `json:"mcp"`
+		Artifacts []string             `json:"artifacts"`
+		Error     string               `json:"error"`
+	}
+	out := []row{}
+	for _, n := range names {
+		c, err := core.ProfileProjectionCheck(s.home, n)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, row{Profile: c.Profile, Stale: c.Stale(),
+			MCP: nzMCPProjections(c.MCP), Artifacts: nzStrings(c.Artifacts), Error: c.Err})
+	}
+	return map[string]any{"drift": out}, nil
+}
+
+// nzStrings / nzMCPProjections: ninguna lista del protocolo sale null, para que
+// la GUI no tenga que distinguirlo de vacío.
+func nzStrings(v []string) []string {
+	if v == nil {
+		return []string{}
+	}
+	return v
+}
+
+func nzMCPProjections(v []core.MCPProjection) []core.MCPProjection {
+	out := make([]core.MCPProjection, 0, len(v))
+	for _, p := range v {
+		p.Written, p.Removed = nzStrings(p.Written), nzStrings(p.Removed)
+		p.Conflicts, p.RemoteSkipped = nzStrings(p.Conflicts), nzStrings(p.RemoteSkipped)
+		out = append(out, p)
+	}
+	return out
 }
 
 // effKindName es el nombre estable de cada sección de la configuración efectiva.
@@ -630,6 +676,9 @@ func srvProfilesEffective(s *server, raw json.RawMessage) (any, error) {
 		Value    string `json:"value"`
 		Origin   string `json:"origin"`
 		Shadowed bool   `json:"shadowed"`
+		// applies_to: dónde se lee de verdad esta fila (ADR 0016). Campo añadido,
+		// no cambio de forma: un cliente viejo lo ignora.
+		AppliesTo []string `json:"applies_to"`
 	}
 	type section struct {
 		Kind  string `json:"kind"`
@@ -644,7 +693,8 @@ func srvProfilesEffective(s *server, raw json.RawMessage) (any, error) {
 	for _, sec := range eff.Sections {
 		sc := section{Kind: effKindName(sec.Kind), File: sec.File, Error: errString(sec.Err), Rows: []row{}}
 		for _, r := range sec.Rows {
-			sc.Rows = append(sc.Rows, row{Key: r.Key, Value: r.Value, Origin: r.Origin.String(), Shadowed: r.Shadowed})
+			sc.Rows = append(sc.Rows, row{Key: r.Key, Value: r.Value, Origin: r.Origin.String(),
+				Shadowed: r.Shadowed, AppliesTo: nzStrings(r.AppliesTo)})
 		}
 		out.Sections = append(out.Sections, sc)
 	}

@@ -194,6 +194,22 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "%s: its Desktop window is open, so its MCP will be applied the next time it starts.",
 		Es: "%s: su ventana de Desktop está abierta, así que sus MCP se aplican la próxima vez que arranque.",
 	},
+	"cli.profile.check_mcp": {
+		En: "%s: %s is missing %s (ccp profile sync).",
+		Es: "%s: a %s le falta %s (ccp profile sync).",
+	},
+	"cli.profile.check_artifacts": {
+		En: "%s: %s are declared by the profile and are not mirrored into its cc-home yet (ccp profile sync).",
+		Es: "%s: %s los declara el perfil y todavía no están espejados en su cc-home (ccp profile sync).",
+	},
+	"cli.profile.check_stale": {
+		En: "Something is out of date: run ccp profile sync.",
+		Es: "Hay algo desfasado: pasa un ccp profile sync.",
+	},
+	"cli.profile.check_clean": {
+		En: "Everything declared is where the apps read it.",
+		Es: "Todo lo declarado está donde lo leen las apps.",
+	},
 	"cli.profile.mcp_error": {
 		En: "%s: the MCP projection failed (%s); the profile was regenerated anyway and it is retried on the next sync.",
 		Es: "%s: la proyección de MCP falló (%s); el perfil se regeneró igual y se reintenta en el próximo sync.",
@@ -227,8 +243,8 @@ var catalogCLI = map[string]map[Lang]string{
 		Es: "profile: subcomando desconocido '%s'",
 	},
 	"cli.profile.sub_help": {
-		En: "Use: add | rm | rename | list | show | login | config | sync",
-		Es: "Usa: add | rm | rename | list | show | login | config | sync",
+		En: "Use: add | rm | rename | list | show | login | config | sync [--check]",
+		Es: "Usa: add | rm | rename | list | show | login | config | sync [--check]",
 	},
 	"cli.profile.usage_add": {
 		En: "Usage: ccp profile add <name> --official|--deepseek|--kimi|--glm [opts]",

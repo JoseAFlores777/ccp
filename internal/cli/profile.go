@@ -117,8 +117,18 @@ func dispatchProfile(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case "sync":
 		var name string
-		if len(rest) > 0 {
-			name = rest[0]
+		check := false
+		for _, a := range rest {
+			if a == "--check" {
+				check = true
+				continue
+			}
+			if name == "" {
+				name = a
+			}
+		}
+		if check {
+			return profileSyncCheck(home, name, lang, stdout, stderr)
 		}
 		// La deriva se cuenta antes que el error: lo que ya se adoptó está a
 		// salvo en el overlay aunque un perfil posterior falle, y callarlo
@@ -447,4 +457,66 @@ func profileLogin(home string, args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+// profileSyncCheck es `ccp profile sync --check`: dice lo que la regeneración
+// cambiaría y no toca nada. Sale 1 si algo está desfasado, para que sirva de
+// guarda en un script o en un hook de CI. Los conflictos y lo que el chat no
+// puede cargar se cuentan igual, pero NO cambian el código de salida: ningún
+// sync los arregla, así que dejarlos mandar en el exit lo clavaría en 1.
+func profileSyncCheck(home, name string, lang i18n.Lang, stdout, stderr io.Writer) int {
+	names := []string{name}
+	if name == "" {
+		all, err := core.ProfileList(home)
+		if err != nil {
+			fmt.Fprintf(stderr, "[error] %v\n", err)
+			return 1
+		}
+		names = all
+	}
+	stale := false
+	for _, n := range names {
+		c, err := core.ProfileProjectionCheck(home, n)
+		if err != nil {
+			fmt.Fprintf(stderr, "[error] %v\n", err)
+			return 1
+		}
+		if c.Stale() {
+			stale = true
+		}
+		printProjectionCheck(stdout, lang, c)
+	}
+	if stale {
+		fmt.Fprintln(stdout, warnLine(stdout, i18n.T(lang, "cli.profile.check_stale")))
+		return 1
+	}
+	fmt.Fprintln(stdout, okLine(stdout, i18n.T(lang, "cli.profile.check_clean")))
+	return 0
+}
+
+// printProjectionCheck reutiliza los mismos textos que la proyección de verdad
+// imprime en printSettingsDrift: si el check dijera las cosas de otra manera,
+// leerlo antes del sync y después no serviría para comparar.
+func printProjectionCheck(w io.Writer, lang i18n.Lang, c core.ProjectionCheck) {
+	for _, m := range c.MCP {
+		dest := i18n.T(lang, "cli.profile.mcp_dest_"+m.Target)
+		if pend := append(append([]string{}, m.Written...), m.Removed...); len(pend) > 0 {
+			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.check_mcp", c.Profile, dest, strings.Join(pend, ", "))))
+		}
+		if len(m.Conflicts) > 0 {
+			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.mcp_conflict", c.Profile, dest, strings.Join(m.Conflicts, ", "))))
+		}
+		if len(m.RemoteSkipped) > 0 {
+			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.mcp_remote", c.Profile, strings.Join(m.RemoteSkipped, ", "))))
+		}
+		if m.Deferred {
+			fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.mcp_pending", c.Profile)))
+		}
+	}
+	if len(c.Artifacts) > 0 {
+		fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.check_artifacts", c.Profile, strings.Join(c.Artifacts, ", "))))
+	}
+	if c.Err != "" {
+		fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.profile.mcp_error", c.Profile, c.Err)))
+	}
 }
