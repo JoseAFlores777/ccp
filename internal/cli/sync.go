@@ -214,6 +214,11 @@ func (c syncCmd) remoteAdd(args []string) int {
 		return 1
 	case yaEsta:
 		url = e.URL // volver a añadirlo es volver a desbloquearlo
+		// Find no distingue mayúsculas (la carpeta tampoco en APFS): se
+		// sigue usando el nombre REGISTRADO, no el que se acaba de teclear,
+		// para no crear un segundo directorio donde el sistema de archivos
+		// sí las distinga.
+		name = e.Name
 	case url == "":
 		return c.usage("cli.sync.need_url")
 	default:
@@ -362,6 +367,7 @@ func (c syncCmd) remoteRm(args []string) int {
 		fmt.Fprintln(c.err, i18n.T(c.lang, "cli.sync.no_such_remote", name))
 		return 1
 	}
+	name = e.Name // el registrado, no el tecleado (ver remoteAdd)
 	reg.Remove(name)
 	if err := remote.SaveRegistry(c.home, reg); err != nil {
 		return c.fail(err)

@@ -66,3 +66,23 @@ func TestCadaDestinoTieneSuDirectorio(t *testing.T) {
 		t.Fatalf("Dir = %s, se esperaba %s", a.Dir, want)
 	}
 }
+
+// Dos nombres que solo difieren en mayúsculas son el MISMO directorio en
+// APFS, así que el registro tiene que verlos iguales: si no, la segunda
+// bóveda pisa la vault.key de la primera y lo subido se firma con una clave
+// que allí no abre nada.
+func TestNombreDeDestinoNoDistingueMayusculas(t *testing.T) {
+	reg := remote.Registry{}
+	if err := reg.Add("icloud", "file:///A"); err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Add("iCloud", "file:///B"); err == nil {
+		t.Fatal("«iCloud» junto a «icloud» tendría que rechazarse: comparten carpeta")
+	}
+	if e, ok := reg.Find("ICLOUD"); !ok || e.URL != "file:///A" {
+		t.Fatalf("Find(ICLOUD) = %+v, %v", e, ok)
+	}
+	if !reg.Remove("ICloud") || len(reg.Remotes) != 0 {
+		t.Fatalf("Remove(ICloud) dejó %+v", reg.Remotes)
+	}
+}

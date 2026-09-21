@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/JoseAFlores777/ccp/internal/cloud/client"
@@ -60,19 +61,24 @@ func FilesFor(home, name string) client.Files {
 // ValidName dice si un nombre puede ser el de un destino.
 func ValidName(name string) bool { return nameRe.MatchString(name) }
 
-// Find devuelve el destino por su nombre.
+// Find devuelve el destino por su nombre, SIN distinguir mayúsculas: el
+// nombre acaba siendo el directorio <home>/sync/<nombre> y APFS —el sistema
+// de archivos por defecto de macOS— no las distingue, así que «icloud» e
+// «iCloud» son la misma carpeta. Comparar byte a byte dejaría al registro
+// viendo dos destinos donde el disco solo tiene uno.
 func (r Registry) Find(name string) (Entry, bool) {
 	for _, e := range r.Remotes {
-		if e.Name == name {
+		if strings.EqualFold(e.Name, name) {
 			return e, true
 		}
 	}
 	return Entry{}, false
 }
 
-// Add registra un destino. Un nombre repetido se rechaza en vez de pisarlo:
-// serían dos bóvedas distintas compartiendo el directorio de estado, y la AK
-// de una no abre la otra.
+// Add registra un destino. Un nombre repetido —aunque solo coincida salvo
+// mayúsculas, ver Find— se rechaza en vez de pisarlo: serían dos bóvedas
+// distintas compartiendo el directorio de estado, y la AK de una no abre la
+// otra.
 func (r *Registry) Add(name, url string) error {
 	if !ValidName(name) {
 		return fmt.Errorf("%q no vale como nombre de destino: letras, números, «.», «_» y «-», empezando por letra o número", name)
@@ -80,8 +86,8 @@ func (r *Registry) Add(name, url string) error {
 	if url == "" {
 		return errors.New("falta la URL del destino")
 	}
-	if _, ok := r.Find(name); ok {
-		return fmt.Errorf("ya hay un destino llamado %q", name)
+	if e, ok := r.Find(name); ok {
+		return fmt.Errorf("ya hay un destino llamado %q", e.Name)
 	}
 	r.Remotes = append(r.Remotes, Entry{Name: name, URL: url, Added: time.Now().UTC()})
 	return nil
@@ -90,7 +96,7 @@ func (r *Registry) Add(name, url string) error {
 // Remove quita un destino de la lista. Devuelve false si no estaba.
 func (r *Registry) Remove(name string) bool {
 	for i, e := range r.Remotes {
-		if e.Name == name {
+		if strings.EqualFold(e.Name, name) {
 			r.Remotes = append(r.Remotes[:i], r.Remotes[i+1:]...)
 			return true
 		}
