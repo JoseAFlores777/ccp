@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/JoseAFlores777/ccp/internal/cloud/api"
 	"github.com/JoseAFlores777/ccp/internal/cloud/client"
@@ -198,14 +199,32 @@ func lpaths(ds []Decision) []string {
 // encontrar la revisión pendiente y la reconciliará contra un disco que ya
 // tiene lo aplicado, así que no repetirá nada.
 func closeRev(ctx context.Context, o Opts, out *Outcome, state, reason string) error {
-	if len(reason) > api.MaxReasonLen {
-		reason = reason[:api.MaxReasonLen-1] + "…"
-	}
+	reason = trimReason(reason)
 	out.State, out.Reason = state, reason
 	if _, err := o.API.SetRevisionState(ctx, out.Revision, state, reason); err != nil {
 		return fmt.Errorf("no se pudo informar del resultado de la revisión: %w", err)
 	}
 	return nil
+}
+
+// trimReason recorta el motivo al tope del servidor, que cuenta BYTES. El «…»
+// entra DENTRO del presupuesto (son 3 bytes, no 1: recortar a MaxReasonLen-1 y
+// concatenarlo dejaba 2002 bytes, el servidor devolvía 400 y la revisión no se
+// cerraba jamás), y el corte retrocede hasta frontera de runa porque los
+// motivos llevan acentos y media runa se convierte en U+FFFD al serializar.
+func trimReason(reason string) string {
+	if len(reason) <= api.MaxReasonLen {
+		return reason
+	}
+	const ell = "…"
+	cut := reason[:api.MaxReasonLen-len(ell)]
+	for len(cut) > 0 {
+		if r, n := utf8.DecodeLastRuneInString(cut); r != utf8.RuneError || n > 1 {
+			break
+		}
+		cut = cut[:len(cut)-1]
+	}
+	return cut + ell
 }
 
 // summarize decide el estado final y su motivo. El orden importa: un conflicto
