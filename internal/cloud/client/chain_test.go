@@ -177,3 +177,56 @@ func TestVerifyChainNoConfundeUnaPodaConUnRobo(t *testing.T) {
 		t.Fatalf("la lápida se cuenta y sigue contando como eslabón: %+v", rep)
 	}
 }
+
+// Lo que otra máquina fijó no se suelta por haberlo BAJADO aquí. El manifiesto
+// que viaja sellado lleva dentro el `pinned` del momento del push, así que un
+// snapshot fijado después llega a la máquina B con `Pinned=false`: si ese falso
+// contara como opinión de B, su siguiente push desfijaría en la nube algo que
+// nadie soltó —y la retención del servidor lo podaría—. B nunca opinó.
+func TestPushNoSueltaEnLaNubeLoQueSoloSeHaBajado(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, nil)
+	filesA, apiA, stA := r.machine(t, "mac-a")
+	acctA, _, m := seed(t, apiA, stA)
+	if _, err := Push(ctx, apiA, acctA, stA, filesA, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stA.SetPin(m.ID, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Push(ctx, apiA, acctA, stA, filesA, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	filesB, apiB, stB := r.machine(t, "mac-b")
+	acctB := acctA
+	list, err := apiB.Snapshots(ctx, "", 10)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("Snapshots = %+v, %v", list, err)
+	}
+	if _, _, err := Pull(ctx, apiB, acctB, stB, filesB, list[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	rep, err := Push(ctx, apiB, acctB, stB, filesB, "")
+	if err != nil || rep.Pinned != 0 {
+		t.Fatalf("Push en B = %+v, %v; no debe tocar el fijado de nadie", rep, err)
+	}
+	links, err := apiB.Chain(ctx)
+	if err != nil || !links[0].Pinned {
+		t.Fatalf("B desfijó lo que fijó A: %+v, %v", links, err)
+	}
+	// Pero fijar desde B lo que bajó sí viaja: lo que no se propaga es el
+	// `false` heredado del sello, no una decisión de esta máquina.
+	if err := apiA.PinSnapshot(ctx, list[0].ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stB.SetPin(m.ID, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	if rep, err := Push(ctx, apiB, acctB, stB, filesB, ""); err != nil || rep.Pinned != 1 {
+		t.Fatalf("Push en B tras fijar = %+v, %v", rep, err)
+	}
+	if links, _ = apiB.Chain(ctx); !links[0].Pinned {
+		t.Fatalf("fijar desde B no llegó a la nube: %+v", links)
+	}
+}

@@ -55,6 +55,12 @@ type Config struct {
 // State recuerda qué hay arriba: id local -> id en la nube.
 type State struct {
 	Pushed map[string]string `json:"pushed"`
+	// Pulled: los snapshots que este equipo solo ha BAJADO. Están en Pushed
+	// (para no volver a subirlos), pero su `pinned` es el que llevaba el
+	// manifiesto sellado el día del push, no una opinión de esta máquina:
+	// propagarlo desfijaría lo que fijó otra. Campo añadido, omitempty: un
+	// state.json viejo se lee igual.
+	Pulled map[string]bool `json:"pulled,omitempty"`
 }
 
 func (f Files) path(name string) string { return filepath.Join(f.Dir, name) }
@@ -148,12 +154,15 @@ func (f Files) SaveAK(ak []byte) error { return f.writeRaw("vault.key", ak) }
 
 // LoadState lee qué está arriba (vacío si nunca se subió nada).
 func (f Files) LoadState() (State, error) {
-	s := State{Pushed: map[string]string{}}
+	s := State{Pushed: map[string]string{}, Pulled: map[string]bool{}}
 	if err := f.read("state.json", &s); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return s, err
 	}
 	if s.Pushed == nil {
 		s.Pushed = map[string]string{}
+	}
+	if s.Pulled == nil {
+		s.Pulled = map[string]bool{}
 	}
 	return s, nil
 }
