@@ -497,11 +497,29 @@ func writeOverlayPreservingLink(file string, data []byte) error {
 	if t, err := filepath.EvalSymlinks(file); err == nil {
 		target = t
 	}
-	perm := os.FileMode(0o644)
+	perm := newConfigFilePerm(file)
 	if fi, err := os.Stat(target); err == nil {
 		perm = fi.Mode().Perm()
 	}
 	return writeFileAtomic(target, data, perm)
+}
+
+// newConfigFilePerm es el modo con el que NACE un archivo de configuración que
+// aún no existe. Los que llevan credenciales nacen 0600: overlay/mcp.json
+// guarda los env y headers de los MCP del perfil —y ccp empuja al usuario a
+// ponerlos ahí, porque la capa de proyecto rechaza un secreto en claro—, y el
+// .claude.json y el claude_desktop_config.json de una ventana igual. Los tres
+// son los mismos que snapshot_layout declara ClassSecret y los mismos que la
+// proyección a cc-home ya escribe en 0600; sin esto, creados desde el editor
+// quedaban 0644 dentro de directorios 0755, legibles por cualquier usuario de
+// la máquina. El resto (settings, CLAUDE.md, el .mcp.json versionado de un
+// repo) sigue naciendo 0644: son archivos que se comparten a propósito.
+func newConfigFilePerm(file string) os.FileMode {
+	switch filepath.Base(file) {
+	case "mcp.json", ".claude.json", "claude_desktop_config.json":
+		return 0o600
+	}
+	return 0o644
 }
 
 // decodeOverlayObject es decodeJSONObject aceptando el overlay en blanco, que
