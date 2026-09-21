@@ -99,8 +99,7 @@ export async function publish({ api, keys }, { base, baseCloud, edits, devices, 
       paso('Publicando la revisión para ' + d.name + '…');
       // `prev` tiene que ser la cabeza de la cadena de ESE equipo: encadenar
       // es lo que impide que el servidor quite un eslabón sin que se vea.
-      const previas = await api.revisions(d.id, 1);
-      const prev = previas.length ? previas[0].id : '';
+      const prev = await headRevision(api, d.id);
       const id = randomID();
       const parts = { id, prev, device: d.id, snapshot: built.in.id, base: baseCloud || '' };
       const sig = await snap.signRevision(keys.sign, parts, new Uint8Array(0));
@@ -114,4 +113,25 @@ export async function publish({ api, keys }, { base, baseCloud, edits, devices, 
     }
   }
   return { snapshot: built.in.id, meta, manifest: built.manifest, uploaded: subidos.size, missing: sinDatos, results: resultados };
+}
+
+// headRevision devuelve la cabeza de la cadena de un equipo: el eslabón que
+// NADIE encadena, que es como la define el servidor al publicar
+// (`NOT EXISTS … c.prev = r.id`). No vale coger la primera fila del listado:
+// ese viene por `created DESC` y `created` lo pone quien publica, sin que el
+// servidor lo valide, así que un reloj desajustado deja arriba para siempre un
+// eslabón ya superado — y publicar sobre él es un 409 permanente («la cadena de
+// ese dispositivo ha cambiado…») que desde el portal no tiene salida.
+export async function headRevision(api, deviceID) {
+  const rs = await api.revisions(deviceID, 100);
+  if (!rs.length) return '';
+  const encadenadas = new Set(rs.map((r) => r.prev).filter(Boolean));
+  const cabezas = rs.filter((r) => !encadenadas.has(r.id));
+  // Un equipo tiene una sola cadena, así que una sola cabeza. Si no aparece
+  // ninguna es que quedó fuera de la ventana; decirlo es mejor que encadenar
+  // sobre un eslabón viejo y que el error hable de otra cosa.
+  if (cabezas.length !== 1) {
+    throw new Error('no se pudo determinar la última revisión de este equipo; vuelve a intentarlo');
+  }
+  return cabezas[0].id;
 }
