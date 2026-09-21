@@ -990,6 +990,24 @@ ccp sync apply latest --yes            # aplícalo (antes se hace un snapshot)
   remoto no puede ser la forma accidental de perder la configuración de todas las máquinas.
 - Con más de un destino, di cuál con `--remote <nombre>`: `ccp` no adivina para no publicar en la carpeta
   equivocada.
+- **`ccp sync remote list`** enseña los destinos que conoce esta máquina y marca los que no puede abrir (una
+  carpeta copiada de otro Mac está ahí, pero cerrada hasta que la abras con la frase). `--json` da
+  `name`/`url`/`added`/`unlocked` para un script. Volver a abrirla es `ccp sync remote add <nombre>`
+  sin URL: volver a añadir un destino que ya conoce es volver a desbloquearlo.
+- **`ccp sync push <snapshot>`** sube solo ese en vez de todo lo pendiente, y `--json` da el informe
+  (`snapshots`/`uploaded`/`bytes`). Lo que al destino le falta —un blob que nunca llegó, o uno demasiado
+  grande para él— **se dice en voz alta**, nunca se salta en silencio: un historial con un agujero es peor que
+  un push fallido, porque parece terminado.
+- **Los destinos son de esta máquina**, en `~/.config/ccp/sync/` (`remotes.json` y un directorio por destino
+  con su clave y lo que esta máquina cree que ya está arriba). A propósito **no** viven en `ccp.yaml`, que
+  viaja dentro de los snapshots: un `pull` te traería si no la lista de carpetas de otra máquina, con rutas
+  que aquí no existen. Perder ese directorio no cuesta más que volver a abrir el destino.
+
+**¿Sync o nube?** El formato es el mismo y los blobs van igual de sellados, así que una carpeta hoy no cierra
+la puerta a un servidor mañana. Lo que una carpeta no puede darte es todo lo que necesita a alguien llevando
+la cuenta: cuentas, dispositivos que se puedan revocar, un registro de auditoría y el agente que aplica un
+cambio propuesto desde el portal. Y quien opera esa carpeta —iCloud, Dropbox, tu NAS— ve los tamaños y las
+horas aunque el contenido sea ilegible. Si eso te vale, no tienes que operar nada.
 
 ## Detectar la máquina — `ccp scan` y `ccp adopt`
 
