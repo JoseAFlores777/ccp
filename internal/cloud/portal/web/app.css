@@ -78,3 +78,34 @@ pre { background: var(--papel); border: 1px solid var(--linea); border-radius: 8
 .barra span { display: block; height: 100%; width: 0; background: var(--acento); transition: width .2s; }
 .pie { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
 .cargando { padding: 24px; }
+
+/* --------------------------------------------------- editor de configuración */
+/* Tres columnas, como P-20: capas y tipos a la izquierda, elementos en medio y
+   el contenido a la derecha. Por debajo de 900px se apilan: el portal se abre
+   también desde un móvil para mirar qué tiene una máquina. */
+.p20 { display: grid; grid-template-columns: 200px 260px 1fr; gap: 16px; margin-top: 14px; align-items: start; }
+@media (max-width: 900px) { .p20 { grid-template-columns: 1fr; } }
+.col { background: var(--papel); border: 1px solid var(--linea); border-radius: 10px; overflow: hidden; }
+.col h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--flojo);
+  margin: 0; padding: 8px 12px; border-bottom: 1px solid var(--linea); font-weight: 600; }
+.col ul { list-style: none; margin: 0; padding: 0; max-height: 60vh; overflow: auto; }
+.col li { border-bottom: 1px solid var(--linea); }
+.col li:last-child { border-bottom: 0; }
+.col li button { width: 100%; text-align: left; border: 0; border-radius: 0; background: none;
+  padding: 8px 12px; display: flex; gap: 8px; align-items: baseline; justify-content: space-between; }
+.col li button:hover { background: var(--fondo); }
+.col li.sel button { background: var(--fondo); box-shadow: inset 3px 0 0 var(--acento); }
+.col li .flojo { font-size: 12px; }
+.editor { padding: 12px; display: grid; gap: 10px; }
+.editor textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px;
+  width: 100%; min-height: 46vh; padding: 10px 12px; border-radius: 8px; resize: vertical;
+  border: 1px solid var(--linea); background: var(--fondo); color: var(--tinta); }
+.editor .cabe { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.editor .cabe .mono { word-break: break-all; }
+.sucio { color: var(--pend); }
+.dialogo { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: grid; place-items: center; padding: 20px; }
+.dialogo .caja { background: var(--papel); border: 1px solid var(--linea); border-radius: 12px;
+  padding: 18px 20px; max-width: 520px; width: 100%; display: grid; gap: 12px; max-height: 84vh; overflow: auto; }
+.dialogo h2 { margin: 0; font-size: 17px; }
+.dialogo label { display: flex; gap: 8px; align-items: baseline; padding: 6px 0; }
+.dialogo .botones { display: flex; gap: 10px; justify-content: flex-end; }

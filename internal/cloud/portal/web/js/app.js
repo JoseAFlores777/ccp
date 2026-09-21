@@ -5,6 +5,8 @@ import * as oidc from './oidc.js';
 import * as api from './api.js';
 import * as vault from './vault.js';
 import * as model from './model.js';
+import * as config from './config.js';
+import * as publicar from './publish.js';
 
 const root = document.getElementById('app');
 let cfg = null;
@@ -30,6 +32,14 @@ export function el(tag, attrs, ...kids) {
 
 function show(...nodes) {
   root.replaceChildren(...nodes);
+}
+
+// rellena sustituye los hijos de un nodo filtrando los huecos. `el` ya lo
+// hace, pero replaceChildren no: un `cond ? nodo : null` acababa pintando la
+// palabra «null» en medio del diálogo.
+function rellena(n, ...kids) {
+  n.replaceChildren(...kids.flat(3).filter((k) => k !== null && k !== undefined && k !== false));
+  return n;
 }
 
 function fecha(s) {
@@ -199,6 +209,7 @@ async function render() {
   const partes = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
   try {
     if (partes[0] === 'equipo' && partes[1]) await renderTimeline(partes[1]);
+    else if (partes[0] === 'config' && partes[1]) await renderConfig(partes[1], partes[2] || '');
     else if (partes[0] === 'diff' && partes[2]) await renderDiff(partes[1], partes[2]);
     else await renderDevices();
   } catch (e) {
@@ -257,7 +268,8 @@ async function renderDevices() {
       el('td', {}, d.ccp_version || '—'),
       el('td', { title: fecha(d.last_seen) }, hace(d.last_seen)),
       el('td', {}, perfiles),
-      el('td', {}, cuenta.get(d.id) || 0, s ? el('span', { class: 'flojo' }, ' · ' + hace(s.created)) : null),
+      el('td', {}, cuenta.get(d.id) || 0, s ? el('span', { class: 'flojo' }, ' · ' + hace(s.created)) : null,
+        s ? el('a', { class: 'lig', href: '#/config/' + s.id }, ' configurar') : null),
       el('td', {}, deriva)));
     if (s) cargaPerfiles(s, perfiles, r, deriva);
   }
@@ -317,6 +329,7 @@ async function renderTimeline(deviceID) {
       el('td', {}, s.label || '—', s.pinned ? el('span', { class: 'etiqueta' }, 'fijado') : null),
       el('td', {}, tamano(s.size)),
       el('td', {}, detalle),
+      el('td', {}, el('a', { class: 'lig', href: '#/config/' + s.id }, 'configurar')),
       el('td', { class: 'mono flojo', title: s.id }, s.id.slice(0, 12)));
   });
   sinc();
@@ -327,7 +340,7 @@ async function renderTimeline(deviceID) {
       d ? `${d.platform || '—'} · ccp ${d.ccp_version || '—'} · último contacto ${hace(d.last_seen)}` : 'equipo desconocido'),
     snaps.length === 0 ? el('p', {}, 'Este equipo aún no ha subido ningún snapshot.') : el('div', {},
       el('table', { class: 'tabla' },
-        el('thead', {}, el('tr', {}, ['Desde', 'Hasta', 'Fecha', 'Etiqueta', 'Tamaño', 'Contenido', 'Id'].map((h) => el('th', {}, h)))),
+        el('thead', {}, el('tr', {}, ['Desde', 'Hasta', 'Fecha', 'Etiqueta', 'Tamaño', 'Contenido', '', 'Id'].map((h) => el('th', {}, h)))),
         el('tbody', {}, filas)),
       el('div', { class: 'pie' }, comparar,
         el('span', { class: 'flojo' }, 'El diff se calcula aquí: los dos manifiestos se descifran en la pestaña.'))));
@@ -392,3 +405,268 @@ function detalleCambio(c) {
 }
 
 boot();
+
+// ------------------------------------------------- editor de configuración (P-20)
+
+// edicion es el estado de la pantalla mientras se edita: el manifiesto base,
+// lo que ya se ha leído y lo que se ha cambiado. Vive aquí y no en la URL
+// porque son contenidos descifrados: no tienen por qué pasar por el historial
+// del navegador, y el hash lo lee cualquiera que mire la pantalla por encima.
+let edicion = null;
+
+function nuevaEdicion(snapID) {
+  return { snapID, base: null, meta: null, textos: new Map(), edits: new Map(),
+    verSecreto: new Set(), capa: '', tipo: '', sel: '' };
+}
+
+// contenidoDe lee un archivo del snapshot: lo editado si se tocó, y si no, el
+// blob de la nube abierto y comprobado contra el hash del manifiesto.
+async function contenidoDe(item) {
+  if (edicion.edits.has(item.lpath)) return new TextDecoder().decode(edicion.edits.get(item.lpath));
+  if (edicion.textos.has(item.lpath)) return edicion.textos.get(item.lpath);
+  const texto = new TextDecoder().decode(await vault.blobOf(item));
+  edicion.textos.set(item.lpath, texto);
+  return texto;
+}
+
+function guardar(lpath, texto) {
+  const original = edicion.textos.get(lpath);
+  if (original !== undefined && original === texto) edicion.edits.delete(lpath);
+  else edicion.edits.set(lpath, new TextEncoder().encode(texto));
+}
+
+async function renderConfig(snapID, capa) {
+  if (!edicion || edicion.snapID !== snapID) edicion = nuevaEdicion(snapID);
+  if (!edicion.base) {
+    pantalla(el('p', { class: 'cargando flojo' }, 'Descifrando la configuración…'));
+    const s = await vault.snapshotOf(snapID);
+    edicion.base = s.manifest;
+    edicion.meta = s.meta;
+    edicion.firma = s.signature;
+  }
+  const capas = config.layersOf(edicion.base.items);
+  edicion.capa = capas.some((c) => c.id === capa) ? capa : (edicion.capa || (capas[0] && capas[0].id) || '');
+  pintaConfig(capas);
+}
+
+function pintaConfig(capas) {
+  const items = config.itemsOf(edicion.base.items, edicion.capa);
+  const tipos = config.byType(items);
+  if (!tipos.some(([t]) => t === edicion.tipo)) edicion.tipo = tipos.length ? tipos[0][0] : '';
+  const deTipo = (tipos.find(([t]) => t === edicion.tipo) || ['', []])[1];
+  if (!deTipo.some((c) => c.lpath === edicion.sel)) edicion.sel = deTipo.length ? deTipo[0].lpath : '';
+
+  const lista = (titulo, filas) => el('div', { class: 'col' }, el('h3', {}, titulo),
+    el('ul', {}, filas.map(({ id, texto, extra, sel, onclick }) => el('li', { class: sel ? 'sel' : null },
+      el('button', { onclick }, el('span', {}, texto), extra ? el('span', { class: 'flojo' }, extra) : null)))));
+
+  const cuerpo = el('div', { class: 'col editor' }, el('p', { class: 'flojo' }, 'Elige un elemento.'));
+  if (edicion.sel) pintaElemento(items.find((c) => c.lpath === edicion.sel), cuerpo);
+
+  const sucio = edicion.edits.size;
+  pantalla(
+    el('p', {}, el('a', { href: '#/equipo/' + encodeURIComponent(edicion.meta.device_id) }, '← Línea de tiempo')),
+    el('h1', {}, 'Configuración'),
+    el('p', { class: 'flojo' },
+      `${edicion.meta.device_name || edicion.meta.device_id.slice(0, 8)} · ${fecha(edicion.meta.created)} · `,
+      firma(edicion.firma)),
+    el('p', { class: 'flojo' },
+      'Lo que edites aquí no cambia ninguna máquina: se publica como una revisión deseada y la aplica su agente.'),
+    el('div', { class: 'p20' },
+      lista('Capa', capas.map((c) => ({
+        id: c.id, texto: c.label, extra: String(c.count), sel: c.id === edicion.capa,
+        onclick: () => { edicion.capa = c.id; edicion.tipo = ''; edicion.sel = ''; pintaConfig(capas); },
+      }))),
+      lista('Tipo', tipos.map(([t, cs]) => ({
+        id: t, texto: t, extra: String(cs.length), sel: t === edicion.tipo,
+        onclick: () => { edicion.tipo = t; edicion.sel = ''; pintaConfig(capas); },
+      }))),
+      el('div', {},
+        lista('Elementos', deTipo.map((c) => ({
+          id: c.lpath, texto: nombreCorto(c), extra: edicion.edits.has(c.lpath) ? 'editado' : '',
+          sel: c.lpath === edicion.sel,
+          onclick: () => { edicion.sel = c.lpath; pintaConfig(capas); },
+        }))),
+        cuerpo)),
+    el('div', { class: 'pie' },
+      el('button', { class: 'grande', disabled: sucio === 0, onclick: () => dialogoAplicar(capas) }, 'Aplicar a…'),
+      el('span', { class: sucio ? 'sucio' : 'flojo' },
+        sucio ? plural(sucio, 'archivo editado', 'archivos editados') : 'Nada editado todavía'),
+      sucio ? el('button', { class: 'lig', onclick: () => { edicion.edits.clear(); pintaConfig(capas); } }, 'Descartar') : null));
+}
+
+// nombreCorto quita de la ruta lo que ya dice la capa: en la columna de
+// elementos, «ccp/profiles/work/overlay/agents/revisor.md» es ruido.
+function nombreCorto(c) {
+  const r = c.layer.rest || c.lpath;
+  return r.replace(/^overlay\//, '').replace(/^cc-home\//, '').replace(/^\.claude\//, '');
+}
+
+// donde pinta los distintivos «Dónde aplica» de P-20: lo que hay dentro de un
+// archivo no se nota en el mismo sitio según dónde viva (ADR 0016).
+function donde(c) {
+  return c.applies.map((a) => el('span', { class: 'etiqueta', title: dondeTitulo(a) }, a));
+}
+
+function dondeTitulo(a) {
+  if (a === 'CLI') return 'Lo lee el claude de la terminal';
+  if (a === 'Code') return 'Lo lee la pestaña Code de la ventana de Desktop';
+  if (a === 'Chat') return 'Lo lee el chat de Claude Desktop';
+  return 'Lo lee ccp, y de ahí sale lo demás';
+}
+
+// pintaElemento llena la tercera columna. Un archivo de ajustes se abre por
+// secciones —que son los tipos de P-20— y el resto, entero.
+async function pintaElemento(c, cuerpo) {
+  if (!c) return;
+  const cabecera = () => el('div', { class: 'cabe' },
+    el('strong', {}, c.type), el('span', { class: 'mono flojo' }, c.lpath), ...donde(c),
+    c.item.class === 'secret' ? el('span', { class: 'etiqueta pend', title: 'Va sellado en la nube' }, 'secreto') : null,
+    edicion.edits.has(c.lpath) ? el('span', { class: 'etiqueta modified' }, 'editado') : null);
+  // Un secreto no se pinta por haber pulsado en la lista. La clave de cuenta
+  // está en esta pestaña, así que el portal PUEDE enseñarlo; enseñarlo sin que
+  // nadie lo pida es otra cosa, y basta con que alguien pase por detrás.
+  if (c.item.class === 'secret' && !edicion.verSecreto.has(c.lpath)) {
+    rellena(cuerpo, cabecera(),
+      el('p', { class: 'flojo' }, 'Lleva claves o tokens. No se muestra hasta que lo pidas.'),
+      el('div', { class: 'pie' }, el('button', {
+        onclick: () => { edicion.verSecreto.add(c.lpath); pintaElemento(c, cuerpo); },
+      }, 'Mostrar contenido')));
+    return;
+  }
+  rellena(cuerpo, el('p', { class: 'flojo' }, 'Leyendo…'));
+  let texto;
+  try {
+    texto = await contenidoDe(c.item);
+  } catch (e) {
+    cuerpo.replaceChildren(el('p', { class: 'mal' }, e.message));
+    return;
+  }
+  const cabe = cabecera();
+  if (!c.editable) {
+    rellena(cuerpo, cabe,
+      el('p', { class: 'flojo' }, 'No se edita desde aquí: ' + c.reason + '.'),
+      el('pre', {}, texto.length > 4000 ? texto.slice(0, 4000) + '\n…' : texto));
+    return;
+  }
+  const secciones = c.format === 'settings' ? config.sections(texto) : null;
+  if (!secciones) {
+    rellena(cuerpo, cabe, campoTexto(c, texto, texto,
+      c.format === 'settings' ? 'Este archivo no es un JSON válido: se edita entero.' : ''));
+    return;
+  }
+  rellena(cuerpo, cabe,
+    el('p', { class: 'flojo' }, 'Los ajustes se abren por tipo. Lo que ccp no reconoce va en «Ajustes», entero.'),
+    ...secciones.map((sec) => el('details', { open: secciones.length === 1 ? true : null },
+      el('summary', {}, sec.type, el('span', { class: 'flojo' }, sec.key ? ' · ' + sec.key : ' · lo demás')),
+      campoSeccion(c, sec))));
+}
+
+function campoSeccion(c, sec) {
+  const area = el('textarea', { spellcheck: 'false' });
+  area.value = JSON.stringify(sec.value, null, 2);
+  const aviso2 = el('p', { class: 'flojo' });
+  const grabar = () => {
+    let valor;
+    try { valor = JSON.parse(area.value); } catch (e) { aviso2.className = 'mal'; aviso2.textContent = 'JSON inválido: ' + e.message; return; }
+    try {
+      guardar(c.lpath, config.applySection(edicion.edits.has(c.lpath)
+        ? new TextDecoder().decode(edicion.edits.get(c.lpath))
+        : edicion.textos.get(c.lpath), sec.key, valor));
+    } catch (e) { aviso2.className = 'mal'; aviso2.textContent = e.message; return; }
+    aviso2.className = 'ok';
+    aviso2.textContent = 'Guardado en esta pestaña. Se publica con «Aplicar a…».';
+    pintaConfig(config.layersOf(edicion.base.items));
+  };
+  return el('div', { class: 'editor' }, area,
+    el('div', { class: 'pie' }, el('button', { onclick: grabar }, 'Guardar'), aviso2));
+}
+
+function campoTexto(c, texto, original, nota) {
+  const area = el('textarea', { spellcheck: 'false' });
+  area.value = texto;
+  const aviso2 = el('p', { class: 'flojo' }, nota || '');
+  const grabar = () => {
+    if (c.format === 'json') {
+      try { JSON.parse(area.value); } catch (e) { aviso2.className = 'mal'; aviso2.textContent = 'JSON inválido: ' + e.message; return; }
+    }
+    guardar(c.lpath, area.value);
+    aviso2.className = 'ok';
+    aviso2.textContent = 'Guardado en esta pestaña. Se publica con «Aplicar a…».';
+    pintaConfig(config.layersOf(edicion.base.items));
+  };
+  return el('div', { class: 'editor' }, area,
+    el('div', { class: 'pie' }, el('button', { onclick: grabar }, 'Guardar'),
+      el('button', { class: 'lig', onclick: () => { area.value = original; } }, 'Volver al original'), aviso2));
+}
+
+// ----------------------------------------------------------- «Aplicar a…»
+
+// dialogoAplicar pregunta a qué equipos va la orden. Viene marcado el equipo
+// del que salió el snapshot, que es el caso normal; los demás se marcan a
+// mano, porque publicar para una máquina que no es la tuya no puede ser un
+// descuido de un clic.
+function dialogoAplicar(capas) {
+  const caja = el('div', { class: 'caja' }, el('p', { class: 'flojo' }, 'Leyendo equipos…'));
+  const fondo = el('div', { class: 'dialogo', onclick: (e) => { if (e.target === fondo) fondo.remove(); } }, caja);
+  document.body.append(fondo);
+  api.devices().then((devs) => {
+    // El portal es un equipo más para la auditoría, pero no tiene disco donde
+    // aplicar nada; un equipo revocado no va a volver a preguntar.
+    const elegibles = devs.filter((d) => !d.revoked && d.platform !== 'portal');
+    const marcados = new Set([edicion.meta.device_id]);
+    const filas = elegibles.map((d) => {
+      const ch = el('input', { type: 'checkbox', checked: marcados.has(d.id) || null });
+      ch.addEventListener('change', () => { ch.checked ? marcados.add(d.id) : marcados.delete(d.id); sincroniza(); });
+      return el('label', {}, ch, el('span', {}, d.name),
+        el('span', { class: 'flojo' }, ` · ${d.platform || '—'} · último contacto ${hace(d.last_seen)}`),
+        d.id === edicion.meta.device_id ? el('span', { class: 'etiqueta' }, 'de aquí salió') : null);
+    });
+    const aceptar = el('button', { class: 'grande', onclick: () => aplicar([...marcados], elegibles, caja, capas) }, 'Publicar');
+    const sincroniza = () => { aceptar.disabled = marcados.size === 0; };
+    sincroniza();
+    rellena(caja,
+      el('h2', {}, 'Aplicar a…'),
+      el('p', { class: 'flojo' },
+        plural(edicion.edits.size, 'archivo editado', 'archivos editados') +
+        '. Se publica una revisión firmada por equipo; cada máquina la aplica cuando su agente contacte. ' +
+        'Lo que ejecuta código (hooks, comandos de MCP, barra de estado) lo confirma una persona allí.'),
+      ...filas,
+      elegibles.length === 0 ? el('p', { class: 'mal' }, 'No hay ningún equipo al que publicar.') : null,
+      el('div', { class: 'botones' },
+        el('button', { class: 'lig', onclick: () => fondo.remove() }, 'Cancelar'), aceptar));
+  }).catch((e) => caja.replaceChildren(el('p', { class: 'mal' }, e.message)));
+}
+
+async function aplicar(ids, elegibles, caja, capas) {
+  const paso = el('p', { class: 'flojo' }, 'Empezando…');
+  caja.replaceChildren(el('h2', {}, 'Publicando'), paso);
+  try {
+    const out = await publicar.publish({ api, keys: vault.keys() }, {
+      base: edicion.base, baseCloud: edicion.snapID, edits: edicion.edits,
+      devices: elegibles.filter((d) => ids.includes(d.id)),
+      onStep: (t) => { paso.textContent = t; },
+    });
+    // Lo editado ya está publicado: dejarlo marcado como pendiente invitaría a
+    // publicarlo otra vez encima de la orden que acaba de salir.
+    if (out.results.some((r) => r.ok)) edicion.edits.clear();
+    rellena(caja,
+      el('h2', {}, 'Publicado'),
+      el('p', { class: 'flojo' }, `Snapshot ${out.snapshot.slice(0, 12)} · ` +
+        plural(out.uploaded, 'archivo subido', 'archivos subidos')),
+      out.missing.length ? el('p', { class: 'pend' },
+        plural(out.missing.length, 'ruta sin datos en la nube', 'rutas sin datos en la nube') +
+        ': esas no se podrán aplicar (' + out.missing.slice(0, 5).join(', ') + ').') : null,
+      ...out.results.map((r) => el('p', { class: r.ok ? 'ok' : 'mal' },
+        r.ok ? `${r.device.name}: orden puesta, pendiente de que su agente la recoja.`
+          : `${r.device.name}: no se pudo publicar — ${r.error}`)),
+      el('div', { class: 'botones' }, el('button', {
+        class: 'grande',
+        onclick: () => { caja.parentElement.remove(); pintaConfig(capas); },
+      }, 'Cerrar')));
+  } catch (e) {
+    caja.replaceChildren(el('h2', {}, 'No se publicó'), el('p', { class: 'mal' }, e.message),
+      el('div', { class: 'botones' },
+        el('button', { onclick: () => caja.parentElement.remove() }, 'Cerrar')));
+  }
+}

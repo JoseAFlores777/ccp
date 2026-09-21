@@ -55,11 +55,19 @@ export function layerOf(lpath) {
 // layersOf son las capas que hay EN un manifiesto, en el orden en que se
 // pintan: primero ccp y lo global, luego los perfiles, los proyectos y las
 // ventanas de Desktop, cada grupo por nombre.
+function etiquetaCapa(l) {
+  if (l.kind === 'desktop') return l.name + ' · Desktop';
+  if (l.kind === 'proyecto') return l.name + ' · proyecto';
+  return l.name;
+}
+
 export function layersOf(items) {
   const m = new Map();
   for (const it of items || []) {
     const l = layerOf(it.lpath);
-    if (!m.has(l.id)) m.set(l.id, { id: l.id, kind: l.kind, name: l.name, count: 0 });
+    // El nombre por sí solo no basta: un perfil «work» y la ventana de
+    // Desktop de ese mismo perfil son dos capas distintas y se llamaban igual.
+    if (!m.has(l.id)) m.set(l.id, { id: l.id, kind: l.kind, name: l.name, count: 0, label: etiquetaCapa(l) });
     m.get(l.id).count++;
   }
   const orden = { ccp: 0, global: 1, perfil: 2, proyecto: 3, desktop: 4, otros: 5 };
