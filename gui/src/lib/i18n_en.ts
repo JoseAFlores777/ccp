@@ -1018,6 +1018,8 @@ export const en: Record<string, string> = {
   "regenerado: {p}": "regenerated: {p}",
   "pendiente de reiniciar la ventana de {p}": "{p}'s window still needs a restart",
   "Nuevo servidor MCP en {l}": "New MCP server in {l}",
+  "Cambiar el nombre renombra el servidor: se guarda {n} y se quita {o} de esta capa.": "Changing the name renames the server: {n} is saved and {o} is removed from this layer.",
+  "renombrado: se quitó {o}": "renamed: {o} removed",
   "El nombre es con el que Claude Code nombra sus herramientas (mcp__nombre__tool): sin espacios ni barras.": "The name is what Claude Code uses to name its tools (mcp__name__tool): no spaces, no slashes.",
   "Uno por línea.": "One per line.",
   "CLAVE=valor, una por línea. Escribe ${VARIABLE} y Claude Code la leerá de tu entorno al arrancar; lo que veas como {m} se queda como estaba.": "KEY=value, one per line. Write ${VARIABLE} and Claude Code will read it from your environment at startup; anything shown as {m} stays as it was.",

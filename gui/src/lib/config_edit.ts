@@ -142,6 +142,10 @@ function mcpAddCli(layer: ConfigLayer, f: Record<string, string>): string {
   return `${base}${kv('--env', f.env, '=')} -- ${[f.command || '<comando>', ...args].map(shellQuote).join(' ')}`;
 }
 
+// Lo que vale un servidor sin entrada de destinos en ccp.yaml (mcpDefaultTargets
+// en core), ordenado para comparar.
+const MCP_DEFAULT_TARGETS = 'cli,desktop';
+
 /** Alta y edición de un servidor MCP. `def` es lo que hay guardado: con él el
  *  formulario abre relleno y los secretos que no se toquen se restituyen. */
 export function mcpModal(layer: ConfigLayer, row?: McpRow, def?: Record<string, unknown>): ModalSpec {
@@ -191,6 +195,9 @@ export function mcpModal(layer: ConfigLayer, row?: McpRow, def?: Record<string, 
     ],
     warns: (f) => {
       const w = buildMcp(f).warnings;
+      if (row && f.name.trim() && f.name.trim() !== row.name) {
+        w.push(t('Cambiar el nombre renombra el servidor: se guarda {n} y se quita {o} de esta capa.', { n: f.name.trim(), o: row.name }));
+      }
       if (layer.level === 'project') {
         w.push(t('Un .mcp.json viaja en el repo: un secreto en claro acabaría en git. ccp lo rechaza; escribe ${VARIABLE}.'));
       }
@@ -211,7 +218,19 @@ export function mcpModal(layer: ConfigLayer, row?: McpRow, def?: Record<string, 
       const cfg = { ...b.config } as Record<string, unknown>;
       if (cfg.env) cfg.env = unmask(cfg.env as Record<string, string>, def?.env as Record<string, unknown>);
       if (cfg.headers) cfg.headers = unmask(cfg.headers as Record<string, string>, def?.headers as Record<string, unknown>);
-      return writeMsg(await api.mcpPut(layer, f.name.trim(), cfg));
+      // Renombrar es escribir el nombre nuevo Y quitar el viejo: sin la
+      // segunda mitad el servidor quedaba duplicado en la capa (los dos
+      // proyectados, un stdio arrancado dos veces y el token escrito dos
+      // veces) y el usuario creía haber renombrado uno.
+      const name = f.name.trim();
+      const msg = writeMsg(await api.mcpPut(layer, name, cfg));
+      if (!row || name === row.name) return msg;
+      await api.mcpDelete(layer, row.name);
+      // Los destinos viven en ccp.yaml por NOMBRE, así que el nombre nuevo
+      // nacería con los de por defecto: se le llevan los del viejo.
+      const keep = [...row.targets].sort().join(',');
+      if (keep !== MCP_DEFAULT_TARGETS) await api.mcpSetTargets(name, row.targets);
+      return `${msg} · ${t('renombrado: se quitó {o}', { o: row.name })}`;
     },
   };
 }
