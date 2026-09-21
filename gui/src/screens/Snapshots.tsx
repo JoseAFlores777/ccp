@@ -512,8 +512,13 @@ export function Snapshots() {
               [t('Perfiles regenerados'), done.regenerated.join(', ') || '—'],
             ]}
           />
+          {/* Sin escrituras no hay red que tender: el restore sale antes de
+              capturarla y `pre_snapshot` vuelve vacío. Prometer ahí una foto
+              previa sería ofrecer una vuelta atrás con id en blanco. */}
           <Note kind="accent" style={{ marginTop: 10 }}>
-            {t('Si esto no era lo que querías, la foto previa {id} deja el estado anterior a un restore de distancia.', { id: short(done.pre_snapshot ?? '') })}
+            {done.pre_snapshot
+              ? t('Si esto no era lo que querías, la foto previa {id} deja el estado anterior a un restore de distancia.', { id: short(done.pre_snapshot) })
+              : t('No se escribió nada: lo que había ya coincidía con el snapshot, así que no hizo falta foto previa.')}
           </Note>
         </Card>
       )}
