@@ -772,11 +772,10 @@ ccp cloud push                            # uploads what the cloud does not have
 # the other machine
 ccp cloud login https://ccp.example.com
 ccp cloud unlock                          # the vault passphrase (not your account password)
-ccp cloud pull latest                     # downloads it into the local store; it prints the id
-ccp snapshot restore <id>                 # the id the pull just printed, NOT `latest`:
-                                          # `latest` is the newest by creation date, and the
-                                          # downloaded one keeps the other machine's date.
-                                          # shows the plan; add --yes to apply it
+ccp cloud restore latest                  # downloads the newest one IN THE CLOUD and shows the plan:
+                                          # what it would write, where each project lands here and
+                                          # what is left to do by hand. Add --yes to apply it
+ccp cloud restore <id> --only claude/settings.json --yes   # …or just those paths
 
 ccp cloud status      # server, account, machine, vault, how many are pending
 ccp cloud list        # snapshots in the cloud, from every machine
@@ -814,6 +813,20 @@ still the primary source.
   compromised server, and then `verify` would be a warning you learn to ignore. A pruned snapshot cannot be
   downloaded (the CLI says so); yours is still on the machine that made it. **Pinned snapshots are never
   pruned**: `ccp snapshot pin <id>` (or giving one a label) travels up on the next `push`.
+- **Restoring reaches this machine by three roads, and all three end in the same engine** (the `snapshot
+  restore` of §8.3: it plans, takes a safety snapshot first, applies selectively and regenerates the
+  projection). From the app (Cloud → History: every machine's snapshots, the diff against what is live here,
+  all of it or single items); from the portal («Restore on <machine>», which publishes a signed revision that
+  this machine applies when its agent next checks in, confirming anything executable locally); and on a brand
+  new machine, `ccp cloud restore`. The portal never restores by itself: there is no inbound connection to
+  your machines.
+- **A new machine maps its own paths.** A snapshot from another machine names projects by their normalised
+  git remote, so `ccp cloud restore` looks for each repo here: the path the snapshot carried (translated to
+  this HOME), then any folder your rules, your `.claude.json` projects or the usual roots (`~/code`, `~/src`,
+  `~/Documents/GitHub`…) hold with that same remote. What it cannot find is **skipped, never guessed**, and
+  `--map <key>=<absolute dir>` says where it lives (the app has a folder picker). It also prints what is left
+  to do by hand — OAuth tokens never travel, so each official profile needs `ccp profile login`, and an MCP or
+  hook whose command is not on this machine is named before anything is written.
 - **A snapshot can also come down as a file**, without touching this machine's store — which may not even
   have one: `ccp cloud pull <id> -o copia.ccpsnap` writes the portable archive (`ccp snapshot import` and its
   passphrase open it on the other side), and `-o copia.tar.gz --decrypted` writes the files themselves, in

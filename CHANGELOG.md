@@ -4,6 +4,34 @@
 
 ### Added
 
+- **Restaurar desde la nube, por los tres caminos de §10.3.1 (F3-3), y los tres terminan en el mismo
+  motor**: el restore de §8.3, que planifica, toma un snapshot de seguridad y regenera la proyección.
+  Construir un segundo camino de escritura habría sido construir un segundo sitio donde perder datos.
+  - **Desde la app** (Nube → Historial): los snapshots de TODAS tus máquinas, el diff contra tu estado
+    vivo y la restauración entera o por elementos sueltos. El «diff» que se pinta ES el plan del motor —qué
+    escribiría en cada ruta—: calcularlo aparte habría sido una segunda cuenta capaz de decir algo distinto
+    de lo que luego se aplica.
+  - **Desde el portal** («restaurar en…» en la línea de tiempo): publica una revisión firmada por equipo y
+    **sin base**, que es justo lo que la convierte en una restauración. Con base, la máquina reconcilia a
+    tres bandas y lo que ella cambió se queda; sin ella la orden es absoluta, «llega a este snapshot». No
+    sube ni crea nada: el snapshot ya está en la nube. Lo ejecutable sigue confirmándose allí, y el estado
+    (`pendiente` → `aplicada`/`parcial`/`conflicto`/`fallida`) ya se pintaba desde F2.
+  - **En una máquina nueva**: `ccp cloud restore [<id>|latest]`, que sin `--yes` enseña el plan y sale 1,
+    igual que `ccp snapshot restore`.
+- **El mapeo de rutas y repos de §11 se hace EN la máquina**, que es el único sitio con un disco que
+  mirar. Un proyecto del snapshot se busca aquí en este orden: la ruta que traía (traducida a este HOME) si
+  existe, y si no, una carpeta con el **mismo remoto de git normalizado** entre las de tus reglas, los
+  `projects` de los `.claude.json` y las raíces habituales (`~/code`, `~/src`, `~/Documents/GitHub`…).
+  - **Lo que no se encuentra se salta, nunca se adivina**: se cuenta como `project_missing` y se dice
+    cuántos archivos suyos quedan fuera. `--map <clave>=<carpeta absoluta>` lo coloca (la app trae un
+    selector de carpeta). Una ruta relativa se rechaza: resolverla contra el directorio del proceso
+    escribiría en un sitio distinto según desde dónde se lanzara el comando.
+  - **También lo usa la revisión que llega del portal**: sin esto, una orden hecha en otra máquina se
+    aplicaba a medias en ésta y nadie decía por qué.
+- **La lista de pendientes se calcula ANTES de aplicar**, mirando lo que el snapshot TRAE y no lo que ya hay
+  aquí: los perfiles `official` que necesitarán `ccp profile login` (los tokens OAuth no viajan nunca) y los
+  comandos de MCP, hooks y barra de estado que esta máquina no tiene. Antes de escribir todavía es una lista
+  de cosas que hacer; después sería la explicación de por qué algo no funcionó.
 - **Un snapshot de la nube se puede bajar a un archivo** (spec §10.3.1, F3-2): `ccp cloud pull <id> -o
   copia.ccpsnap` escribe el `.ccpsnap` cifrado —el mismo que abre `ccp snapshot import` con su frase— y
   `-o copia.tar.gz --decrypted` escribe los archivos en claro, legibles con cualquier `tar`. El camino no

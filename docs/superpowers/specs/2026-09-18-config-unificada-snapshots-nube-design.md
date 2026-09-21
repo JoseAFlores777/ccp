@@ -718,7 +718,7 @@ y restaura como una unidad.
 >   sabe que subió: `verify` compara contra su propio estado local (`dropped`). La fecha **no** va firmada y
 >   por eso no ordena nada; lo que caza `out_of_order` es una fecha que miente.
 >
-> La descarga llegó en F3-2; los tres caminos de restauración siguen sin estar.
+> La descarga llegó en F3-2 y los tres caminos de restauración, en F3-3 (más abajo).
 
 **Descargar**, desde el portal (botón «Descargar») o desde el CLI:
 - **Cifrado** (`.ccpsnap`), por defecto: manifiesto + blobs, tal como están en el servidor. Se
@@ -763,6 +763,35 @@ hace un snapshot previo, aplica selectivamente y regenera la proyección.
 
 El portal **nunca** restaura por sí mismo: no hay conexión entrante a tus máquinas. Siempre propone,
 y la máquina ejecuta (ADR 0014).
+
+> **Estado en F3-3 (implementado).** Los tres caminos existen y los tres terminan donde dice el plan, en el
+> restore de §8.3: `ccp cloud restore` (CLI), `cloud.snapshots`/`cloud.restorePlan`/`cloud.restore` en
+> `ccp serve` con la pantalla Nube → Historial, y «restaurar en…» en la línea de tiempo del portal. Cuatro
+> cosas que el código fijó y el plan no decía:
+>
+> - **Lo que hace del camino 2 una restauración es la base VACÍA, no un mensaje nuevo.** El agente ya
+>   trataba `base: ""` como «llega a este snapshot» (reconcilia pasando lo local como base, así que nada
+>   choca y lo deseado gana). El portal solo tenía que publicar la revisión sin base y sin subir nada: el
+>   snapshot que se restaura ya está arriba, y publicar una copia suya habría añadido un eslabón que no dice
+>   nada. `ordena()` es el mismo bucle que usa «Aplicar a…», porque dos sitios publicando revisiones acaban
+>   encadenando de dos maneras.
+> - **El diff contra el estado vivo ES el plan del motor.** La pantalla no calcula su propio diff: pide el
+>   plan en seco y pinta sus pasos (`write`/`merge`/`skip`). Un diff aparte habría sido una segunda cuenta de
+>   lo mismo, capaz de enseñar algo distinto de lo que luego se escribe. Por eso `cloud.restorePlan` va en la
+>   lista de ESCRITURA de `serve` aunque no toque configuración: para calcularlo hay que bajar el snapshot, y
+>   eso escribe en el almacén y en `state.json`, que es un read-modify-write.
+> - **El mapeo de §11 no adivina.** Un proyecto se busca por la ruta que traía (traducida a este HOME) y, si
+>   no está, por el **remoto de git normalizado** entre las carpetas que esta máquina ya conoce y las raíces
+>   habituales. El que no aparece se salta como `project_missing` y se dice cuántos archivos suyos quedan
+>   fuera; colocarlo es `--map`. La ruta existente gana a la búsqueda por remoto: es donde el usuario está
+>   trabajando, y un segundo clon que aparezca en `~/code` no puede desplazarla. Y el mapeo se aplica también
+>   a la revisión que llega del portal, que es donde más falta hace: la orden viene de una máquina donde el
+>   repo cuelga de otra ruta.
+> - **Los pendientes se calculan antes de aplicar, sobre lo que el snapshot TRAE.** Los perfiles `official`
+>   salen del `ccp.yaml` del propio snapshot (aún no existen aquí) y los comandos, de los `mcpServers`,
+>   `hooks` y `statusLine` de sus archivos. Un blob que no está no produce pendientes: inventar uno sobre un
+>   archivo que no se ha leído es mandar a instalar algo que quizá ya está.
+
 
 ### 10.4 Pila recomendada
 
@@ -939,7 +968,7 @@ Dokploy v0.30.4, un solo servidor.
 | I | Infra: stack `ccp-cloud` en Dokploy (Postgres + Keycloak en `ccp-auth.joseiz.com` con realm `ccp` + Alarik en `ccp-s3.joseiz.com`), desde `deploy/ccp-cloud/` | — | S | Un login de prueba por flujo de dispositivo obtiene un token con `aud: ccp-api` |
 | F1 | **Implementado.** Bóveda, dispositivos, push/pull de snapshots (`ccp cloud`), el backend `ccp-cloud` y la traducción del HOME al restaurar. Falta **desplegar el API**, pendiente de autorización del usuario | D, I | L | Una segunda Mac se desbloquea con la frase de bóveda y trae el historial de la primera |
 | F2 | **Implementado.** Portal: dispositivos, historial, diff, editor y «Aplicar a…»; P-21 Nube en la app | F1 | M | Desde el portal se edita la configuración de un snapshot, se aplica a una máquina y ésta confirma allí lo ejecutable |
-| F3 | Restaurar desde el portal. **F3-1 hecho**: cadena firmada comprobable (`ccp cloud verify`) y retención en el servidor. **F3-2 hecho**: descarga `.ccpsnap` / `.tar.gz` desde el CLI y desde el portal | F2 | L | «Restaurar en <máquina>» en el portal deja la máquina en ese snapshot, con lo ejecutable confirmado en local |
+| F3 | **Implementado.** Restaurar desde el portal. **F3-1**: cadena firmada comprobable (`ccp cloud verify`) y retención en el servidor. **F3-2**: descarga `.ccpsnap` / `.tar.gz` desde el CLI y desde el portal. **F3-3**: los tres caminos de restauración (app, portal, máquina nueva) con el mapeo de §11 | F2 | L | «Restaurar en <máquina>» en el portal deja la máquina en ese snapshot, con lo ejecutable confirmado en local |
 | F4 | Grupos, auditoría, rotación de AK | F3 | M | Un cambio aplicado a un grupo aparece como `aplicada` en cada máquina |
 | E | (aplazado, D10) `ccp sync` sobre carpeta o S3 | D | M | — |
 
