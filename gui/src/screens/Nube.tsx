@@ -31,6 +31,22 @@ function whyLabel(d: Danger): string {
   return m[d] ?? d;
 }
 
+// Los motivos de un «sin aplicar» llegan como códigos estables (los pone el
+// agente o el motor de restauración). Uno desconocido sale crudo antes que
+// desaparecer.
+function reasonLabel(code: string): string {
+  const m: Record<string, string> = {
+    no_delete_on_restore: t('ccp no borra archivos al restaurar'),
+    no_cloud_data: t('sus datos no están en la nube'),
+    not_confirmed: t('no se confirmó en la máquina'),
+    missing_blob: t('el snapshot no tiene sus datos (¿se exportó sin secretos?)'),
+    project_missing: t('la carpeta del proyecto no existe en esta máquina'),
+    invalid: t('no es una ruta que ccp sepa restaurar'),
+    unreadable: t('no se pudo leer el archivo actual'),
+  };
+  return m[code] ?? code;
+}
+
 function vaultLabel(v: CloudStatus['vault']): [string, 'accent' | 'warn' | 'err' | 'neutral'] {
   switch (v) {
     case 'unlocked': return [t('abierta'), 'accent'];
@@ -200,7 +216,7 @@ function Revisiones({ onDone }: { onDone: () => void }) {
           {out.applied.map((l) => <div key={l} className="mono" style={{ fontSize: 12, padding: '2px 0' }}>✓ {l}</div>)}
           {out.skipped.map((s) => (
             <div key={s.lpath + s.reason} style={{ fontSize: 12, color: 'var(--warn)', padding: '2px 0' }}>
-              <span className="mono">{s.lpath}</span>: {s.reason}
+              <span className="mono">{s.lpath}</span>: {reasonLabel(s.reason)}
             </div>
           ))}
           {out.pre_snapshot && (

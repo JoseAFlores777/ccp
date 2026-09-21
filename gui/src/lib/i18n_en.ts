@@ -1262,4 +1262,11 @@ export const en: Record<string, string> = {
   "Perfiles regenerados": "Profiles regenerated",
   "Si esto no era lo que querías, la foto previa {id} deja el estado anterior a un restore de distancia.": "If this was not what you wanted, the prior snapshot {id} leaves the previous state one restore away.",
   "No se escribió nada: lo que había ya coincidía con el snapshot, así que no hizo falta foto previa.": "Nothing was written: what was there already matched the snapshot, so no prior snapshot was needed.",
+  "ccp no borra archivos al restaurar": "ccp does not delete files when restoring",
+  "sus datos no están en la nube": "its data is not in the cloud",
+  "no se confirmó en la máquina": "it was not confirmed on this machine",
+  "el snapshot no tiene sus datos (¿se exportó sin secretos?)": "the snapshot has no data for it (exported without secrets?)",
+  "la carpeta del proyecto no existe en esta máquina": "the project folder does not exist on this machine",
+  "no es una ruta que ccp sepa restaurar": "not a path ccp knows how to restore",
+  "no se pudo leer el archivo actual": "the current file could not be read",
 };

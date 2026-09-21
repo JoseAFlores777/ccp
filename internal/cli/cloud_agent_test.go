@@ -14,9 +14,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/JoseAFlores777/ccp/internal/cloud/agent"
 	"github.com/JoseAFlores777/ccp/internal/cloud/api"
 	"github.com/JoseAFlores777/ccp/internal/cloud/client"
 	"github.com/JoseAFlores777/ccp/internal/cloud/crypt"
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // publicaRevision firma y publica una revisión para ESTE equipo, como haría el
@@ -158,5 +160,33 @@ func TestCloudPolicy(t *testing.T) {
 	}
 	if code, _, errs := snapRun(t, "cloud", "policy", "loquesea"); code != 1 || !strings.Contains(errs, "auto") {
 		t.Fatalf("una política inventada se rechaza: %d %q", code, errs)
+	}
+}
+
+// TestPrintOutcomeTraduceMotivos fija que el motivo de un «sin aplicar» pasa
+// por el catálogo: el campo Reason es un código estable, no prosa, así que en
+// inglés no puede salir ni español ni el código crudo.
+func TestPrintOutcomeTraduceMotivos(t *testing.T) {
+	casos := []struct {
+		code string
+		want string
+	}{
+		{agent.ReasonNoDelete, "ccp does not delete files when restoring"},
+		{agent.ReasonNoCloudData, "its data is not in the cloud"},
+		{agent.ReasonNotConfirmed, "it was not confirmed on this machine"},
+		{"missing_blob", "the snapshot has no data for it"},
+		{"project_missing", "the project folder does not exist on this machine"},
+	}
+	for _, cs := range casos {
+		var buf strings.Builder
+		c := cloudCmd{lang: i18n.En, out: &buf, err: &buf}
+		c.printOutcome(&agent.Outcome{Skipped: []agent.Skipped{{LPath: "claude/hooks/x.sh", Reason: cs.code}}})
+		got := buf.String()
+		if !strings.Contains(got, cs.want) {
+			t.Fatalf("motivo %q: se esperaba %q en %q", cs.code, cs.want, got)
+		}
+		if strings.Contains(got, cs.code) {
+			t.Fatalf("motivo %q: salió el código crudo en %q", cs.code, got)
+		}
 	}
 }
