@@ -225,3 +225,59 @@ func TestSyncBovedaAjenaNoEsManipulacion(t *testing.T) {
 		t.Fatalf("pull no explica la bóveda ajena: %q", errs)
 	}
 }
+
+// La pista que imprime `pull` tiene que poder copiarse y pegarse tal cual: se
+// ejecuta literalmente lo que dice. La versión vieja nombraba `ccp sync apply`
+// con el id LOCAL del manifiesto, y ese comando resuelve ids del DESTINO (un
+// HMAC del local), así que el prefijo no casaba jamás y la pista mandaba al
+// usuario a un error.
+func TestSyncPullPistaSeEjecutaTalCual(t *testing.T) {
+	t.Setenv("CCP_SYNC_PASSPHRASE", fraseSync)
+	destino := t.TempDir()
+	snapEnv(t)
+	if code, out, errs := snapRun(t, "snapshot", "create"); code != 0 {
+		t.Fatalf("create: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "sync", "remote", "add", "icloud", "file://"+destino); code != 0 {
+		t.Fatalf("remote add: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "sync", "push"); code != 0 {
+		t.Fatalf("push: %d %q %q", code, out, errs)
+	}
+
+	t.Setenv("CCP_HOME", t.TempDir())
+	if code, out, errs := snapRun(t, "sync", "remote", "add", "icloud", "file://"+destino); code != 0 {
+		t.Fatalf("remote add en la otra máquina: %d %q %q", code, out, errs)
+	}
+	code, out, errs := snapRun(t, "sync", "pull")
+	if code != 0 {
+		t.Fatalf("pull: %d %q %q", code, out, errs)
+	}
+	orden := pistaDePull(t, out)
+	// Se ejecuta tal cual: lo que se comprueba es que la orden RESUELVE el
+	// snapshot. Sin --yes, un plan con escrituras sale 1 a propósito —es la
+	// misma regla que `snapshot restore`—, así que lo que no puede pasar es
+	// que se queje de no encontrarlo.
+	code, out, errs = snapRun(t, orden...)
+	if strings.Contains(errs, "no hay ningún snapshot") {
+		t.Fatalf("la pista %v no resuelve: %q", orden, errs)
+	}
+	if code != 0 && !strings.Contains(out, "Plan para restaurar") {
+		t.Fatalf("la pista %v salió %d: %q %q", orden, code, out, errs)
+	}
+}
+
+// pistaDePull saca de la salida de `pull` los argumentos de la orden que
+// sugiere, sin el «ccp» de delante.
+func pistaDePull(t *testing.T, out string) []string {
+	t.Helper()
+	for _, l := range strings.Split(out, "\n") {
+		i := strings.Index(l, "ccp ")
+		if i < 0 {
+			continue
+		}
+		return strings.Fields(l[i+len("ccp "):])
+	}
+	t.Fatalf("pull no imprimió ninguna pista: %q", out)
+	return nil
+}

@@ -516,6 +516,10 @@ func (c syncCmd) pull(args []string) int {
 	if len(missing) > 0 {
 		fmt.Fprintln(c.out, warnLine(c.out, i18n.T(c.lang, "cli.sync.pull_missing", len(missing))))
 	}
+	// La pista nombra `snapshot restore` y no `sync apply`: lo que se acaba de
+	// bajar ya es un snapshot LOCAL, y su id es el local. `sync apply`
+	// resuelve ids del DESTINO (un HMAC del local, remote.Pick sobre la
+	// cadena), así que un prefijo del id local no casaría nunca.
 	fmt.Fprintln(c.out, mute(c.out, i18n.T(c.lang, "cli.sync.pull_hint", snapshot.Short(m.ID))))
 	return 0
 }

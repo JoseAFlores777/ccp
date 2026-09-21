@@ -103,7 +103,7 @@ CCP_SYNC_S3_SECRET_KEY (o de las de AWS), nunca de la URL.`,
 	"cli.sync.pull_none":      {En: "%s has no snapshots yet.", Es: "%s todavía no tiene snapshots."},
 	"cli.sync.pulled":         {En: "Downloaded from %s: it is now the local snapshot %s.", Es: "Bajado de %s: aquí es el snapshot local %s."},
 	"cli.sync.pull_missing":   {En: "%d paths had no content in the destination.", Es: "%d rutas no tenían contenido en el destino."},
-	"cli.sync.pull_hint":      {En: "Apply it here with: ccp sync apply %s --yes", Es: "Aplícalo aquí con: ccp sync apply %s --yes"},
+	"cli.sync.pull_hint":      {En: "To apply it: ccp snapshot restore %s", Es: "Para aplicarlo: ccp snapshot restore %s"},
 	"cli.sync.apply_confirm": {
 		En: "Nothing was changed. Run it again with --yes to apply it (or with --plan to just see it).",
 		Es: "No se cambió nada. Ejecútalo de nuevo con --yes para aplicarlo (o con --plan para solo verlo).",
