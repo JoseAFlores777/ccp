@@ -85,12 +85,21 @@ function cabecera() {
     el('div', { class: 'marca' }, el('strong', {}, 'ccp'), el('span', {}, 'nube')),
     el('div', { class: 'acciones' },
       me ? el('span', { class: 'quien' }, me.email || me.user_id) : null,
-      vault.open() ? el('button', { class: 'lig', onclick: () => { vault.lock(); render(); } }, 'Bloquear bóveda') : null,
+      vault.open() ? el('button', { class: 'lig', onclick: () => { cerrarBoveda(); render(); } }, 'Bloquear bóveda') : null,
       oidc.signedIn() ? el('button', { class: 'lig', onclick: () => oidc.signOut(cfg.portal_client_id) }, 'Salir') : null));
 }
 
 function pantalla(...nodes) {
   show(cabecera(), el('main', {}, ...nodes));
+}
+
+// cerrarBoveda olvida también lo que se había descifrado. vault.lock borra las
+// claves, pero el editor guarda en memoria el texto de los archivos que se
+// abrieron —incluidos los secretos que alguien pidió ver— y lo que llevaba
+// editado sin publicar: dejarlo ahí convierte «bloquear» en media verdad.
+function cerrarBoveda() {
+  vault.lock();
+  edicion = null;
 }
 
 // ------------------------------------------------------------------ arranque
@@ -133,7 +142,7 @@ async function boot() {
     pantalla(aviso('No se pudo registrar este navegador como equipo: ' + e.message));
     return;
   }
-  vault.idleWatch(() => render());
+  vault.idleWatch(() => { edicion = null; render(); });
   for (const ev of ['click', 'keydown', 'scroll']) addEventListener(ev, () => vault.touch(), { passive: true });
   addEventListener('hashchange', () => render());
   render();
