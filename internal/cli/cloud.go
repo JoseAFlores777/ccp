@@ -153,19 +153,24 @@ func openBrowser(u string) {
 	_ = exec.Command("open", u).Start()
 }
 
-// readCloudSecret lee un secreto de la variable env o, en una terminal, sin eco.
+// readSecret lee un secreto de la variable env o, en una terminal, sin eco.
+//
+// Las keys del texto son las de `cloud` porque ahí nacieron y el concepto es
+// el mismo: `ccp sync` pide la frase de una bóveda igual que `ccp cloud`, y
+// duplicar la prosa sería tener dos formas de decir lo mismo (el nombre de la
+// variable entra como parámetro, que es lo único que cambia).
 // confirm pide longitud mínima y repetirlo (al crear la bóveda).
-func readCloudSecret(c cloudCmd, env, promptKey string, confirm bool) (string, error) {
+func readSecret(lang i18n.Lang, errw io.Writer, env, promptKey string, confirm bool) (string, error) {
 	if v := os.Getenv(env); v != "" {
 		if confirm && len([]rune(v)) < snapMinPassphrase {
-			return "", errors.New(i18n.T(c.lang, "cli.cloud.pass_short", snapMinPassphrase))
+			return "", errors.New(i18n.T(lang, "cli.cloud.pass_short", snapMinPassphrase))
 		}
 		return v, nil
 	}
 	if !isatty.IsTerminal(os.Stdin.Fd()) {
-		return "", errors.New(i18n.T(c.lang, "cli.cloud.pass_needed", env))
+		return "", errors.New(i18n.T(lang, "cli.cloud.pass_needed", env))
 	}
-	v, err := promptSecret(c.err, i18n.T(c.lang, promptKey))
+	v, err := promptSecret(errw, i18n.T(lang, promptKey))
 	if err != nil {
 		return "", err
 	}
@@ -173,14 +178,14 @@ func readCloudSecret(c cloudCmd, env, promptKey string, confirm bool) (string, e
 		return v, nil
 	}
 	if len([]rune(v)) < snapMinPassphrase {
-		return "", errors.New(i18n.T(c.lang, "cli.cloud.pass_short", snapMinPassphrase))
+		return "", errors.New(i18n.T(lang, "cli.cloud.pass_short", snapMinPassphrase))
 	}
-	again, err := promptSecret(c.err, i18n.T(c.lang, "cli.cloud.pass_confirm"))
+	again, err := promptSecret(errw, i18n.T(lang, "cli.cloud.pass_confirm"))
 	if err != nil {
 		return "", err
 	}
 	if again != v {
-		return "", errors.New(i18n.T(c.lang, "cli.cloud.pass_mismatch"))
+		return "", errors.New(i18n.T(lang, "cli.cloud.pass_mismatch"))
 	}
 	return v, nil
 }
@@ -414,7 +419,7 @@ func (c cloudCmd) initVault(args []string) int {
 		fmt.Fprintln(c.err, i18n.T(c.lang, "cli.cloud.vault_exists"))
 		return 1
 	}
-	pass, err := readCloudSecret(c, "CCP_CLOUD_PASSPHRASE", "cli.cloud.pass_prompt", true)
+	pass, err := readSecret(c.lang, c.err, "CCP_CLOUD_PASSPHRASE", "cli.cloud.pass_prompt", true)
 	if err != nil {
 		return c.fail(err)
 	}
@@ -479,7 +484,7 @@ func (c cloudCmd) unlock(args []string) int {
 	}
 	var ak []byte
 	if a.flags["--recovery"] {
-		code, err := readCloudSecret(c, "CCP_CLOUD_RECOVERY", "cli.cloud.recovery_prompt", false)
+		code, err := readSecret(c.lang, c.err, "CCP_CLOUD_RECOVERY", "cli.cloud.recovery_prompt", false)
 		if err != nil {
 			return c.fail(err)
 		}
@@ -487,7 +492,7 @@ func (c cloudCmd) unlock(args []string) int {
 			return c.fail(err)
 		}
 	} else {
-		pass, err := readCloudSecret(c, "CCP_CLOUD_PASSPHRASE", "cli.cloud.pass_prompt", false)
+		pass, err := readSecret(c.lang, c.err, "CCP_CLOUD_PASSPHRASE", "cli.cloud.pass_prompt", false)
 		if err != nil {
 			return c.fail(err)
 		}

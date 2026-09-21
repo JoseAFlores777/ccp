@@ -991,6 +991,10 @@ CLOUD                             end-to-end encrypted; the server cannot read i
   ccp cloud login <server> | init | unlock | status
   ccp cloud push | pull [<id>|latest] | list | devices | revoke <device> | logout
 
+SYNC WITHOUT A SERVER             a folder or a bucket as the destination; sealed the same way
+  ccp sync remote add <name> <url> | list | rm <name>
+  ccp sync push | pull [<id>|latest] | apply [<id>|latest] [--plan | --yes]
+
 MCP SERVERS                       layer: global · profile · project
   ccp mcp list [--scope <layer>]        what each layer declares, and where it goes
   ccp mcp add <name> -- <cmd> [args…]   stdio server (--env K=V)
@@ -1104,6 +1108,10 @@ SNAPSHOTS
 NUBE                              cifrada de punta a punta; el servidor no puede leerla
   ccp cloud login <servidor> | init | unlock | status
   ccp cloud push | pull [<id>|latest] | list | devices | revoke <dispositivo> | logout
+
+SINCRONIZAR SIN SERVIDOR          una carpeta o un bucket como destino; sellado igual
+  ccp sync remote add <nombre> <url> | list | rm <nombre>
+  ccp sync push | pull [<id>|latest] | apply [<id>|latest] [--plan | --yes]
 
 SERVIDORES MCP                    capa: global · perfil · proyecto
   ccp mcp list [--scope <capa>]         qué declara cada capa y a dónde va
