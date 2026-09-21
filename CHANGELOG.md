@@ -388,6 +388,14 @@
 
 ### Fixed
 
+- **Una nube sin snapshots no es un fallo al restaurar.** `ccp cloud restore` en una cuenta recién creada
+  salía con error, como si algo se hubiera roto; ahora dice que no hay ninguno y sale 0, el mismo mensaje que
+  `ccp cloud pull`. Dos comandos que describen el mismo estado con distinta gravedad enseñan a desconfiar del
+  que grita.
+- **El README en español se había quedado en la nube de F1.** No contaba el agente (`ccp cloud
+  agent|review|policy`) ni nada de F3: ni `ccp cloud restore`, ni `ccp cloud verify`, ni la retención, ni la
+  descarga a archivo, ni el mapeo de proyectos de una máquina a otra. Ahora los dos idiomas cuentan lo mismo,
+  que es lo mínimo en un proyecto donde cada texto de la interfaz nace bilingüe.
 - **El portal buscaba `projects/` donde ccp escribe `project/`.** Los cambios de un repo salían agrupados en
   «otros» en la línea de tiempo, sin nombre de proyecto. Lo encontró el test nuevo del modelo de P-20, que
   toma su inventario de rutas lógicas de `core` en vez de una lista escrita a mano.

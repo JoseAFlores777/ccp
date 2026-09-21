@@ -903,6 +903,9 @@ or after 15 minutes without touching anything.
   (the same file `ccp snapshot import` opens) or a readable `.tar.gz`. The plain one is only offered once you
   tick a box that says, in those words, that your keys go in the clear — and without a passphrase the
   `.ccpsnap` leaves the secrets out rather than carry them in the clear inside something called «encrypted».
+- **«Restore on <machine>»**, from the timeline: it publishes a signed revision **with no base**, which is
+  what makes it a restore instead of a merge. It uploads nothing, because the snapshot is already up there,
+  and the machine applies it as soon as its agent checks in, confirming anything executable right there.
 - Signatures have three answers, not two: valid, altered, and *this browser cannot verify Ed25519* — which is
   not the same as valid.
 
@@ -1168,7 +1171,7 @@ With commands: `ccp config show` · `ccp config set <clave> <valor>` · `ccp con
 | Status / diagnostics | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
 | Snapshots | `ccp snapshot create\|list\|diff\|restore\|export\|import` |
-| Cloud | `ccp cloud login\|init\|unlock\|push\|pull\|list\|devices\|agent\|review\|policy` |
+| Cloud | `ccp cloud login\|init\|unlock\|push\|pull\|restore\|list\|verify\|devices\|agent\|review\|policy` |
 | Add or remove an MCP server | `ccp mcp add\|rm <n>` · `ccp mcp list` |
 | Turn an inherited MCP off in one profile | `ccp mcp disable <n> --profile <perfil>` |
 | Update | `ccp upgrade` |
