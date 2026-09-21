@@ -987,6 +987,10 @@ SNAPSHOTS
   ccp snapshot pin|unpin <id> | prune [--dry-run]
   ccp snapshot export <id> <file> [--with-secrets] | import <file>
 
+CLOUD                             end-to-end encrypted; the server cannot read it
+  ccp cloud login <server> | init | unlock | status
+  ccp cloud push | pull [<id>|latest] | list | devices | revoke <device> | logout
+
 MCP SERVERS                       layer: global · profile · project
   ccp mcp list [--scope <layer>]        what each layer declares, and where it goes
   ccp mcp add <name> -- <cmd> [args…]   stdio server (--env K=V)
@@ -1096,6 +1100,10 @@ SNAPSHOTS
   ccp snapshot restore <id> [--only <ruta>] [--dry-run | --yes]
   ccp snapshot pin|unpin <id> | prune [--dry-run]
   ccp snapshot export <id> <archivo> [--with-secrets] | import <archivo>
+
+NUBE                              cifrada de punta a punta; el servidor no puede leerla
+  ccp cloud login <servidor> | init | unlock | status
+  ccp cloud push | pull [<id>|latest] | list | devices | revoke <dispositivo> | logout
 
 SERVIDORES MCP                    capa: global · perfil · proyecto
   ccp mcp list [--scope <capa>]         qué declara cada capa y a dónde va
