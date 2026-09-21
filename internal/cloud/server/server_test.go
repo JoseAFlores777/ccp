@@ -23,6 +23,9 @@ import (
 	"github.com/JoseAFlores777/ccp/internal/vault"
 )
 
+// portalClientID es el cliente público del portal en las pruebas.
+const portalClientID = "ccp-portal"
+
 type env struct {
 	t   *testing.T
 	iss *oidctest.Issuer
@@ -38,7 +41,7 @@ func newEnv(t *testing.T) *env {
 	bl := blobstest.New(t)
 	h := New(Config{
 		Store: st, Blobs: bl, Verifier: NewOIDCVerifier(iss.URL, iss.JWKSURL(), oidctest.Audience),
-		Issuer: iss.URL, ClientID: oidctest.ClientID,
+		Issuer: iss.URL, ClientID: oidctest.ClientID, PortalClientID: portalClientID,
 	})
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
@@ -103,6 +106,12 @@ func TestHealthAndInfo(t *testing.T) {
 	var info api.Info
 	if code := e.call("GET", "/v1/info", "", "", nil, &info); code != 200 || info.Issuer != e.iss.URL || info.ClientID != oidctest.ClientID || info.APIVersion != api.Version {
 		t.Fatalf("/v1/info = %d %+v", code, info)
+	}
+	// El portal es otro cliente público del mismo realm y necesita su id para
+	// empezar el login. Lo dice /v1/info, que es lo único que puede leer una
+	// pestaña que aún no ha iniciado sesión.
+	if info.PortalClientID != portalClientID {
+		t.Fatalf("/v1/info sin el cliente del portal: %+v", info)
 	}
 }
 
@@ -726,5 +735,44 @@ func TestRevisionElServidorNoPuedeDesviarUnaOrden(t *testing.T) {
 		Snapshot: desviada.Snapshot, Base: desviada.Base, Body: desviada.Body}
 	if err := acct.VerifyRevision(suplantada, desviada.Sig); !errors.Is(err, crypt.ErrSignature) {
 		t.Fatalf("una orden desviada a otra máquina debe fallar al verificar: %v", err)
+	}
+}
+
+// El portal se monta en la raíz cuando el despliegue lo trae, y el API sigue
+// mandando en /v1: sin esta separación, una ruta de API mal escrita acabaría
+// devolviendo HTML.
+func TestPortalEnLaRaiz(t *testing.T) {
+	iss := oidctest.New(t)
+	portal := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("el portal"))
+	})
+	h := New(Config{Store: store.NewMem(), Blobs: blobstest.New(t),
+		Verifier: NewOIDCVerifier(iss.URL, iss.JWKSURL(), oidctest.Audience),
+		Issuer:   iss.URL, ClientID: oidctest.ClientID, Portal: portal})
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+
+	resp, err := http.Get(srv.URL + "/dispositivos")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || string(b) != "el portal" {
+		t.Fatalf("la raíz devolvió %d %q", resp.StatusCode, b)
+	}
+	// /v1/info lo sigue sirviendo el API, no el portal.
+	var info api.Info
+	e := &env{t: t, url: srv.URL}
+	if code := e.call("GET", "/v1/info", "", "", nil, &info); code != 200 || info.Issuer != iss.URL {
+		t.Fatalf("/v1/info = %d %+v", code, info)
+	}
+}
+
+// Sin portal configurado la raíz es un 404 del API, no un panel vacío.
+func TestSinPortalLaRaizEs404(t *testing.T) {
+	e := newEnv(t)
+	if code := e.call("GET", "/", "", "", nil, nil); code != 404 {
+		t.Fatalf("la raíz sin portal = %d", code)
 	}
 }

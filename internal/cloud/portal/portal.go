@@ -45,13 +45,13 @@ type handler struct {
 	csp    string
 }
 
-// New construye el portal. Falla si el emisor no es una URL https absoluta:
-// servir el portal con un connect-src que no llega a Keycloak es una pantalla
-// de login que falla al pulsar, y el motivo solo se ve en la consola.
+// New construye el portal. Falla si el emisor no vale: servir el portal con un
+// connect-src que no llega a Keycloak es una pantalla de login que falla al
+// pulsar, y el motivo solo se ve en la consola del navegador.
 func New(c Config) (http.Handler, error) {
 	u, err := url.Parse(c.Issuer)
-	if err != nil || u.Scheme != "https" || u.Host == "" {
-		return nil, fmt.Errorf("portal: el emisor OIDC debe ser una URL https absoluta, no %q", c.Issuer)
+	if err != nil || u.Host == "" || !secureOrLocal(u) {
+		return nil, fmt.Errorf("portal: el emisor OIDC debe ser https (o http contra el bucle local), no %q", c.Issuer)
 	}
 	h := &handler{assets: map[string]asset{}, csp: policy(u.Scheme + "://" + u.Host)}
 	err = fs.WalkDir(files, "web", func(p string, d fs.DirEntry, err error) error {
@@ -91,6 +91,20 @@ func policy(issuerOrigin string) string {
 		"form-action 'none'",
 		"frame-ancestors 'none'",
 	}, "; ")
+}
+
+// secureOrLocal repite la excepción que ya hace el cliente (client/auth.go):
+// http solo contra el bucle local, donde corre el stack de pruebas y no hay
+// red que escuche.
+func secureOrLocal(u *url.URL) bool {
+	if u.Scheme == "https" {
+		return true
+	}
+	if u.Scheme != "http" {
+		return false
+	}
+	h := u.Hostname()
+	return h == "127.0.0.1" || h == "localhost" || h == "::1"
 }
 
 func etag(b []byte) string {
