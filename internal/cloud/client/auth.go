@@ -168,3 +168,38 @@ func VaultFromAPI(v api.Vault) (crypt.Wraps, error) {
 	}
 	return crypt.Wraps{KDF: kdf, Passphrase: v.PassphraseWrap, Recovery: v.RecoveryWrap, SignPub: v.SignPub}, nil
 }
+
+// keeping renueva como persisting pero NO escribe nada: guarda el token vigente
+// en memoria. Lo usa el login, que no puede tocar token.json hasta que la
+// sesión nueva esté completa — si escribiera antes, un /v1/me que falla contra
+// otro servidor dejaría el token del emisor nuevo junto a la config del viejo,
+// es decir, la máquina sin sesión y sin nada que lo explique.
+type keeping struct {
+	mu   sync.Mutex
+	src  oauth2.TokenSource
+	last *oauth2.Token
+}
+
+func (k *keeping) Token() (*oauth2.Token, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	t, err := k.src.Token()
+	if err != nil {
+		return nil, err
+	}
+	k.last = t
+	return t, nil
+}
+
+// LoginClient es el cliente HTTP del login: renueva el token si hiciera falta
+// pero no lo persiste. La función devuelta da el token vigente (Keycloak rota
+// el refresh en cada renovación) para guardarlo al final, ya con la sesión
+// entera resuelta.
+func LoginClient(ctx context.Context, cfg *oauth2.Config, tok *oauth2.Token) (*http.Client, func() *oauth2.Token) {
+	k := &keeping{src: cfg.TokenSource(ctx, tok), last: tok}
+	return oauth2.NewClient(ctx, k), func() *oauth2.Token {
+		k.mu.Lock()
+		defer k.mu.Unlock()
+		return k.last
+	}
+}

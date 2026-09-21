@@ -193,10 +193,12 @@ func (c cloudCmd) login(args []string) int {
 	if err != nil {
 		return c.fail(err)
 	}
-	if err := c.files.SaveToken(tok); err != nil {
-		return c.fail(err)
-	}
-	cl := client.NewAPI(server, client.HTTPClient(c.ctx, oc, c.files, tok), "")
+	// El token NO se guarda todavía: hasta que /v1/me y el registro del
+	// dispositivo salgan bien no hay sesión, y escribirlo antes dejaría
+	// token.json del emisor nuevo junto a la config del anterior — la máquina
+	// sin sesión por un intento fallido contra otro servidor.
+	hc, current := client.LoginClient(c.ctx, oc, tok)
+	cl := client.NewAPI(server, hc, "")
 	me, err := cl.Me(c.ctx)
 	if err != nil {
 		return c.fail(err)
@@ -232,6 +234,9 @@ func (c cloudCmd) login(args []string) int {
 			return c.fail(err)
 		}
 		cfg.DeviceID, cfg.DeviceName = d.ID, d.Name
+	}
+	if err := c.files.SaveToken(current()); err != nil {
+		return c.fail(err)
 	}
 	if err := c.files.SaveConfig(cfg); err != nil {
 		return c.fail(err)

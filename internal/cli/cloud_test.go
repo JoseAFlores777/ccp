@@ -6,11 +6,13 @@ package cli
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/JoseAFlores777/ccp/internal/cloud/api"
 	"github.com/JoseAFlores777/ccp/internal/cloud/blobs/blobstest"
 	"github.com/JoseAFlores777/ccp/internal/cloud/oidctest"
 	cloudsrv "github.com/JoseAFlores777/ccp/internal/cloud/server"
@@ -212,5 +214,42 @@ func TestCloudPushTrasCambiarDeCuentaSube(t *testing.T) {
 	}
 	if json.Unmarshal([]byte(out), &st) != nil || st.PendingPush != 0 {
 		t.Fatalf("status --json = %q", out)
+	}
+}
+
+// cloudServerRoto anuncia otro emisor en /v1/info y falla en /v1/me: es el
+// servidor contra el que un login a medias no debe destruir la sesión viva.
+func cloudServerRoto(t *testing.T) string {
+	t.Helper()
+	iss := oidctest.New(t)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/info", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(api.Info{APIVersion: api.Version, Issuer: iss.URL, ClientID: oidctest.ClientID})
+	})
+	mux.HandleFunc("/v1/me", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "boom", http.StatusInternalServerError)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+// Un login fallido contra OTRO servidor no puede dejar la máquina sin la sesión
+// que ya tenía: el token solo se guarda cuando la sesión está completa.
+func TestCloudLoginFallidoNoRompeLaSesionAnterior(t *testing.T) {
+	url := cloudServer(t)
+	otro := cloudServerRoto(t)
+	t.Setenv("CCP_NO_BROWSER", "1")
+
+	snapEnv(t)
+	if code, out, errs := snapRun(t, "cloud", "login", url, "--name", "mac-a"); code != 0 {
+		t.Fatalf("login A: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "login", otro, "--name", "mac-b"); code == 0 {
+		t.Fatalf("login contra el servidor roto debía fallar: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "devices"); code != 0 || !strings.Contains(out, "mac-a") {
+		t.Fatalf("devices tras el login fallido: %d %q %q", code, out, errs)
 	}
 }
