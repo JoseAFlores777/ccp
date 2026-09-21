@@ -168,3 +168,47 @@ func TestSnapshotPendingDiceLoginsYComandosQueFaltan(t *testing.T) {
 		t.Errorf("uvx sale %d veces; se agrupa por comando", n)
 	}
 }
+
+func TestSnapshotRestorePreSnapshotCubreElClonMapeado(t *testing.T) {
+	home, src, repo, st, m := captureFixture(t)
+	// El clon de aquí no tiene regla de ccp: es justo el caso que el mapeo
+	// existe para resolver. Su contenido anterior tiene que entrar igual en el
+	// snapshot de seguridad, o restaurar lo pisa sin copia y no hay vuelta.
+	if err := RulesClear(home); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(repo); err != nil {
+		t.Fatal(err)
+	}
+	otro := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(otro, ".claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mio := `{"permissions":{"allow":["Bash(MIO)"]}}`
+	if err := os.WriteFile(filepath.Join(otro, ".claude", "settings.local.json"), []byte(mio), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	clave := projectKey(repo, "git@github.com:Org/App.git")
+	rep, err := SnapshotRestore(home, src, st, m.ID, SnapshotRestoreOpts{
+		Now: snapNow.Add(time.Hour), Machine: "test", Projects: map[string]string{clave: otro}})
+	if err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	if rep.PreSnapshot == "" {
+		t.Fatal("sin snapshot previo")
+	}
+	pre, err := st.LoadManifest(rep.PreSnapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, it := range pre.Items {
+		b, err := st.GetBlob(it.Hash)
+		if err == nil && strings.Contains(string(b), "Bash(MIO)") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("el pre-restore no guardó lo que había en el clon mapeado")
+	}
+}

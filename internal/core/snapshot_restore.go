@@ -257,13 +257,22 @@ func SnapshotRestore(home, src string, st *snapshot.Store, ref string, o Snapsho
 	// sabe reconstruir — sin esto la promesa de «esto se puede deshacer» es falsa
 	// justo donde más duele.
 	withState := false
+	// Y las carpetas de proyecto que se van a escribir entran por su ruta ya
+	// resuelta, no por las reglas: un mapeo (o el escaneo por remoto) apunta
+	// justo a clones que esta máquina no tiene registrados en ccp, y la captura
+	// normal solo mira cfg.Rules. Sin esto lo que había ahí se pisa sin copia.
+	var dirs []string
 	for _, p := range todo {
 		if p.it.Class == snapshot.ClassState {
 			withState = true
-			break
+		}
+		if strings.HasPrefix(p.it.LPath, "project/") {
+			if d := p.it.Meta["path"]; d != "" && !slices.Contains(dirs, d) {
+				dirs = append(dirs, d)
+			}
 		}
 	}
-	pre, err := SnapshotCapture(home, src, st, SnapshotCaptureOpts{Trigger: "pre-restore", WithState: withState, Now: o.Now, Machine: o.Machine})
+	pre, err := SnapshotCapture(home, src, st, SnapshotCaptureOpts{Trigger: "pre-restore", WithState: withState, ProjectDirs: dirs, Now: o.Now, Machine: o.Machine})
 	if err != nil && !errors.Is(err, snapshot.ErrNoChanges) {
 		return nil, fmt.Errorf("no se pudo guardar el estado actual; no se restauró nada: %w", err)
 	}
