@@ -82,6 +82,8 @@ func TestDoctorMCPUnmanagedOnlyDesktop(t *testing.T) {
 // un arranque de esa ventana lo aplica.
 func TestDoctorDesktopRestartPending(t *testing.T) {
 	home, _ := mcpFixture(t)
+	// La ventana existe: si se hubiera borrado, el marcador no pediría nada.
+	mustWrite(t, filepath.Join(DesktopDataDir(home, "work"), "claude_desktop_config.json"), `{"preferences":{}}`)
 	mustWrite(t, desktopPendingPath(home, "work"), "{}\n")
 	checks, err := Doctor(i18n.Es, home)
 	if err != nil {
