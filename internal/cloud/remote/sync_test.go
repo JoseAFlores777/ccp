@@ -1,0 +1,176 @@
+package remote_test
+
+import (
+	"bytes"
+	"testing"
+	"time"
+
+	"github.com/JoseAFlores777/ccp/internal/cloud/client"
+	"github.com/JoseAFlores777/ccp/internal/cloud/crypt"
+	"github.com/JoseAFlores777/ccp/internal/cloud/remote"
+	"github.com/JoseAFlores777/ccp/internal/snapshot"
+)
+
+// equipo es una máquina: su almacén local de snapshots y sus archivos de
+// sincronización. Dos equipos apuntando a la misma carpeta es el caso que E2
+// tiene que resolver, así que el test monta dos de verdad.
+type equipo struct {
+	st    *snapshot.Store
+	files client.Files
+}
+
+func nuevoEquipo(t *testing.T) *equipo {
+	t.Helper()
+	st, err := snapshot.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &equipo{st: st, files: client.Files{Dir: t.TempDir()}}
+}
+
+// guarda mete un snapshot de un solo elemento en el almacén local.
+func (e *equipo) guarda(t *testing.T, lpath, contenido string, creado time.Time) *snapshot.Manifest {
+	t.Helper()
+	hash, err := e.st.PutBlob([]byte(contenido), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := &snapshot.Manifest{Format: snapshot.FormatVersion, Created: creado, Machine: "prueba",
+		CCPVersion: "test", Trigger: "manual",
+		Items: []snapshot.Item{{LPath: lpath, Hash: hash, Size: int64(len(contenido)),
+			Mode: 0o600, Class: snapshot.ClassAuthored}}}
+	if err := e.st.SaveManifest(m); err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+func cuenta(t *testing.T, ak []byte) *crypt.Account {
+	t.Helper()
+	a, err := crypt.NewAccount(ak)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return a
+}
+
+// El viaje entero de E2: un equipo publica en una carpeta y otro, que solo
+// tiene la carpeta y la frase, se lleva el snapshot a su propio almacén con
+// su contenido intacto. Sin servidor por el medio.
+func TestPushYPullEntreDosEquipos(t *testing.T) {
+	dir := t.TempDir()
+	a, b := nuevoEquipo(t), nuevoEquipo(t)
+	ra, err := remote.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ak, _, err := remote.InitVault(t.Context(), ra, []byte(frase))
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
+	a.guarda(t, "claude/settings.json", `{"theme":"dark"}`, base)
+	ultimo := a.guarda(t, "claude/CLAUDE.md", "recuerda esto", base.Add(time.Minute))
+
+	rep, err := remote.Push(t.Context(), ra, cuenta(t, ak), a.st, a.files, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Snapshots != 2 || rep.Uploaded != 2 || rep.Bytes == 0 {
+		t.Fatalf("push = %+v", rep)
+	}
+	// Repetirlo no vuelve a subir nada: el estado local recuerda qué está allí.
+	if rep2, err := remote.Push(t.Context(), ra, cuenta(t, ak), a.st, a.files, ""); err != nil || rep2.Snapshots != 0 || rep2.Uploaded != 0 {
+		t.Fatalf("segundo push = %+v, %v", rep2, err)
+	}
+
+	rb, err := remote.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	akb, err := remote.Unlock(t.Context(), rb, []byte(frase))
+	if err != nil {
+		t.Fatal(err)
+	}
+	acctB := cuenta(t, akb)
+	target, err := remote.Pick(t.Context(), rb, "latest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, missing, err := remote.Pull(t.Context(), rb, acctB, b.st, b.files, target)
+	if err != nil || len(missing) != 0 {
+		t.Fatalf("pull = %v, %v", missing, err)
+	}
+	if m.ID != ultimo.ID {
+		t.Fatalf("bajó %s, se esperaba %s", snapshot.Short(m.ID), snapshot.Short(ultimo.ID))
+	}
+	datos, err := b.st.GetBlob(m.Items[0].Hash)
+	if err != nil || !bytes.Equal(datos, []byte("recuerda esto")) {
+		t.Fatalf("contenido = %q, %v", datos, err)
+	}
+	// Lo bajado no se vuelve a subir: ya está allí.
+	if rep3, err := remote.Push(t.Context(), rb, acctB, b.st, b.files, ""); err != nil || rep3.Snapshots != 0 {
+		t.Fatalf("push del que bajó = %+v, %v", rep3, err)
+	}
+}
+
+// Un snapshot importado sin secretos no tiene sus blobs en este equipo: sube
+// igual, y el informe nombra las rutas que se quedaron sin contenido. Tirar
+// aquí dejaría sin subir la historia entera por un archivo que nunca estuvo.
+func TestPushAvisaDeLoQueEsteEquipoNoTiene(t *testing.T) {
+	a := nuevoEquipo(t)
+	r, err := remote.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ak, _, err := remote.InitVault(t.Context(), r, []byte(frase))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := a.guarda(t, "claude/settings.json", `{"theme":"dark"}`, time.Now().UTC())
+	// El manifiesto nombra un contenido que el almacén no guarda.
+	m.Items = append(m.Items, snapshot.Item{LPath: "profiles/work/api_key",
+		Hash: id("una clave que no está"), Size: 3, Mode: 0o600, Class: snapshot.ClassSecret})
+	m.ID = ""
+	if err := a.st.SaveManifest(m); err != nil {
+		t.Fatal(err)
+	}
+	rep, err := remote.Push(t.Context(), r, cuenta(t, ak), a.st, a.files, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Snapshots != 1 || len(rep.Missing) != 1 || rep.Missing[0] != "profiles/work/api_key" {
+		t.Fatalf("push = %+v", rep)
+	}
+}
+
+// Pick traduce «latest», el vacío y un prefijo al id entero del destino. Dos
+// formas de nombrar el mismo snapshot serían dos formas de equivocarse.
+func TestPickPorPrefijoYLatest(t *testing.T) {
+	a := nuevoEquipo(t)
+	r, err := remote.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := remote.Pick(t.Context(), r, "latest"); err != remote.ErrNoSnapshots {
+		t.Fatalf("destino vacío = %v, se esperaba ErrNoSnapshots", err)
+	}
+	ak, _, err := remote.InitVault(t.Context(), r, []byte(frase))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.guarda(t, "claude/settings.json", "{}", time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC))
+	if _, err := remote.Push(t.Context(), r, cuenta(t, ak), a.st, a.files, ""); err != nil {
+		t.Fatal(err)
+	}
+	last, err := remote.Pick(t.Context(), r, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := remote.Pick(t.Context(), r, last[:10]); err != nil || got != last {
+		t.Fatalf("por prefijo = %q, %v", got, err)
+	}
+	if _, err := remote.Pick(t.Context(), r, id("otro")[:10]); err == nil {
+		t.Fatal("un prefijo que no está tendría que fallar")
+	}
+}
