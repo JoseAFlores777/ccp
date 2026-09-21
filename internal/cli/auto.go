@@ -38,7 +38,14 @@ import (
 // solo `ccp auto install` inyectara la ruta, cada `ccp profile sync` reescribiría
 // el settings.json con el default ("ccp") y el archivo bailaría entre dos valores
 // a cada regeneración — churn puro en un archivo que el usuario mira.
-func init() { core.SetAutoHooksBin(autoCCPBin()) }
+func init() {
+	core.SetAutoHooksBin(autoCCPBin())
+	// La proyección al chat de Desktop no escribe con la ventana abierta (ADR
+	// 0016, M5). Mirar los procesos es cosa de la CLI: core recibe la sonda.
+	core.SetDesktopRunningProbe(func(home, name string) bool {
+		return desktopInstanceRunning(core.DesktopDataDir(home, name))
+	})
+}
 
 // autoCCPBin resuelve la ruta absoluta del binario en marcha. El fallback es el
 // nombre pelado: si os.Executable falla (procfs raro, binario borrado en

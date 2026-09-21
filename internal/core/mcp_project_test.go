@@ -220,3 +220,29 @@ func TestProjectMCPToDesktopSinVentanaNoCreaNada(t *testing.T) {
 		t.Error("se creó la config de una ventana que no existe")
 	}
 }
+
+// Criterio de salida de la Fase B: un MCP añadido al perfil aparece en lo que lee
+// la CLI (cc-home/.claude.json) y en la ventana de ese perfil tras un sync, y no
+// se cuela en el ~/.claude.json global.
+func TestSyncProyectaElMCPDelPerfilALosDosDestinos(t *testing.T) {
+	home, src := mcpFixture(t)
+	mustWrite(t, filepath.Join(DesktopDataDir(home, "work"), "claude_desktop_config.json"), `{"preferences":{}}`)
+	mustWrite(t, mcpProfileFile(home, "work"), `{"mcpServers":{"notas":{"command":"uvx","args":["notas"]}}}`)
+
+	ds, err := ProfileSyncReport(home, "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ds) != 1 || len(ds[0].MCP) != 2 || ds[0].MCPErr != "" {
+		t.Fatalf("sync = %+v", ds)
+	}
+	if s := leeMCPServers(t, filepath.Join(ccHomePath(home, "work"), ".claude.json")); s["notas"] == nil {
+		t.Errorf("no llegó a lo que lee la CLI: %v", s)
+	}
+	if s := leeMCPServers(t, filepath.Join(DesktopDataDir(home, "work"), "claude_desktop_config.json")); s["notas"] == nil {
+		t.Errorf("no llegó a la ventana del perfil: %v", s)
+	}
+	if s := leeMCPServers(t, src+".json"); s["notas"] != nil {
+		t.Error("un MCP de perfil no puede acabar en el global")
+	}
+}

@@ -176,6 +176,28 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "%s: you removed %s with /config, but it comes from the global config or the overlay and is back: remove it where it comes from (overlay: ccp profile config %s).",
 		Es: "%s: quitaste %s con /config, pero sale del global o del overlay y vuelve a estar: quítalo de donde sale (overlay: ccp profile config %s).",
 	},
+	"cli.profile.mcp_dest_cli":     {En: "the CLI and the Code tab", Es: "la CLI y la pestaña Code"},
+	"cli.profile.mcp_dest_desktop": {En: "the Desktop chat", Es: "el chat de Desktop"},
+	"cli.profile.mcp_written": {
+		En: "%s: MCP up to date in %s: %s",
+		Es: "%s: MCP al día en %s: %s",
+	},
+	"cli.profile.mcp_conflict": {
+		En: "%s: %s already had %s set by hand; ccp does not overwrite it. Rename yours or remove the one there.",
+		Es: "%s: %s ya tenía %s puesto a mano; ccp no lo pisa. Renombra el tuyo o quita el que hay.",
+	},
+	"cli.profile.mcp_remote": {
+		En: "%s: %s are not stdio, and the Desktop chat only loads stdio from its config: there they can only be an account connector.",
+		Es: "%s: %s no son stdio, y el chat de Desktop solo carga stdio de su config: ahí solo pueden ir como conector de la cuenta.",
+	},
+	"cli.profile.mcp_pending": {
+		En: "%s: its Desktop window is open, so its MCP will be applied the next time it starts.",
+		Es: "%s: su ventana de Desktop está abierta, así que sus MCP se aplican la próxima vez que arranque.",
+	},
+	"cli.profile.mcp_error": {
+		En: "%s: the MCP projection failed (%s); the profile was regenerated anyway and it is retried on the next sync.",
+		Es: "%s: la proyección de MCP falló (%s); el perfil se regeneró igual y se reintenta en el próximo sync.",
+	},
 	"cli.profile.sync_unsaved": {
 		En: "%s: could not save in its overlay what you changed with /config (%s): %s. It was regenerated without it; the copy is listed below.",
 		Es: "%s: no se pudo guardar en su overlay lo que cambiaste con /config (%s): %s. Se regeneró sin ello; la copia está abajo.",
