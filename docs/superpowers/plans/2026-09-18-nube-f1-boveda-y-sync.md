@@ -4004,7 +4004,7 @@ El lado de la máquina:
     `Snapshots`, `Snapshot`, `PutBlob`, `GetBlob`; errores `*APIError`;
   - sincronización: `PushReport`, `Push`, `Pull`.
 
-- [ ] **Step 1: Escribir los tests — `internal/cloud/client/client_test.go`**
+- [x] **Step 1: Escribir los tests — `internal/cloud/client/client_test.go`**
 
 ```go
 package client
@@ -4235,16 +4235,16 @@ func TestFilesPermissions(t *testing.T) {
 
 (Añade `"os"` a los imports del test.)
 
-- [ ] **Step 2: Comprobar que falla**
+- [x] **Step 2: Comprobar que falla**
 
 Run: `go test ./internal/cloud/client/`
 Expected: FAIL, no compila.
 
-- [ ] **Step 3: Dependencia**
+- [x] **Step 3: Dependencia**
 
 Run: `go get golang.org/x/oauth2@latest`, con la comprobación de la directiva `go`.
 
-- [ ] **Step 4: `internal/cloud/client/files.go`**
+- [x] **Step 4: `internal/cloud/client/files.go`**
 
 ```go
 // Package client es el lado de la máquina de la nube de ccp: login por
@@ -4422,7 +4422,7 @@ func (f Files) Forget() error {
 }
 ```
 
-- [ ] **Step 5: `internal/cloud/client/auth.go`**
+- [x] **Step 5: `internal/cloud/client/auth.go`**
 
 ```go
 package client
@@ -4597,7 +4597,7 @@ func VaultFromAPI(v api.Vault) (crypt.Wraps, error) {
 }
 ```
 
-- [ ] **Step 6: `internal/cloud/client/api.go`**
+- [x] **Step 6: `internal/cloud/client/api.go`**
 
 ```go
 package client
@@ -4804,7 +4804,7 @@ func retry(ctx context.Context, fn func() (retryable bool, err error)) error {
 }
 ```
 
-- [ ] **Step 7: `internal/cloud/client/sync.go`**
+- [x] **Step 7: `internal/cloud/client/sync.go`**
 
 ```go
 package client
@@ -5034,13 +5034,13 @@ func Pull(ctx context.Context, a *API, acct *crypt.Account, st *snapshot.Store, 
 }
 ```
 
-- [ ] **Step 8: Comprobar que pasa**
+- [x] **Step 8: Comprobar que pasa**
 
 Run: `go test ./internal/cloud/... && go vet ./internal/cloud/...`
 Expected: PASS. Cada login del test tarda en torno a un segundo por el intervalo
 de sondeo de la concesión de dispositivo.
 
-- [ ] **Step 9: Gates y commit**
+- [x] **Step 9: Gates y commit**
 
 Mensaje propuesto: `feat(cloud): cliente con login por dispositivo, push y pull verificados`
 
