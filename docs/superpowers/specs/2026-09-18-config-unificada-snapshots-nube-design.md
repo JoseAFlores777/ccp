@@ -700,6 +700,26 @@ y restaura como una unidad.
 - Cada manifiesto lleva el hash de su padre, firmado: el historial es una **cadena**, y ni el servidor
   ni nadie puede reescribirlo, reordenarlo o quitarle un eslabón sin que el cliente lo detecte.
 
+> **Estado en F3-1 (implementado).** La cadena se comprueba entera con `ccp cloud verify` y la retención del
+> servidor existe y está apagada por defecto. Tres cosas que el código fijó y el plan no decía:
+>
+> - **Verificar de uno en uno no verifica nada.** La firma ataba el padre desde F1, pero nadie comparaba dos
+>   eslabones: `pull` sabía que ESE snapshot era auténtico y jamás que faltaba el de al lado.
+>   `GET /v1/snapshots/chain` sirve los eslabones con el sha256 del manifiesto sellado —lo único del
+>   manifiesto que entra en la firma—, así que la cadena se verifica de un tirón sin bajar un manifiesto. Lo
+>   calcula el servidor sobre los bytes que guarda: un digest que viniera del cliente comprobaría el
+>   manifiesto contra lo que dijera quien lo mandó.
+> - **Podar borra el contenido, nunca el eslabón.** Del snapshot podado se van el manifiesto y sus blobs y la
+>   fila queda como lápida (id, padre, fecha, digest, firma). Si se borrara entera, el hueco sería idéntico al
+>   que deja un servidor comprometido, y la comprobación de este mismo apartado se convertiría en un aviso que
+>   hay que ignorar cada día. Bajar uno podado es `410 gone`, que no es `404`: «ya no está» y «nunca estuvo»
+>   piden cosas distintas de quien lo busca.
+> - **Cortar por la cabeza no deja ningún padre roto**, así que lo único que lo delata es lo que esta máquina
+>   sabe que subió: `verify` compara contra su propio estado local (`dropped`). La fecha **no** va firmada y
+>   por eso no ordena nada; lo que caza `out_of_order` es una fecha que miente.
+>
+> La descarga (`.ccpsnap` / `.tar.gz`) y los tres caminos de restauración siguen sin estar.
+
 **Descargar**, desde el portal (botón «Descargar») o desde el CLI:
 - **Cifrado** (`.ccpsnap`), por defecto: manifiesto + blobs, tal como están en el servidor. Se
   importa con `ccp snapshot import <archivo>` y la frase de bóveda. Es seguro guardarlo en cualquier
@@ -902,7 +922,7 @@ Dokploy v0.30.4, un solo servidor.
 | I | Infra: stack `ccp-cloud` en Dokploy (Postgres + Keycloak en `ccp-auth.joseiz.com` con realm `ccp` + Alarik en `ccp-s3.joseiz.com`), desde `deploy/ccp-cloud/` | — | S | Un login de prueba por flujo de dispositivo obtiene un token con `aud: ccp-api` |
 | F1 | **Implementado.** Bóveda, dispositivos, push/pull de snapshots (`ccp cloud`), el backend `ccp-cloud` y la traducción del HOME al restaurar. Falta **desplegar el API**, pendiente de autorización del usuario | D, I | L | Una segunda Mac se desbloquea con la frase de bóveda y trae el historial de la primera |
 | F2 | **Implementado.** Portal: dispositivos, historial, diff, editor y «Aplicar a…»; P-21 Nube en la app. Falta la **descarga** de §10.3.1 | F1 | M | Desde el portal se edita la configuración de un snapshot, se aplica a una máquina y ésta confirma allí lo ejecutable |
-| F3 | Restaurar desde el portal | F2 | L | «Restaurar en <máquina>» en el portal deja la máquina en ese snapshot, con lo ejecutable confirmado en local |
+| F3 | Restaurar desde el portal. **F3-1 hecho**: cadena firmada comprobable (`ccp cloud verify`) y retención en el servidor | F2 | L | «Restaurar en <máquina>» en el portal deja la máquina en ese snapshot, con lo ejecutable confirmado en local |
 | F4 | Grupos, auditoría, rotación de AK | F3 | M | Un cambio aplicado a un grupo aparece como `aplicada` en cada máquina |
 | E | (aplazado, D10) `ccp sync` sobre carpeta o S3 | D | M | — |
 
