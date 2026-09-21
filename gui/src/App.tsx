@@ -24,6 +24,7 @@ import { Perfiles } from './screens/Perfiles';
 import { Prestamos } from './screens/Prestamos';
 import { Rotacion } from './screens/Rotacion';
 import { Sesiones } from './screens/Sesiones';
+import { Snapshots } from './screens/Snapshots';
 import { Uso } from './screens/Uso';
 
 const SCREENS: Record<Screen, () => React.JSX.Element | null> = {
@@ -45,6 +46,7 @@ const SCREENS: Record<Screen, () => React.JSX.Element | null> = {
   memoria: Memoria,
   ajustes: Ajustes,
   copias: Copias,
+  snapshots: Snapshots,
   bienvenida: Detectar,
 };
 

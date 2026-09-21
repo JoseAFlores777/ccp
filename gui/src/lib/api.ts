@@ -291,6 +291,81 @@ export interface Finding {
   detail?: string;
 }
 
+/** Un snapshot en la línea de tiempo. `bytes` es lo que captura, no lo que
+ *  ocupa: los blobs se comparten entre snapshots. */
+export interface SnapSummary {
+  id: string;
+  parent: string;
+  created: string;
+  machine: string;
+  trigger: string;
+  label: string;
+  pinned: boolean;
+  items: number;
+  secrets: number;
+  bytes: number;
+  /** Solo en create: no había cambios, así que se devuelve el de antes. */
+  unchanged?: boolean;
+}
+
+export interface SnapItem {
+  lpath: string;
+  hash: string;
+  size: number;
+  mode: number;
+  class: 'authored' | 'secret' | 'state';
+  meta?: Record<string, string>;
+}
+
+/** `snapshot.show` devuelve el manifiesto entero: el resumen más los elementos. */
+export interface SnapDetail {
+  format: number;
+  id: string;
+  parent?: string;
+  created: string;
+  machine: string;
+  ccp_version: string;
+  trigger: string;
+  label?: string;
+  pinned?: boolean;
+  items: SnapItem[];
+}
+
+export interface SnapChange {
+  lpath: string;
+  kind: 'added' | 'removed' | 'modified';
+  from?: SnapItem;
+  to?: SnapItem;
+}
+
+/** Un paso del plan de restauración. `same` es lo que ya coincide. */
+export interface SnapStep {
+  lpath: string;
+  action: 'write' | 'merge' | 'same' | 'skip';
+  reason?: string;
+}
+
+export interface SnapPlan {
+  snapshot: string;
+  /** La foto de seguridad previa. Vacía en un plan: un dry-run no escribe nada. */
+  pre_snapshot?: string;
+  steps: SnapStep[];
+  regenerated: string[];
+}
+
+export interface PruneReport {
+  deleted: string[];
+  kept: number;
+  blobs_deleted: number;
+  dry_run: boolean;
+}
+
+export interface SnapImport {
+  snapshot: SnapSummary;
+  /** Lo que el archivo dice traer y no trae: el snapshot queda incompleto. */
+  missing: string[];
+}
+
 export interface RestoreReport {
   created: string[];
   skipped: string[];
@@ -537,6 +612,26 @@ export const api = {
     ccpCall<CliRun>('desktop.run', p),
 
   diag: () => ccpCall<Finding[]>('diag.run'),
+  // Snapshots (P-17). El motor es el mismo que `ccp snapshot`: la pantalla no
+  // repite ninguna regla, solo las enseña. Restaurar va siempre en dos pasos —
+  // `dry_run` para el plan y otra llamada para aplicarlo— igual que la CLI
+  // exige `--yes`: nada se escribe por mirar.
+  snapshots: () => ccpCall<SnapSummary[]>('snapshot.list'),
+  snapshotShow: (id: string) => ccpCall<SnapDetail>('snapshot.show', { id }),
+  // `to` vacío compara contra el estado vivo, que es la pregunta habitual:
+  // ¿qué ha cambiado desde entonces?
+  snapshotDiff: (from: string, to?: string) => ccpCall<SnapChange[]>('snapshot.diff', { from, to }),
+  snapshotCreate: (label: string, with_state: boolean) => ccpCall<SnapSummary>('snapshot.create', { label, with_state }),
+  snapshotRestore: (id: string, only: string[], dry_run: boolean) =>
+    ccpCall<SnapPlan>('snapshot.restore', { id, only, dry_run }),
+  snapshotPrune: (dry_run: boolean) => ccpCall<PruneReport>('snapshot.prune', { dry_run }),
+  // label null deja la etiqueta como está; fijar y etiquetar son la misma escritura.
+  snapshotPin: (id: string, pinned: boolean, label: string | null = null) =>
+    ccpCall<SnapSummary>('snapshot.pin', { id, pinned, label }),
+  snapshotExport: (id: string, dest: string, passphrase: string) =>
+    ccpCall<{ id: string; dest: string; with_secrets: boolean }>('snapshot.export', { id, dest, passphrase }),
+  snapshotImport: (archive: string, passphrase: string) => ccpCall<SnapImport>('snapshot.import', { archive, passphrase }),
+
   backupExport: (dest: string, with_secrets: boolean) => ccpCall('backup.export', { dest, with_secrets }),
   backupRestore: (archive: string, mode: 'merge' | 'overwrite' | 'force') => ccpCall<RestoreReport>('backup.restore', { archive, mode }),
   // El editor de configuración (P-20, C4). La capa va siempre explícita, y las

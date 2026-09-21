@@ -66,6 +66,28 @@ de solo-gestionado de P-15.
   proyección la hace la propia escritura: llamar a `profiles.sync` después sería
   una segunda escritura para nada.
 
+### La pantalla Snapshots (P-17)
+
+Es la historia de toda la configuración, no una copia suelta: línea de tiempo,
+detalle de qué captura cada snapshot, diff contra otro o contra lo que hay ahora
+mismo, y restaurar, podar, fijar, etiquetar, exportar e importar. Las copias
+`.tar.gz` de `ccp backup` siguen en Ajustes: son el formato viejo, para mover una
+configuración a mano.
+
+- **Restaurar va en dos pasos y el primero no escribe.** La pantalla pide el plan
+  con `dry_run`, enseña paso a paso qué escribiría, qué fusionaría, qué ya
+  coincide y qué se salta —con el motivo—, y solo aplica cuando se marca qué
+  partes se quieren y se escribe la palabra de confirmación. Es lo mismo que la
+  CLI, donde sin `--yes` un restore es solo un plan.
+- **Las casillas son los prefijos de `--only`**, así que la línea de CLI que se
+  ofrece para copiar hace exactamente lo que hará la app.
+- **Podar dice antes qué se lleva por delante**: cuántos quedan, cuántos blobs se
+  liberan y los ids que se van. La política (7 diarios, 4 semanales, 6 mensuales,
+  más fijados y etiquetados) la decide `core`, no la pantalla.
+- El tamaño que se enseña es **lo que captura**, no lo que ocupa: los blobs se
+  comparten entre snapshots, y la pantalla lo dice en vez de dejar creer que cada
+  snapshot es una copia entera.
+
 ## Desarrollo
 
 Requisitos: Node 20+, Go (el del repo) y Rust estable (`rustup`).

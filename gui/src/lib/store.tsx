@@ -15,7 +15,7 @@ import { setLang as setI18nLang, t, type Lang } from './i18n';
 export type Screen =
   | 'inicio' | 'mapa' | 'perfiles' | 'perfil' | 'config' | 'configuracion' | 'carpetas'
   | 'conv' | 'mover' | 'prestamos' | 'rotacion' | 'uso' | 'sesiones'
-  | 'desktop' | 'diag' | 'memoria' | 'ajustes' | 'copias' | 'bienvenida';
+  | 'desktop' | 'diag' | 'memoria' | 'ajustes' | 'copias' | 'snapshots' | 'bienvenida';
 
 export interface Toast {
   id: number;

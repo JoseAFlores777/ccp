@@ -90,19 +90,24 @@ export async function pickFolder(defaultPath?: string): Promise<string | null> {
   return window.prompt('Carpeta (ruta absoluta)', defaultPath ?? '') || null;
 }
 
-export async function pickSaveFile(defaultPath: string): Promise<string | null> {
+/** El filtro del diálogo. Por defecto el de `backup export` (.tar.gz); los
+ *  snapshots piden el suyo para que macOS no esconda los .ccpsnap. */
+export type FileFilter = { name: string; extensions: string[] };
+const BACKUP_FILTER: FileFilter = { name: 'Backup', extensions: ['gz'] };
+
+export async function pickSaveFile(defaultPath: string, filter: FileFilter = BACKUP_FILTER): Promise<string | null> {
   if (isTauri) {
     const { save } = await import('@tauri-apps/plugin-dialog');
-    const r = await save({ defaultPath, filters: [{ name: 'Backup', extensions: ['gz'] }] });
+    const r = await save({ defaultPath, filters: [filter] });
     return r ?? null;
   }
   return window.prompt('Guardar en (ruta absoluta)', defaultPath) || null;
 }
 
-export async function pickOpenFile(): Promise<string | null> {
+export async function pickOpenFile(filter: FileFilter = BACKUP_FILTER): Promise<string | null> {
   if (isTauri) {
     const { open } = await import('@tauri-apps/plugin-dialog');
-    const r = await open({ multiple: false, directory: false, filters: [{ name: 'Backup', extensions: ['gz'] }] });
+    const r = await open({ multiple: false, directory: false, filters: [filter] });
     return typeof r === 'string' ? r : null;
   }
   return window.prompt('Archivo de copia (ruta absoluta)') || null;
