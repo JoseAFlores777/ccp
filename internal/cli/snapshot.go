@@ -115,6 +115,16 @@ func (a snapArgs) val(keys ...string) string {
 	return v
 }
 
+// has dice si la opción se dio, con el valor que sea (incluido el vacío).
+func (a snapArgs) has(keys ...string) bool {
+	for _, k := range keys {
+		if len(a.vals[k]) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // parseSnapArgs separa posicionales, opciones sin valor (bools) y con valor
 // (valued, que pueden repetirse). Si algo no encaja devuelve ok=false y el
 // argumento culpable.
@@ -481,8 +491,12 @@ func (c snapCmd) pin(args []string, pinned bool) int {
 	if len(a.pos) != 1 {
 		return c.usage("cli.snapshot.need_id")
 	}
+	// Por PRESENCIA de la opción, no por su valor: `-m ""` es la única forma
+	// de BORRAR una etiqueta (SetPin solo mira label != nil), y es lo que la
+	// GUI ofrece como equivalente cuando se vacía el campo.
 	var label *string
-	if l := a.val("-m", "--label"); l != "" {
+	if a.has("-m", "--label") {
+		l := a.val("-m", "--label")
 		label = &l
 	}
 	m, err := c.st.SetPin(a.pos[0], pinned, label)
