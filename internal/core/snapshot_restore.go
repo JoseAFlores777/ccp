@@ -106,6 +106,10 @@ type SnapshotRestoreOpts struct {
 	DryRun  bool
 	Now     time.Time
 	Machine string
+	// Projects mapea la clave portable de un proyecto (§11) a su carpeta en
+	// ESTA máquina. Lo decide el asistente de portabilidad, que es el único
+	// que puede mirar este disco; sin entrada, vale la ruta del snapshot.
+	Projects map[string]string
 }
 
 // SnapshotRestoreStep es lo que se hace (o no) con un elemento.
@@ -188,6 +192,17 @@ func SnapshotRestore(home, src string, st *snapshot.Store, ref string, o Snapsho
 		if p, ok := it.Meta["path"]; ok && homeFrom != "" {
 			meta := maps.Clone(it.Meta)
 			meta["path"] = translateHomePath(p, homeFrom, homeTo)
+			it.Meta = meta
+		}
+		// Y después el mapeo, que manda sobre las dos: la persona ya dijo
+		// dónde está ese repo aquí, y traducir el HOME no lo encuentra cuando
+		// el clon cuelga de otra carpeta.
+		if dir := projectMapped(it.LPath, o.Projects); dir != "" {
+			meta := maps.Clone(it.Meta)
+			if meta == nil {
+				meta = map[string]string{}
+			}
+			meta["path"] = dir
 			it.Meta = meta
 		}
 		step := SnapshotRestoreStep{LPath: it.LPath, Meta: it.Meta}
@@ -356,4 +371,17 @@ func applySnapshotItem(home string, tgt snapTarget, it snapshot.Item, data []byt
 		}
 		return writeFileAtomic(tgt.path, data, mode)
 	}
+}
+
+// projectMapped devuelve la carpeta elegida para el proyecto de esta ruta
+// lógica, o "" si no hay mapeo (o la ruta no es de un proyecto).
+func projectMapped(lpath string, projects map[string]string) string {
+	if len(projects) == 0 {
+		return ""
+	}
+	parts := strings.Split(lpath, "/")
+	if len(parts) < 3 || parts[0] != "project" {
+		return ""
+	}
+	return projects[parts[1]]
 }
