@@ -226,7 +226,10 @@ const ESTADOS = {
 // -------------------------------------------------------------- dispositivos
 
 async function renderDevices() {
-  const [devs, snaps, revs] = await Promise.all([api.devices(), api.snapshots(''), api.revisions('')]);
+  // Se pide el máximo que acepta el API de una vez: el último snapshot de un
+  // equipo y la cabeza de sus revisiones tienen que salir aunque otra máquina
+  // haya subido cien desde entonces.
+  const [devs, snaps, revs] = await Promise.all([api.devices(), api.snapshots('', 1000), api.revisions('', 100)]);
   const ultimo = new Map(), cuenta = new Map(), cabeza = new Map();
   for (const s of snaps) {
     cuenta.set(s.device_id, (cuenta.get(s.device_id) || 0) + 1);
