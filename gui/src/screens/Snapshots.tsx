@@ -441,7 +441,7 @@ export function Snapshots() {
       confirmLabel: t('Podar'),
       cli: () => 'ccp snapshot prune',
       onConfirm: async () => {
-        const r = await api.snapshotPrune(false);
+        const r = await api.snapshotPrune(false, dry.deleted);
         setPlan(null);
         return t('Podados {n} snapshots', { n: String(r.deleted.length) });
       },

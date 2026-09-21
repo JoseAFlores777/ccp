@@ -624,7 +624,10 @@ export const api = {
   snapshotCreate: (label: string, with_state: boolean) => ccpCall<SnapSummary>('snapshot.create', { label, with_state }),
   snapshotRestore: (id: string, only: string[], dry_run: boolean) =>
     ccpCall<SnapPlan>('snapshot.restore', { id, only, dry_run }),
-  snapshotPrune: (dry_run: boolean) => ccpCall<PruneReport>('snapshot.prune', { dry_run }),
+  // `ids` ancla la poda al plan que se enseñó: sin ellos el motor recalcula la
+  // retención en ese instante y un snapshot nacido entre medias podría llevarse
+  // por delante a otro que nadie vio en el diálogo.
+  snapshotPrune: (dry_run: boolean, ids?: string[]) => ccpCall<PruneReport>('snapshot.prune', { dry_run, ids }),
   // label null deja la etiqueta como está; fijar y etiquetar son la misma escritura.
   snapshotPin: (id: string, pinned: boolean, label: string | null = null) =>
     ccpCall<SnapSummary>('snapshot.pin', { id, pinned, label }),

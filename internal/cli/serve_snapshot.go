@@ -149,7 +149,8 @@ func srvSnapshotRestore(s *server, raw json.RawMessage) (any, error) {
 
 func srvSnapshotPrune(s *server, raw json.RawMessage) (any, error) {
 	p, err := params[struct {
-		DryRun bool `json:"dry_run"`
+		DryRun bool     `json:"dry_run"`
+		IDs    []string `json:"ids"`
 	}](raw)
 	if err != nil {
 		return nil, err
@@ -158,7 +159,10 @@ func srvSnapshotPrune(s *server, raw json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	rep, err := snapshot.Prune(st, snapshot.DefaultPolicy, time.Now(), time.Hour, p.DryRun)
+	// `ids` ancla la poda al plan que la GUI enseñó: entre el dry-run y el
+	// confirmar pudo nacer otro snapshot y la retención recalculada se llevaría
+	// uno que nadie vio en un diálogo marcado como destructivo.
+	rep, err := snapshot.PruneOnly(st, snapshot.DefaultPolicy, time.Now(), time.Hour, p.DryRun, p.IDs)
 	if err != nil {
 		return nil, err
 	}
