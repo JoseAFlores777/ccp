@@ -1191,6 +1191,8 @@ export const en: Record<string, string> = {
   "Antes de escribir nada, ccp guarda un snapshot del estado actual, así que esto se puede deshacer restaurándolo.": "Before writing anything, ccp saves a snapshot of the current state, so this can be undone by restoring it.",
   "restaurar": "restore",
   "Lo que hay ahora en esas rutas se sustituye por lo que traía el snapshot.": "What is now at those paths is replaced by what the snapshot carried.",
+  "Incluye conversaciones guardadas: los transcripts de entonces sustituyen a los de ahora, no se fusionan. El snapshot previo los lleva, así que se pueden recuperar restaurándolo.": "This includes saved conversations: the transcripts from back then replace the current ones, they are not merged. The previous snapshot holds them, so they can be recovered by restoring it.",
+  "· incluye conversaciones guardadas": "· includes saved conversations",
   "No se borra nada que exista ahora y no estuviera en el snapshot: restaurar repone, no limpia.": "Nothing that exists now and was not in the snapshot is deleted: restoring puts back, it does not clean up.",
   "Los perfiles afectados se regeneran al terminar, para que la proyección no quede vieja.": "The affected profiles are regenerated afterwards, so the projection is not left stale.",
   "Restaurado desde {id}": "Restored from {id}",

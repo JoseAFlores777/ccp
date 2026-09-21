@@ -202,8 +202,19 @@ func SnapshotRestore(home, src string, st *snapshot.Store, ref string, o Snapsho
 		return rep, nil
 	}
 
-	// La red: el estado actual queda en un snapshot antes de tocar nada.
-	pre, err := SnapshotCapture(home, src, st, SnapshotCaptureOpts{Trigger: "pre-restore", Now: o.Now, Machine: o.Machine})
+	// La red: el estado actual queda en un snapshot antes de tocar nada. Si algo
+	// de lo que se va a escribir es de clase state, la foto tiene que llevar el
+	// estado vivo: un transcript se sustituye entero, y es lo único que ccp no
+	// sabe reconstruir — sin esto la promesa de «esto se puede deshacer» es falsa
+	// justo donde más duele.
+	withState := false
+	for _, p := range todo {
+		if p.it.Class == snapshot.ClassState {
+			withState = true
+			break
+		}
+	}
+	pre, err := SnapshotCapture(home, src, st, SnapshotCaptureOpts{Trigger: "pre-restore", WithState: withState, Now: o.Now, Machine: o.Machine})
 	if err != nil && !errors.Is(err, snapshot.ErrNoChanges) {
 		return nil, fmt.Errorf("no se pudo guardar el estado actual; no se restauró nada: %w", err)
 	}

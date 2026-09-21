@@ -39,6 +39,14 @@ function groupLabel(g: string): string {
   return g;
 }
 
+/** Las rutas de clase «state» (conversaciones y préstamos). El plan no trae la
+ *  clase, pero sí la ruta lógica, y el reparto lo fija snapshot_layout.go: son
+ *  las únicas que se escriben sustituyendo un transcript vivo, así que se
+ *  nombran aparte en vez de esconderse dentro de «cuentas, reglas y overlays». */
+function isStatePath(lpath: string): boolean {
+  return lpath === 'ccp/handoffs.yaml' || lpath.includes('/cc-home/projects/');
+}
+
 const CLASS_TONE = { authored: 'neutral', secret: 'warn', state: 'accent' } as const;
 const CLASS_LABEL = () => ({ authored: t('escrito por ti'), secret: t('secreto'), state: t('estado') });
 
@@ -173,6 +181,7 @@ function PlanRestauracion({ id, plan, onDone }: { id: string; plan: SnapPlan; on
   );
   const chosen = groups.filter(([g, ss]) => sel[g] && writes(ss) > 0).map(([g]) => g);
   const total = groups.filter(([g]) => chosen.includes(g)).reduce((a, [, ss]) => a + writes(ss), 0);
+  const hasState = groups.some(([g, ss]) => chosen.includes(g) && ss.some((s) => isStatePath(s.lpath) && (s.action === 'write' || s.action === 'merge')));
   const cmd = `ccp snapshot restore ${short(id)}${chosen.map((g) => ` --only ${g}`).join('')} --yes`;
 
   const apply = () =>
@@ -184,6 +193,9 @@ function PlanRestauracion({ id, plan, onDone }: { id: string; plan: SnapPlan; on
       fields: [{ key: 'confirm', label: t('Escribe {w} para confirmar', { w: t('restaurar') }), kind: 'text' }],
       warns: [
         t('Lo que hay ahora en esas rutas se sustituye por lo que traía el snapshot.'),
+        ...(hasState
+          ? [t('Incluye conversaciones guardadas: los transcripts de entonces sustituyen a los de ahora, no se fusionan. El snapshot previo los lleva, así que se pueden recuperar restaurándolo.')]
+          : []),
         t('No se borra nada que exista ahora y no estuviera en el snapshot: restaurar repone, no limpia.'),
         t('Los perfiles afectados se regeneran al terminar, para que la proyección no quede vieja.'),
       ],
@@ -207,7 +219,10 @@ function PlanRestauracion({ id, plan, onDone }: { id: string; plan: SnapPlan; on
               type="checkbox" checked={!!sel[g] && writes(ss) > 0} disabled={writes(ss) === 0}
               onChange={(e) => setSel({ ...sel, [g]: e.target.checked })}
             />
-            <span style={{ fontSize: 13 }}>{groupLabel(g)}</span>
+            <span style={{ fontSize: 13 }}>
+              {groupLabel(g)}
+              {ss.some((s) => isStatePath(s.lpath)) && ` ${t('· incluye conversaciones guardadas')}`}
+            </span>
             <span style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>
               {writes(ss) > 0 ? t('{n} por escribir', { n: String(writes(ss)) }) : t('nada que escribir: ya coincide')}
             </span>

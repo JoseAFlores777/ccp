@@ -186,3 +186,52 @@ func TestSnapshotTargetRejectsEscapes(t *testing.T) {
 		}
 	}
 }
+
+// Restaurar algo de clase state (conversaciones, préstamos) sobre un transcript
+// que creció desde la captura lo sustituye entero. La foto previa tiene que
+// llevarlo: el transcript es lo único que ccp no puede reconstruir.
+func TestSnapshotRestorePreSnapshotLlevaElEstado(t *testing.T) {
+	home, src, _, st, _ := captureFixture(t)
+	tr := filepath.Join(ccHomePath(home, "work"), "projects", "-repo", "uuid-1.jsonl")
+	if err := os.MkdirAll(filepath.Dir(tr), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tr, []byte("lunes\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	lunes, err := SnapshotCapture(home, src, st, SnapshotCaptureOpts{Trigger: "manual", WithState: true, Now: snapNow, Machine: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tr, []byte("lunes\nmartes\nviernes\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	rep, err := SnapshotRestore(home, src, st, lunes.ID, SnapshotRestoreOpts{Only: []string{"ccp"}, Now: snapNow.Add(time.Hour), Machine: "test"})
+	if err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	if got := readStr(t, tr); got != "lunes\n" {
+		t.Fatalf("el transcript no se restauró: %q", got)
+	}
+	pre, err := st.LoadManifest(rep.PreSnapshot)
+	if err != nil {
+		t.Fatalf("cargar pre-restore: %v", err)
+	}
+	var found bool
+	for _, it := range pre.Items {
+		if strings.Contains(it.LPath, "/projects/") {
+			found = true
+			b, err := st.GetBlob(it.Hash)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(b) != "lunes\nmartes\nviernes\n" {
+				t.Errorf("el pre-restore guardó %q", b)
+			}
+		}
+	}
+	if !found {
+		t.Error("el snapshot pre-restore no lleva el transcript que el restore va a sustituir")
+	}
+}
