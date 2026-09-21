@@ -86,3 +86,26 @@ func TestNombreDeDestinoNoDistingueMayusculas(t *testing.T) {
 		t.Fatalf("Remove(ICloud) dejó %+v", reg.Remotes)
 	}
 }
+
+// El registro vive en <home>/sync/remotes.json, así que un destino llamado
+// «remotes.json» querría el MISMO camino para su directorio de estado. Al
+// registrar el primero, SaveAK hace MkdirAll y crea un DIRECTORIO donde iba
+// el registro: a partir de ahí LoadRegistry falla con EISDIR y ninguna orden
+// de sync —ni siquiera `remote rm`— vuelve a funcionar. Se rechaza el nombre.
+func TestNombreDeDestinoReservado(t *testing.T) {
+	home := t.TempDir()
+	for _, malo := range []string{"remotes.json", "REMOTES.JSON", "Remotes.Json"} {
+		if remote.ValidName(malo) {
+			t.Errorf("ValidName(%q) = true, es el archivo del registro", malo)
+		}
+		reg := remote.Registry{}
+		if err := reg.Add(malo, "file:///tmp/x"); err == nil {
+			t.Errorf("%q se aceptó como nombre de destino", malo)
+		}
+	}
+	// Y el motivo, por si algún día cambia el nombre del archivo: el
+	// directorio de estado de ese destino sería el propio registro.
+	if remote.FilesFor(home, "remotes.json").Dir != filepath.Join(home, "sync", "remotes.json") {
+		t.Fatal("FilesFor ya no colisiona con el registro; revisa este test")
+	}
+}
