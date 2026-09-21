@@ -212,6 +212,13 @@ func cfgSourceFor(r InventoryRoots, layer ConfigLayer, ref ConfigRef) (string, e
 			return filepath.Join(root, "claude_desktop_config.json"), nil
 		}
 	}
+	// La misma negativa que cfgFileTypeInLayer, aquí por la rama JSON: sin
+	// ella todo tipo que no sea MCP caía al settings.json genérico y acababa
+	// escrito en el data dir de la ventana, que solo aporta
+	// claude_desktop_config.json. Nadie lo leería nunca.
+	if layer.Level == "desktop" {
+		return "", fmt.Errorf("la capa desktop solo tiene MCP; %s no vive ahí", ref.Type)
+	}
 	if layer.Level == "profile" {
 		return cfgSettingsFile(r.CCPHome, layer.Name), nil
 	}

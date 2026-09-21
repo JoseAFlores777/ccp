@@ -563,3 +563,21 @@ func TestConfigItemGetSkillAnexos(t *testing.T) {
 		t.Errorf("una skill de un solo archivo no tiene anexos, dijo %v", v2.Extras)
 	}
 }
+
+// La capa desktop solo tiene MCP: cualquier otro tipo tiene que dar error en
+// vez de crear un settings.json en el data dir de la ventana, que nadie lee.
+func TestConfigItemPutDesktopSoloMCP(t *testing.T) {
+	r := invFixture(t)
+	dir := DesktopDataDir(r.CCPHome, "work")
+	ref := ConfigRef{
+		Layer: ConfigLayer{Level: "desktop", Name: "work"},
+		Type:  CfgTypeEnv,
+		Name:  "TOKEN",
+	}
+	if _, err := ConfigItemPut(r, ref, ConfigValue{JSON: "x"}); err == nil {
+		t.Fatal("Put de un env en la ventana debería negarse")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "settings.json")); !os.IsNotExist(err) {
+		t.Fatalf("no debería existir settings.json en el data dir: %v", err)
+	}
+}
