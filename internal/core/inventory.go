@@ -36,6 +36,13 @@ type InventoryRoots struct {
 	ManagedDir            string                       `json:"managed_dir"`
 	RCFiles               []string                     `json:"rc_files"`
 	LookPath              func(string) (string, error) `json:"-"`
+	// ExtraProjects son rutas de proyecto que hay que recorrer aunque nadie
+	// las haya «descubierto»: sin regla y sin entrada en ningún .claude.json.
+	// Una carpeta que el usuario nombra (la capa que pide `ccp mcp list
+	// --scope project:<ruta>`, el campo de ruta libre de la GUI) es un dato
+	// suyo, no un hallazgo; sin esto la pantalla salía vacía justo después de
+	// escribir allí.
+	ExtraProjects []string `json:"extra_projects,omitempty"`
 }
 
 // InvScope dice a qué capa pertenece un elemento.
@@ -689,6 +696,7 @@ func (w *invWalker) walkMCP(r InventoryRoots, cfg *Config) {
 			w.projects = append(w.projects, rl.Path)
 		}
 	}
+	w.projects = append(w.projects, r.ExtraProjects...)
 	w.invProjectMCP(code)
 
 	if r.ManagedDir != "" {

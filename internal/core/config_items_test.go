@@ -460,3 +460,29 @@ func TestConfigItemPutEnvSecretoEnProyecto(t *testing.T) {
 		t.Fatalf("Put de NODE_ENV: %v", err)
 	}
 }
+
+// Una capa de proyecto que nadie ha «descubierto» (sin regla y sin haber
+// abierto Claude Code allí) es igual de real: la ruta la pidió el usuario.
+// Antes ConfigItems partía solo de los proyectos del inventario y la pantalla
+// salía vacía justo después de escribir en ella.
+func TestConfigItemsCapaProyectoDesconocido(t *testing.T) {
+	r := invFixture(t)
+	repo := t.TempDir()
+	mustWrite(t, filepath.Join(repo, "CLAUDE.md"), "del repo\n")
+	mustWrite(t, filepath.Join(repo, ".claude", "settings.json"), `{"permissions":{"allow":["Bash(make)"]}}`)
+	mustWrite(t, filepath.Join(repo, ".mcp.json"), `{"mcpServers":{"repo":{"command":"/bin/echo"}}}`)
+
+	l, err := ConfigItems(r, ConfigLayer{Level: "project", Name: repo})
+	if err != nil {
+		t.Fatalf("ConfigItems: %v", err)
+	}
+	for _, c := range [][2]string{
+		{CfgTypeInstructions, "CLAUDE.md"},
+		{CfgTypePermissions, "allow:Bash(make)"},
+		{CfgTypeMCP, "repo"},
+	} {
+		if cfgItemFind(l, c[0], c[1]) == nil {
+			t.Fatalf("falta %s/%s en un proyecto sin regla", c[0], c[1])
+		}
+	}
+}
