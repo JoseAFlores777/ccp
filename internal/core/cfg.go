@@ -256,7 +256,19 @@ func cfgBuildUserSettings(name, src string, overlayData []byte) ([]byte, error) 
 	if err != nil {
 		return nil, fmt.Errorf("merge de settings de %q falló: %w", name, err)
 	}
-	return merged, nil
+	// La unión de permisos es un ajuste posterior al merge, no otro merge: solo
+	// toca allow/deny/ask y solo si el overlay lo pidió (settings_layers.go).
+	g, gerr := decodeOverlayObject(globalData)
+	o, oerr := decodeOverlayObject(overlayData)
+	m, merr := decodeOverlayObject(merged)
+	if gerr != nil || oerr != nil || merr != nil {
+		return merged, nil
+	}
+	out, err := marshalIndent(applyPermissionUnion(g, o, m))
+	if err != nil {
+		return merged, nil
+	}
+	return out, nil
 }
 
 // cfgBuildSettings construye el settings.json de un perfil (global ⊕ overlay ⊕
