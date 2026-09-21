@@ -248,3 +248,37 @@ func TestAutoSnapshotOffByEnv(t *testing.T) {
 		t.Fatal("con CCP_NO_AUTO_SNAPSHOT=1 se creó el almacén")
 	}
 }
+
+// Un «-m» vacío es la única forma de BORRAR una etiqueta desde el CLI, así que
+// la opción se decide por presencia, no por valor: comparar con "" dejaba
+// `-m ""` sin efecto y la GUI (que sí borra con la cadena vacía) ofrecía un
+// «equivalente CLI» que hacía lo contrario.
+func TestSnapshotPinEtiquetaVacia(t *testing.T) {
+	snapEnv(t)
+	snapRun(t, "snapshot", "create")
+	if code, _, errs := snapRun(t, "snapshot", "pin", "latest", "-m", "bueno"); code != 0 {
+		t.Fatalf("pin: %d %q", code, errs)
+	}
+	// Sin «-m» la etiqueta no se toca.
+	snapRun(t, "snapshot", "unpin", "latest")
+	if l := snapLabel(t); l != "bueno" {
+		t.Fatalf("sin -m la etiqueta cambió: %q", l)
+	}
+	if code, _, errs := snapRun(t, "snapshot", "pin", "latest", "-m", ""); code != 0 {
+		t.Fatalf("pin -m vacío: %d %q", code, errs)
+	}
+	if l := snapLabel(t); l != "" {
+		t.Fatalf("-m vacío no borró la etiqueta: %q", l)
+	}
+}
+
+// snapLabel devuelve la etiqueta del snapshot más reciente.
+func snapLabel(t *testing.T) string {
+	t.Helper()
+	_, out, _ := snapRun(t, "snapshot", "list", "--json")
+	var list []snapSummary
+	if err := json.Unmarshal([]byte(out), &list); err != nil || len(list) == 0 {
+		t.Fatalf("list --json: %q", out)
+	}
+	return list[0].Label
+}

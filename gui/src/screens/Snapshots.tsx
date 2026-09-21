@@ -299,7 +299,9 @@ function Detalle({ s, onPlan }: { s: SnapSummary; onPlan: (p: SnapPlan) => void 
       initial: { label: s.label },
       fields: [{ key: 'label', label: t('Etiqueta'), kind: 'text', placeholder: t('antes de tocar los MCP') }],
       confirmLabel: t('Guardar'),
-      cli: (f) => `ccp snapshot pin ${short(s.id)} -m ${JSON.stringify(f.label ?? '')}`,
+      // `pin`/`unpin` según cómo esté AHORA: etiquetar no cambia el fijado, y
+      //  ofrecer siempre `pin` fijaría un snapshot que la GUI deja sin fijar.
+      cli: (f) => `ccp snapshot ${s.pinned ? 'pin' : 'unpin'} ${short(s.id)} -m ${JSON.stringify(f.label ?? '')}`,
       onConfirm: async (f) => {
         await api.snapshotPin(s.id, s.pinned, f.label ?? '');
         return t('Etiqueta guardada');
