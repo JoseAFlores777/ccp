@@ -30,8 +30,16 @@ type Config struct {
 	Verifier Verifier
 	Issuer   string // lo que /v1/info anuncia
 	ClientID string // el cliente público de la CLI
-	Log      *slog.Logger
-	Now      func() time.Time
+	// PortalClientID es el cliente público del portal web. Vacío = el portal
+	// no se anuncia; la SPA lo dice en su pantalla de login en vez de fallar
+	// en Keycloak con un error que no se entiende.
+	PortalClientID string
+	// Portal, si no es nil, se sirve en la raíz. Va como handler y no como
+	// ruta de archivos para que el API no dependa del paquete del portal: quien
+	// monta el binario decide si hay portal.
+	Portal http.Handler
+	Log    *slog.Logger
+	Now    func() time.Time
 	// Ready comprueba las dependencias para /readyz; nil = siempre listo.
 	Ready func(ctx context.Context) error
 	// PerUserRate y PerUserBurst limitan las peticiones por usuario (0 = por defecto).
@@ -86,6 +94,12 @@ func New(c Config) http.Handler {
 	mux.Handle("GET /v1/revisions/pending", s.authed(s.pendingRevision, true))
 	mux.Handle("GET /v1/revisions/{id}", s.authed(s.getRevision, true))
 	mux.Handle("POST /v1/revisions/{id}/state", s.authed(s.setRevisionState, true))
+	if c.Portal != nil {
+		// La raíz es el comodín del ServeMux: le llega todo lo que no case con
+		// un patrón de arriba. El portal rechaza por su cuenta lo que empiece
+		// por /v1/ para que un endpoint mal escrito siga siendo un 404 del API.
+		mux.Handle("/", c.Portal)
+	}
 	return s.logged(mux)
 }
 

@@ -64,3 +64,33 @@ func TestHealthcheck(t *testing.T) {
 		t.Fatalf("sin servidor, healthcheck() = %d, quería 1", got)
 	}
 }
+
+// El portal se sirve desde este binario, así que desplegar el API es
+// desplegarlo. Apagarlo es una decisión explícita, no un olvido.
+func TestPortalPorDefectoYApagado(t *testing.T) {
+	for _, k := range []string{"CCP_CLOUD_DB_PASSWORD", "CCP_CLOUD_S3_ENDPOINT", "CCP_CLOUD_S3_PUBLIC_ENDPOINT",
+		"CCP_CLOUD_S3_ACCESS_KEY", "CCP_CLOUD_S3_SECRET_KEY"} {
+		t.Setenv(k, "x")
+	}
+	t.Setenv("CCP_CLOUD_OIDC_ISSUER", "https://auth/realms/ccp")
+	c, err := loadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.portalClientID != "ccp-portal" || !c.portal {
+		t.Fatalf("config = %+v", c)
+	}
+	h, err := buildPortal(c)
+	if err != nil || h == nil {
+		t.Fatalf("buildPortal = %v, %v", h, err)
+	}
+	t.Setenv("CCP_CLOUD_PORTAL", "0")
+	c, err = loadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err = buildPortal(c)
+	if err != nil || h != nil {
+		t.Fatalf("con CCP_CLOUD_PORTAL=0: %v, %v", h, err)
+	}
+}

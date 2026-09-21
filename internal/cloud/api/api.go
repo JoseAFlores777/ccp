@@ -44,10 +44,15 @@ func ValidID(s string) bool {
 }
 
 // Info es la respuesta de GET /v1/info (sin autenticar): dónde autenticarse.
+// PortalClientID se añadió con el portal (F2-3): es otro cliente público del
+// mismo realm, y la pestaña lo necesita ANTES de tener sesión, así que no
+// puede salir de ningún endpoint autenticado. Campo nuevo, no forma cambiada:
+// un cliente viejo lo ignora.
 type Info struct {
-	APIVersion int    `json:"api_version"`
-	Issuer     string `json:"issuer"`
-	ClientID   string `json:"client_id"`
+	APIVersion     int    `json:"api_version"`
+	Issuer         string `json:"issuer"`
+	ClientID       string `json:"client_id"`
+	PortalClientID string `json:"portal_client_id,omitempty"`
 }
 
 // Me es la respuesta de GET /v1/me.

@@ -17,7 +17,8 @@ import (
 )
 
 func (s *srv) info(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, api.Info{APIVersion: api.Version, Issuer: s.cfg.Issuer, ClientID: s.cfg.ClientID})
+	writeJSON(w, http.StatusOK, api.Info{APIVersion: api.Version, Issuer: s.cfg.Issuer,
+		ClientID: s.cfg.ClientID, PortalClientID: s.cfg.PortalClientID})
 }
 
 // readyz no dice qué falló: la respuesta es pública y el detalle va al log.

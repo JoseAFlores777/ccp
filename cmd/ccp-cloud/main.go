@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/JoseAFlores777/ccp/internal/cloud/blobs"
+	"github.com/JoseAFlores777/ccp/internal/cloud/portal"
 	"github.com/JoseAFlores777/ccp/internal/cloud/server"
 	"github.com/JoseAFlores777/ccp/internal/cloud/store"
 )
@@ -40,6 +41,8 @@ func main() {
 type config struct {
 	addr, issuer, jwks, audience, clientID        string
 	dbHost, dbUser, dbPassword, dbName, dbSSLMode string
+	portalClientID                                string
+	portal                                        bool
 	dbPort                                        int
 	s3                                            blobs.S3Config
 }
@@ -71,6 +74,8 @@ func loadConfig() (config, error) {
 	c.jwks = get("CCP_CLOUD_OIDC_JWKS", c.issuer+"/protocol/openid-connect/certs")
 	c.audience = get("CCP_CLOUD_OIDC_AUDIENCE", "ccp-api")
 	c.clientID = get("CCP_CLOUD_OIDC_CLIENT_ID", "ccp-cli")
+	c.portalClientID = get("CCP_CLOUD_OIDC_PORTAL_CLIENT_ID", "ccp-portal")
+	c.portal = get("CCP_CLOUD_PORTAL", "1") != "0"
 	c.dbHost = get("CCP_CLOUD_DB_HOST", "postgres")
 	port, err := strconv.Atoi(get("CCP_CLOUD_DB_PORT", "5432"))
 	if err != nil {
@@ -109,9 +114,14 @@ func run(log *slog.Logger) error {
 		return fmt.Errorf("migraciones: %w", err)
 	}
 	bl := blobs.NewS3(c.s3)
+	web, err := buildPortal(c)
+	if err != nil {
+		return err
+	}
 	h := server.New(server.Config{
 		Store: pg, Blobs: bl, Verifier: server.NewOIDCVerifier(c.issuer, c.jwks, c.audience),
-		Issuer: c.issuer, ClientID: c.clientID, Log: log, Ready: readyFunc(pg, bl, c.jwks),
+		Issuer: c.issuer, ClientID: c.clientID, PortalClientID: c.portalClientID,
+		Portal: web, Log: log, Ready: readyFunc(pg, bl, c.jwks),
 	})
 	// Los timeouts de lectura/escritura son largos a propósito: por aquí pasan
 	// subidas y bajadas de blobs, no solo JSON de unos pocos kilobytes.
@@ -136,6 +146,17 @@ func run(log *slog.Logger) error {
 	defer cancel()
 	log.Info("apagando")
 	return hs.Shutdown(sctx)
+}
+
+// buildPortal construye el portal web, o nil si el despliegue lo apaga con
+// CCP_CLOUD_PORTAL=0. Un emisor que el portal no acepta es un error de
+// arranque y no un portal a medias: una pestaña que no puede hablar con
+// Keycloak solo falla al pulsar «entrar».
+func buildPortal(c config) (http.Handler, error) {
+	if !c.portal {
+		return nil, nil
+	}
+	return portal.New(portal.Config{Issuer: c.issuer})
 }
 
 // readyFunc es lo que contesta /readyz: las tres dependencias, cada una con su

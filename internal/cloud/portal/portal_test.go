@@ -118,6 +118,15 @@ func TestSinEmisorNoHayPortal(t *testing.T) {
 			t.Errorf("emisor %q aceptado", iss)
 		}
 	}
+	// El stack de pruebas levanta Keycloak en el bucle local sin TLS, la misma
+	// excepción que ya hace el cliente.
+	h, err := New(Config{Issuer: "http://localhost:8081/realms/ccp"})
+	if err != nil {
+		t.Fatalf("emisor local rechazado: %v", err)
+	}
+	if csp := get(t, h, "/").Header().Get("Content-Security-Policy"); !strings.Contains(csp, "connect-src 'self' http://localhost:8081") {
+		t.Fatalf("la CSP no deja hablar con el emisor local: %s", csp)
+	}
 }
 
 func TestCabecerasDeSeguridad(t *testing.T) {
