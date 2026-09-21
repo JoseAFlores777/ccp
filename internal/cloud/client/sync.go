@@ -85,6 +85,13 @@ func Push(ctx context.Context, a *API, acct *crypt.Account, st *snapshot.Store, 
 // Si dos máquinas no opinan lo mismo de un snapshot, gana la última que hace
 // push. Un fijado de más no cuesta nada; lo que no puede pasar es que se poda
 // algo que alguien dijo que se conserva.
+//
+// De ahí la asimetría con lo BAJADO (state.Pulled): su manifiesto se selló el
+// día del push, así que llega con el `pinned` de entonces y un fijado
+// posterior no está dentro. Ese `false` no es una opinión de esta máquina
+// —nunca opinó—, es un resto del sello viejo, y propagarlo soltaría lo que
+// fijó otra. Así que de lo bajado solo viaja el `true`: fijar aquí algo de
+// otro sigue funcionando; soltarlo se hace donde se fijó.
 func syncPins(ctx context.Context, a *API, st *snapshot.Store, state State, rep *PushReport) error {
 	ms, err := st.List()
 	if err != nil {
@@ -92,9 +99,15 @@ func syncPins(ctx context.Context, a *API, st *snapshot.Store, state State, rep 
 	}
 	quiere := map[string]bool{} // id en la nube -> fijado que dice esta máquina
 	for _, m := range ms {
-		if cloudID, up := state.Pushed[m.ID]; up {
-			quiere[cloudID] = m.Pinned || m.Label != ""
+		cloudID, up := state.Pushed[m.ID]
+		if !up {
+			continue
 		}
+		fijado := m.Pinned || m.Label != ""
+		if !fijado && state.Pulled[m.ID] {
+			continue
+		}
+		quiere[cloudID] = fijado
 	}
 	if len(quiere) == 0 {
 		return nil
@@ -231,6 +244,10 @@ func Pull(ctx context.Context, a *API, acct *crypt.Account, st *snapshot.Store, 
 		return nil, nil, err
 	}
 	state.Pushed[m.ID] = acct.SnapshotID(m.ID) // ya está arriba: no se vuelve a subir
+	if state.Pulled == nil {
+		state.Pulled = map[string]bool{}
+	}
+	state.Pulled[m.ID] = true // bajado: su `pinned` es el del sello, no el nuestro
 	if err := files.SaveState(state); err != nil {
 		return nil, nil, err
 	}
