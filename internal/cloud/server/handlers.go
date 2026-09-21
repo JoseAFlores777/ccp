@@ -187,13 +187,8 @@ func (s *srv) getVault(w http.ResponseWriter, r *http.Request, rc reqCtx) {
 }
 
 func (s *srv) putVault(w http.ResponseWriter, r *http.Request, rc reqCtx) {
-	var in api.Vault
-	if !decode(w, r, 64<<10, &in) {
-		return
-	}
-	okWrap := func(b []byte) bool { return len(b) > 0 && len(b) <= 4096 }
-	if len(in.KDF) == 0 || in.KDF[0] != '{' || !json.Valid(in.KDF) || !okWrap(in.PassphraseWrap) || !okWrap(in.RecoveryWrap) || len(in.SignPub) != 32 {
-		writeError(w, http.StatusBadRequest, api.CodeBadRequest, "bóveda inválida")
+	in, ok := vaultInput(w, r)
+	if !ok {
 		return
 	}
 	err := s.cfg.Store.CreateVault(r.Context(), rc.user.ID, store.Vault{KDF: in.KDF, PassphraseWrap: in.PassphraseWrap, RecoveryWrap: in.RecoveryWrap, SignPub: in.SignPub})
@@ -207,6 +202,57 @@ func (s *srv) putVault(w http.ResponseWriter, r *http.Request, rc reqCtx) {
 	}
 	s.audit(r, rc, "vault.create", nil)
 	w.WriteHeader(http.StatusCreated)
+}
+
+// vaultInput valida lo que llega en una bóveda. Es lo mismo para crearla y
+// para rotar sus envolturas: el servidor no sabe abrirlas ni en un caso ni en
+// el otro, así que lo único que puede comprobar es la forma.
+func vaultInput(w http.ResponseWriter, r *http.Request) (api.Vault, bool) {
+	var in api.Vault
+	if !decode(w, r, 64<<10, &in) {
+		return in, false
+	}
+	okWrap := func(b []byte) bool { return len(b) > 0 && len(b) <= 4096 }
+	if len(in.KDF) == 0 || in.KDF[0] != '{' || !json.Valid(in.KDF) || !okWrap(in.PassphraseWrap) ||
+		!okWrap(in.RecoveryWrap) || len(in.SignPub) != 32 {
+		writeError(w, http.StatusBadRequest, api.CodeBadRequest, "bóveda inválida")
+		return in, false
+	}
+	return in, true
+}
+
+// rewrapVault rota las claves de ACCESO a la bóveda (§10.2): frase y código de
+// recuperación nuevos sobre la MISMA clave de cuenta. Por eso no hay aquí nada
+// que recifrar: lo que cambia son las dos envolturas. Rotar la AK —la caja, no
+// las llaves— obliga a recifrar todo lo publicado y es otra operación.
+//
+// El almacén exige que la clave pública de firma sea la que ya había, y ese es
+// el único freno posible desde este lado: el servidor no puede abrir una
+// envoltura para comprobar que dentro sigue la misma AK, pero sí ver que la
+// identidad de firma no se mueve. Sin eso, una petición podría sustituir la
+// bóveda entera y dejar sin abrir todo lo publicado hasta hoy.
+func (s *srv) rewrapVault(w http.ResponseWriter, r *http.Request, rc reqCtx) {
+	in, ok := vaultInput(w, r)
+	if !ok {
+		return
+	}
+	err := s.cfg.Store.RewrapVault(r.Context(), rc.user.ID, store.Vault{
+		KDF: in.KDF, PassphraseWrap: in.PassphraseWrap, RecoveryWrap: in.RecoveryWrap, SignPub: in.SignPub})
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		writeError(w, http.StatusNotFound, api.CodeNotFound, "esta cuenta aún no tiene bóveda")
+		return
+	case errors.Is(err, store.ErrConflict):
+		writeError(w, http.StatusConflict, api.CodeConflict,
+			"esa no es la misma clave de cuenta; rotar las envolturas no puede cambiarla")
+		return
+	case err != nil:
+		s.internal(w, r, err)
+		return
+	}
+	// Nada del detalle: de la bóveda no se apunta ni un byte.
+	s.audit(r, rc, "vault.rewrap", nil)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // uniqueIDs valida y deduplica una lista de ids.

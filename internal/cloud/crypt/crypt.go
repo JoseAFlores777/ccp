@@ -230,32 +230,52 @@ func NewVault(passphrase []byte) (ak []byte, recovery string, w Wraps, err error
 	if ak, err = vault.NewKey(); err != nil {
 		return nil, "", Wraps{}, err
 	}
-	if w.KDF, err = vault.NewKDFParams(); err != nil {
+	recovery, w, err = RewrapVault(ak, passphrase)
+	if err != nil {
 		return nil, "", Wraps{}, err
+	}
+	return ak, recovery, w, nil
+}
+
+// RewrapVault vuelve a envolver una AK que ya existe: frase nueva, sal nueva y
+// código de recuperación nuevo, que se devuelve para enseñarlo UNA vez. La AK
+// NO cambia, y ahí está el reparto: rotar las llaves de la caja es barato y no
+// toca nada de lo guardado; cambiar la caja —una AK nueva— obliga a recifrar
+// todo lo publicado y es otra operación (§10.2, pendiente).
+//
+// Rotar no pide la frase vieja a propósito: quien rota lo hace desde un equipo
+// que ya tiene la AK abierta, y exigir la frase vieja impediría rotar justo en
+// el caso para el que existe — que se haya perdido o se tema que se filtró.
+func RewrapVault(ak []byte, passphrase []byte) (recovery string, w Wraps, err error) {
+	if len(ak) == 0 {
+		return "", Wraps{}, ErrWrongSecret
+	}
+	if w.KDF, err = vault.NewKDFParams(); err != nil {
+		return "", Wraps{}, err
 	}
 	kek, err := vault.DeriveKey(passphrase, w.KDF)
 	if err != nil {
-		return nil, "", Wraps{}, err
+		return "", Wraps{}, err
 	}
 	if w.Passphrase, err = vault.Seal(kek, ak, []byte(adPassWrap)); err != nil {
-		return nil, "", Wraps{}, err
+		return "", Wraps{}, err
 	}
 	if recovery, err = vault.NewRecoveryCode(); err != nil {
-		return nil, "", Wraps{}, err
+		return "", Wraps{}, err
 	}
 	rk, err := vault.RecoveryKey(recovery)
 	if err != nil {
-		return nil, "", Wraps{}, err
+		return "", Wraps{}, err
 	}
 	if w.Recovery, err = vault.Seal(rk, ak, []byte(adRecWrap)); err != nil {
-		return nil, "", Wraps{}, err
+		return "", Wraps{}, err
 	}
 	acct, err := NewAccount(ak)
 	if err != nil {
-		return nil, "", Wraps{}, err
+		return "", Wraps{}, err
 	}
 	w.SignPub = acct.SignPublic()
-	return ak, recovery, w, nil
+	return recovery, w, nil
 }
 
 // UnlockPassphrase abre la bóveda con la frase.

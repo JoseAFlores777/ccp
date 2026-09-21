@@ -69,3 +69,44 @@ func runRevokeContract(t *testing.T, s Store) {
 		t.Fatalf("la segunda revocación movió la fecha: %+v", v)
 	}
 }
+
+// runRewrapContract: rotar las claves de acceso reemplaza las envolturas y
+// nada más. La clave pública de firma es la prueba de que la AK no cambió:
+// si cambiara, todo lo firmado hasta hoy dejaría de verificar.
+func runRewrapContract(t *testing.T, s Store) {
+	t.Helper()
+	ctx := context.Background()
+	u, _ := s.UpsertUser(ctx, "sub-rewrap", "rewrap@x")
+
+	v := Vault{KDF: []byte(`{"time":3}`), PassphraseWrap: []byte{1}, RecoveryWrap: []byte{2}, SignPub: []byte{9}}
+	if err := s.RewrapVault(ctx, u.ID, v); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("rotar sin bóveda: %v", err)
+	}
+	if err := s.CreateVault(ctx, u.ID, v); err != nil {
+		t.Fatal(err)
+	}
+	antes, _ := s.Vault(ctx, u.ID)
+
+	nueva := Vault{KDF: []byte(`{"time":4}`), PassphraseWrap: []byte{7}, RecoveryWrap: []byte{8}, SignPub: []byte{9}}
+	if err := s.RewrapVault(ctx, u.ID, nueva); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Vault(ctx, u.ID)
+	if err != nil || string(got.PassphraseWrap) != "\x07" || string(got.RecoveryWrap) != "\x08" {
+		t.Fatalf("Vault tras rotar = %+v, %v", got, err)
+	}
+	if !got.Created.Equal(antes.Created) {
+		t.Fatalf("rotar las llaves no crea una bóveda nueva: %v vs %v", got.Created, antes.Created)
+	}
+
+	// Una firma distinta significa una AK distinta, y eso no es rotar las
+	// llaves: es cambiar la caja y dejar dentro lo que ya no abre.
+	otra := nueva
+	otra.SignPub = []byte{5}
+	if err := s.RewrapVault(ctx, u.ID, otra); !errors.Is(err, ErrConflict) {
+		t.Fatalf("rotar cambiando la firma: %v", err)
+	}
+	if v, _ := s.Vault(ctx, u.ID); string(v.SignPub) != "\x09" {
+		t.Fatalf("la rotación rechazada dejó rastro: %+v", v)
+	}
+}

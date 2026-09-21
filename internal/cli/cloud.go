@@ -59,6 +59,8 @@ func dispatchCloud(args []string, stdout, stderr io.Writer) int {
 		return c.initVault(args)
 	case "unlock":
 		return c.unlock(args)
+	case "rotate":
+		return c.rotate(args)
 	case "push":
 		return c.push(args)
 	case "pull":

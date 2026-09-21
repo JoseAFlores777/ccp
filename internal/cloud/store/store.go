@@ -126,6 +126,12 @@ type Store interface {
 	UpsertUser(ctx context.Context, sub, email string) (User, error)
 	Vault(ctx context.Context, userID string) (Vault, error)
 	CreateVault(ctx context.Context, userID string, v Vault) error
+	// RewrapVault rota las claves de ACCESO: reemplaza las dos envolturas
+	// dejando la AK como está. v.SignPub tiene que ser la que ya hay
+	// (ErrConflict si no): es la prueba de que la clave de cuenta no cambió,
+	// y con una AK nueva nada de lo ya publicado se abriría. ErrNotFound si
+	// esta cuenta todavía no tiene bóveda.
+	RewrapVault(ctx context.Context, userID string, v Vault) error
 	CreateDevice(ctx context.Context, userID string, d Device) (Device, error)
 	Devices(ctx context.Context, userID string) ([]Device, error)
 	// SeenDevice marca el último contacto y devuelve el dispositivo. Si está
