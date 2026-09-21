@@ -3,6 +3,7 @@ package portal
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -70,17 +71,34 @@ func TestDemo(t *testing.T) {
 		snaps = append(snaps, sealedSnap{meta, api.Snapshot{SnapshotMeta: meta, Manifest: body, Sig: acct.Sign(id, parent, body)}})
 		return id
 	}
+	// Con contenido de verdad, sellado con esta misma bóveda: sin él el editor
+	// no tiene nada que abrir, y lo que se quiere mirar aquí es justo eso.
+	blobs := map[string][]byte{}
+	item := func(lpath, contenido string, mode uint32, class snapshot.Class) snapshot.Item {
+		hash := snapshot.Hash([]byte(contenido))
+		id := acct.BlobID(hash)
+		sealed, err := acct.SealBlob(id, []byte(contenido))
+		if err != nil {
+			t.Fatal(err)
+		}
+		blobs[id] = sealed
+		return snapshot.Item{LPath: lpath, Hash: hash, Size: int64(len(contenido)), Mode: mode, Class: class}
+	}
+	const a = snapshot.ClassAuthored
 	base := []snapshot.Item{
-		{LPath: "ccp/ccp.yaml", Hash: "a1", Size: 900, Mode: 0o644, Class: snapshot.ClassAuthored},
-		{LPath: "claude/CLAUDE.md", Hash: "b1", Size: 4200, Mode: 0o644, Class: snapshot.ClassAuthored},
-		{LPath: "claude/settings.json", Hash: "c1", Size: 800, Mode: 0o644, Class: snapshot.ClassAuthored},
-		{LPath: "ccp/profiles/work/overlay/CLAUDE.md", Hash: "d1", Size: 300, Mode: 0o644, Class: snapshot.ClassAuthored},
-		{LPath: "ccp/profiles/work/api_key", Hash: "e1", Size: 80, Mode: 0o600, Class: snapshot.ClassSecret},
+		item("ccp/ccp.yaml", "version: 2\nrules:\n  - path: /Users/tu/repos/web\n    profile: work\n", 0o644, a),
+		item("claude/CLAUDE.md", "# Instrucciones globales\n\nResponde en español.\n", 0o644, a),
+		item("claude/settings.json", `{"model":"opus","permissions":{"allow":["Bash(git status)"],"deny":[]},"env":{"EDITOR":"vim"}}`, 0o644, a),
+		item("claude/agents/revisor.md", "---\nname: revisor\n---\n\nRevisa el diff.\n", 0o644, a),
+		item("ccp/profiles/work/overlay/CLAUDE.md", "# Perfil work\n\nNo toques producción.\n", 0o644, a),
+		item("ccp/profiles/work/overlay/settings.overlay.json", `{"statusLine":{"type":"command","command":"ccp status"}}`, 0o644, a),
+		item("ccp/profiles/work/api_key", "sk-secreto-de-mentira", 0o600, snapshot.ClassSecret),
+		item("desktop/work/claude_desktop_config.json", `{"mcpServers":{"obsidian":{"command":"node","args":["mcp.js"]}}}`, 0o600, snapshot.ClassSecret),
+		item("project/github.com~tu~web/CLAUDE.local.md", "# Solo en este repo\n", 0o644, a),
 	}
 	crecido := append(append([]snapshot.Item{}, base...),
-		snapshot.Item{LPath: "ccp/profiles/personal/overlay/CLAUDE.md", Hash: "f1", Size: 120, Mode: 0o644, Class: snapshot.ClassAuthored})
-	crecido[0].Hash = "a2"
-	crecido[0].Size = 980
+		item("ccp/profiles/personal/overlay/CLAUDE.md", "# Perfil personal\n", 0o644, a))
+	crecido[0] = item("ccp/ccp.yaml", "version: 2\nrules:\n  - path: /Users/tu/repos/web\n    profile: work\n  - path: /Users/tu/repos/api\n    profile: personal\n", 0o644, a)
 	p1 := mk(devs[0].ID, "macbook", 72*time.Hour, base, "")
 	p2 := mk(devs[0].ID, "macbook", 20*time.Hour, crecido, p1)
 	// El deseado es lo que tiene el OTRO equipo: así el MacBook aparece con
@@ -89,13 +107,14 @@ func TestDemo(t *testing.T) {
 		snapshot.Item{LPath: "ccp/profiles/deepseek/overlay/settings.overlay.json", Hash: "g1", Size: 60, Mode: 0o644, Class: snapshot.ClassAuthored}), p2)
 	mk(devs[1].ID, "mac-mini", 26*time.Hour, base, "")
 	_ = recovery
-	serveDemo(t, w, devs, snaps, deseado, frase)
+	serveDemo(t, acct, w, devs, snaps, blobs, deseado, frase)
 }
 
 // serveDemo es el API falso de la demo: contesta lo justo para que la SPA
 // tenga algo que pintar. No valida tokens a propósito — lo que se quiere mirar
 // aquí son las pantallas, no el login.
-func serveDemo(t *testing.T, w crypt.Wraps, devs []api.Device, snaps []sealedSnap, deseado, frase string) {
+func serveDemo(t *testing.T, acct *crypt.Account, w crypt.Wraps, devs []api.Device, snaps []sealedSnap,
+	blobs map[string][]byte, deseado, frase string) {
 	t.Helper()
 	kdf, err := json.Marshal(w.KDF)
 	if err != nil {
@@ -145,6 +164,63 @@ func serveDemo(t *testing.T, w crypt.Wraps, devs []api.Device, snaps []sealedSna
 		}
 		http.Error(rw, `{"code":"not_found","message":"no está"}`, http.StatusNotFound)
 	})
+	// El camino del editor: bajar contenidos, subir los editados, publicar el
+	// snapshot y la revisión. Guarda de verdad en memoria, así que se puede
+	// editar, publicar y volver a abrir lo publicado.
+	mux.HandleFunc("GET /v1/blobs/{id}", func(rw http.ResponseWriter, r *http.Request) {
+		b, ok := blobs[r.PathValue("id")]
+		if !ok {
+			http.Error(rw, `{"code":"not_found","message":"no está"}`, http.StatusNotFound)
+			return
+		}
+		rw.Header().Set("Content-Type", "application/octet-stream")
+		_, _ = rw.Write(b)
+	})
+	mux.HandleFunc("PUT /v1/blobs/{id}", func(rw http.ResponseWriter, r *http.Request) {
+		b, err := io.ReadAll(io.LimitReader(r.Body, api.MaxBlobBytes))
+		if err != nil {
+			http.Error(rw, `{"code":"bad_request","message":"cuerpo ilegible"}`, http.StatusBadRequest)
+			return
+		}
+		blobs[r.PathValue("id")] = b
+		rw.WriteHeader(http.StatusCreated)
+	})
+	mux.HandleFunc("POST /v1/blobs/presign", func(rw http.ResponseWriter, r *http.Request) {
+		var in api.PresignReq
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		out := []api.PresignItem{}
+		for _, id := range in.IDs {
+			_, ok := blobs[id]
+			out = append(out, api.PresignItem{ID: id, Exists: ok})
+		}
+		send(rw, out)
+	})
+	mux.HandleFunc("POST /v1/snapshots", func(rw http.ResponseWriter, r *http.Request) {
+		var in api.SnapshotIn
+		if !demoSnapshot(t, rw, r, acct, &in) {
+			return
+		}
+		meta := api.SnapshotMeta{ID: in.ID, Parent: in.Parent, DeviceID: devs[0].ID, DeviceName: "portal",
+			Created: in.Created, Size: int64(len(in.Manifest))}
+		snaps = append(snaps, sealedSnap{meta, api.Snapshot{SnapshotMeta: meta, Manifest: in.Manifest, Sig: in.Sig}})
+		rw.WriteHeader(http.StatusCreated)
+		send(rw, meta)
+	})
+	mux.HandleFunc("POST /v1/revisions", func(rw http.ResponseWriter, r *http.Request) {
+		var in api.RevisionIn
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		parts := crypt.RevisionParts{ID: in.ID, Prev: in.Prev, Device: in.DeviceID,
+			Snapshot: in.Snapshot, Base: in.Base, Body: in.Body}
+		if err := acct.VerifyRevision(parts, in.Sig); err != nil {
+			t.Errorf("el portal publicó una revisión que no verifica: %v", err)
+			http.Error(rw, `{"code":"bad_request","message":"firma inválida"}`, http.StatusBadRequest)
+			return
+		}
+		t.Logf("revisión para %s sobre el snapshot %s (base %s)", in.DeviceID, in.Snapshot[:12], in.Base[:12])
+		rw.WriteHeader(http.StatusCreated)
+		send(rw, api.Revision{RevisionMeta: api.RevisionMeta{ID: in.ID, DeviceID: in.DeviceID,
+			Snapshot: in.Snapshot, Base: in.Base, Created: in.Created, State: api.RevPending}})
+	})
 	mux.HandleFunc("GET /v1/revisions", func(rw http.ResponseWriter, _ *http.Request) {
 		send(rw, []api.RevisionMeta{{ID: strings.Repeat("d", 64), DeviceID: devs[0].ID, DeviceName: devs[0].Name,
 			Snapshot: deseado, Created: time.Now().Add(-time.Hour), State: api.RevPending, By: "portal"}})
@@ -161,4 +237,35 @@ func serveDemo(t *testing.T, w crypt.Wraps, devs []api.Device, snaps []sealedSna
 		`sessionStorage.setItem('ccp.portal.session', JSON.stringify({access:'demo',refresh:'',expires:%d,token:'',end:''}))`,
 		time.Now().Add(time.Hour).UnixMilli())
 	time.Sleep(15 * time.Minute)
+}
+
+// demoSnapshot valida lo que sube el portal como lo validaría el agente al
+// bajarlo: firma, manifiesto que abre y id que corresponde. La demo es donde
+// se mira la pantalla, pero si de paso puede decir «esto no lo podría aplicar
+// ninguna máquina», lo dice.
+func demoSnapshot(t *testing.T, rw http.ResponseWriter, r *http.Request, acct *crypt.Account, in *api.SnapshotIn) bool {
+	t.Helper()
+	if err := json.NewDecoder(r.Body).Decode(in); err != nil {
+		http.Error(rw, `{"code":"bad_request","message":"cuerpo ilegible"}`, http.StatusBadRequest)
+		return false
+	}
+	if err := acct.Verify(in.ID, in.Parent, in.Manifest, in.Sig); err != nil {
+		t.Errorf("el portal subió un snapshot que no verifica: %v", err)
+		http.Error(rw, `{"code":"bad_request","message":"firma inválida"}`, http.StatusBadRequest)
+		return false
+	}
+	raw, err := acct.OpenManifest(in.ID, in.Manifest)
+	if err != nil {
+		t.Errorf("el manifiesto del portal no abre: %v", err)
+		http.Error(rw, `{"code":"bad_request","message":"no abre"}`, http.StatusBadRequest)
+		return false
+	}
+	var m snapshot.Manifest
+	if err := json.Unmarshal(raw, &m); err != nil || acct.SnapshotID(m.ID) != in.ID {
+		t.Errorf("el manifiesto no corresponde a su id: %v", err)
+		http.Error(rw, `{"code":"bad_request","message":"id que no corresponde"}`, http.StatusBadRequest)
+		return false
+	}
+	t.Logf("snapshot del portal: %s, %d elementos", in.ID[:12], len(m.Items))
+	return true
 }
