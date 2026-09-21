@@ -28,6 +28,13 @@ type PushReport struct {
 	// Pinned: snapshots que ya estaban arriba y a los que se les puso al día
 	// el fijado (campo nuevo, no forma cambiada).
 	Pinned int `json:"pinned"`
+	// PinFailed: snapshots cuyo fijado NO llegó a la nube, con PinError
+	// diciendo por qué. Son un aviso, como Missing y TooLarge, no un fallo
+	// del push: poner al día lo fijado ocurre DESPUÉS de subir, así que un
+	// 5xx, un corte de red o un servidor viejo que no conoce la ruta de la
+	// cadena dejarían la subida hecha y el informe tirado.
+	PinFailed []string `json:"pin_failed"`
+	PinError  string   `json:"pin_error,omitempty"`
 }
 
 func sortedKeys[V any](m map[string]V) []string {
@@ -42,7 +49,7 @@ func sortedKeys[V any](m map[string]V) []string {
 // Push sube, del más viejo al más nuevo, los snapshots locales que la nube aún
 // no tiene. only (un id local completo), si no está vacío, limita a ese.
 func Push(ctx context.Context, a *API, acct *crypt.Account, st *snapshot.Store, files Files, only string) (PushReport, error) {
-	rep := PushReport{Missing: []string{}, TooLarge: []string{}}
+	rep := PushReport{Missing: []string{}, TooLarge: []string{}, PinFailed: []string{}}
 	state, err := files.LoadState()
 	if err != nil {
 		return rep, err
@@ -69,9 +76,11 @@ func Push(ctx context.Context, a *API, acct *crypt.Account, st *snapshot.Store, 
 		}
 		rep.Snapshots++
 	}
-	if err := syncPins(ctx, a, st, state, &rep); err != nil {
-		return rep, err
-	}
+	// El error de syncPins no se propaga: la subida ya está comprometida
+	// arriba y persistida aquí, y devolverlo hacía que el CLI tirase el
+	// informe entero —salía 1 sin decir qué había subido y con --json no
+	// imprimía nada—. Se cuenta como aviso y se sigue.
+	syncPins(ctx, a, st, state, &rep)
 	return rep, nil
 }
 
@@ -92,10 +101,14 @@ func Push(ctx context.Context, a *API, acct *crypt.Account, st *snapshot.Store, 
 // —nunca opinó—, es un resto del sello viejo, y propagarlo soltaría lo que
 // fijó otra. Así que de lo bajado solo viaja el `true`: fijar aquí algo de
 // otro sigue funcionando; soltarlo se hace donde se fijó.
-func syncPins(ctx context.Context, a *API, st *snapshot.Store, state State, rep *PushReport) error {
+//
+// Nada de lo que pasa aquí tumba el push: lo que no se pueda poner al día sale
+// en rep.PinFailed con su porqué en rep.PinError.
+func syncPins(ctx context.Context, a *API, st *snapshot.Store, state State, rep *PushReport) {
 	ms, err := st.List()
 	if err != nil {
-		return err
+		rep.PinError = err.Error()
+		return
 	}
 	quiere := map[string]bool{} // id en la nube -> fijado que dice esta máquina
 	for _, m := range ms {
@@ -110,11 +123,17 @@ func syncPins(ctx context.Context, a *API, st *snapshot.Store, state State, rep 
 		quiere[cloudID] = fijado
 	}
 	if len(quiere) == 0 {
-		return nil
+		return
 	}
 	links, err := a.Chain(ctx)
 	if err != nil {
-		return err
+		// Sin la cadena no se sabe cuál está al día, así que se avisa de
+		// todos los que esta máquina tiene opinión sobre su fijado.
+		rep.PinError = err.Error()
+		for _, id := range sortedKeys(quiere) {
+			rep.PinFailed = append(rep.PinFailed, snapshot.Short(id))
+		}
+		return
 	}
 	for _, l := range links {
 		// Una lápida ya no tiene contenido que conservar: fijarla no salva nada.
@@ -124,12 +143,16 @@ func syncPins(ctx context.Context, a *API, st *snapshot.Store, state State, rep 
 		}
 		if err := a.PinSnapshot(ctx, l.ID, want); err != nil {
 			// Se dice en voz alta: un fijado que no llega es un snapshot que
-			// la retención del servidor puede podar creyendo que sobra.
-			return fmt.Errorf("no se pudo poner al día lo fijado de %s: %w", snapshot.Short(l.ID), err)
+			// la retención del servidor puede podar creyendo que sobra. Se
+			// sigue con los demás: cada fijado es independiente.
+			rep.PinFailed = append(rep.PinFailed, snapshot.Short(l.ID))
+			if rep.PinError == "" {
+				rep.PinError = err.Error()
+			}
+			continue
 		}
 		rep.Pinned++
 	}
-	return nil
 }
 
 func pushOne(ctx context.Context, a *API, acct *crypt.Account, st *snapshot.Store, m *snapshot.Manifest, rep *PushReport) (string, error) {

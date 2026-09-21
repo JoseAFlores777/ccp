@@ -545,6 +545,12 @@ func (c cloudCmd) push(args []string) int {
 	if len(rep.TooLarge) > 0 {
 		fmt.Fprintln(c.out, warnLine(c.out, i18n.T(c.lang, "cli.cloud.push_too_large", strings.Join(rep.TooLarge, ", "))))
 	}
+	// El fijado se pone al día DESPUÉS de subir: que no llegue es un aviso,
+	// no un fallo de la subida. Decirlo importa porque la retención del
+	// servidor puede podar creyendo que sobra lo que aquí está fijado.
+	if len(rep.PinFailed) > 0 || rep.PinError != "" {
+		fmt.Fprintln(c.out, warnLine(c.out, i18n.T(c.lang, "cli.cloud.push_pin_failed", strings.Join(rep.PinFailed, ", "), rep.PinError)))
+	}
 	return 0
 }
 
