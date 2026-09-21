@@ -4,6 +4,20 @@
 
 ### Added
 
+- **`ccp mcp`: alta, baja y destinos de los servidores MCP desde la terminal** (spec §7). La cara de
+  terminal del editor: `list`, `add`, `rm`, `enable`, `disable` y `targets`, con `--json` en todos y
+  `--scope global | profile[:<n>] | project[:<ruta>] | desktop[:<n>]`. Sin `--scope` se edita el perfil
+  activo de la terminal, que es donde está quien teclea.
+  - `add` tiene tres formas y solo una por llamada: el comando tras `--` (stdio, con `--env CLAVE=valor`),
+    `--url` (remoto, con `--transport` y `--header`) o el JSON pegado. Mezclarlas se rechaza antes de
+    escribir, porque en el archivo ya no se ve.
+  - La capa manda y las barreras son las de `core`: la ventana de Desktop recibe los MCP del perfil pero no
+    los declara, y un secreto en claro en un `.mcp.json` —que viaja en el repo— se niega diciendo cómo
+    escribirlo (`${VARIABLE}`).
+  - `list` enseña también lo que el perfil recibe pero no está en su `cc-home`: lo apagado y lo que solo va
+    al chat. Si no, apagar un servidor lo haría desaparecer de la lista desde la que se vuelve a encender.
+  - Tras cada escritura dice a quién regeneró y qué ventana de Desktop se queda con los MCP de antes hasta
+    que se reinicie. No entra en la completion, como `backup`, `serve` y `snapshot`.
 - **MCP, agentes y skills por perfil: una fuente declarada y varias proyecciones** (spec §6,
   [ADR 0011](docs/adr/0011-una-fuente-declarada-varias-proyecciones.md)). Un perfil ya declara lo suyo en su
   overlay y cada regeneración lo proyecta a los archivos que leen de verdad las apps: `overlay/mcp.json` →

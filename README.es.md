@@ -813,6 +813,22 @@ mcp:
 - **Los permisos se fusionan reemplazando arrays**, como siempre. Para sumar en vez de reemplazar, dilo en el overlay: `"permissions": {"$merge": "union", "allow": ["Bash(make:*)"]}`. La marca nunca llega al `settings.json` generado.
 - `ccp doctor` dice lo que está fuera de sitio: `projection_stale`, `desktop_restart_pending`, `mcp_command_missing`, `mcp_unmanaged_only_desktop` y `cc_home_symlink_nonleaf`.
 
+#### `ccp mcp` — lo mismo sin editar archivos
+
+```bash
+ccp mcp list [--scope <capa>] [--json]               # qué declara la capa y a dónde va
+ccp mcp add fs -- npx -y @modelcontextprotocol/server-filesystem ~/code
+ccp mcp add linear --url https://mcp.linear.app/sse --transport sse --header "Authorization=Bearer ${LINEAR}"
+ccp mcp add jira '{"command":"npx","args":["-y","jira-mcp"]}'   # el JSON crudo, si lo prefieres
+ccp mcp rm <nombre> [--scope <capa>]
+ccp mcp enable|disable <nombre> [--profile <n>]      # uno heredado, en UN perfil
+ccp mcp targets [<nombre> [cli|desktop|cli,desktop|none]]
+```
+
+La capa es `global`, `profile[:<nombre>]`, `project[:<ruta>]` o `desktop[:<nombre>]` (solo lectura), y **sin `--scope` es el perfil activo de la terminal**. `--env CLAVE=valor` acompaña a la forma stdio y `--header CLAVE=valor` a la remota; las tres formas (el comando tras `--`, `--url`, el JSON) no se mezclan.
+
+Dos negativas son la razón de ser del comando: la **ventana de Desktop** recibe los MCP del perfil pero no los declara —escribir ahí lo desharía el siguiente sync, así que te dice que lo declares en el perfil—, y un **secreto en claro en el `.mcp.json` de un proyecto** —un archivo que viaja en el repo— se niega señalando `${VARIABLE}`. Después de cada escritura dice a quién regeneró y qué ventana se queda con los MCP de antes hasta que la reinicies.
+
 ### Editar `ccp.yaml` — `ccp config edit`
 
 ```bash
@@ -960,6 +976,8 @@ Con comandos: `ccp config show` · `ccp config set <clave> <valor>` · `ccp conf
 | Estado / diagnóstico | `ccp status` · `ccp doctor` |
 | Backup / restore | `ccp backup export\|restore` |
 | Snapshots | `ccp snapshot create\|list\|diff\|restore\|export\|import` |
+| Dar de alta o de baja un servidor MCP | `ccp mcp add\|rm <n>` · `ccp mcp list` |
+| Apagar un MCP heredado en un perfil | `ccp mcp disable <n> --profile <perfil>` |
 | Actualizar | `ccp upgrade` |
 | Ayuda completa | `ccp help` |
 

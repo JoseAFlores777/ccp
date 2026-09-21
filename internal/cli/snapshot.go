@@ -638,6 +638,7 @@ var dailySnapshotCmds = map[string]bool{
 	"profile": true, "account": true, "instruct": true, "backup": true, "config": true,
 	"desktop": true, "auto": true, "handoff": true, "session": true, "snapshot": true,
 	"doctor": true, "lang": true, "upgrade": true, "update": true, "adopt": true,
+	"mcp": true,
 }
 
 // dailySnapshotEvery: 20 horas y no 24, para que quien abre ccp a la misma hora
