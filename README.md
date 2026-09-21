@@ -781,6 +781,8 @@ ccp cloud status      # server, account, machine, vault, how many are pending
 ccp cloud list        # snapshots in the cloud, from every machine
 ccp cloud verify      # the whole signed history: nobody removed, reordered or rewrote a link
 ccp cloud devices     # your machines; `ccp cloud revoke <id>` throws one out
+ccp cloud groups      # device groups; `groups add "all my Macs" mac-a mac-b`, `set`, `rm --yes`
+ccp cloud groups status "all my Macs"   # how the last order went on each machine of the group
 ccp cloud logout      # revoke this machine and delete its token and local vault
 ```
 
@@ -822,6 +824,15 @@ still the primary source.
   this machine applies when its agent next checks in, confirming anything executable locally); and on a brand
   new machine, `ccp cloud restore`. The portal never restores by itself: there is no inbound connection to
   your machines.
+- **A group is a name and some machines, and it does not command.** «All my Macs» saves you ticking the same
+  boxes in the portal's «Apply to…»; what goes out is still one **signed revision per machine**, and the group
+  tag is deliberately **outside** the signature. What the signature binds is the destination device — that is
+  what stops an order being redirected — so editing a group later cannot change who obeys an order that was
+  already signed. `ccp cloud groups status <group>` says how the last order of that group went on each
+  machine, and it says two things carefully: a member with no order of that group reads *no orders*, not
+  *pending* (there is no order of its own pending anything), and a machine you removed from the group keeps
+  showing while it still has a live order — taking it out of the group does not withdraw what was published
+  to it.
 - **A new machine maps its own paths.** A snapshot from another machine names projects by their normalised
   git remote, so `ccp cloud restore` looks for each repo here: the path the snapshot carried (translated to
   this HOME), then any folder your rules, your `.claude.json` projects or the usual roots (`~/code`, `~/src`,

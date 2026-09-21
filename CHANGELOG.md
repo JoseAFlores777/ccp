@@ -4,6 +4,24 @@
 
 ### Added
 
+- **Grupos de dispositivos y «aplicar a varios» (F4-1)**: `ccp cloud groups [add|set|rm|status]`, el CRUD en
+  `/v1/groups` y, en el portal, el bloque de grupos en Dispositivos más un botón por grupo en «Aplicar a…» y
+  en «Restaurar en…». Un grupo es un nombre y unos equipos: **no manda**. Lo que sale sigue siendo una
+  revisión FIRMADA por máquina.
+  - **La etiqueta del grupo va FUERA de la firma**, a propósito. Lo firmado ata cada orden a SU dispositivo,
+    que es lo que impide desviarla; si el grupo entrara en la firma, cambiar quién está dentro —algo que el
+    servidor puede hacer, porque la membresía no va firmada— invalidaría órdenes ya puestas o, peor, cambiaría
+    a quién obedece una orden ya firmada.
+  - **En el portal la etiqueta se deriva de lo marcado, no se recuerda**: pulsar el grupo y luego marcar una
+    casilla más dejaba una orden diciendo «esto fue el grupo» sobre una lista que ya no era la suya.
+  - **El estado por dispositivo dice dos cosas con cuidado**: un miembro sin ninguna orden del grupo sale como
+    «sin órdenes» y no como «pendiente» —no hay ninguna orden suya pendiente de nada—, y un equipo al que se
+    sacó del grupo sigue saliendo mientras tenga una orden viva, marcado, porque sacarle no la retira.
+  - **Borrar un grupo no borra las órdenes publicadas con su etiqueta**: pasaron de verdad y siguen su curso
+    en cada máquina. Lo que se pierde es el nombre que las enseña juntas, y por eso se confirma.
+  - Un equipo revocado no entra en un grupo (su orden se quedaría pendiente para siempre) y publicar con la
+    etiqueta de un grupo que no existe se rechaza, en vez de dejar una orden que no sale en ningún estado.
+
 - **Restaurar desde la nube, por los tres caminos de §10.3.1 (F3-3), y los tres terminan en el mismo
   motor**: el restore de §8.3, que planifica, toma un snapshot de seguridad y regenera la proyección.
   Construir un segundo camino de escritura habría sido construir un segundo sitio donde perder datos.

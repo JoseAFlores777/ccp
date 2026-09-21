@@ -779,6 +779,8 @@ ccp cloud status      # servidor, cuenta, equipo, bóveda y cuántos quedan por 
 ccp cloud list        # snapshots en la nube, de todos los equipos
 ccp cloud verify      # la historia firmada entera: nadie ha quitado, reordenado ni reescrito un eslabón
 ccp cloud devices     # tus equipos; `ccp cloud revoke <id>` echa a uno
+ccp cloud groups      # grupos de dispositivos; `groups add "todas mis Macs" mac-a mac-b`, `set`, `rm --yes`
+ccp cloud groups status "todas mis Macs"   # cómo le fue la última orden a cada equipo del grupo
 ccp cloud logout      # revoca este equipo y borra su token y su bóveda local
 ```
 
@@ -820,6 +822,14 @@ puede recuperar —tus snapshots locales siguen siendo la fuente primaria—.
   revisión firmada y esta máquina aplica cuando su agente vuelve a asomarse, confirmando aquí lo ejecutable);
   y en una máquina recién puesta, `ccp cloud restore`. El portal no restaura nunca por sí mismo: no hay
   conexión entrante a tus máquinas.
+- **Un grupo es un nombre y unos equipos, y no manda.** «Todas mis Macs» te ahorra marcar las mismas
+  casillas en el «Aplicar a…» del portal; lo que sale sigue siendo **una revisión firmada por máquina**, y la
+  etiqueta del grupo va **fuera** de la firma a propósito. Lo que la firma ata es el equipo de destino —eso es
+  lo que impide desviar una orden—, así que editar el grupo después no puede cambiar quién obedece una orden
+  ya firmada. `ccp cloud groups status <grupo>` dice cómo le fue a cada equipo la última orden de ese grupo, y
+  dice dos cosas con cuidado: un miembro sin ninguna orden del grupo sale como *sin órdenes* y no como
+  *pendiente* (no hay ninguna orden suya pendiente de nada), y un equipo que sacaste del grupo sigue saliendo
+  mientras tenga una orden viva — sacarle del grupo no retira lo que ya se le publicó.
 - **Una máquina nueva mapea sus propias rutas.** Un snapshot de otra máquina nombra los proyectos por su
   remoto de git normalizado, así que `ccp cloud restore` busca aquí cada repo: la ruta que traía (traducida a
   este HOME) y, si no está, cualquier carpeta con ese mismo remoto entre las de tus reglas, los `projects` de
