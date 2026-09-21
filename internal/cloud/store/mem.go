@@ -123,7 +123,7 @@ func (m *Mem) SeenDevice(_ context.Context, userID, deviceID string, at time.Tim
 	return d, nil
 }
 
-func (m *Mem) RevokeDevice(_ context.Context, userID, deviceID string, _ time.Time) error {
+func (m *Mem) RevokeDevice(_ context.Context, userID, deviceID string, at time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	d, ok := m.devices[userID][deviceID]
@@ -132,6 +132,16 @@ func (m *Mem) RevokeDevice(_ context.Context, userID, deviceID string, _ time.Ti
 	}
 	d.Revoked = true
 	m.devices[userID][deviceID] = d
+	// La orden que tuviera pendiente se cierra aquí: un equipo revocado no
+	// vuelve a preguntar, y dejarla abierta la pinta como «pendiente» para
+	// siempre cuando ya no la va a aplicar nadie. Solo la cabeza, y solo si
+	// seguía pendiente: un resultado ya contado no se reescribe.
+	if head := m.heads[userID][deviceID]; head != "" {
+		if r, ok := m.revs[userID][head]; ok && r.State == api.RevPending {
+			r.State, r.Updated = api.RevRevoked, at
+			m.revs[userID][head] = r
+		}
+	}
 	return nil
 }
 

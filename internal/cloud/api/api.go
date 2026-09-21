@@ -225,10 +225,18 @@ const (
 	// RevSuperseded: la reemplazó otra revisión antes de que la máquina
 	// informara. No es un fallo de la máquina.
 	RevSuperseded = "superseded"
+	// RevRevoked: se revocó el equipo con la orden aún pendiente. Hizo falta
+	// un séptimo por lo mismo que el sexto: un equipo revocado no vuelve a
+	// preguntar, así que la orden no se va a aplicar nunca, pero llamarla
+	// «fallida» culpa a la máquina de algo que no hizo y «superseded» dice
+	// que otra orden la reemplazó, que tampoco pasó. Lo que pasó es que se
+	// le cortó la credencial a quien tenía que obedecerla.
+	RevRevoked = "revoked"
 )
 
 // RevStateReported dice si state es un resultado que puede informar la máquina
-// destinataria. `pending` y `superseded` los pone el servidor, no el cliente.
+// destinataria. `pending`, `superseded` y `revoked` los pone el servidor, no
+// el cliente.
 func RevStateReported(state string) bool {
 	switch state {
 	case RevApplied, RevPartial, RevConflict, RevFailed:

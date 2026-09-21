@@ -64,6 +64,7 @@ var catalogCloudAgent = map[string]map[Lang]string{
 	"cli.cloud.rev_failed":     {En: "failed", Es: "fallida"},
 	"cli.cloud.rev_superseded": {En: "superseded", Es: "sustituida"},
 	"cli.cloud.rev_pending":    {En: "pending", Es: "pendiente"},
+	"cli.cloud.rev_revoked":    {En: "device revoked", Es: "equipo revocado"},
 
 	"cli.cloud.review_nothing": {
 		En: "Nothing to confirm.",

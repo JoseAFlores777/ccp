@@ -242,6 +242,7 @@ const ESTADOS = {
   conflict: ['conflicto', 'El merge a tres bandas chocó'],
   failed: ['falló', 'No se pudo aplicar'],
   superseded: ['reemplazada', 'La reemplazó otra antes de que la máquina informara'],
+  revoked: ['equipo revocado', 'Se revocó el equipo con la orden aún pendiente: no la va a aplicar nadie'],
 };
 
 // -------------------------------------------------------------- dispositivos
