@@ -152,8 +152,19 @@ func TestCloudUnlockWithRecoveryCode(t *testing.T) {
 
 func TestCloudRequiresHTTPS(t *testing.T) {
 	snapEnv(t)
-	if code, _, errs := snapRun(t, "cloud", "login", "http://ccp.example.com"); code != 1 || !strings.Contains(errs, "https") {
-		t.Fatalf("login por http: %d %q", code, errs)
+	// El host de verdad es de terceros en todos estos: comparar prefijos de
+	// cadena daba por localhost a un typosquat («127.0.0.1.atacante.tld») y a
+	// un userinfo que esconde el host real tras la arroba.
+	for _, srv := range []string{
+		"http://ccp.example.com",
+		"http://127.0.0.1.atacante.tld",
+		"http://localhost.atacante.tld",
+		"http://127.0.0.1:1@atacante.tld",
+		"http://user@localhost:8080",
+	} {
+		if code, _, errs := snapRun(t, "cloud", "login", srv); code != 1 || !strings.Contains(errs, "https") {
+			t.Fatalf("login por http %s: %d %q", srv, code, errs)
+		}
 	}
 }
 
