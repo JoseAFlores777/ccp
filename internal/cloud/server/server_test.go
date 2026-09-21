@@ -375,3 +375,49 @@ func TestRateLimitPerUser(t *testing.T) {
 		t.Fatalf("otro usuario paga el límite ajeno = %d", code)
 	}
 }
+
+// Revocar un equipo tiene que cortar la credencial, no solo ese id: quien tiene
+// el token robado puede pedir un alta nueva sin cabecera de dispositivo, y hasta
+// que el dispositivo no quedó atado a la sesión del token eso le devolvía un id
+// limpio con acceso completo a la bóveda y a los snapshots.
+func TestRevocarCierraLaSesionDelTokenRobado(t *testing.T) {
+	e := newEnv(t)
+	tok := e.iss.AccessToken()
+	dev := e.newDevice(tok, "portatil")
+	if code := e.call("DELETE", "/v1/devices/"+dev, tok, dev, nil, nil); code != 204 {
+		t.Fatalf("revocar = %d", code)
+	}
+	var d api.Device
+	if code := e.call("POST", "/v1/devices", tok, "", api.DeviceIn{Name: "otra"}, &d); code != 403 {
+		t.Fatalf("alta con el token revocado = %d, quiero 403", code)
+	}
+	// El dueño vuelve a entrar: sesión nueva, alta permitida.
+	e.iss.NewSession("sesion-2")
+	nuevo := e.newDevice(e.iss.AccessToken(), "portatil")
+	if code := e.call("GET", "/v1/devices", e.iss.AccessToken(), nuevo, nil, nil); code != 200 {
+		t.Fatalf("sesión nueva = %d, quiero 200", code)
+	}
+}
+
+// Y revocar corta la credencial entera: los equipos dados de alta desde la
+// misma sesión comparten el token de refresco, así que dejar uno en pie sería
+// dejarlos todos. Los de otra sesión (el mismo usuario en otra máquina) no se
+// tocan.
+func TestRevocarArrastraALosHermanosDeSesion(t *testing.T) {
+	e := newEnv(t)
+	tok := e.iss.AccessToken()
+	uno := e.newDevice(tok, "uno")
+	dos := e.newDevice(tok, "dos")
+	e.iss.NewSession("sesion-otra")
+	otroTok := e.iss.AccessToken()
+	ajeno := e.newDevice(otroTok, "ajeno")
+	if code := e.call("DELETE", "/v1/devices/"+uno, tok, uno, nil, nil); code != 204 {
+		t.Fatalf("revocar = %d", code)
+	}
+	if code := e.call("GET", "/v1/devices", tok, dos, nil, nil); code != 403 {
+		t.Fatalf("hermano de sesión = %d, quiero 403", code)
+	}
+	if code := e.call("GET", "/v1/devices", otroTok, ajeno, nil, nil); code != 200 {
+		t.Fatalf("otra sesión = %d, quiero 200", code)
+	}
+}

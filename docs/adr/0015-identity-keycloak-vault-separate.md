@@ -48,6 +48,14 @@ datos de la cuenta.
 - **Revocar un equipo lo expulsa del API en la siguiente petición**: el servidor comprueba el dispositivo de
   la cabecera en **cada** una, no solo al renovar el token. Es defensa en profundidad frente a un token de
   acceso que sigue vivo cinco minutos.
+- **Y expulsa a la credencial, no solo a ese id.** El alta (`POST /v1/devices`) es el único camino que no
+  exige cabecera de dispositivo, así que era la puerta de atrás: con el `token.json` copiado bastaba pedir un
+  equipo nuevo para deshacer la revocación y volver a `GET /v1/vault` y a las URLs prefirmadas. Cada equipo
+  guarda por eso el `sid` del token que lo dio de alta —la sesión de Keycloak, que sobrevive a los refrescos
+  mientras el `jti` cambia en cada uno—; revocar uno revoca a sus hermanos de sesión y cierra el alta para
+  esa sesión. Para volver hay que iniciar sesión otra vez, que es justo lo que el ladrón del archivo no
+  puede hacer. La sesión offline sigue existiendo en Keycloak y se puede matar desde su consola: eso es lo
+  que invalida además el token de refresco en sí, y ccp no lo hace por ti.
 - **Revocar no borra la AK que ese equipo ya tiene**, y la CLI no finge que sí. Si se teme una filtración hay
   que rotar la AK, que es una acción explícita de F4.
 - `ccp cloud logout` es la revocación de uno mismo: revoca este equipo y borra su token y su `vault.key`.

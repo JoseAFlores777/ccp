@@ -35,6 +35,7 @@ type Issuer struct {
 	mu      sync.Mutex
 	sub     string
 	email   string
+	sid     string
 	issued  int
 }
 
@@ -49,7 +50,7 @@ func New(t testing.TB) *Issuer {
 	if err != nil {
 		t.Fatal(err)
 	}
-	i := &Issuer{key: key, foreign: foreign, sub: "user-1", email: "ana@example.com"}
+	i := &Issuer{key: key, foreign: foreign, sub: "user-1", email: "ana@example.com", sid: "sesion-1"}
 	mux := http.NewServeMux()
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -64,11 +65,22 @@ func New(t testing.TB) *Issuer {
 // JWKSURL es donde publica sus claves (la ruta de Keycloak).
 func (i *Issuer) JWKSURL() string { return i.URL + "/protocol/openid-connect/certs" }
 
-// As cambia la identidad de los tokens que emita a partir de ahora.
+// As cambia la identidad de los tokens que emita a partir de ahora. Cambiar de
+// usuario es también otra sesión: Keycloak nunca reusa un sid entre logins.
 func (i *Issuer) As(sub, email string) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.sub, i.email = sub, email
+	i.sid = "sesion-" + sub
+}
+
+// NewSession simula un /login nuevo: mismo usuario, otra sesión de Keycloak
+// (otro sid), que es lo que distingue al dueño volviendo a entrar del ladrón
+// reusando el token robado.
+func (i *Issuer) NewSession(sid string) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.sid = sid
 }
 
 // AccessToken es un token de acceso normal para el API, válido 5 minutos.
@@ -90,11 +102,11 @@ func (i *Issuer) ForeignToken() string {
 
 func (i *Issuer) claims(aud []string, ttl time.Duration) map[string]any {
 	i.mu.Lock()
-	sub, email := i.sub, i.email
+	sub, email, sid := i.sub, i.email, i.sid
 	i.mu.Unlock()
 	now := time.Now()
 	return map[string]any{
-		"iss": i.URL, "sub": sub, "email": email, "aud": aud, "azp": ClientID, "typ": "Bearer",
+		"iss": i.URL, "sub": sub, "email": email, "sid": sid, "aud": aud, "azp": ClientID, "typ": "Bearer",
 		"iat": now.Unix(), "exp": now.Add(ttl).Unix(),
 	}
 }

@@ -85,6 +85,10 @@ func New(c Config) http.Handler {
 type reqCtx struct {
 	user   store.User
 	device store.Device
+	// session es el `sid` del token: la sesión de Keycloak desde la que se
+	// habla. Ata los equipos que se den de alta con este token a la credencial
+	// que los pidió, que es lo que hace que revocar corte de verdad.
+	session string
 }
 
 type handler func(w http.ResponseWriter, r *http.Request, rc reqCtx)
@@ -113,7 +117,7 @@ func (s *srv) authed(h handler, needDevice bool) http.Handler {
 			s.internal(w, r, err)
 			return
 		}
-		rc := reqCtx{user: user}
+		rc := reqCtx{user: user, session: id.SessionID}
 		if needDevice {
 			dev := r.Header.Get(api.HeaderDevice)
 			if !store.IsUUID(dev) {

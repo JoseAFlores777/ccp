@@ -113,6 +113,6 @@ CCP_CLOUD_PASSPHRASE y CCP_CLOUD_RECOVERY dan los secretos sin preguntarlos.`,
 	"cli.cloud.device_active":  {En: "active", Es: "activo"},
 	"cli.cloud.device_unknown": {En: "No single device starts with %s.", Es: "No hay un único dispositivo que empiece por %s."},
 	"cli.cloud.device_needed":  {En: "cloud revoke: which device? ccp cloud devices lists them.", Es: "cloud revoke: ¿qué dispositivo? ccp cloud devices los enseña."},
-	"cli.cloud.revoked":        {En: "Device «%s» revoked: it can no longer use the cloud.", Es: "Dispositivo «%s» revocado: ya no puede usar la nube."},
+	"cli.cloud.revoked":        {En: "Device «%s» revoked: its session can no longer use the cloud, nor register another device.", Es: "Dispositivo «%s» revocado: su sesión ya no puede usar la nube ni dar de alta otro equipo."},
 	"cli.cloud.revoke_self":    {En: "That is this machine; to disconnect it use: ccp cloud logout", Es: "Ese es este equipo; para desconectarlo usa: ccp cloud logout"},
 }

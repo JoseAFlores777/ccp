@@ -164,11 +164,11 @@ func (p *PG) CreateVault(ctx context.Context, userID string, v Vault) error {
 }
 
 // revoked_at IS NOT NULL: el instante exacto no sale de aquí, solo si lo está.
-const deviceCols = `id::text, name, platform, ccp_version, created_at, last_seen, revoked_at IS NOT NULL`
+const deviceCols = `id::text, name, platform, ccp_version, created_at, last_seen, revoked_at IS NOT NULL, session_id`
 
 func scanDevice(row pgx.Row) (Device, error) {
 	var d Device
-	err := row.Scan(&d.ID, &d.Name, &d.Platform, &d.CCPVersion, &d.Created, &d.LastSeen, &d.Revoked)
+	err := row.Scan(&d.ID, &d.Name, &d.Platform, &d.CCPVersion, &d.Created, &d.LastSeen, &d.Revoked, &d.SessionID)
 	return d, notFound(err)
 }
 
@@ -176,8 +176,8 @@ func (p *PG) CreateDevice(ctx context.Context, userID string, d Device) (Device,
 	if !IsUUID(userID) {
 		return Device{}, ErrNotFound
 	}
-	return scanDevice(p.pool.QueryRow(ctx, `INSERT INTO devices (user_id, name, platform, ccp_version)
-		VALUES ($1::uuid, $2, $3, $4) RETURNING `+deviceCols, userID, d.Name, d.Platform, d.CCPVersion))
+	return scanDevice(p.pool.QueryRow(ctx, `INSERT INTO devices (user_id, name, platform, ccp_version, session_id)
+		VALUES ($1::uuid, $2, $3, $4, $5) RETURNING `+deviceCols, userID, d.Name, d.Platform, d.CCPVersion, d.SessionID))
 }
 
 func (p *PG) Devices(ctx context.Context, userID string) ([]Device, error) {

@@ -42,6 +42,10 @@ type Device struct {
 	Created    time.Time
 	LastSeen   time.Time
 	Revoked    bool
+	// SessionID es la sesión de Keycloak (`sid`) que dio de alta el equipo.
+	// Revocar uno revoca a sus hermanos de sesión y cierra la puerta a un alta
+	// nueva con el mismo token: sin esto, revocar solo quemaba un id.
+	SessionID string
 }
 
 // Blob es un blob sellado ya verificado en el almacenamiento.
