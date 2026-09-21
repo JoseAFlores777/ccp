@@ -454,12 +454,30 @@ function indexAlpha(randLo, randHi, lanes, segments, threads, n, slice, lane, in
   return refLane * lanes + ((s + m - (p + 1)) % lanes);
 }
 
+// Límites de los parámetros de derivación, los mismos que vault.DeriveKey en
+// Go salvo el tope de memoria: los parámetros llegan del servidor (GET
+// /v1/vault), así que un registro manipulado o corrupto no puede hacer que la
+// pestaña intente reservar gigabytes.
+const MIN_MEMORY_KIB = 8 * 1024;
+const MAX_MEMORY_KIB = 1024 * 1024;
+const MAX_TIME = 64;
+const MAX_THREADS = 64;
+
 // argon2id deriva la clave de la frase de bóveda. Es asíncrona porque cede el
 // hilo entre segmentos: con 64 MiB y 3 pasadas son varios segundos, y sin
 // ceder el navegador no repinta ni el mensaje de «abriendo» ni el progreso.
 // onProgress recibe una fracción entre 0 y 1.
 export async function argon2id(password, salt, time, memoryKiB, threads, tagLen = 32, onProgress) {
-  if (time < 1 || threads < 1) throw new Error('parámetros de derivación inválidos');
+  if (!(time >= 1) || time > MAX_TIME || !(threads >= 1) || threads > MAX_THREADS ||
+      !(memoryKiB >= MIN_MEMORY_KIB)) {
+    throw new Error(`parámetros de derivación fuera de rango (${time} pasadas, ${memoryKiB} KiB, ${threads} hilos)`);
+  }
+  // El tope es más bajo que el de vault.DeriveKey (4 GiB) a propósito: la
+  // reserva es de memoryKiB enteros, y una pestaña no la consigue. Decirlo
+  // vale más que colgarse y parecer que la frase no abre.
+  if (memoryKiB > MAX_MEMORY_KIB) {
+    throw new Error(`la bóveda pide ${memoryKiB} KiB de memoria: fuera de lo que puede reservar el navegador`);
+  }
   const h0 = initHash(password, salt, time, memoryKiB, threads, tagLen);
   const sync = 4 * threads;
   let m = Math.floor(memoryKiB / sync) * sync;
