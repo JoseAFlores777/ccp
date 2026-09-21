@@ -13,15 +13,18 @@ import (
 )
 
 // PushReport resume una subida.
+// Las etiquetas json son el contrato de `ccp cloud push --json`: snake_case
+// como el resto del CLI, y las dos listas se inicializan en Push para que
+// nunca salgan como null (un consumidor hace `.missing | length`).
 type PushReport struct {
-	Snapshots int
-	Uploaded  int
-	Bytes     int64
+	Snapshots int   `json:"snapshots"`
+	Uploaded  int   `json:"uploaded"`
+	Bytes     int64 `json:"bytes"`
 	// Missing: rutas cuyo contenido no está en este equipo (snapshots
 	// importados sin secretos). TooLarge: rutas que superan MaxBlobBytes
 	// sellado. Ninguna de las dos se sube; el snapshot sí.
-	Missing  []string
-	TooLarge []string
+	Missing  []string `json:"missing"`
+	TooLarge []string `json:"too_large"`
 }
 
 func sortedKeys[V any](m map[string]V) []string {
@@ -36,7 +39,7 @@ func sortedKeys[V any](m map[string]V) []string {
 // Push sube, del más viejo al más nuevo, los snapshots locales que la nube aún
 // no tiene. only (un id local completo), si no está vacío, limita a ese.
 func Push(ctx context.Context, a *API, acct *crypt.Account, st *snapshot.Store, files Files, only string) (PushReport, error) {
-	var rep PushReport
+	rep := PushReport{Missing: []string{}, TooLarge: []string{}}
 	state, err := files.LoadState()
 	if err != nil {
 		return rep, err
