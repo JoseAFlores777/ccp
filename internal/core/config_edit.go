@@ -410,6 +410,9 @@ func ConfigItemPutWith(r InventoryRoots, ref ConfigRef, v ConfigValue, opts Conf
 	if err := cfgEditable(r, t, ref); err != nil {
 		return ConfigWrite{}, err
 	}
+	if err := cfgRefuseProjectSecret(t, v); err != nil {
+		return ConfigWrite{}, err
+	}
 	if opts.IfAbsent {
 		if err := cfgRefuseClash(r, t, ref, v); err != nil {
 			return ConfigWrite{}, err
@@ -681,4 +684,53 @@ func cfgGlobalFeedsProfiles(src, file string) bool {
 		}
 	}
 	return false
+}
+
+// cfgSecretName dice si el nombre de una variable suena a credencial, con las
+// mismas palabras que usa la barrera de los MCP: una sola definición de «esto
+// es un secreto» para los dos caminos.
+func cfgSecretName(name string) bool {
+	l := strings.ToLower(name)
+	for _, w := range mcpSecretWords {
+		if strings.Contains(l, w) {
+			return true
+		}
+	}
+	return false
+}
+
+// cfgRefuseProjectSecret niega escribir un env.* con pinta de credencial en la
+// capa de proyecto. Ahí el destino es <repo>/.claude/settings.json, que viaja
+// en el commit: si además se elige «quitarlo» del origen, la única copia del
+// token queda en un archivo versionado. Es la hermana de la barrera de MCPPut
+// (mcp_crud.go), y vive en core porque serve acepta cualquier referencia que le
+// llegue, no solo las que ofrece la GUI.
+func cfgRefuseProjectSecret(t cfgTarget, v ConfigValue) error {
+	if t.Layer.Level != "project" || len(t.Path) == 0 || t.Path[0] != "env" {
+		return nil
+	}
+	vals := map[string]any{}
+	switch {
+	case len(t.Path) >= 2:
+		vals[t.Path[1]] = v.JSON
+	default:
+		m, _ := v.JSON.(map[string]any)
+		for k, e := range m {
+			vals[k] = e
+		}
+	}
+	bad := []string{}
+	for _, k := range invSortedKeys(vals) {
+		s, _ := vals[k].(string)
+		if s == "" || mcpFromEnvironment(s) || !cfgSecretName(k) {
+			continue
+		}
+		bad = append(bad, "env."+k)
+	}
+	if len(bad) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s: %s van en claro y el settings.json del repo viaja en el commit; "+
+		"escribe ${VARIABLE} y deja el valor en tu entorno, o declara esto en un perfil",
+		cfgLayerWord(t.Layer), strings.Join(bad, ", "))
 }

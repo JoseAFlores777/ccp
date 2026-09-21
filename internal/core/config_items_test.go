@@ -433,3 +433,30 @@ func TestConfigItemPutIfAbsentNoPisaElDestino(t *testing.T) {
 		t.Errorf("Put: %v", err)
 	}
 }
+
+// Un env.* con pinta de credencial no se lleva al settings.json del repo: ese
+// archivo viaja en el commit. Es la misma barrera que ya tenía MCPPut.
+func TestConfigItemPutEnvSecretoEnProyecto(t *testing.T) {
+	r := invFixture(t)
+	repo := t.TempDir()
+	mustWrite(t, filepath.Join(r.CCPHome, "ccp.yaml"),
+		"version: 2\nprofiles:\n  work:\n    type: official\nrules:\n  - path: "+repo+"\n    profile: work\n")
+
+	layer := ConfigLayer{Level: "project", Name: repo}
+	ref := ConfigRef{Layer: layer, Type: CfgTypeEnv, Name: "GITHUB_TOKEN", Key: "env.GITHUB_TOKEN"}
+	if _, err := ConfigItemPut(r, ref, ConfigValue{JSON: "ghp-literal"}); err == nil {
+		t.Fatal("escribió el token en el settings.json versionado del repo")
+	}
+	if _, err := os.Stat(filepath.Join(repo, ".claude", "settings.json")); err == nil {
+		t.Error("creó el archivo pese a negarse")
+	}
+	// Una referencia al entorno sí pasa: no deja el valor escrito.
+	if _, err := ConfigItemPut(r, ref, ConfigValue{JSON: "${GITHUB_TOKEN}"}); err != nil {
+		t.Fatalf("Put con ${VAR}: %v", err)
+	}
+	// Y una variable que no suena a credencial tampoco se bloquea.
+	ref2 := ConfigRef{Layer: layer, Type: CfgTypeEnv, Name: "NODE_ENV", Key: "env.NODE_ENV"}
+	if _, err := ConfigItemPut(r, ref2, ConfigValue{JSON: "test"}); err != nil {
+		t.Fatalf("Put de NODE_ENV: %v", err)
+	}
+}
