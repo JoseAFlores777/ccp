@@ -1,1 +1,80 @@
-:root{color-scheme:dark}
+/* El portal no carga fuentes ni CSS de terceros: la CSP no lo permitiría, y
+   esta es la página que maneja la clave de cuenta. */
+:root {
+  color-scheme: light dark;
+  --fondo: #fbfaf8;
+  --papel: #ffffff;
+  --tinta: #1a1a18;
+  --flojo: #6b6a66;
+  --linea: #e3e1dc;
+  --acento: #b4541f;
+  --ok: #2f6b3a;
+  --mal: #a33025;
+  --pend: #8a6a10;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fondo: #17171a; --papel: #1f1f23; --tinta: #eceae5; --flojo: #9c9a94;
+    --linea: #33333a; --acento: #e0834a; --ok: #7bbd8a; --mal: #e08279; --pend: #d7b44e;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--fondo); color: var(--tinta);
+  font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 1040px; margin: 0 auto; padding: 24px 20px 64px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+h2 { font-size: 15px; margin: 24px 0 6px; font-weight: 600; }
+a { color: var(--acento); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.top {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 10px 20px; border-bottom: 1px solid var(--linea); background: var(--papel);
+}
+.marca { display: flex; align-items: baseline; gap: 8px; }
+.marca span { color: var(--flojo); font-size: 13px; }
+.acciones { display: flex; align-items: center; gap: 12px; }
+.quien { color: var(--flojo); font-size: 13px; }
+.flojo { color: var(--flojo); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+.ok { color: var(--ok); }
+.mal { color: var(--mal); }
+.pend { color: var(--pend); }
+button {
+  font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--linea);
+  background: var(--papel); color: var(--tinta); padding: 6px 12px;
+}
+button:hover:not(:disabled) { border-color: var(--acento); }
+button:disabled { opacity: .5; cursor: default; }
+button.grande { background: var(--acento); border-color: var(--acento); color: #fff; padding: 9px 20px; }
+button.lig { border: 0; background: none; color: var(--acento); padding: 4px 6px; }
+input[type=password], input[type=search], input[type=text] {
+  font: inherit; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--linea);
+  background: var(--papel); color: var(--tinta); min-width: 280px;
+}
+.centro { max-width: 460px; margin: 12vh auto; text-align: center; display: grid; gap: 12px; justify-items: center; }
+.centro p { margin: 0; }
+pre { background: var(--papel); border: 1px solid var(--linea); border-radius: 8px; padding: 10px 14px; }
+.aviso { margin: 16px auto; max-width: 1040px; padding: 10px 14px; border-radius: 8px;
+  border: 1px solid var(--mal); color: var(--mal); background: var(--papel); }
+.tabla { width: 100%; border-collapse: collapse; margin-top: 12px; background: var(--papel);
+  border: 1px solid var(--linea); border-radius: 10px; overflow: hidden; }
+.tabla th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--flojo); font-weight: 600; padding: 8px 12px; border-bottom: 1px solid var(--linea); }
+.tabla td { padding: 8px 12px; border-bottom: 1px solid var(--linea); vertical-align: top; }
+.tabla tr:last-child td { border-bottom: 0; }
+.revocado td { opacity: .55; }
+/* En el diff la ruta manda: la etiqueta y el detalle se encogen a su ancho. */
+.diff td:first-child, .diff td:last-child { width: 1%; white-space: nowrap; }
+.diff td:last-child { text-align: right; }
+.diff .etiqueta { margin-left: 0; }
+.etiqueta { display: inline-block; font-size: 11px; padding: 1px 7px; margin-left: 6px;
+  border-radius: 999px; border: 1px solid var(--linea); color: var(--flojo); }
+.etiqueta.added { color: var(--ok); border-color: var(--ok); }
+.etiqueta.removed { color: var(--mal); border-color: var(--mal); }
+.etiqueta.modified { color: var(--pend); border-color: var(--pend); }
+.barra { width: 260px; height: 4px; background: var(--linea); border-radius: 999px; overflow: hidden; }
+.barra span { display: block; height: 100%; width: 0; background: var(--acento); transition: width .2s; }
+.pie { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
+.cargando { padding: 24px; }

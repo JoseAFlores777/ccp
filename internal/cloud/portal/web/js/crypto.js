@@ -18,6 +18,13 @@ export function b64(s) {
   return out;
 }
 
+// b64u codifica en base64url sin relleno: lo que pide PKCE.
+export function b64u(b) {
+  let s = '';
+  for (const x of b) s += String.fromCharCode(x);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 export function hex(b) {
   let s = '';
   for (const x of b) s += x.toString(16).padStart(2, '0');
@@ -512,4 +519,24 @@ export async function argon2id(password, salt, time, memoryKiB, threads, tagLen 
   const block = new Uint8Array(1024);
   for (let i = 0; i < 256; i++) put32le(block, i * 4, B[last + i]);
   return blake2bLong(tagLen, block);
+}
+
+// ed25519PublicFromSeed deriva la clave pública de firma de la cuenta desde su
+// semilla. Hace falta para repetir lo que hace crypt.checkAK: una bóveda que
+// abre pero firma con otra clave es la de otra cuenta. WebCrypto no importa
+// semillas «en crudo», solo PKCS#8, así que se le pone delante la cabecera DER
+// de Ed25519 —16 bytes fijos— y se lee la pública del JWK.
+// Devuelve null si el navegador no sabe Ed25519: quien llama tiene que
+// distinguir «no coincide» de «no se pudo comprobar».
+export async function ed25519PublicFromSeed(seed) {
+  const der = new Uint8Array(16 + 32);
+  der.set([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20], 0);
+  der.set(seed, 16);
+  try {
+    const k = await crypto.subtle.importKey('pkcs8', der, { name: 'Ed25519' }, true, ['sign']);
+    const jwk = await crypto.subtle.exportKey('jwk', k);
+    return b64(jwk.x.replace(/-/g, '+').replace(/_/g, '/') + '=='.slice((jwk.x.length + 3) % 4));
+  } catch {
+    return null;
+  }
 }
