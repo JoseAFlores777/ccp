@@ -17,6 +17,19 @@ const a = v.argon2;
 const k = await argon2id(utf8(a.password), b64(a.salt), a.time, a.memory_kib, a.threads, 32);
 check('argon2id', eq(k, b64(a.key)));
 
+// 1b. Los parámetros de la bóveda llegan del servidor: si no se acotan, un
+// memory_kib disparatado reserva gigabytes en la pestaña y el fallo no se
+// distingue de «la frase no abre». Se acotan igual que vault.DeriveKey.
+const rechaza = async (nombre, ...args) => {
+  try { await argon2id(utf8('x'), b64(a.salt), ...args); } catch (e) { check(nombre, /fuera de|inv\u00e1lid/.test(e.message)); return; }
+  check(nombre, false);
+};
+await rechaza('memoria disparatada', a.time, 4294967295, a.threads);
+await rechaza('memoria por debajo del m\u00ednimo', a.time, 64, a.threads);
+await rechaza('demasiadas pasadas', 1000, a.memory_kib, a.threads);
+await rechaza('pasadas cero', 0, a.memory_kib, a.threads);
+await rechaza('hilos cero', a.time, a.memory_kib, 0);
+
 // 2. HKDF-SHA256 sin sal, como lo deriva Go.
 check('hkdf', eq(await deriveSubkey(b64(v.subkey.master), v.subkey.info), b64(v.subkey.key)));
 
