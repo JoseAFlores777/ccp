@@ -718,7 +718,7 @@ y restaura como una unidad.
 >   sabe que subió: `verify` compara contra su propio estado local (`dropped`). La fecha **no** va firmada y
 >   por eso no ordena nada; lo que caza `out_of_order` es una fecha que miente.
 >
-> La descarga (`.ccpsnap` / `.tar.gz`) y los tres caminos de restauración siguen sin estar.
+> La descarga llegó en F3-2; los tres caminos de restauración siguen sin estar.
 
 **Descargar**, desde el portal (botón «Descargar») o desde el CLI:
 - **Cifrado** (`.ccpsnap`), por defecto: manifiesto + blobs, tal como están en el servidor. Se
@@ -727,6 +727,23 @@ y restaura como una unidad.
 - **Descifrado** (`.tar.gz` legible): el navegador lo arma en memoria. Si el snapshot trae secretos,
   hay que confirmarlo explícitamente, con el aviso «contiene tus claves en claro».
 - CLI: `ccp cloud pull <snap> [-o archivo] [--decrypted]`.
+
+> **Estado en F3-2 (implementado).** `ccp cloud pull <id> -o <archivo> [--decrypted] [--yes]` y el botón
+> «descargar» de la línea de tiempo del portal. Tres cosas que el código corrigió del plan:
+>
+> - **El `.ccpsnap` no sale «tal como está en el servidor», y no lo abre la frase de bóveda.** Los blobs de
+>   la nube están sellados con la clave de cuenta, y el `.ccpsnap` es el formato de `snapshot.Export`, que
+>   sella con una clave derivada por Argon2id de la frase **del archivo**. Traducir de una a otra es
+>   descifrar y volver a sellar, que es justo lo que hace el cliente. La frase de bóveda tampoco estaba
+>   disponible: en la máquina vive la AK ya desbloqueada (F1), no la frase. Así que el archivo pide su
+>   propia frase —puede ser la misma— y se abre con ella.
+> - **Descargar no toca el almacén local.** La máquina que descarga puede no tener ninguno, o no querer
+>   dejar rastro: `client.Download` deja manifiesto y contenidos en memoria y de ahí sale el archivo. Eso
+>   sí, comparte con `pull` la verificación entera (`openSnapshot`, `fetchBlobs`): una segunda ruta de
+>   descarga con su propia comprobación acaba siendo la ruta con menos comprobación.
+> - **El aviso va antes de escribir, no después.** En el CLI, `--decrypted` sobre un snapshot con claves
+>   sale 1 y no crea nada hasta que se repite con `--yes`; en el portal el botón no se enciende hasta que
+>   se marca la casilla. Un archivo con las claves dentro no se desescribe con un mensaje.
 
 **Restaurar**, por tres caminos que terminan en el mismo motor: el restore de §8.3, que planifica,
 hace un snapshot previo, aplica selectivamente y regenera la proyección.
@@ -921,8 +938,8 @@ Dokploy v0.30.4, un solo servidor.
 | D | **Implementado.** `ccp snapshot *`, retención, restore selectivo, P-17 → Snapshots | A (clasificación) | M | Un restore selectivo de un solo MCP deja la proyección al día |
 | I | Infra: stack `ccp-cloud` en Dokploy (Postgres + Keycloak en `ccp-auth.joseiz.com` con realm `ccp` + Alarik en `ccp-s3.joseiz.com`), desde `deploy/ccp-cloud/` | — | S | Un login de prueba por flujo de dispositivo obtiene un token con `aud: ccp-api` |
 | F1 | **Implementado.** Bóveda, dispositivos, push/pull de snapshots (`ccp cloud`), el backend `ccp-cloud` y la traducción del HOME al restaurar. Falta **desplegar el API**, pendiente de autorización del usuario | D, I | L | Una segunda Mac se desbloquea con la frase de bóveda y trae el historial de la primera |
-| F2 | **Implementado.** Portal: dispositivos, historial, diff, editor y «Aplicar a…»; P-21 Nube en la app. Falta la **descarga** de §10.3.1 | F1 | M | Desde el portal se edita la configuración de un snapshot, se aplica a una máquina y ésta confirma allí lo ejecutable |
-| F3 | Restaurar desde el portal. **F3-1 hecho**: cadena firmada comprobable (`ccp cloud verify`) y retención en el servidor | F2 | L | «Restaurar en <máquina>» en el portal deja la máquina en ese snapshot, con lo ejecutable confirmado en local |
+| F2 | **Implementado.** Portal: dispositivos, historial, diff, editor y «Aplicar a…»; P-21 Nube en la app | F1 | M | Desde el portal se edita la configuración de un snapshot, se aplica a una máquina y ésta confirma allí lo ejecutable |
+| F3 | Restaurar desde el portal. **F3-1 hecho**: cadena firmada comprobable (`ccp cloud verify`) y retención en el servidor. **F3-2 hecho**: descarga `.ccpsnap` / `.tar.gz` desde el CLI y desde el portal | F2 | L | «Restaurar en <máquina>» en el portal deja la máquina en ese snapshot, con lo ejecutable confirmado en local |
 | F4 | Grupos, auditoría, rotación de AK | F3 | M | Un cambio aplicado a un grupo aparece como `aplicada` en cada máquina |
 | E | (aplazado, D10) `ccp sync` sobre carpeta o S3 | D | M | — |
 
