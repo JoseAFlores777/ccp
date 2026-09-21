@@ -71,6 +71,20 @@ func TestCloudAudit(t *testing.T) {
 	if code, out, errs = snapRun(t, "cloud", "audit", "--since", "ayer"); code == 0 {
 		t.Fatalf("aceptó una fecha que no lo es: %q %q", out, errs)
 	}
+
+	// Vacío por el filtro no es vacío: el registro está lleno, lo que no hay
+	// son líneas que encajen. Decir «no hay nada apuntado» en el único comando
+	// que existe para auditar lleva a concluir que no se está grabando.
+	code, out, errs = snapRun(t, "cloud", "audit", "--action", "revision.publish")
+	if code != 0 {
+		t.Fatalf("audit --action sin coincidencias: %d %q %q", code, out, errs)
+	}
+	if strings.Contains(out, "nada apuntado") {
+		t.Errorf("filtro sin coincidencias dice que no hay nada apuntado: %q", out)
+	}
+	if !strings.Contains(out, "filtro") {
+		t.Errorf("filtro sin coincidencias no lo dice: %q", out)
+	}
 }
 
 // Un contador de bytes se lee como un contador de bytes: el detalle llega

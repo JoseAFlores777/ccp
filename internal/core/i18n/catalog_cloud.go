@@ -312,6 +312,11 @@ func init() { register(catalogCloudAudit) }
 var catalogCloudAudit = map[string]map[Lang]string{
 	"cli.cloud.audit_header": {En: "WHEN\tMACHINE\tACTION\tDETAIL", Es: "CUÁNDO\tEQUIPO\tACCIÓN\tDETALLE"},
 	"cli.cloud.audit_none":   {En: "Nothing recorded yet.", Es: "Todavía no hay nada apuntado."},
+	// Con filtro el registro puede estar lleno: lo vacío es la búsqueda.
+	"cli.cloud.audit_none_match": {
+		En: "No entries match that filter.",
+		Es: "Ninguna entrada encaja con ese filtro.",
+	},
 	// Un equipo que ya no está deja su línea: lo apuntado es el id.
 	"cli.cloud.audit_gone": {En: "(gone) %s", Es: "(ya no está) %s"},
 	"cli.cloud.audit_bad_since": {
