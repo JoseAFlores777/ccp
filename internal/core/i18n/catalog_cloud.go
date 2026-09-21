@@ -19,6 +19,9 @@ var catalogCloud = map[string]map[Lang]string{
   list [--json]                       snapshots in the cloud, from every machine
   devices [--json]                    machines of the account
   revoke <device>                     revoke another machine
+  agent [--once] [--interval <d>]     apply the revisions the portal publishes for this machine
+  review [--yes|--reject] [--json]    confirm what runs code here before it is applied
+  policy [auto|manual]                this machine's policy for incoming revisions
 
 Everything is encrypted on this machine before it leaves: the server cannot read it.
 CCP_CLOUD_PASSPHRASE and CCP_CLOUD_RECOVERY give the secrets without asking.`,
@@ -34,6 +37,9 @@ CCP_CLOUD_PASSPHRASE and CCP_CLOUD_RECOVERY give the secrets without asking.`,
   list [--json]                       snapshots en la nube, de todos los equipos
   devices [--json]                    equipos de la cuenta
   revoke <dispositivo>                revoca otro equipo
+  agent [--once] [--interval <d>]     aplica las revisiones que el portal publica para este equipo
+  review [--yes|--reject] [--json]    confirma lo que ejecuta código aquí antes de aplicarlo
+  policy [auto|manual]                política de este equipo ante las revisiones que llegan
 
 Todo se cifra en este equipo antes de salir: el servidor no puede leerlo.
 CCP_CLOUD_PASSPHRASE y CCP_CLOUD_RECOVERY dan los secretos sin preguntarlos.`,
