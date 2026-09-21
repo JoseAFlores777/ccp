@@ -697,8 +697,12 @@ func (c cloudCmd) pullToFile(cl *client.API, acct *crypt.Account, target, dest s
 	}
 	write := func(w io.Writer) error {
 		if decrypted {
+			// Sustituir, no acumular: lo que ExportPlain no encuentra es
+			// exactamente lo que Download ya apuntó (un blob que no está
+			// arriba tampoco entra en su mapa), así que sumarlos contaba dos
+			// veces el mismo archivo.
 			lost, err := snapshot.ExportPlain(m, get, w)
-			missing = append(missing, lost...)
+			missing = lost
 			return err
 		}
 		return snapshot.ExportFrom(m, get, w, pass)
