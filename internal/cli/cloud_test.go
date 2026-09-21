@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -674,4 +675,84 @@ func TestCloudPullDeUnPodadoDiceQueEsUnaLapida(t *testing.T) {
 	if !strings.Contains(errs, i18n.T(i18n.Es, "cli.cloud.snapshot_pruned")) {
 		t.Fatalf("pull de un podado no dice que es una lápida: %q %q", out, errs)
 	}
+}
+
+// El aviso de «sin datos en la nube» cuenta elementos, no llamadas: las dos
+// ramas de `pull -o` (cifrada y descifrada) miran el mismo snapshot y el mismo
+// archivo ausente, así que tienen que decir el mismo número. La descifrada
+// volvía a nombrar por su cuenta lo que `client.Download` ya había apuntado, y
+// lo sumaba: el doble sobre un único archivo que falta.
+func TestCloudPullDescifradoNoDuplicaElConteo(t *testing.T) {
+	url := cloudServer(t)
+	t.Setenv("CCP_NO_BROWSER", "1")
+	t.Setenv("CCP_CLOUD_PASSPHRASE", "frase de la bóveda larga")
+	t.Setenv("CCP_SNAPSHOT_PASSPHRASE", "frase del archivo larga")
+
+	home, _ := snapEnv(t)
+	if err := core.ProfileAddDeepseek(home, "deep", core.BuiltinDefaults()); err != nil {
+		t.Fatal(err)
+	}
+	if err := core.ProfileSetKey(home, "deep", "sk-muy-secreto"); err != nil {
+		t.Fatal(err)
+	}
+	if code, out, errs := snapRun(t, "cloud", "login", url, "--name", "mac-a"); code != 0 {
+		t.Fatalf("login: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "init"); code != 0 {
+		t.Fatalf("init: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "snapshot", "create"); code != 0 {
+		t.Fatalf("create: %d %q %q", code, out, errs)
+	}
+	// Sin --with-secrets: el api_key viaja como ruta del manifiesto pero sin
+	// contenido, que es la forma barata de tener un blob ausente de verdad.
+	shared := filepath.Join(t.TempDir(), "sin-claves.ccpsnap")
+	if code, out, errs := snapRun(t, "snapshot", "export", "latest", shared); code != 0 {
+		t.Fatalf("export: %d %q %q", code, out, errs)
+	}
+
+	// Máquina B: importa lo que no trae la clave y lo sube así.
+	snapEnv(t)
+	if code, out, errs := snapRun(t, "cloud", "login", url, "--name", "mac-b"); code != 0 {
+		t.Fatalf("login B: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "unlock"); code != 0 {
+		t.Fatalf("unlock: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "snapshot", "import", shared); code != 0 {
+		t.Fatalf("import: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "push"); code != 0 {
+		t.Fatalf("push: %d %q %q", code, out, errs)
+	}
+
+	dir := t.TempDir()
+	_, cifrado, errs := snapRun(t, "cloud", "pull", "-o", filepath.Join(dir, "copia.ccpsnap"))
+	nCif := faltantesEnAviso(t, cifrado+errs)
+	_, plano, errs := snapRun(t, "cloud", "pull", "-o", filepath.Join(dir, "copia.tar.gz"),
+		"--decrypted", "--yes")
+	nPlano := faltantesEnAviso(t, plano+errs)
+	if nCif == 0 {
+		t.Fatalf("el escenario no dejó ningún elemento sin datos: %q", cifrado)
+	}
+	if nPlano != nCif {
+		t.Fatalf("el conteo difiere entre ramas: cifrada %d, descifrada %d\n%s", nCif, nPlano, plano)
+	}
+}
+
+// faltantesEnAviso saca el número del aviso «N elementos no tenían datos…».
+func faltantesEnAviso(t *testing.T, out string) int {
+	t.Helper()
+	for _, l := range strings.Split(out, "\n") {
+		if !strings.Contains(l, "no tenían datos") {
+			continue
+		}
+		f := strings.Fields(strings.TrimLeft(l, " ⚠!·-"))
+		for _, w := range f {
+			if n, err := strconv.Atoi(w); err == nil {
+				return n
+			}
+		}
+	}
+	return 0
 }
