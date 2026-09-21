@@ -12,8 +12,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -35,6 +38,7 @@ type maquina struct {
 	url  string
 	acct *crypt.Account
 	dev  string
+	hc   *http.Client // el cliente con token, para montar otra API contra un proxy
 }
 
 func write(t *testing.T, path, data string) {
@@ -78,7 +82,8 @@ func nueva(t *testing.T) *maquina {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := client.NewAPI(srv.URL, client.HTTPClient(ctx, oc, files, tok), "")
+	hc := client.HTTPClient(ctx, oc, files, tok)
+	a := client.NewAPI(srv.URL, hc, "")
 	d, err := a.RegisterDevice(ctx, api.DeviceIn{Name: "mac", Platform: "test"})
 	if err != nil {
 		t.Fatal(err)
@@ -106,7 +111,7 @@ func nueva(t *testing.T) *maquina {
 	// El data dir de Desktop de `default` va a un temporal: el inventario lo
 	// mira y no se toca el de verdad ni para leer.
 	t.Setenv("CCP_DESKTOP_DEFAULT_DATA_DIR", t.TempDir())
-	return &maquina{t: t, url: srv.URL, acct: acct, dev: d.ID, o: Opts{
+	return &maquina{t: t, url: srv.URL, acct: acct, dev: d.ID, hc: hc, o: Opts{
 		Home: t.TempDir(), Src: filepath.Join(t.TempDir(), ".claude"),
 		API: a, Acct: acct, Store: st, Files: files,
 		DeviceID: d.ID, Policy: PolicyAuto, Machine: "mac", Now: time.Now,
@@ -499,5 +504,47 @@ func TestPendienteSinMotivosSerializaListaVacia(t *testing.T) {
 	}
 	if len(r.Pending) != 1 || r.Pending[0].Why == nil {
 		t.Fatalf("al releer, why sigue siendo nil: %+v", r.Pending)
+	}
+}
+
+// Si informar del resultado falla, `review.json` NO se borra: borrarlo antes
+// de cerrar dejaba la revisión pendiente sin nada que la recuerde, y la
+// siguiente pasada del agente volvía a preguntar por las mismas rutas que la
+// persona acababa de rechazar, en bucle cada --interval.
+func TestSiNoSePuedeCerrarLaRevisionElReviewSigueAhi(t *testing.T) {
+	ctx := context.Background()
+	m := nueva(t)
+	m.o.Policy = PolicyManual // todo pasa por confirmación
+	write(t, filepath.Join(m.o.Src, "CLAUDE.md"), "uno")
+	snap := m.captura()
+	write(t, filepath.Join(m.o.Src, "CLAUDE.md"), "dos")
+	m.publica(revID(10), snap, "")
+	if _, err := Once(ctx, m.o); err != nil {
+		t.Fatal(err)
+	}
+	// Un proxy que deja pasar todo menos el cierre: así falla exactamente la
+	// llamada que nos importa, con el resto del camino intacto.
+	tgt, err := url.Parse(m.url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rp := httputil.NewSingleHostReverseProxy(tgt)
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/state") {
+			http.Error(w, "no hoy", http.StatusInternalServerError)
+			return
+		}
+		rp.ServeHTTP(w, r)
+	}))
+	defer proxy.Close()
+	m.o.API = client.NewAPI(proxy.URL, m.hc, "").WithDevice(m.dev)
+
+	if _, err := Resolve(ctx, m.o, nil); err == nil {
+		t.Fatal("esperaba el error de cerrar la revisión")
+	}
+	if _, ok, err := LoadReview(m.o.Files); err != nil {
+		t.Fatal(err)
+	} else if !ok {
+		t.Fatal("review.json se borró aunque la revisión sigue pendiente")
 	}
 }

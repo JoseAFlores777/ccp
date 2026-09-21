@@ -76,12 +76,17 @@ func Resolve(ctx context.Context, o Opts, approve []string) (*Outcome, error) {
 		applied, skipped := tally(rep, out.Skipped)
 		out.Applied, out.Skipped = append(out.Applied, applied...), skipped
 	}
-	if err := ClearReview(o.Files); err != nil {
-		return out, err
-	}
 	state, reason := summarize(out)
 	if state == api.RevPartial && len(take) == 0 && len(out.Applied) == 0 {
 		reason = "nada se confirmó en la máquina: " + reason
 	}
-	return out, closeRev(ctx, o, out, state, reason)
+	// Cerrar va ANTES de olvidar. Al revés, un fallo al informar (el servidor
+	// caído, la red) dejaba la revisión pendiente sin `review.json` que la
+	// recordara: la siguiente pasada rehacía la reconciliación y volvía a
+	// preguntar por las mismas rutas que la persona acababa de rechazar, en
+	// bucle cada --interval, y el portal no veía nunca el motivo.
+	if err := closeRev(ctx, o, out, state, reason); err != nil {
+		return out, err
+	}
+	return out, ClearReview(o.Files)
 }
