@@ -69,20 +69,26 @@ export async function publish({ api, keys }, { base, baseCloud, edits, devices, 
   // corte por medio deja en la nube un snapshot que apunta a lo que no está.
   const idDe = new Map();
   for (const it of m.items) idDe.set(it.lpath, await snap.blobID(keys.ids, it.hash));
-  let subidos = 0;
+  const subidos = new Set();
   for (const [lpath, data] of edits) {
     const id = idDe.get(lpath);
     if (!id) continue;
     paso(`Subiendo ${lpath}…`);
     await api.putBlob(id, await snap.sealBlob(keys.data, id, data));
-    subidos++;
+    subidos.add(id);
   }
 
   paso('Comprobando qué hay ya en la nube…');
   const todos = [...new Set(m.items.map((it) => idDe.get(it.lpath)))];
+  // `exists` del prefirmado sale del REGISTRO del servidor, y un blob que
+  // acaba de subir por PUT /v1/blobs todavía no está registrado: se registra
+  // al aceptar este mismo snapshot. Contarlo como ausente dejaría fuera del
+  // commit justo lo editado, y el snapshot publicaría la versión vieja sin que
+  // nada fallara por el camino.
   const hay = await existingBlobs(api, todos);
-  const sinDatos = m.items.filter((it) => !hay.has(idDe.get(it.lpath))).map((it) => it.lpath);
-  const blobs = todos.filter((id) => hay.has(id)).sort();
+  const esta = (id) => hay.has(id) || subidos.has(id);
+  const sinDatos = m.items.filter((it) => !esta(idDe.get(it.lpath))).map((it) => it.lpath);
+  const blobs = todos.filter(esta).sort();
 
   paso('Publicando el snapshot…');
   const meta = await api.commitSnapshot({ ...built.in, blobs });
@@ -107,5 +113,5 @@ export async function publish({ api, keys }, { base, baseCloud, edits, devices, 
       resultados.push({ device: d, ok: false, error: e.message });
     }
   }
-  return { snapshot: built.in.id, meta, manifest: built.manifest, uploaded: subidos, missing: sinDatos, results: resultados };
+  return { snapshot: built.in.id, meta, manifest: built.manifest, uploaded: subidos.size, missing: sinDatos, results: resultados };
 }
