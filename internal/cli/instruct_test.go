@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/JoseAFlores777/ccp/internal/core"
 )
 
 // setupInstructEnv apunta CCP_HOME/CCP_CLAUDE_SRC/CCP_REPO_ROOT a tmpdirs y
@@ -89,14 +91,23 @@ func TestDispatchInstructProfileDefaultRC2(t *testing.T) {
 	}
 }
 
-// mcp en profile -> rc 5.
-func TestDispatchInstructProfileMCPRC5(t *testing.T) {
-	setupInstructEnv(t)
+// Desde la Fase B un MCP de perfil tiene dónde vivir: overlay/mcp.json, y la
+// regeneración lo proyecta a lo que lee ese perfil. El rc 5 desapareció con la
+// capa que faltaba.
+func TestDispatchInstructProfileMCP(t *testing.T) {
+	home, _, _ := setupInstructEnv(t)
 	t.Setenv("CCP_PROFILE", "work")
 	var out, errb bytes.Buffer
 	code := Dispatch([]string{"instruct", "add", "profile", "mcp", `x={"command":"y"}`}, &out, &errb)
-	if code != 5 {
-		t.Fatalf("code=%d, quiero 5; stderr=%q", code, errb.String())
+	if code != 0 {
+		t.Fatalf("code=%d, quiero 0; stderr=%q", code, errb.String())
+	}
+	if b, err := os.ReadFile(core.MCPProfileFile(home, "work")); err != nil || !strings.Contains(string(b), `"x"`) {
+		t.Fatalf("overlay/mcp.json = %s %v", b, err)
+	}
+	cj := filepath.Join(home, "profiles", "work", "cc-home", ".claude.json")
+	if b, err := os.ReadFile(cj); err != nil || !strings.Contains(string(b), `"x"`) {
+		t.Fatalf("no se proyectó a %s: %s %v", cj, b, err)
 	}
 }
 
