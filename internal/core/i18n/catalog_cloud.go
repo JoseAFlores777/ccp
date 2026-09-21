@@ -81,7 +81,11 @@ CCP_CLOUD_PASSPHRASE y CCP_CLOUD_RECOVERY dan los secretos sin preguntarlos.`,
 		En: "This account has no vault yet. Create it on your first machine with: ccp cloud init",
 		Es: "Esta cuenta aún no tiene bóveda. Créala en tu primera máquina con: ccp cloud init",
 	},
-	"cli.cloud.vault_created":  {En: "Vault created and unlocked on this machine.", Es: "Bóveda creada y desbloqueada en este equipo."},
+	"cli.cloud.vault_created": {En: "Vault created and unlocked on this machine.", Es: "Bóveda creada y desbloqueada en este equipo."},
+	"cli.cloud.vault_created_locked": {
+		En: "The vault was created, but this machine could not save its key: unlock it with ccp cloud unlock",
+		Es: "La bóveda se creó, pero este equipo no pudo guardar su clave: desbloquéalo con ccp cloud unlock",
+	},
 	"cli.cloud.recovery_title": {En: "RECOVERY CODE — shown only this once:", Es: "CÓDIGO DE RECUPERACIÓN — se enseña solo esta vez:"},
 	"cli.cloud.recovery_hint": {
 		En: "Keep it off this machine (a password manager, paper). It opens the vault if you forget the passphrase; without the passphrase or this code, your cloud data cannot be recovered.",
