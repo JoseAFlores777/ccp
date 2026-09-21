@@ -18,6 +18,14 @@ export function b64(s) {
   return out;
 }
 
+// b64e codifica en base64 estándar CON relleno: es lo que espera un []byte de
+// Go al deserializar JSON (base64.StdEncoding), no la variante url de PKCE.
+export function b64e(b) {
+  let s = '';
+  for (const x of b) s += String.fromCharCode(x);
+  return btoa(s);
+}
+
 // b64u codifica en base64url sin relleno: lo que pide PKCE.
 export function b64u(b) {
   let s = '';
@@ -528,12 +536,30 @@ export async function argon2id(password, salt, time, memoryKiB, threads, tagLen 
 // de Ed25519 —16 bytes fijos— y se lee la pública del JWK.
 // Devuelve null si el navegador no sabe Ed25519: quien llama tiene que
 // distinguir «no coincide» de «no se pudo comprobar».
-export async function ed25519PublicFromSeed(seed) {
+export async function ed25519Sign(seed, msg) {
+  const k = await ed25519KeyFromSeed(seed);
+  if (!k) return null;
+  return new Uint8Array(await crypto.subtle.sign({ name: 'Ed25519' }, k, msg));
+}
+
+// ed25519KeyFromSeed importa la semilla como clave de firma, o null si el
+// navegador no sabe Ed25519. Publicar una revisión sin firma no es una opción:
+// el agente la rechaza, y con razón, así que quien llame tiene que decirlo.
+async function ed25519KeyFromSeed(seed) {
   const der = new Uint8Array(16 + 32);
   der.set([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20], 0);
   der.set(seed, 16);
   try {
-    const k = await crypto.subtle.importKey('pkcs8', der, { name: 'Ed25519' }, true, ['sign']);
+    return await crypto.subtle.importKey('pkcs8', der, { name: 'Ed25519' }, true, ['sign']);
+  } catch {
+    return null;
+  }
+}
+
+export async function ed25519PublicFromSeed(seed) {
+  const k = await ed25519KeyFromSeed(seed);
+  if (!k) return null;
+  try {
     const jwk = await crypto.subtle.exportKey('jwk', k);
     return b64(jwk.x.replace(/-/g, '+').replace(/_/g, '/') + '=='.slice((jwk.x.length + 3) % 4));
   } catch {
