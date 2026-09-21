@@ -176,11 +176,15 @@ func modeRank(v any) int {
 	return 3
 }
 
+// settingsExecKeys son las claves de un settings.json cuyo valor es un comando
+// que Claude Code ejecuta.
+var settingsExecKeys = []string{"apiKeyHelper", "awsAuthRefresh", "awsCredentialExport"}
+
 func settingsDangers(from, to []byte) []Danger {
 	a, okA := jsonDoc(from)
 	b, okB := jsonDoc(to)
 	if !okB {
-		return []Danger{DangerHooks, DangerStatusLine, DangerPermissions}
+		return []Danger{DangerHooks, DangerStatusLine, DangerPermissions, DangerScript}
 	}
 	if !okA {
 		a = map[string]any{} // la base ilegible se compara contra la nada
@@ -191,6 +195,23 @@ func settingsDangers(from, to []byte) []Danger {
 	}
 	if !reflect.DeepEqual(a["statusLine"], b["statusLine"]) {
 		out = append(out, DangerStatusLine)
+	}
+	// `env` y los helpers de credenciales son ejecutables aunque no lo
+	// parezcan: el primero es entorno vivo de cada sesión (un
+	// `ANTHROPIC_BASE_URL` desvía todo el tráfico del modelo y un
+	// `NODE_OPTIONS=--require …` ejecuta código en cualquier subproceso node,
+	// MCP y hooks incluidos) y los segundos son comandos que Claude Code
+	// lanza para sacar credenciales. El propio ccp ya trata `env.*` como
+	// material sensible en cfg_drift.
+	if !reflect.DeepEqual(a["env"], b["env"]) {
+		out = append(out, DangerScript)
+	} else {
+		for _, k := range settingsExecKeys {
+			if !reflect.DeepEqual(a[k], b[k]) {
+				out = append(out, DangerScript)
+				break
+			}
+		}
 	}
 	was := strList(dig(a, "permissions", "allow"))
 	now := strList(dig(b, "permissions", "allow"))
@@ -208,8 +229,8 @@ func settingsDangers(from, to []byte) []Danger {
 }
 
 // mcpServers saca, de cualquiera de los tres archivos que los declaran, lo que
-// de cada servidor ACABA EJECUTÁNDOSE. El resto (env, headers, url) cambia la
-// configuración del servidor, no qué binario se lanza.
+// de cada servidor ACABA EJECUTÁNDOSE. El resto (headers, url) cambia la
+// configuración del servidor, no qué código corre aquí.
 func mcpServers(m map[string]any) map[string]any {
 	out := map[string]any{}
 	collect(out, "", m["mcpServers"])
@@ -238,7 +259,12 @@ func collect(out map[string]any, prefix string, v any) {
 			out[prefix+name] = sv
 			continue
 		}
-		out[prefix+name] = []any{o["command"], o["args"]}
+		// `env` y `cwd` entran en la tupla porque ejecutan tanto como el
+		// propio `command`: `NODE_OPTIONS=--require …` mete código en el
+		// proceso, `PATH` reapunta el binario que se lanza y `cwd` decide
+		// qué `./server.js` es. Dejarlos fuera convertía «cambiar el
+		// atacante solo el env» en un cambio que se aplica solo.
+		out[prefix+name] = []any{o["command"], o["args"], o["env"], o["cwd"]}
 	}
 }
 
