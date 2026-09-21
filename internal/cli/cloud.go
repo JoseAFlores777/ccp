@@ -204,8 +204,23 @@ func (c cloudCmd) login(args []string) int {
 	cfg := client.Config{Server: server, Issuer: ep.Info.Issuer, ClientID: ep.Info.ClientID,
 		TokenURL: ep.TokenURL, DeviceURL: ep.DeviceAuthURL, UserID: me.UserID, Email: me.Email}
 	// Si este equipo ya estaba registrado con esta cuenta, se reusa su dispositivo.
-	if prev, err := c.files.LoadConfig(); err == nil && prev.Server == server && prev.UserID == me.UserID && prev.DeviceID != "" {
-		cfg.DeviceID, cfg.DeviceName = prev.DeviceID, prev.DeviceName
+	// Y si NO es la misma cuenta (o el mismo servidor), se olvida la bóveda
+	// anterior antes de nada: la AK abre una sola bóveda y dejarla viva haría
+	// que `push` sellara y firmara con ella contra la cuenta nueva.
+	switched := false
+	if prev, err := c.files.LoadConfig(); err == nil {
+		if prev.Server == server && prev.UserID == me.UserID {
+			if prev.DeviceID != "" {
+				cfg.DeviceID, cfg.DeviceName = prev.DeviceID, prev.DeviceName
+			}
+		} else if prev.UserID != "" || prev.Server != "" {
+			if _, err := c.files.LoadAK(); err == nil {
+				switched = true
+			}
+			if err := c.files.ForgetVault(); err != nil {
+				return c.fail(err)
+			}
+		}
 	}
 	if cfg.DeviceID == "" {
 		name := a.val("--name")
@@ -222,6 +237,9 @@ func (c cloudCmd) login(args []string) int {
 		return c.fail(err)
 	}
 	fmt.Fprintln(c.out, okLine(c.out, i18n.T(c.lang, "cli.cloud.login_ok", me.Email, cfg.DeviceName)))
+	if switched {
+		fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.login_switched"))
+	}
 	if me.HasVault {
 		fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.next_unlock"))
 	} else {

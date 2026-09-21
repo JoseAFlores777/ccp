@@ -21,6 +21,13 @@ import (
 // y un Keycloak falso. Devuelve su URL (http://127.0.0.1:…, que la CLI acepta
 // sin https).
 func cloudServer(t *testing.T) string {
+	url, _ := cloudServerIss(t)
+	return url
+}
+
+// cloudServerIss es lo mismo, pero devuelve también el emisor falso para las
+// pruebas que necesitan cambiar de cuenta a mitad de camino.
+func cloudServerIss(t *testing.T) (string, *oidctest.Issuer) {
 	t.Helper()
 	iss := oidctest.New(t)
 	srv := httptest.NewServer(cloudsrv.New(cloudsrv.Config{
@@ -29,7 +36,7 @@ func cloudServer(t *testing.T) string {
 		Issuer:   iss.URL, ClientID: oidctest.ClientID,
 	}))
 	t.Cleanup(srv.Close)
-	return srv.URL
+	return srv.URL, iss
 }
 
 var recoveryRe = regexp.MustCompile(`[A-Z2-7]{4}(-[A-Z2-7]{4}){7}`)
@@ -120,5 +127,48 @@ func TestCloudRequiresHTTPS(t *testing.T) {
 	snapEnv(t)
 	if code, _, errs := snapRun(t, "cloud", "login", "http://ccp.example.com"); code != 1 || !strings.Contains(errs, "https") {
 		t.Fatalf("login por http: %d %q", code, errs)
+	}
+}
+
+// Cambiar de cuenta en el MISMO equipo no puede dejar viva la clave de la
+// cuenta anterior: si se queda, `push` sella y firma con ella contra la nube de
+// la cuenta nueva y esos blobs son ilegibles para siempre, incluso para el
+// equipo que los subió.
+func TestCloudLoginOtraCuentaOlvidaLaBoveda(t *testing.T) {
+	url, iss := cloudServerIss(t)
+	t.Setenv("CCP_NO_BROWSER", "1")
+	t.Setenv("CCP_CLOUD_PASSPHRASE", "frase de la bóveda larga")
+
+	snapEnv(t)
+	if code, out, errs := snapRun(t, "cloud", "login", url); code != 0 {
+		t.Fatalf("login 1: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "cloud", "init"); code != 0 {
+		t.Fatalf("init: %d %q %q", code, out, errs)
+	}
+	if code, out, errs := snapRun(t, "snapshot", "create"); code != 0 {
+		t.Fatalf("snapshot create: %d %q %q", code, out, errs)
+	}
+
+	// La misma máquina, otra cuenta.
+	iss.As("user-2", "otro@example.com")
+	if code, out, errs := snapRun(t, "cloud", "login", url); code != 0 {
+		t.Fatalf("login 2: %d %q %q", code, out, errs)
+	}
+	_, out, _ := snapRun(t, "cloud", "status", "--json")
+	var st struct {
+		Email       string `json:"email"`
+		Vault       string `json:"vault"`
+		PendingPush int    `json:"pending_push"`
+	}
+	if json.Unmarshal([]byte(out), &st) != nil || st.Email != "otro@example.com" {
+		t.Fatalf("status --json = %q", out)
+	}
+	if st.Vault == "unlocked" {
+		t.Fatalf("la bóveda de la cuenta anterior sigue abierta: %q", out)
+	}
+	// Y sin bóveda no se puede subir nada sellado con la clave ajena.
+	if code, out, errs := snapRun(t, "cloud", "push"); code == 0 {
+		t.Fatalf("push con la clave de la otra cuenta: %d %q %q", code, out, errs)
 	}
 }
