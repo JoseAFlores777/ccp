@@ -528,6 +528,15 @@
 
 ### Fixed
 
+- **`ccp sync` comprueba la cadena, y ya existe `ccp sync verify`.** Borrar `snaps/<id>.json` del destino
+  —quien opera la carpeta, o un iCloud que ya trajo `objects/` y todavía no el registro más nuevo— dejaba
+  un `latest` apuntando al snapshot **anterior**: `ccp sync apply latest --yes` restauraba una configuración
+  vieja encima de la de ahora y salía 0 sin un solo aviso. La firma de un eslabón dice que ESE eslabón es
+  auténtico, nunca que no falta el de al lado; cortar por la cabeza no deja ningún padre roto. Lo que sí lo
+  delata es el estado de este equipo, que guarda el id remoto de todo lo que publicó, y es justo lo que
+  `client.VerifyChain` marca como `dropped`. Ahora `pull` y `apply` verifican antes de elegir: `pull` avisa
+  (bajar solo añade al almacén local), `apply` no escribe nada salvo `--force`, y `ccp sync verify [--json]`
+  es el gemelo de `ccp cloud verify` contra una carpeta o un bucket, con salida 1 para que un cron se entere.
 - **Una nube sin snapshots no es un fallo al restaurar.** `ccp cloud restore` en una cuenta recién creada
   salía con error, como si algo se hubiera roto; ahora dice que no hay ninguno y sale 0, el mismo mensaje que
   `ccp cloud pull`. Dos comandos que describen el mismo estado con distinta gravedad enseñan a desconfiar del

@@ -64,6 +64,8 @@ func dispatchSync(args []string, stdout, stderr io.Writer) int {
 		return c.pull(args)
 	case "apply":
 		return c.apply(args)
+	case "verify":
+		return c.verify(args)
 	case "help", "-h", "--help", "":
 		fmt.Fprintln(stdout, i18n.T(c.lang, "cli.sync.usage"))
 		return 0
@@ -483,12 +485,81 @@ func (c syncCmd) push(args []string) int {
 // es bajarlo primero, y dos caminos para traerlo serían dos formas de traer
 // cosas distintas.
 func (c syncCmd) pullOne(r *remote.Store, acct *crypt.Account, st *snapshot.Store,
-	e remote.Entry, ref string) (*snapshot.Manifest, []string, error) {
+	e remote.Entry, ref string) (*snapshot.Manifest, []string, client.ChainReport, error) {
+	// La historia se comprueba ANTES de elegir: «latest» es el último eslabón
+	// que la carpeta enseña, y si le falta la cabeza eso es un snapshot viejo
+	// con toda la pinta de ser el nuevo. El informe se devuelve pase lo que
+	// pase —incluso con el destino vacío, que es el corte más gordo posible—
+	// porque quien llama decide qué hace con él.
+	chain, err := remote.Verify(c.ctx, r, acct, remote.FilesFor(c.home, e.Name))
+	if err != nil {
+		return nil, nil, chain, err
+	}
 	target, err := remote.Pick(c.ctx, r, ref)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, chain, err
 	}
-	return remote.Pull(c.ctx, r, acct, st, remote.FilesFor(c.home, e.Name), target)
+	m, missing, err := remote.Pull(c.ctx, r, acct, st, remote.FilesFor(c.home, e.Name), target)
+	return m, missing, chain, err
+}
+
+// syncFaultKey traduce el código de una falta a su frase. Se comparten las de
+// la nube porque es la misma verificación; la única que cambia es la que
+// nombra a quien perdió el snapshot: allí es un servidor, aquí una carpeta.
+func syncFaultKey(code string) string {
+	if code == client.FaultDropped {
+		return "cli.sync.fault.dropped"
+	}
+	return "cli.cloud.fault." + code
+}
+
+// printChainFaults cuenta lo que no cuadra. Recibe el destino de la escritura
+// porque son dos noticias distintas: en `sync verify` ES la salida del
+// comando, y en `pull`/`apply` es un aviso que acompaña a otra cosa.
+func (c syncCmd) printChainFaults(w io.Writer, rep client.ChainReport) {
+	fmt.Fprintln(w, warnLine(w, i18n.T(c.lang, "cli.sync.chain_bad", len(rep.Faults), rep.Links)))
+	for _, f := range rep.Faults {
+		// El Ref solo viaja en las faltas que hablan de un padre; un
+		// argumento de más remata a las demás con «%!(EXTRA string=)».
+		var args []any
+		if f.Ref != "" {
+			args = append(args, snapshot.Short(f.Ref))
+		}
+		fmt.Fprintf(w, "  %s  %s\n", snapshot.Short(f.ID), i18n.T(c.lang, syncFaultKey(f.Code), args...))
+	}
+	fmt.Fprintln(w, i18n.T(c.lang, "cli.sync.chain_hint"))
+}
+
+// verify es el gemelo de `ccp cloud verify` contra una carpeta o un bucket.
+// Sale 1 si algo no cuadra, para que un cron se entere.
+func (c syncCmd) verify(args []string) int {
+	a, ok := c.args(args, []string{"--json"}, nil, 0)
+	if !ok {
+		return 1
+	}
+	r, acct, _, e, err := c.ready(a.val("--remote"))
+	if err != nil {
+		return c.fail(err)
+	}
+	rep, err := remote.Verify(c.ctx, r, acct, remote.FilesFor(c.home, e.Name))
+	if err != nil {
+		return c.fail(err)
+	}
+	if a.flags["--json"] {
+		if snapJSON(c.out, c.err, rep) != 0 {
+			return 1
+		}
+		if rep.OK() {
+			return 0
+		}
+		return 1
+	}
+	if rep.OK() {
+		fmt.Fprintln(c.out, i18n.T(c.lang, "cli.sync.chain_ok", e.Name, rep.Links))
+		return 0
+	}
+	c.printChainFaults(c.out, rep)
+	return 1
 }
 
 // noneOut cuenta «el destino todavía no tiene snapshots» por el canal que
@@ -516,7 +587,12 @@ func (c syncCmd) pull(args []string) int {
 	if len(a.pos) == 1 {
 		ref = a.pos[0]
 	}
-	m, missing, err := c.pullOne(r, acct, st, e, ref)
+	m, missing, chain, err := c.pullOne(r, acct, st, e, ref)
+	if !chain.OK() {
+		// Bajar solo AÑADE al almacén local, así que aquí es un aviso y no un
+		// portazo; el portazo es de `apply`, que sí escribe.
+		c.printChainFaults(c.err, chain)
+	}
 	if errors.Is(err, remote.ErrNoSnapshots) {
 		// Que el destino esté vacío no es un fallo: es una carpeta recién
 		// elegida, y quien la eligió tiene que poder distinguirlo de un error.
@@ -570,7 +646,10 @@ func (c syncCmd) apply(args []string) int {
 	if len(a.pos) == 1 {
 		ref = a.pos[0]
 	}
-	m, missing, err := c.pullOne(r, acct, st, e, ref)
+	m, missing, chain, err := c.pullOne(r, acct, st, e, ref)
+	if !chain.OK() {
+		c.printChainFaults(c.err, chain)
+	}
 	if errors.Is(err, remote.ErrNoSnapshots) {
 		return c.noneOut(a.flags["--json"], e.Name)
 	}
@@ -599,6 +678,14 @@ func (c syncCmd) apply(args []string) int {
 		if !a.flags["--json"] {
 			fmt.Fprintln(c.err, warnLine(c.err, i18n.T(c.lang, "cli.sync.apply_confirm")))
 		}
+		return 1
+	}
+	if !chain.OK() && !a.flags["--force"] {
+		// Un registro que el destino perdió no rompe ninguna firma: lo que
+		// deja es un «latest» que señala a un snapshot viejo. Aplicarlo pisa
+		// la configuración de ahora con la de antes y sale 0, que es el fallo
+		// que nadie ve. --force es para quien ya sabe qué falta.
+		fmt.Fprintln(c.err, warnLine(c.err, i18n.T(c.lang, "cli.sync.apply_chain_blocked")))
 		return 1
 	}
 	if huecos := planMissingBlob(plan); len(huecos) > 0 && !a.flags["--force"] {

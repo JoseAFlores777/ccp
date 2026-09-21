@@ -239,3 +239,49 @@ func borraUnObjeto(t *testing.T, dir string) {
 		t.Fatal(err)
 	}
 }
+
+// Borrar el registro más nuevo de la carpeta hacía que `latest` señalara al
+// anterior sin una sola palabra: la cadena sale de los registros, y cortarla
+// por la cabeza no deja ningún padre roto que una firma suelta pueda ver. Lo
+// que sí lo ve es el estado de ESTE equipo, que recuerda el id remoto de lo
+// que subió.
+func TestVerifyCazaElRegistroQueElDestinoPerdio(t *testing.T) {
+	dir := t.TempDir()
+	a := nuevoEquipo(t)
+	r, err := remote.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ak, _, err := remote.InitVault(t.Context(), r, []byte(frase))
+	if err != nil {
+		t.Fatal(err)
+	}
+	acct := cuenta(t, ak)
+	base := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
+	a.guarda(t, "claude/settings.json", `{"theme":"dark"}`, base)
+	nuevo := a.guarda(t, "claude/settings.json", `{"theme":"NUEVO"}`, base.Add(time.Minute))
+	if _, err := remote.Push(t.Context(), r, acct, a.st, a.files, ""); err != nil {
+		t.Fatal(err)
+	}
+	// Con la carpeta entera, la historia cuadra.
+	if rep, err := remote.Verify(t.Context(), r, acct, a.files); err != nil || !rep.OK() {
+		t.Fatalf("verify con todo = %+v, %v", rep, err)
+	}
+	// Quien opera la carpeta borra el registro del más nuevo (o el servicio
+	// que la sincroniza todavía no lo ha traído).
+	rid := acct.SnapshotID(nuevo.ID)
+	if err := os.Remove(filepath.Join(dir, "snaps", rid+".json")); err != nil {
+		t.Fatal(err)
+	}
+	// Sin verificación, `latest` retrocede en silencio.
+	if target, err := remote.Pick(t.Context(), r, "latest"); err != nil || target == rid {
+		t.Fatalf("pick = %q, %v (se esperaba que ya no fuera el más nuevo)", target, err)
+	}
+	rep, err := remote.Verify(t.Context(), r, acct, a.files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.OK() || len(rep.Faults) != 1 || rep.Faults[0].Code != client.FaultDropped || rep.Faults[0].ID != rid {
+		t.Fatalf("verify = %+v", rep)
+	}
+}
