@@ -552,3 +552,61 @@ func gunzipCLI(t *testing.T, raw []byte) []byte {
 	}
 	return out
 }
+
+// Un .tmp huérfano (una descarga anterior matada a mitad: el os.Remove solo
+// corría en la rama de error) no puede decidir el modo del archivo final. En
+// POSIX el modo del open solo se aplica al CREAR, así que reusar un nombre
+// predecible dejaba los secretos en 0644 justo cuando la función promete 0600.
+func TestWriteDownloadTmpHuerfanoNoHeredaModo(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "snap.ccpsnap")
+	if err := os.WriteFile(dest+".tmp", []byte("restos"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := writeDownload(dest, true, func(w io.Writer) error {
+		_, err := w.Write([]byte("api_key en claro"))
+		return err
+	})
+	if err != nil {
+		t.Fatalf("writeDownload: %v", err)
+	}
+	fi, err := os.Stat(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fi.Mode().Perm(); got != 0o600 {
+		t.Fatalf("modo final = %04o, se esperaba 0600", got)
+	}
+}
+
+// Y un symlink en la ruta del temporal no puede desviar el texto en claro: sin
+// O_EXCL el open lo seguía y los bytes acababan en el archivo enlazado.
+func TestWriteDownloadNoSigueSymlinkDelTemporal(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "snap.ccpsnap")
+	victima := filepath.Join(dir, "victima.txt")
+	if err := os.WriteFile(victima, []byte("intacto"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(victima, dest+".tmp"); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeDownload(dest, true, func(w io.Writer) error {
+		_, err := w.Write([]byte("api_key en claro"))
+		return err
+	}); err != nil {
+		t.Fatalf("writeDownload: %v", err)
+	}
+	b, err := os.ReadFile(victima)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "intacto" {
+		t.Fatalf("la víctima del symlink acabó con %q", b)
+	}
+	if fi, err := os.Lstat(dest); err != nil {
+		t.Fatal(err)
+	} else if fi.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("el destino quedó siendo un symlink")
+	}
+}

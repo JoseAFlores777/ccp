@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -688,25 +689,36 @@ func (c cloudCmd) pullToFile(cl *client.API, acct *crypt.Account, target, dest s
 // writeDownload escribe por tmp+rename: un archivo a medias con extensión de
 // snapshot es peor que ninguno, porque quien lo encuentre lo dará por bueno.
 // Con secretos dentro nace 0600, cifrados o no.
+//
+// El temporal lo crea os.CreateTemp (O_EXCL y 0600, nombre aleatorio) y el modo
+// se fija con un Chmod explícito, como core.writeFileAtomic. Con un nombre fijo
+// y sin O_EXCL había dos maneras de perder el 0600 que esta función promete: el
+// modo del open solo se aplica al CREAR, así que un `.tmp` huérfano —el Remove
+// solo corría en la rama de error, un SIGKILL a mitad de descarga lo dejaba—
+// devolvía su 0644 al archivo final; y O_CREATE sin O_EXCL sigue symlinks, de
+// modo que en un directorio escribible por otros (-o /tmp/…) los secretos EN
+// CLARO acababan en el destino del enlace.
 func writeDownload(dest string, secrets bool, write func(io.Writer) error) error {
 	perm := os.FileMode(0o644)
 	if secrets {
 		perm = 0o600
 	}
-	tmp := dest + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, perm)
+	f, err := os.CreateTemp(filepath.Dir(dest), "ccp-*.tmp")
 	if err != nil {
 		return err
 	}
+	tmp := f.Name()
+	defer os.Remove(tmp) // no-op si el rename salió bien
+
 	err = write(f)
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
 	if err == nil {
-		err = os.Rename(tmp, dest)
+		err = os.Chmod(tmp, perm)
 	}
-	if err != nil {
-		_ = os.Remove(tmp)
+	if err == nil {
+		err = os.Rename(tmp, dest)
 	}
 	return err
 }
