@@ -162,7 +162,7 @@ func TestMergePropiedades(t *testing.T) {
 			}
 		}
 		// Aplicar lo que no choca y volver a reconciliar no vuelve a pedirlo.
-		after := apply(local, ds)
+		after := applyDecisions(local, ds)
 		for _, dec := range Merge(base, after, desired) {
 			if dec.Action == ActionTake || dec.Action == ActionRemove {
 				t.Fatalf("%s: %s repetida tras aplicarla", dec.LPath, dec.Action)
@@ -178,7 +178,7 @@ func TestMergePropiedades(t *testing.T) {
 }
 
 // apply devuelve lo local después de aplicar lo que no choca.
-func apply(local []snapshot.Item, ds []Decision) []snapshot.Item {
+func applyDecisions(local []snapshot.Item, ds []Decision) []snapshot.Item {
 	m := byLPath(local)
 	for _, d := range ds {
 		switch d.Action {
