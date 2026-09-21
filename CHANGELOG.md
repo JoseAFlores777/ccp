@@ -4,6 +4,25 @@
 
 ### Added
 
+- **Sincronización sin servidor: el remoto es una carpeta o un bucket (E1)** — `internal/cloud/remote`.
+  Un destino `file:///…/iCloud Drive/ccp` (o Dropbox, Syncthing, un NAS) o `s3://bucket/prefijo` que
+  guarda **el mismo almacén** que la nube: blobs con ids HMAC en `objects/<ab>/<id>`, manifiestos
+  sellados y firmados en `snaps/<id>.json` y un `remote.json` con los parámetros del KDF y las dos
+  envolturas de la clave de cuenta. Quien opera la carpeta mueve bultos que no sabe abrir, y un
+  equipo con la frase la abre entera sin que haya ningún servidor de por medio (`remote.InitVault`,
+  `Unlock`, `UnlockRecovery`, que son §10.2 sin servidor).
+  - **La abstracción de destino es una sola, y el contrato lo demuestra**: `APIStore` pone la nube
+    de `/v1` detrás de la misma interfaz, y el mismo test corre contra las dos. Escribirlo sacó la
+    diferencia de verdad: en la nube un blob cuenta como presente solo cuando un snapshot lo
+    **publica**, así que el contrato exige lo que las dos pueden cumplir —que uno ya publicado nunca
+    se dé por ausente— en vez de lo que solo cumplía la carpeta.
+  - La carpeta escribe por **tmp+rename**, y no por precaución: al otro lado hay un demonio que sube
+    lo que ve en cuanto lo ve, así que un archivo escrito a trozos se replica a medias.
+  - Las **credenciales de S3 salen del entorno** (`CCP_SYNC_S3_ACCESS_KEY`/`CCP_SYNC_S3_SECRET_KEY`, o
+    las de AWS) y nunca de la URL, que se guarda, se lista y se imprime. `?region=` y `?endpoint=` sí
+    van en ella: son la dirección, no un secreto.
+  - Todavía no hay `ccp sync` (E2): ningún camino del binario llega a este paquete.
+
 - **Robustez de la nube (F4-3)**: lo que hace que un servidor apretado, caído o simplemente viejo no se
   lleve por delante un push ni llene la pantalla de ruido. Nada de esto cambia la forma de ningún mensaje:
   es cómo se reacciona a los que ya existían.

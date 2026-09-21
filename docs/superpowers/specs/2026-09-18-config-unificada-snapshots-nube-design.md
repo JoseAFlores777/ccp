@@ -523,6 +523,28 @@ servicio:
 
 Tamaño: **M**.
 
+> **Estado en E1 (implementado).** El remoto existe: `internal/cloud/remote`. Una carpeta
+> (`file:///…`, con espacios y todo) o un bucket (`s3://bucket/prefijo`) guardan el almacén de §8.2
+> entero —`objects/<ab>/<id>` sellados con ids HMAC, `snaps/<id>.json` con el manifiesto sellado y su
+> firma, y un `remote.json` con los parámetros del KDF y las dos envolturas de la AK—, y
+> `remote.InitVault`/`Unlock`/`UnlockRecovery` son §10.2 sin servidor: la bóveda viaja como
+> `api.Vault`, el mismo formato que la nube, así que el equipo que sabe abrir una sabe abrir la otra.
+> Tres cosas que salieron al escribirlo:
+>
+> - **La abstracción de destino es una sola y hay un test que lo prueba.** `Remote` habla en los tipos
+>   de `internal/cloud/api` y `APIStore` pone la nube detrás de la misma interfaz, así que el contrato
+>   corre contra las dos. Ahí apareció la única diferencia real: en la nube un blob cuenta como
+>   presente cuando un snapshot lo **publica** (`KnownBlobs`), no cuando se sube, de modo que el
+>   contrato exige lo que las dos pueden cumplir —que uno ya publicado jamás se dé por ausente— en
+>   lugar de lo que solo cumplía la carpeta.
+> - **Las credenciales de S3 no van en la URL** (`CCP_SYNC_S3_ACCESS_KEY`/`CCP_SYNC_S3_SECRET_KEY`, o
+>   las de AWS): esa URL se guarda en la configuración, se lista y se imprime. La región y el endpoint
+>   sí van, que son la dirección.
+> - **La cadena se arma leyendo los registros**, que son inmutables, y no de un índice: en una carpeta
+>   donde escriben dos equipos a la vez el índice es justo lo que se queda atrás.
+>
+> Falta E2 —`ccp sync remote add|push|pull|apply`—: hoy ningún camino del binario llega al paquete.
+
 ## 10. Subproyecto F: backend, cuentas y portal
 
 ### 10.1 Principio: el servidor no lee tu configuración (cifrado de extremo a extremo)
