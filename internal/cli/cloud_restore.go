@@ -47,7 +47,9 @@ func (c cloudCmd) restore(args []string) int {
 		fmt.Fprintln(c.err, i18n.T(c.lang, "cli.cloud.restore_bad_map", bad))
 		return 1
 	}
-	cl, acct, st, err := c.ready()
+	// El mismo agente que aplica las revisiones del portal: montar aquí otro
+	// con distinto almacén sería otra máquina aplicando lo mismo.
+	o, err := c.agentOpts()
 	if err != nil {
 		return c.fail(err)
 	}
@@ -55,16 +57,10 @@ func (c cloudCmd) restore(args []string) int {
 	if len(a.pos) == 1 {
 		ref = a.pos[0]
 	}
-	target, err := c.pickSnapshot(cl, a.val("--device"), ref)
+	target, err := c.pickSnapshot(o.API, a.val("--device"), ref)
 	if err != nil {
 		return c.fail(err)
 	}
-	src, err := core.ClaudeSrc()
-	if err != nil {
-		return c.fail(err)
-	}
-	o := agent.Opts{Home: c.home, Src: src, API: cl, Acct: acct, Store: st, Files: c.files,
-		Machine: snapMachine()}
 	ro := agent.RestoreOpts{Only: a.vals["--only"], Projects: projects, DryRun: true}
 
 	// El plan se calcula SIEMPRE primero, aunque venga --yes: es lo que decide
