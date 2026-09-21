@@ -110,7 +110,10 @@ func (c cloudCmd) agent(args []string) int {
 		out, err := agent.Once(c.ctx, o)
 		if errors.Is(err, agent.ErrNothing) {
 			if a.flags["--json"] {
-				return snapJSON(c.out, c.err, map[string]any{"revision": "", "state": ""})
+				// El vacío sale con la misma forma que el lleno: un
+				// Outcome con sus cuatro listas, no un mapa a medida.
+				return snapJSON(c.out, c.err, &agent.Outcome{Applied: []string{},
+					Pending: []agent.Pending{}, Conflicts: []string{}, Skipped: []agent.Skipped{}})
 			}
 			fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.agent_nothing"))
 			return 0
@@ -154,7 +157,9 @@ func (c cloudCmd) review(args []string) int {
 	}
 	if !has || (len(r.Pending) == 0 && len(r.Conflicts) == 0) {
 		if a.flags["--json"] {
-			return snapJSON(c.out, c.err, agent.Review{Pending: []agent.Pending{}, Conflicts: []agent.Decision{}})
+			// Por la misma regla, el vacío pasa por la normalización que
+			// usa `saveReview`: una lista vacía es [] y nunca null.
+			return snapJSON(c.out, c.err, agent.NormalizeReview(agent.Review{}))
 		}
 		fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.review_nothing"))
 		return 0
