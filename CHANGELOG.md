@@ -4,6 +4,26 @@
 
 ### Added
 
+- **`ccp cloud verify`: la historia es una cadena firmada, y ahora se comprueba entera** (spec §10.3.1,
+  F3-1). La firma de cada snapshot ata su id, su padre y su manifiesto desde F1, pero nadie comparaba nunca
+  dos eslabones: un cliente que verifica de uno en uno —lo que hacía `pull`— sabe que *ese* snapshot es
+  auténtico y jamás que falta el de al lado. `verify` baja la cadena completa y canta la falta con su
+  código: `bad_signature` (no la firmó esta cuenta, o le cambiaron algo), `broken_link` (su padre no está:
+  lo que deja un eslabón quitado del medio), `dropped` (esta máquina lo subió y ya no está, que es la única
+  señal de que han cortado por la cabeza, donde no queda ningún padre roto que delate nada), `cycle`,
+  `out_of_order` y `duplicate_id`. Sale 1 si algo no cuadra, y dice lo que hay que decir: aquí no se ha
+  borrado nada, tus snapshots siguen en esta máquina.
+  - **El digest lo calcula el servidor, no el cliente.** `GET /v1/snapshots/chain` sirve los eslabones con
+    el sha256 del manifiesto sellado —lo único del manifiesto que entra en la firma—, así que la cadena se
+    verifica de un tirón sin bajar un solo manifiesto. Lo calcula Postgres sobre el valor que escribe
+    (`sha256($manifest)`, columna `manifest_sha256`, migración 0004): un digest que viniera de fuera
+    comprobaría el manifiesto contra lo que dijera quien lo mandó.
+  - La cadena se sirve **sin filtro por dispositivo**: las cadenas se cruzan —una máquina que baja un
+    snapshot ajeno encadena el suyo encima—, y media cadena tendría huecos que no son huecos.
+  - La fecha **no va firmada** y por eso no ordena nada: el orden lo dibujan los padres. Lo que caza
+    `out_of_order` es una fecha que miente (el listado del portal sale de ella), no un reordenamiento de la
+    historia, que es imposible sin la clave de cuenta.
+
 - **P-21 Nube en la app: la cuenta, la bóveda, tus equipos y lo que espera tu confirmación** (spec §10.3,
   F2-5, [ADR 0014](docs/adr/0014-portal-proposes-machine-applies.md)). Es el otro extremo del portal: lo que
   éste propone acaba aquí, y lo que ejecuta código no entra hasta que alguien de esta máquina lo mira.

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"maps"
 	"sort"
@@ -194,6 +196,32 @@ func (m *Mem) Snapshots(_ context.Context, userID, deviceID string, limit int) (
 	}
 	// Desempata por id: dos snapshots del mismo instante salían en orden
 	// aleatorio, y entonces `limit` se quedaba con cualquiera de los dos.
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].Created.Equal(out[j].Created) {
+			return out[i].Created.After(out[j].Created)
+		}
+		return out[i].ID > out[j].ID
+	})
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+// Chain: ver el contrato en store.go.
+func (m *Mem) Chain(_ context.Context, userID string, limit int) ([]Snapshot, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if limit <= 0 {
+		limit = api.MaxChainLinks
+	}
+	out := []Snapshot{}
+	for _, s := range m.snaps[userID] {
+		sum := sha256.Sum256(s.Manifest)
+		s.Digest = hex.EncodeToString(sum[:])
+		s.Manifest, s.Sig = nil, bytes.Clone(s.Sig)
+		out = append(out, s)
+	}
 	sort.Slice(out, func(i, j int) bool {
 		if !out[i].Created.Equal(out[j].Created) {
 			return out[i].Created.After(out[j].Created)

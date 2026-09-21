@@ -89,6 +89,10 @@ func New(c Config) http.Handler {
 	mux.Handle("PUT /v1/blobs/{id}", s.authed(s.putBlob, true))
 	mux.Handle("POST /v1/snapshots", s.authed(s.commitSnapshot, true))
 	mux.Handle("GET /v1/snapshots", s.authed(s.listSnapshots, true))
+	// `chain` es literal y `{id}` comodín; como con las revisiones, el
+	// ServeMux prefiere el patrón más específico y conviven sin orden que
+	// recordar (un id son 64 hex, así que tampoco podría ser «chain»).
+	mux.Handle("GET /v1/snapshots/chain", s.authed(s.chain, true))
 	mux.Handle("GET /v1/snapshots/{id}", s.authed(s.getSnapshot, true))
 	// `pending` es literal y `{id}` comodín: el ServeMux de Go prefiere el
 	// patrón más específico, así que conviven sin orden que recordar.

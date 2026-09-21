@@ -159,3 +159,25 @@ func TestRevisionSignatureAtaCadaCampo(t *testing.T) {
 		t.Fatal("la firma de una revisión no puede valer como la de un snapshot")
 	}
 }
+
+// La cadena se verifica desde un listado, donde no viaja el manifiesto: lo que
+// llega es su digest. Tiene que aceptar exactamente las firmas que ya existen,
+// o el día que se active la verificación toda la historia publicada saldría
+// como falsificada.
+func TestVerifyDigestAceptaLaFirmaDeSiempre(t *testing.T) {
+	a, _ := acct(t)
+	sealed := []byte("manifiesto sellado")
+	sig := a.Sign("id1", "id0", sealed)
+	dg := ManifestDigest(sealed)
+	if err := a.VerifyDigest("id1", "id0", dg, sig); err != nil {
+		t.Fatalf("la firma de siempre no verifica contra su digest: %v", err)
+	}
+	// Cambiar el padre es reordenar la cadena: la firma deja de valer.
+	if err := a.VerifyDigest("id1", "otro", dg, sig); !errors.Is(err, ErrSignature) {
+		t.Fatalf("un padre distinto tenía que fallar, dio %v", err)
+	}
+	// Y cambiar el digest es reescribir el eslabón.
+	if err := a.VerifyDigest("id1", "id0", ManifestDigest([]byte("otro")), sig); !errors.Is(err, ErrSignature) {
+		t.Fatalf("un digest distinto tenía que fallar, dio %v", err)
+	}
+}

@@ -3,6 +3,8 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -782,5 +784,36 @@ func TestSinPortalLaRaizEs404(t *testing.T) {
 	e := newEnv(t)
 	if code := e.call("GET", "/", "", "", nil, nil); code != 404 {
 		t.Fatalf("la raíz sin portal = %d", code)
+	}
+}
+
+// La cadena se sirve entera y con el digest que el SERVIDOR calcula sobre el
+// manifiesto que guarda: si lo mandara el cliente, el dato con el que se le
+// comprueba vendría de él.
+func TestCadenaSeSirveConDigestPropio(t *testing.T) {
+	e := newEnv(t)
+	tok := e.iss.AccessToken()
+	dev := e.newDevice(tok, "mac")
+	uno := api.SnapshotIn{ID: id("ab"), Created: time.Now().Add(-time.Hour), Manifest: []byte("m1"), Sig: bytes.Repeat([]byte{1}, 64)}
+	dos := api.SnapshotIn{ID: id("cd"), Parent: uno.ID, Created: time.Now(), Manifest: []byte("m2"), Sig: bytes.Repeat([]byte{2}, 64)}
+	for _, in := range []api.SnapshotIn{uno, dos} {
+		if code := e.call("POST", "/v1/snapshots", tok, dev, in, nil); code != 201 {
+			t.Fatalf("commit %s = %d", in.ID, code)
+		}
+	}
+	var chain []api.ChainLink
+	if code := e.call("GET", "/v1/snapshots/chain", tok, dev, nil, &chain); code != 200 || len(chain) != 2 {
+		t.Fatalf("cadena = %d %+v", code, chain)
+	}
+	// Del más nuevo al más viejo, como el listado.
+	if chain[0].ID != dos.ID || chain[0].Parent != uno.ID || chain[1].Parent != "" {
+		t.Fatalf("orden o padres raros: %+v", chain)
+	}
+	sum := sha256.Sum256(uno.Manifest)
+	if chain[1].Digest != hex.EncodeToString(sum[:]) {
+		t.Fatalf("digest = %q, quiero el sha256 del manifiesto guardado", chain[1].Digest)
+	}
+	if !bytes.Equal(chain[0].Sig, dos.Sig) || chain[0].DeviceID != dev {
+		t.Fatalf("firma o dispositivo raros: %+v", chain[0])
 	}
 }

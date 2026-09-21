@@ -17,6 +17,7 @@ var catalogCloud = map[string]map[Lang]string{
   push [<snapshot>] [--json]          upload the local snapshots the cloud does not have
   pull [<id>|latest] [--device <n>]   download a snapshot into the local store
   list [--json]                       snapshots in the cloud, from every machine
+  verify [--json]                     check the whole signed history for tampering
   devices [--json]                    machines of the account
   revoke <device>                     revoke another machine
   agent [--once] [--interval <d>]     apply the revisions the portal publishes for this machine
@@ -35,6 +36,7 @@ CCP_CLOUD_PASSPHRASE and CCP_CLOUD_RECOVERY give the secrets without asking.`,
   push [<snapshot>] [--json]          sube los snapshots locales que la nube no tiene
   pull [<id>|latest] [--device <n>]   baja un snapshot al almacén local
   list [--json]                       snapshots en la nube, de todos los equipos
+  verify [--json]                     comprueba que nadie ha tocado la historia firmada
   devices [--json]                    equipos de la cuenta
   revoke <dispositivo>                revoca otro equipo
   agent [--once] [--interval <d>]     aplica las revisiones que el portal publica para este equipo
@@ -43,6 +45,42 @@ CCP_CLOUD_PASSPHRASE and CCP_CLOUD_RECOVERY give the secrets without asking.`,
 
 Todo se cifra en este equipo antes de salir: el servidor no puede leerlo.
 CCP_CLOUD_PASSPHRASE y CCP_CLOUD_RECOVERY dan los secretos sin preguntarlos.`,
+	},
+	"cli.cloud.verify_ok": {
+		En: "The history is intact: %d links, every signature from this account.",
+		Es: "La historia está intacta: %d eslabones, todas las firmas de esta cuenta.",
+	},
+	"cli.cloud.verify_bad": {
+		En: "The history does NOT add up: %d problem(s) in %d links.",
+		Es: "La historia NO cuadra: %d problema(s) en %d eslabones.",
+	},
+	"cli.cloud.verify_hint": {
+		En: "Nothing was deleted here: your snapshots are on this machine. Do not trust that server until you know why.",
+		Es: "Aquí no se ha borrado nada: tus snapshots están en esta máquina. No te fíes de ese servidor hasta saber por qué.",
+	},
+	"cli.cloud.fault.bad_signature": {
+		En: "this account did not sign it, or its id, parent or manifest was changed",
+		Es: "no la firmó esta cuenta, o le cambiaron el id, el padre o el manifiesto",
+	},
+	"cli.cloud.fault.broken_link": {
+		En: "its parent %s is not in the chain",
+		Es: "su padre %s no está en la cadena",
+	},
+	"cli.cloud.fault.dropped": {
+		En: "this machine uploaded it and the server no longer has it",
+		Es: "esta máquina lo subió y el servidor ya no lo tiene",
+	},
+	"cli.cloud.fault.cycle": {
+		En: "following its parents never reaches a beginning",
+		Es: "siguiendo a sus padres no se llega a ningún principio",
+	},
+	"cli.cloud.fault.out_of_order": {
+		En: "it says it is older than its parent %s",
+		Es: "dice ser anterior a su padre %s",
+	},
+	"cli.cloud.fault.duplicate_id": {
+		En: "the same id arrived twice",
+		Es: "el mismo id llegó dos veces",
 	},
 	"cli.cloud.unknown_sub": {En: "cloud: unknown subcommand '%s'", Es: "cloud: subcomando desconocido '%s'"},
 	"cli.cloud.unknown_opt": {En: "cloud: unknown option or extra argument '%s'", Es: "cloud: opción desconocida o argumento de más '%s'"},

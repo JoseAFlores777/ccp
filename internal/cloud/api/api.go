@@ -135,6 +135,29 @@ type Snapshot struct {
 	Sig      []byte `json:"sig"`
 }
 
+// MaxChainLinks es el tope de eslabones que devuelve GET /v1/snapshots/chain.
+// La cadena se pide entera —verificar media cadena no verifica nada— y un
+// eslabón son unos 200 bytes, así que 20 000 caben en unos pocos megabytes y
+// están muy por encima de cualquier historia real.
+const MaxChainLinks = 20_000
+
+// ChainLink es un eslabón de la historia (GET /v1/snapshots/chain): lo justo
+// para verificar la cadena entera de un tirón, sin bajar un solo manifiesto.
+//
+// Digest es el sha256 hexadecimal del manifiesto SELLADO, que es lo que entra
+// en la firma (`crypt.ManifestDigest`). Lo calcula el servidor sobre los bytes
+// que guarda, no lo manda el cliente: un digest de fiar no puede venir de quien
+// se quiere comprobar. Si alguna vez dejara de coincidir con el del firmante,
+// ninguna firma verificaría y el cliente lo diría de la cadena entera.
+type ChainLink struct {
+	ID       string    `json:"id"`
+	Parent   string    `json:"parent"`
+	DeviceID string    `json:"device_id"`
+	Created  time.Time `json:"created"`
+	Digest   string    `json:"digest"`
+	Sig      []byte    `json:"sig"`
+}
+
 // Error es el cuerpo de toda respuesta de error. Missing solo aparece cuando
 // faltan blobs, porque el cliente distingue por su presencia.
 type Error struct {

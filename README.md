@@ -780,6 +780,7 @@ ccp snapshot restore <id>                 # the id the pull just printed, NOT `l
 
 ccp cloud status      # server, account, machine, vault, how many are pending
 ccp cloud list        # snapshots in the cloud, from every machine
+ccp cloud verify      # the whole signed history: nobody removed, reordered or rewrote a link
 ccp cloud devices     # your machines; `ccp cloud revoke <id>` throws one out
 ccp cloud logout      # revoke this machine and delete its token and local vault
 ```
