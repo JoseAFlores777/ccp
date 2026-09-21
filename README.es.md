@@ -861,6 +861,19 @@ puede recuperar —tus snapshots locales siguen siendo la fuente primaria—.
   se desescribe con un mensaje.
 - **Los blobs no pasan por el API.** Van directos entre este equipo y el almacenamiento, con URLs
   prefirmadas. Lo que pase de 64 MiB se queda fuera y `push` dice qué fue.
+- **Un corte de red no tira la subida, y un servidor apretado tampoco.** Lo que se puede reintentar se
+  reintenta —un corte, el 429 del límite por usuario, un 5xx— y solo donde repetir no crea nada: GET, HEAD,
+  PUT y DELETE, y de los POST únicamente el prefirmado (que es una lectura) y el `commit` de un snapshot
+  (que contesta «ya estaba» si ya estaba). Un alta de dispositivo no se reintenta nunca: dejaría un equipo
+  fantasma en la cuenta. Cuando el servidor dice cuánto esperar (`Retry-After`) se le hace caso, pero con
+  techo: nadie para tu terminal media hora.
+- **Si la nube no responde, `ccp` sigue.** Todo lo local —perfiles, reglas, snapshots— funciona igual con el
+  backend caído; el snapshot se hace y se sube cuando vuelva. `ccp cloud agent` cuenta el corte **una vez**
+  y avisa cuando la nube vuelve a responder, en vez de escribir la misma línea cada cinco minutos.
+- **Y si el servidor contesta cualquier cosa, se nota.** Lo que baja se verifica contra la firma de tu clave
+  de cuenta y contra su propio hash, y lo que NO baja también: si al pedir las URLs de veinte blobs vuelven
+  diecinueve, es un error, no diecinueve blobs. Una versión del protocolo que no encaja dice **cuál de los
+  dos** hay que actualizar.
 - **Las rutas se traducen entre máquinas.** Un snapshot hecho bajo `/Users/ana` y restaurado donde el HOME es
   `/Users/jose` reescribe el HOME dentro de las reglas de carpeta, de los comandos de hooks y de MCP y de la
   ruta de cada proyecto —el restore lo dice: «Rutas de … reescritas a …»—. Las conversaciones son historia:

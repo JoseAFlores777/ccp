@@ -4,6 +4,35 @@
 
 ### Added
 
+- **Robustez de la nube (F4-3)**: lo que hace que un servidor apretado, caído o simplemente viejo no se
+  lleve por delante un push ni llene la pantalla de ruido. Nada de esto cambia la forma de ningún mensaje:
+  es cómo se reacciona a los que ya existían.
+  - **Una sola política de reintento para todo el cliente** (`internal/cloud/client/retry.go`). El camino
+    JSON no reintentaba NADA —un 503 del almacenamiento o un corte de red a mitad de un push tiraban la
+    subida entera—, mientras el de las URLs prefirmadas sí lo hacía desde F1. Ahora los dos comparten
+    `retry`, con el `Retry-After` del servidor respetado y **con techo**: una pista de un día pararía la
+    terminal sin que quien la mira pueda saber por qué.
+  - **Se reintenta solo donde repetir es seguro** (`idempotent`). GET, HEAD, PUT y DELETE por definición de
+    HTTP; de los POST, únicamente `blobs/presign` (una lectura disfrazada, porque la lista de ids no cabe en
+    una query) y `snapshots` (contesta 200 en vez de 201 cuando el snapshot ya estaba). Los demás crean una
+    fila por llamada: un alta de dispositivo repetida deja un equipo fantasma en la cuenta, y eso es peor
+    que el error que se estaba evitando.
+  - **El 429 del servidor dice cuánto esperar.** Sin `Retry-After` el cliente reintenta a ciegas y su
+    retroceso exponencial puede ser más corto que la ventana, con lo que cada reintento se come la ráfaga
+    siguiente antes de que exista. Y negar una petición **no gasta** el permiso que no se dio: la reserva
+    del limitador se cancela, o la ventana se empujaría en cada reintento y no se abriría nunca.
+  - **Una respuesta de `presign` a medias es un error, no media lista.** Un id que no vuelve no es «ese blob
+    no está» —eso es `exists: false`, que sí viaja—, es el servidor contestando otra cosa a lo que se le
+    preguntó; al bajar, ese elemento se quedaba fuera del almacén local sin salir siquiera en la lista de lo
+    que faltaba.
+  - **Las versiones incompatibles son dos situaciones, no una.** Cualquier desajuste decía «actualiza ccp»,
+    también cuando el ccp nuevo era el que iba por delante y el servidor el atrasado: eso manda a repetir lo
+    que ya se hizo y a mirar el mismo error otra vez.
+  - **El agente no repite el corte.** Con la nube caída, `ccp cloud agent` escribía la misma línea cada cinco
+    minutos hasta tapar todo lo demás. Ahora el error se cuenta una vez por corte y **la vuelta también se
+    dice**, porque si no el silencio de después es idéntico al de una máquina que nunca falló. El bucle
+    sigue preguntando: la nube no bloquea a `ccp`.
+
 - **Auditoría, revocación con consecuencias y rotación de las claves de acceso (F4-2)**: `ccp cloud audit`,
   `GET /v1/audit`, la pantalla `#/auditoria` del portal y `ccp cloud rotate`. Es lo único que el servidor
   puede contar de una configuración que **no puede leer**: quién hizo qué y cuándo.

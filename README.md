@@ -864,6 +864,20 @@ still the primary source.
   inside is not un-written by a message.
 - **Blobs never pass through the API.** They go straight between this machine and the storage, with
   pre-signed URLs. Anything over 64 MiB is left behind and `push` says which.
+- **A dropped connection does not throw the upload away, and neither does a busy server.** What can be
+  retried is retried — a network blip, the per-user 429, a 5xx — and only where repeating creates nothing:
+  GET, HEAD, PUT and DELETE, and of the POSTs only the pre-signing (which is a read) and a snapshot's commit
+  (which answers «already there» when it was). Registering a device is never retried: it would leave a ghost
+  machine in the account. When the server says how long to wait (`Retry-After`) it is obeyed, but with a
+  ceiling: nobody parks your terminal for half an hour.
+- **If the cloud does not answer, `ccp` carries on.** Everything local — profiles, rules, snapshots — works
+  with the backend down; the snapshot is taken anyway and goes up when it comes back. `ccp cloud agent`
+  reports the outage **once** and tells you when the cloud answers again, instead of writing the same line
+  every five minutes.
+- **And if the server answers something else, you find out.** What comes down is checked against your
+  account key's signature and against its own hash — and so is what does *not* come down: if you ask for
+  twenty blobs' URLs and nineteen come back, that is an error, not nineteen blobs. A protocol version that
+  does not match says **which of the two** needs updating.
 - **Paths are translated between machines.** A snapshot taken under `/Users/ana` and restored where HOME is
   `/Users/jose` rewrites the HOME inside folder rules, hook and MCP commands and each project's path — the
   restore announces it («Paths from … rewritten to …»). Conversations are history: their paths describe where
