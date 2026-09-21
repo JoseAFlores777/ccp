@@ -38,7 +38,7 @@ func TestURLCaducada(t *testing.T) {
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("PUT caducado = %d", resp.StatusCode)
 	}
-	if _, ok := m.Get(blobs.Key("u1", "b1")); ok {
+	if _, ok := m.Peek(blobs.Key("u1", "b1")); ok {
 		t.Fatal("una URL caducada escribió")
 	}
 }

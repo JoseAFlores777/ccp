@@ -1,8 +1,10 @@
 package blobs
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -88,6 +90,34 @@ func (b *S3) Head(ctx context.Context, key string) (int64, bool, error) {
 		return 0, false, err
 	}
 	return aws.ToInt64(out.ContentLength), true, nil
+}
+
+// Get baja key entera a memoria. Solo lo llama el camino del portal, cuyos
+// blobs son configuración de kilobytes; el resto del mundo sigue yendo por URL
+// prefirmada y no pasa por aquí.
+func (b *S3) Get(ctx context.Context, key string) ([]byte, bool, error) {
+	out, err := b.internal.GetObject(ctx, &s3.GetObjectInput{Bucket: &b.bucket, Key: &key})
+	if err != nil {
+		var nk *types.NoSuchKey
+		var re *awshttp.ResponseError
+		if errors.As(err, &nk) || (errors.As(err, &re) && re.HTTPStatusCode() == http.StatusNotFound) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	defer func() { _ = out.Body.Close() }()
+	data, err := io.ReadAll(out.Body)
+	if err != nil {
+		return nil, false, err
+	}
+	return data, true, nil
+}
+
+// Put sube data a key.
+func (b *S3) Put(ctx context.Context, key string, data []byte) error {
+	_, err := b.internal.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: &b.bucket, Key: &key, Body: bytes.NewReader(data), ContentLength: aws.Int64(int64(len(data)))})
+	return err
 }
 
 // Ping comprueba que el bucket está ahí (lo usa /readyz).

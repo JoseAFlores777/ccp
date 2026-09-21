@@ -492,6 +492,10 @@ func (b *blobsLentos) PresignGet(context.Context, string, time.Duration) (string
 	return "", nil
 }
 func (b *blobsLentos) Ping(context.Context) error { return nil }
+func (b *blobsLentos) Get(context.Context, string) ([]byte, bool, error) {
+	return nil, false, nil
+}
+func (b *blobsLentos) Put(context.Context, string, []byte) error { return nil }
 func (b *blobsLentos) Head(context.Context, string) (int64, bool, error) {
 	select { // avisar solo si alguien escucha; si no, no bloquear
 	case b.entrada <- struct{}{}:
@@ -681,7 +685,11 @@ func TestRevisionRechazaLoInválido(t *testing.T) {
 		}
 	}
 	// A un equipo que no existe, o que ya está fuera, no se le manda nada.
-	if code := e.call("POST", "/v1/revisions", tok, portal, mal(func(r *api.RevisionIn) { r.DeviceID = portal[:len(portal)-1] + "0" }), nil); code != 404 {
+	// El id va fijo y no derivado del suyo cambiándole el último dígito: una
+	// de cada dieciséis veces ese dígito ya era el mismo y el «desconocido»
+	// resultaba ser el propio portal, que sí existe.
+	const nadie = "00000000-0000-4000-8000-000000000000"
+	if code := e.call("POST", "/v1/revisions", tok, portal, mal(func(r *api.RevisionIn) { r.DeviceID = nadie }), nil); code != 404 {
 		t.Fatalf("dispositivo desconocido = %d; quiero 404", code)
 	}
 	if code := e.call("DELETE", "/v1/devices/"+mac, tok, portal, nil, nil); code != 204 {
