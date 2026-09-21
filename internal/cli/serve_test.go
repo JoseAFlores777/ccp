@@ -444,3 +444,29 @@ func TestServeAdopt(t *testing.T) {
 		t.Fatalf("adopt.apply = %s %+v; ~/.claude.json = %s", r["4"].Result, r["4"].Error, b)
 	}
 }
+
+// La línea de tiempo de la GUI enseña el tamaño de cada snapshot, así que el
+// resumen tiene que traerlo: sin él la pantalla tendría que cargar un
+// manifiesto entero por fila solo para sumar.
+func TestServeSnapshotListLlevaTamano(t *testing.T) {
+	serveEnv(t)
+	os.WriteFile(filepath.Join(os.Getenv("CCP_CLAUDE_SRC"), "settings.json"), []byte(`{"a":1}`), 0o644)
+
+	_, r := serveRun(t, req(1, "snapshot.create", map[string]any{"label": "con tamaño"}))
+	if r["1"].Error != nil {
+		t.Fatalf("snapshot.create: %+v", r["1"].Error)
+	}
+	var created snapSummary
+	mustResult(t, r["1"], &created)
+	if created.Bytes <= 0 {
+		t.Errorf("snapshot.create debe decir cuánto capturó: %+v", created)
+	}
+	_, r = serveRun(t, req(2, "snapshot.list", nil))
+	var list []snapSummary
+	if err := json.Unmarshal(r["2"].Result, &list); err != nil || len(list) != 1 {
+		t.Fatalf("snapshot.list = %s, %v", r["2"].Result, err)
+	}
+	if list[0].Bytes != created.Bytes {
+		t.Errorf("list y create deben contar igual: %d vs %d", list[0].Bytes, created.Bytes)
+	}
+}
