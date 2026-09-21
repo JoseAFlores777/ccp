@@ -79,7 +79,14 @@ func (c cloudCmd) audit(args []string) int {
 		return snapJSON(c.out, c.err, log)
 	}
 	if len(log) == 0 {
-		fmt.Fprintln(c.out, i18n.T(c.lang, "cli.cloud.audit_none"))
+		// Vacío por el filtro no es vacío: el registro puede estar lleno y no
+		// tener nada que encaje. Confundirlos en el único comando que audita
+		// lleva a concluir que la auditoría no está grabando.
+		key := "cli.cloud.audit_none"
+		if q.Device != "" || q.Action != "" || !q.Since.IsZero() {
+			key = "cli.cloud.audit_none_match"
+		}
+		fmt.Fprintln(c.out, i18n.T(c.lang, key))
 		return 0
 	}
 	tw := tabwriter.NewWriter(c.out, 0, 0, 2, ' ', 0)
