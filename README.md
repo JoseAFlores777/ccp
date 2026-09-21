@@ -962,6 +962,36 @@ and whatever you leave unchecked is rejected and reported back. Signing in and o
 from the app: it opens a Terminal, because the vault passphrase unwraps the account key and end-to-end
 encryption is worth exactly as much as the place that passphrase travels through.
 
+## Sync without a server — `ccp sync`
+
+The same history, in a folder you already sync. No account, no server, nothing to operate: pick an iCloud
+Drive / Dropbox / Syncthing folder or an S3 bucket, and `ccp` writes there the very same sealed store it
+would send to the cloud. Whoever operates that folder moves parcels they cannot open.
+
+```bash
+ccp sync remote add icloud "file:///Users/me/Library/Mobile Documents/com~apple~CloudDocs/ccp"
+ccp sync push                          # upload the snapshots that folder does not have
+# …on the other machine, same folder, same passphrase:
+ccp sync remote add icloud "file:///Users/me/Library/Mobile Documents/com~apple~CloudDocs/ccp"
+ccp sync pull                          # bring the latest one into the local store
+ccp sync apply latest --plan           # see what it would change here
+ccp sync apply latest --yes            # apply it (it takes a snapshot first)
+```
+
+- **Adding the destination is also opening it.** The first machine creates the vault and shows a **recovery
+  code once** — keep it off that machine; without the passphrase or the code, what is in the folder cannot be
+  read by anyone, not even by you. The second machine types the same passphrase and is in.
+  `CCP_SYNC_PASSPHRASE` and `CCP_SYNC_RECOVERY` give them without asking, for scripts.
+- **A bucket works the same**: `ccp sync remote add r2 s3://my-bucket/ccp`. The credentials come from
+  `CCP_SYNC_S3_ACCESS_KEY`/`CCP_SYNC_S3_SECRET_KEY` (or the AWS ones) and **never** from the URL, which is
+  stored, listed and printed. `?region=` and `?endpoint=` do go in it — they are the address.
+- **Applying is a restore**, with the same rules as `ccp snapshot restore`: without `--yes` you get the plan
+  and nothing is written, and `--only <path>` brings back just one part. `--plan` asks for the plan alone.
+- **`ccp sync remote rm <name>` only forgets it here.** Nothing is deleted in the folder or the bucket:
+  removing a remote must not be the accidental way to lose every machine's configuration.
+- With more than one destination, say which with `--remote <name>` — `ccp` will not guess and publish into the
+  wrong folder.
+
 ## Detect the machine — `ccp scan` and `ccp adopt`
 
 `ccp scan` lists everything Claude-related on this machine: your global `~/.claude`, each profile, the MCP
@@ -1215,6 +1245,7 @@ With commands: `ccp config show` · `ccp config set <clave> <valor>` · `ccp con
 | Backup / restore | `ccp backup export\|restore` |
 | Snapshots | `ccp snapshot create\|list\|diff\|restore\|export\|import` |
 | Cloud | `ccp cloud login\|init\|unlock\|push\|pull\|restore\|list\|verify\|devices\|agent\|review\|policy` |
+| Sync without a server (a folder or a bucket) | `ccp sync remote add\|list\|rm` · `ccp sync push\|pull\|apply` |
 | Add or remove an MCP server | `ccp mcp add\|rm <n>` · `ccp mcp list` |
 | Turn an inherited MCP off in one profile | `ccp mcp disable <n> --profile <perfil>` |
 | Update | `ccp upgrade` |

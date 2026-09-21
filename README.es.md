@@ -961,6 +961,36 @@ que no marcas se rechaza y se informa al portal. Iniciar sesión y abrir la bóv
 abre una Terminal, porque la frase de bóveda desenvuelve la clave de cuenta y el cifrado de extremo a extremo
 vale exactamente lo que valga el sitio por el que pasa esa frase.
 
+## Sincronizar sin servidor — `ccp sync`
+
+El mismo historial, en una carpeta que ya sincronizas. Sin cuenta, sin servidor y sin nada que operar: eliges
+una carpeta de iCloud Drive / Dropbox / Syncthing o un bucket S3, y `ccp` escribe ahí exactamente el mismo
+almacén sellado que mandaría a la nube. Quien opera esa carpeta mueve bultos que no sabe abrir.
+
+```bash
+ccp sync remote add icloud "file:///Users/yo/Library/Mobile Documents/com~apple~CloudDocs/ccp"
+ccp sync push                          # sube los snapshots que esa carpeta no tiene
+# …en la otra máquina, misma carpeta y misma frase:
+ccp sync remote add icloud "file:///Users/yo/Library/Mobile Documents/com~apple~CloudDocs/ccp"
+ccp sync pull                          # trae el último al almacén local
+ccp sync apply latest --plan           # mira qué cambiaría aquí
+ccp sync apply latest --yes            # aplícalo (antes se hace un snapshot)
+```
+
+- **Añadir el destino es también abrirlo.** La primera máquina crea la bóveda y enseña un **código de
+  recuperación una sola vez** — guárdalo fuera de esa máquina: sin la frase ni el código, lo que hay en la
+  carpeta no lo puede leer nadie, tú tampoco. La segunda máquina escribe la misma frase y ya está.
+  `CCP_SYNC_PASSPHRASE` y `CCP_SYNC_RECOVERY` los dan sin preguntar, para scripts.
+- **Un bucket funciona igual**: `ccp sync remote add r2 s3://mi-bucket/ccp`. Las credenciales salen de
+  `CCP_SYNC_S3_ACCESS_KEY`/`CCP_SYNC_S3_SECRET_KEY` (o de las de AWS) y **nunca** de la URL, que se guarda, se
+  lista y se imprime. `?region=` y `?endpoint=` sí van en ella: son la dirección.
+- **Aplicar es restaurar**, con las reglas de `ccp snapshot restore`: sin `--yes` solo sale el plan y no se
+  escribe nada, y `--only <ruta>` trae una parte. `--plan` pide únicamente el plan.
+- **`ccp sync remote rm <nombre>` solo lo olvida aquí.** En la carpeta o el bucket no se borra nada: quitar un
+  remoto no puede ser la forma accidental de perder la configuración de todas las máquinas.
+- Con más de un destino, di cuál con `--remote <nombre>`: `ccp` no adivina para no publicar en la carpeta
+  equivocada.
+
 ## Detectar la máquina — `ccp scan` y `ccp adopt`
 
 `ccp scan` lista todo lo de Claude que hay en esta máquina: tu `~/.claude` global, cada perfil, los MCP de cada
@@ -1214,6 +1244,7 @@ Con comandos: `ccp config show` · `ccp config set <clave> <valor>` · `ccp conf
 | Backup / restore | `ccp backup export\|restore` |
 | Snapshots | `ccp snapshot create\|list\|diff\|restore\|export\|import` |
 | Nube | `ccp cloud login\|init\|unlock\|push\|pull\|restore\|list\|verify\|devices\|agent\|review\|policy` |
+| Sincronizar sin servidor (una carpeta o un bucket) | `ccp sync remote add\|list\|rm` · `ccp sync push\|pull\|apply` |
 | Dar de alta o de baja un servidor MCP | `ccp mcp add\|rm <n>` · `ccp mcp list` |
 | Apagar un MCP heredado en un perfil | `ccp mcp disable <n> --profile <perfil>` |
 | Actualizar | `ccp upgrade` |
