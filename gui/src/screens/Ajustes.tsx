@@ -5,7 +5,7 @@ import { useState, type ReactNode } from 'react';
 import { api, type CliRun, type ConfigInfo, type RestoreReport } from '../lib/api';
 import { backupName, EFFORTS, must } from '../lib/actions';
 import { pickOpenFile, pickSaveFile, revealPath } from '../lib/bridge';
-import { tilde } from '../lib/format';
+import { shellPath, tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall, type ModalSpec } from '../lib/store';
 import { Card, Checkbox, CliBar, CommandOutput, KV, Label, Note, Segmented } from '../components/ui';
@@ -277,7 +277,7 @@ export function Copias() {
               ],
       canConfirm: (f) => f.mode !== 'force' || (f.confirm ?? '').trim() === t('reemplazar'),
       confirmLabel: t('Restaurar'),
-      cli: (f) => `ccp backup restore ${tilde(archive)}${f.mode === 'overwrite' ? ' --overwrite' : f.mode === 'force' ? ' --force' : ''}`,
+      cli: (f) => `ccp backup restore ${shellPath(archive)}${f.mode === 'overwrite' ? ' --overwrite' : f.mode === 'force' ? ' --force' : ''}`,
       onConfirm: async (f) => {
         const r = await api.backupRestore(archive, f.mode as 'merge' | 'overwrite' | 'force');
         setReport(r);
