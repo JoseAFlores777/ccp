@@ -35,11 +35,15 @@ function detailOf(r: DesktopRow): string {
   return parts.join(' · ');
 }
 
-export function Desktop() {
+/** Con `profile` es la pestaña Desktop de una cuenta: su fila y lo que el
+ *  doctor dijo de ella, nada más. */
+export function Desktop({ profile }: { profile?: string } = {}) {
   const app = useApp();
   const { openModal, mutate, colorOf } = app;
-  const rows = useCall(() => api.desktop(), [], 20_000);
-  const doctor = useCall(() => api.desktopDoctor(), []);
+  const allRows = useCall(() => api.desktop(), [], 20_000);
+  const allDoctor = useCall(() => api.desktopDoctor(), []);
+  const rows = { ...allRows, data: allRows.data?.filter((r) => !profile || r.profile === profile) };
+  const doctor = { ...allDoctor, data: allDoctor.data?.filter((f) => !profile || f.profile === profile) };
 
   const open = (r: DesktopRow) =>
     mutate(async () => must(await api.desktopRun({ action: 'open', profile: r.profile })), {
@@ -168,12 +172,14 @@ export function Desktop() {
             {t('Cada ventana de perfil corre desde su lanzador y con el actualizador apagado. Si una se reinicia por dentro puede perder su identidad: el doctor lo detecta y lo dice aquí.')}
           </Note>
         )}
-        <Note>
-          <span style={{ display: 'block', color: 'var(--ink)', fontSize: 12.5, marginBottom: 7 }}>{t('Los proveedores no salen aquí')}</span>
-          {t('DeepSeek, Kimi y GLM no aparecen porque Claude Desktop solo habla con Anthropic. Solo default y las cuentas official pueden tener ventana.')}
-        </Note>
+        {!profile && (
+          <Note>
+            <span style={{ display: 'block', color: 'var(--ink)', fontSize: 12.5, marginBottom: 7 }}>{t('Los proveedores no salen aquí')}</span>
+            {t('DeepSeek, Kimi y GLM no aparecen porque Claude Desktop solo habla con Anthropic. Solo default y las cuentas official pueden tener ventana.')}
+          </Note>
+        )}
       </div>
-      <CliBar cmd="ccp desktop list --json && ccp desktop doctor" />
+      <CliBar cmd={profile ? `ccp desktop doctor ${profile}` : 'ccp desktop list --json && ccp desktop doctor'} />
     </div>
   );
 }

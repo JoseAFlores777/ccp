@@ -173,6 +173,13 @@ button { font-family: inherit; }
 }
 .segmented button.on { background: var(--surface); color: var(--ink); }
 
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: -8px 0 20px; flex-wrap: wrap; }
+.tabs button {
+  background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 8px 12px 9px;
+  font: inherit; font-size: 13px; color: var(--ink-3); cursor: pointer; letter-spacing: -.005em;
+}
+.tabs button:hover { color: var(--ink); }
+.tabs button.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
 .table-head {
   display: grid; gap: 12px; padding: 10px 18px; background: var(--surface-2);
   border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 9.5px;

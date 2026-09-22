@@ -134,6 +134,7 @@ func serveRegistry() map[string]serveMethod {
 		"cloud.reviewResolve": w(srvCloudReviewResolve),
 		"cloud.setPolicy":     w(srvCloudSetPolicy),
 		"cloud.revoke":        w(srvCloudRevoke),
+		"cloud.sync":          w(srvCloudSync),
 
 		"system.run": w(srvSystemRun),
 	}

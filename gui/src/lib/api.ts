@@ -860,6 +860,9 @@ export const api = {
   cloudReviewResolve: (approve: string[]) => ccpCall<CloudOutcome>('cloud.reviewResolve', { approve }),
   cloudSetPolicy: (policy: DevicePolicy) => ccpCall<{ policy: DevicePolicy }>('cloud.setPolicy', { policy }),
   cloudRevoke: (device: string) => ccpCall<{ device: string }>('cloud.revoke', { device }),
+  /** Captura la configuración si cambió y sube a la nube lo que falte. */
+  cloudSync: () =>
+    ccpCall<{ captured: boolean; push: { snapshots: number; uploaded: number; bytes: number; missing: string[]; too_large: string[] } }>('cloud.sync'),
   cloudSnapshots: (device = '') => ccpCall<CloudSnapshot[]>('cloud.snapshots', { device }),
   cloudRestorePlan: (snapshot: string, o: CloudRestoreOpts = {}) =>
     ccpCall<CloudRestore>('cloud.restorePlan', { snapshot, only: o.only ?? [], projects: o.projects ?? {} }),

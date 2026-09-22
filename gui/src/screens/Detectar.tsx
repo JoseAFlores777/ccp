@@ -68,7 +68,7 @@ export function Detectar() {
         {inv.error && <ErrorNote error={inv.error} onRetry={inv.reload} />}
         {!inv.data && !inv.error && <Loading rows={6} />}
         {unknown.map((p) => (
-          <Note key={p.source} kind="unk">{t('No se pudo leer {f}: cuenta como desconocido, no como vacío.', { f: tilde(p.source, home) })}</Note>
+          <Note key={p.source} kind="unk" style={{ marginBottom: 10 }}>{t('No se pudo leer {f}: cuenta como desconocido, no como vacío.', { f: tilde(p.source, home) })}</Note>
         ))}
         {groups.map(([scope, items]) => (
           <div key={scope} style={{ marginTop: 12 }}>

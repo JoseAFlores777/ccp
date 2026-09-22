@@ -7,11 +7,12 @@ import { TerminalSheet, ToastView } from './components/Overlays';
 import { Header, Shell } from './components/Shell';
 import { bridgeInfo } from './lib/bridge';
 import { t } from './lib/i18n';
+import { useEffect } from 'react';
 import { useApp, type Screen } from './lib/store';
+import { resumeAfterUpgrade } from './lib/upgrade';
 import { Detectar } from './screens/Detectar';
 import { Ajustes, Copias } from './screens/Ajustes';
 import { Carpetas } from './screens/Carpetas';
-import { Config } from './screens/Config';
 import { Configuracion } from './screens/Configuracion';
 import { Conversaciones } from './screens/Conversaciones';
 import { Desktop } from './screens/Desktop';
@@ -23,7 +24,6 @@ import { Mover } from './screens/Mover';
 import { Nube } from './screens/Nube';
 import { Perfil } from './screens/Perfil';
 import { Perfiles } from './screens/Perfiles';
-import { Prestamos } from './screens/Prestamos';
 import { Rotacion } from './screens/Rotacion';
 import { Sesiones } from './screens/Sesiones';
 import { Snapshots } from './screens/Snapshots';
@@ -34,12 +34,13 @@ const SCREENS: Record<Screen, () => React.JSX.Element | null> = {
   mapa: Mapa,
   perfiles: Perfiles,
   perfil: Perfil,
-  config: Config,
   configuracion: Configuracion,
   carpetas: Carpetas,
   conv: Conversaciones,
   mover: Mover,
-  prestamos: Prestamos,
+  // Los préstamos son una vista de Conversaciones: la ruta se conserva para
+  // que los enlaces a «Préstamos» sigan llegando.
+  prestamos: () => <Conversaciones view="loans" />,
   rotacion: Rotacion,
   uso: Uso,
   sesiones: Sesiones,
@@ -74,7 +75,15 @@ function EngineDown({ error }: { error: string }) {
 }
 
 export function App() {
-  const { screen, infoError, info } = useApp();
+  const app = useApp();
+  const { screen, infoError, info } = app;
+  // Tras «Actualizar ccp» la app se reinicia sola; aquí, ya con el motor nuevo
+  // respondiendo, se reinician las ventanas de Desktop que quedaron apuntadas.
+  const ready = !!info;
+  useEffect(() => {
+    if (ready) void resumeAfterUpgrade(app);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
   if (infoError && !info) return <EngineDown error={infoError} />;
   const View = SCREENS[screen] ?? Inicio;
   return (

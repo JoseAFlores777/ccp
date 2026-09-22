@@ -76,6 +76,16 @@ export function openTerminal(cwd: string | null, cmds: string[][]) {
   return native('open_terminal', { cwd, cmds });
 }
 
+/** Cierra la app y la vuelve a abrir (tras actualizar ccp). En el navegador de
+ *  desarrollo no hay app que reiniciar: se recarga la página. */
+export async function restartApp(): Promise<void> {
+  if (isTauri) {
+    await invoke('restart_app');
+    return;
+  }
+  window.location.reload();
+}
+
 /** Enseña un archivo o carpeta en Finder. */
 export function revealPath(path: string) {
   return native('reveal_path', { path });

@@ -13,9 +13,15 @@ import { setUserHome } from './format';
 import { setLang as setI18nLang, t, type Lang } from './i18n';
 
 export type Screen =
-  | 'inicio' | 'mapa' | 'perfiles' | 'perfil' | 'config' | 'configuracion' | 'carpetas'
+  | 'inicio' | 'mapa' | 'perfiles' | 'perfil' | 'configuracion' | 'carpetas'
   | 'conv' | 'mover' | 'prestamos' | 'rotacion' | 'uso' | 'sesiones'
   | 'desktop' | 'diag' | 'memoria' | 'ajustes' | 'copias' | 'snapshots' | 'nube' | 'bienvenida';
+
+/** Las pestañas del espacio de una cuenta. La cuenta es la puerta: lo que se
+ *  mira dentro de una pestaña es SIEMPRE de esa cuenta, sin otro selector. */
+export type ProfileTab = 'resumen' | 'carpetas' | 'conv' | 'rotacion' | 'config' | 'desktop' | 'memoria';
+
+const PROFILE_TABS: ProfileTab[] = ['resumen', 'carpetas', 'conv', 'rotacion', 'config', 'desktop', 'memoria'];
 
 export interface Toast {
   id: number;
@@ -82,6 +88,10 @@ export interface Ctx {
   go: (s: Screen) => void;
   selected: string;
   select: (name: string, s?: Screen) => void;
+  tab: ProfileTab;
+  setTab: (t: ProfileTab) => void;
+  /** Abre el espacio de una cuenta, en la pestaña pedida (o en la que estaba). */
+  openProfile: (name: string, tab?: ProfileTab) => void;
   folder: string;
   setFolder: (p: string) => void;
   folders: Folder[];
@@ -155,8 +165,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (saved === 'light' || saved === 'dark') return saved;
     return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
-  const [screen, setScreen] = useState<Screen>(() => (readPref('screen') as Screen) || 'inicio');
+  const [screen, setScreen] = useState<Screen>(() => {
+    // «config» era la vista efectiva suelta; ahora es una pestaña de la cuenta.
+    const v = readPref('screen');
+    if (v === 'config') return 'perfil';
+    return (v as Screen) || 'inicio';
+  });
   const [selected, setSelected] = useState<string>(() => readPref('selected') || 'default');
+  const [tab, setTabState] = useState<ProfileTab>(() => {
+    const v = readPref('tab') as ProfileTab | null;
+    return v && PROFILE_TABS.includes(v) ? v : 'resumen';
+  });
   const [folder, setFolderState] = useState<string>(() => readPref('folder') || '');
   const [folders, setFolders] = useState<Folder[]>([]);
   const [version, setVersion] = useState(0);
@@ -259,6 +278,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
           writePref('screen', s);
         }
       },
+      tab,
+      setTab: (x: ProfileTab) => {
+        setTabState(x);
+        writePref('tab', x);
+        setCli('');
+      },
+      openProfile: (name: string, x?: ProfileTab) => {
+        setSelected(name);
+        writePref('selected', name);
+        if (x) {
+          setTabState(x);
+          writePref('tab', x);
+        }
+        setScreen('perfil');
+        writePref('screen', 'perfil');
+        setCli('');
+      },
       folder,
       setFolder: (p: string) => {
         setFolderState(p);
@@ -281,7 +317,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       },
       cli, setCli,
     };
-  }, [info, infoError, bridge, lang, theme, screen, selected, folder, folders, version, profiles, toast, modal, sheet, moveDraft, cli, notify, refresh, mutate]);
+  }, [info, infoError, bridge, lang, theme, screen, selected, tab, folder, folders, version, profiles, toast, modal, sheet, moveDraft, cli, notify, refresh, mutate]);
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
 }

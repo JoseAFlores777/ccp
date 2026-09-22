@@ -180,17 +180,22 @@ function removeModal(scope: Scope, it: MemoryItem, ctx: { profile?: string; cwd?
   };
 }
 
-export function Memoria() {
+/** Con `profile` es la pestaña Memoria de una cuenta: alcance de perfil fijo,
+ *  sin selector. Lo global y lo de proyecto siguen en General → Memoria. */
+export function Memoria({ profile: fixed }: { profile?: string } = {}) {
   const app = useApp();
   const { profiles, selected, folder, openModal } = app;
-  const [scope, setScope] = useState<Scope>('global');
+  const [pickedScope, setScope] = useState<Scope>('global');
+  const scope: Scope = fixed ? 'profile' : pickedScope;
   const official = profiles.filter((p) => p.name !== 'default');
-  const [profile, setProfile] = useState<string>(selected !== 'default' ? selected : official[0]?.name ?? '');
+  const [picked, setProfile] = useState<string>(selected !== 'default' ? selected : official[0]?.name ?? '');
+  const profile = fixed ?? picked;
   const ctx = { profile: scope === 'profile' ? profile : undefined, cwd: scope === 'project' ? folder : undefined };
   const res = useCall(() => api.memory({ scope, ...ctx }), [scope, profile, folder]);
 
   return (
     <div>
+      {!fixed && (
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
         <Segmented<Scope>
           value={scope}
@@ -211,6 +216,7 @@ export function Memoria() {
         )}
         {scope === 'project' && res.data?.repo && <span className="mono ellipsis" style={{ fontSize: 11, color: 'var(--ink-4)', maxWidth: 360 }}>{tilde(res.data.repo)}</span>}
       </div>
+      )}
 
       {res.error && <ErrorNote error={res.error} onRetry={res.reload} />}
       {!res.data && !res.error && <Loading rows={4} />}
@@ -252,7 +258,7 @@ export function Memoria() {
       <Note style={{ marginTop: 14 }}>
         {t('Aquí solo se ve lo que ccp creó. Lo que hayas escrito a mano en esos archivos no aparece y no se toca nunca. Lo mismo se puede pedir en lenguaje natural con /ccp:remember-global.')}
       </Note>
-      <CliBar cmd={`ccp instruct list ${scope}`} />
+      <CliBar cmd={fixed ? `CCP_PROFILE=${fixed} ccp instruct list profile` : `ccp instruct list ${scope}`} />
     </div>
   );
 }

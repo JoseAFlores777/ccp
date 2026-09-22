@@ -15,6 +15,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"path/filepath"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/JoseAFlores777/ccp/internal/cloud/api"
 	"github.com/JoseAFlores777/ccp/internal/cloud/client"
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/snapshot"
 )
 
 func (s *server) cloudFiles() client.Files { return client.NewFiles(s.home) }
@@ -277,4 +279,40 @@ func srvCloudRestoreRun(s *server, raw json.RawMessage, dry bool) (any, error) {
 	}
 	return agent.Restore(ctx, o, p.Snapshot, agent.RestoreOpts{
 		Only: p.Only, Projects: p.Projects, DryRun: dry})
+}
+
+// srvCloudSync es el botón «Sincronizar» de la app: captura un snapshot de la
+// configuración si cambió algo desde el último y sube a la nube todo lo que
+// falte. Son `ccp snapshot create` + `ccp cloud push` en un solo paso, porque
+// quien pulsa quiere que lo que tiene ahora quede arriba, y `push` a secas
+// solo sube snapshots que ya existen: sin capturar antes, un cambio de hace un
+// minuto no viajaría y la pantalla diría «todo subido».
+//
+// No pide secretos: usa la clave de cuenta ya desbloqueada en este equipo. Sin
+// sesión o con la bóveda cerrada falla con el error del cliente, y la GUI ofrece
+// la terminal para arreglarlo, como con el resto de la pantalla.
+func srvCloudSync(s *server, _ json.RawMessage) (any, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	c := cloudCmd{ctx: ctx, home: s.home, lang: currentLang(), files: s.cloudFiles(), out: io.Discard, err: io.Discard}
+	cl, acct, st, err := c.ready()
+	if err != nil {
+		return nil, err
+	}
+	src, err := core.ClaudeSrc()
+	if err != nil {
+		return nil, err
+	}
+	m, err := core.SnapshotCapture(s.home, src, st, core.SnapshotCaptureOpts{
+		Trigger: "manual", Now: time.Now(), Machine: snapMachine(),
+	})
+	unchanged := errors.Is(err, snapshot.ErrNoChanges)
+	if err != nil && !unchanged {
+		return nil, err
+	}
+	rep, err := client.Push(ctx, cl, acct, st, s.cloudFiles(), "")
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"captured": !unchanged, "snapshot": snapSummaryOf(m, unchanged), "push": rep}, nil
 }

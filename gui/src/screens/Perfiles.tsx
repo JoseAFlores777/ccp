@@ -23,7 +23,7 @@ const COLS = '1.3fr 1fr 1fr .6fr .8fr .7fr 104px';
 
 export function Perfiles() {
   const app = useApp();
-  const { profiles, select, openModal, colorOf, mutate } = app;
+  const { profiles, openProfile, openModal, colorOf, mutate } = app;
 
   return (
     <div>
@@ -45,7 +45,7 @@ export function Perfiles() {
           return (
             <Row key={p.name} cols={COLS}>
               <button
-                onClick={() => select(p.name, 'perfil')}
+                onClick={() => openProfile(p.name, 'resumen')}
                 style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}
               >
                 <Swatch color={colorOf(p.name)} />

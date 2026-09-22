@@ -6,8 +6,8 @@ import { api, type Finding, type Handoffs } from '../lib/api';
 import { isTauri, pickFolder } from '../lib/bridge';
 import { tilde } from '../lib/format';
 import { t } from '../lib/i18n';
-import { useApp, useCall, type Screen } from '../lib/store';
-import { isProvider } from '../lib/actions';
+import { useApp, useCall, type ProfileTab, type Screen } from '../lib/store';
+import { isProvider, syncCloud } from '../lib/actions';
 import { Swatch } from './ui';
 
 export interface NavItem {
@@ -15,43 +15,61 @@ export interface NavItem {
   id: Screen;
 }
 
+/** Las pantallas fijas de la barra lateral. Las cuentas no están aquí: salen
+ *  una por perfil entre «Cuentas» y «General» (ver Sidebar), porque la cuenta
+ *  es la puerta de entrada y lo que se hace con ella vive en sus pestañas. En
+ *  «General» queda solo lo que por naturaleza cruza cuentas o es de la máquina. */
 export function navGroups(): [string, NavItem[]][] {
   return [
-    [t('Inicio'), [
+    ['', [
       { label: t('Inicio'), id: 'inicio' },
-      { label: t('Mapa de cuentas'), id: 'mapa' },
     ]],
     [t('Cuentas'), [
-      { label: t('Perfiles'), id: 'perfiles' },
-      { label: t('Detalle'), id: 'perfil' },
-      { label: t('Configuración'), id: 'configuracion' },
-      { label: t('Carpetas'), id: 'carpetas' },
+      { label: t('Todas las cuentas'), id: 'perfiles' },
     ]],
-    [t('Conversaciones'), [
+    [t('General'), [
+      { label: t('Mapa de cuentas'), id: 'mapa' },
       { label: t('Conversaciones'), id: 'conv' },
-      { label: t('Mover una'), id: 'mover' },
-      { label: t('Préstamos'), id: 'prestamos' },
-    ]],
-    [t('Rotación'), [
-      { label: t('Automática'), id: 'rotacion' },
+      { label: t('Carpetas'), id: 'carpetas' },
+      { label: t('Configuración'), id: 'configuracion' },
+      { label: t('Rotación'), id: 'rotacion' },
       { label: t('Uso por cuenta'), id: 'uso' },
       { label: t('Supervisadas'), id: 'sesiones' },
-    ]],
-    [t('Sistema'), [
       { label: t('Desktop'), id: 'desktop' },
+      { label: t('Memoria'), id: 'memoria' },
       { label: t('Nube'), id: 'nube' },
       { label: t('Diagnóstico'), id: 'diag' },
-      { label: t('Memoria'), id: 'memoria' },
       { label: t('Ajustes'), id: 'ajustes' },
     ]],
   ];
+}
+
+/** Qué entrada de la barra lateral se enciende para cada pantalla: las que no
+ *  tienen entrada propia (un flujo, una sub-vista) encienden la de su padre. */
+function navOwner(s: Screen): Screen {
+  if (s === 'mover' || s === 'prestamos') return 'conv';
+  if (s === 'copias' || s === 'snapshots' || s === 'bienvenida') return 'ajustes';
+  return s;
+}
+
+export function profileTabs(p: { name: string; desktop: { eligible: boolean } } | undefined): [ProfileTab, string][] {
+  const out: [ProfileTab, string][] = [
+    ['resumen', t('Resumen')],
+    ['carpetas', t('Carpetas')],
+    ['conv', t('Conversaciones')],
+    ['rotacion', t('Rotación')],
+    ['config', t('Configuración')],
+  ];
+  if (p?.desktop.eligible) out.push(['desktop', t('Desktop')]);
+  out.push(['memoria', t('Memoria')]);
+  return out;
 }
 
 export function screenHead(s: Screen, selected: string, selectedType: string): [string, string] {
   switch (s) {
     case 'inicio': return [t('Inicio'), t('Qué cuenta usa cada cosa ahora mismo, cuánto uso le queda a cada una y qué necesita atención.')];
     case 'mapa': return [t('Mapa de cuentas'), t('Las cuentas son nodos y los respaldos flechas que se conectan arrastrando. Nada se escribe hasta aplicar.')];
-    case 'perfiles': return [t('Perfiles'), t('Todas las cuentas y su estado. default aparece siempre primero y no se renombra ni se borra.')];
+    case 'perfiles': return [t('Todas las cuentas'), t('Todas las cuentas y su estado. default aparece siempre primero y no se renombra ni se borra.')];
     case 'perfil':
       return [selected, isProvider(selectedType)
         ? t('Todo lo de este proveedor en un sitio: key, endpoint y modelos, carpetas, rotación y la zona de riesgo.')
@@ -59,12 +77,11 @@ export function screenHead(s: Screen, selected: string, selectedType: string): [
           ? t('Tu Claude de siempre: la sesión de ~/.claude. No se renombra ni se borra, y es lo que usa toda carpeta sin regla.')
           : t('Todo lo de una cuenta en un sitio: acceso, carpetas, ventana, rotación y la zona de riesgo.')];
     case 'configuracion': return [t('Configuración'), t('Todo lo que lee Claude, capa a capa: qué hay declarado en cada una, dónde aplica y qué recibe de verdad cada cuenta.')];
-    case 'config': return [t('Configuración del perfil'), t('Qué recibe de verdad Claude Code con esta cuenta, y de dónde sale cada valor.')];
     case 'carpetas': return [t('Carpetas'), t('Una carpeta usa la cuenta de su regla más cercana hacia arriba. Si no hay ninguna, default.')];
     case 'conv': return [t('Conversaciones'), t('Todas las sesiones, de terminal y de Desktop, en un solo sitio. Se busca por título, no por uuid.')];
     case 'mover': return [t('Mover una conversación'), t('Elegir qué, a quién y cómo, sabiendo antes exactamente qué va a pasar.')];
-    case 'prestamos': return [t('Préstamos'), t('Qué conversaciones están prestadas, cómo devolverlas y qué marcadores quedaron colgados.')];
-    case 'rotacion': return [t('Rotación automática'), t('Qué cuentas respaldan a la principal de esta carpeta, en qué orden y con qué umbrales.')];
+    case 'prestamos': return [t('Conversaciones'), t('Qué conversaciones están prestadas, cómo devolverlas y qué marcadores quedaron colgados.')];
+    case 'rotacion': return [t('Rotación automática'), t('El interruptor, la política y las cadenas de todas las cuentas. La de una cuenta también se edita desde su pestaña Rotación.')];
     case 'uso': return [t('Uso por cuenta'), t('Cuánto le queda a cada cuenta y cuándo se reinicia, antes de que un límite corte el trabajo.')];
     case 'sesiones': return [t('Sesiones supervisadas'), t('Empezar a trabajar con rotación y ver después qué hizo, salto por salto.')];
     case 'desktop': return [t('Ventanas de Desktop'), t('Una fila por cuenta que puede tener ventana. La identidad se comprueba, nunca se da por hecha.')];
@@ -225,8 +242,23 @@ function TopBar({ onSearch }: { onSearch: () => void }) {
   );
 }
 
+function NavButton({ on, onClick, children, badge }: { on: boolean; onClick: () => void; children: ReactNode; badge?: string }) {
+  return (
+    <button className={`nav-item ${on ? 'on' : ''}`} onClick={onClick} aria-current={on ? 'page' : undefined}>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: on ? 'var(--accent)' : 'var(--ink-2)', fontWeight: on ? 500 : 400, flex: 1, minWidth: 0, letterSpacing: '-.005em' }}>
+        {children}
+      </span>
+      {badge && (
+        <span className="mono" style={{ fontSize: 9.5, color: 'var(--err)', background: 'var(--err-soft)', borderRadius: 20, padding: '1px 6px' }}>
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
 function Sidebar() {
-  const { screen, go, version } = useApp();
+  const { screen, go, version, profiles, selected, openProfile, colorOf } = useApp();
   const [badges, setBadges] = useState<Partial<Record<Screen, string>>>({});
 
   useEffect(() => {
@@ -240,8 +272,10 @@ function Sidebar() {
           if (n) b.diag = String(n);
         }
         if (h.status === 'fulfilled') {
+          // Los préstamos viven ahora dentro de Conversaciones: el aviso de
+          // marcadores colgados se pinta en su entrada.
           const z = (h.value as Handoffs).active.filter((a) => !a.present).length;
-          if (z) b.prestamos = String(z);
+          if (z) b.conv = String(z);
         }
         setBadges(b);
       });
@@ -254,6 +288,14 @@ function Sidebar() {
     };
   }, [version]);
 
+  const owner = navOwner(screen);
+  const renderItems = (items: NavItem[]) =>
+    items.map((it) => (
+      <NavButton key={it.id} on={owner === it.id} onClick={() => go(it.id)} badge={badges[it.id]}>
+        <span className="ellipsis">{it.label}</span>
+      </NavButton>
+    ));
+
   return (
     <nav
       style={{
@@ -262,25 +304,33 @@ function Sidebar() {
       }}
     >
       {navGroups().map(([label, items]) => (
-        <div key={label} style={{ padding: '0 12px', marginBottom: 14 }}>
-          <div className="label" style={{ padding: '6px 10px' }}>
-            {label}
-          </div>
-          {items.map((it) => {
-            const on = screen === it.id || (it.id === 'ajustes' && (screen === 'copias' || screen === 'snapshots'));
-            return (
-              <button key={it.id} className={`nav-item ${on ? 'on' : ''}`} onClick={() => go(it.id)} aria-current={on ? 'page' : undefined}>
-                <span style={{ fontSize: 13, color: on ? 'var(--accent)' : 'var(--ink-2)', fontWeight: on ? 500 : 400, flex: 1, letterSpacing: '-.005em' }}>
-                  {it.label}
-                </span>
-                {badges[it.id] && (
-                  <span className="mono" style={{ fontSize: 9.5, color: 'var(--err)', background: 'var(--err-soft)', borderRadius: 20, padding: '1px 6px' }}>
-                    {badges[it.id]}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        <div key={label || '_'} style={{ padding: '0 12px', marginBottom: 14 }}>
+          {label && (
+            <div className="label" style={{ padding: '6px 10px' }}>
+              {label}
+            </div>
+          )}
+          {/* Las cuentas van primero en su grupo: son la puerta. «Todas las
+              cuentas» queda debajo, para crear una o compararlas. */}
+          {label === t('Cuentas') &&
+            profiles.map((p) => {
+              const on = screen === 'perfil' && selected === p.name;
+              const needs = p.name !== 'default' && p.access !== 'ok';
+              return (
+                <NavButton key={p.name} on={on} onClick={() => openProfile(p.name)}>
+                  <Swatch color={colorOf(p.name)} size={7} />
+                  <span className="ellipsis" style={{ flex: 1 }}>{p.name}</span>
+                  {needs && (
+                    <span
+                      className="dot"
+                      title={isProvider(p.type) ? t('Sin key') : t('Sin login')}
+                      style={{ background: 'var(--warn)', width: 6, height: 6 }}
+                    />
+                  )}
+                </NavButton>
+              );
+            })}
+          {renderItems(items)}
         </div>
       ))}
     </nav>
@@ -288,13 +338,16 @@ function Sidebar() {
 }
 
 export function Header({ right }: { right?: ReactNode }) {
-  const { screen, selected, profiles } = useApp();
+  const { screen, selected, profiles, colorOf } = useApp();
   const type = profiles.find((p) => p.name === selected)?.type ?? (selected === 'default' ? 'default' : 'official');
   const [title, sub] = screenHead(screen, selected, type);
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 22 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <h1 style={{ margin: '0 0 6px', fontSize: 25, fontWeight: 300, letterSpacing: '-.022em', color: 'var(--ink)' }}>{title}</h1>
+        <h1 style={{ margin: '0 0 6px', fontSize: 25, fontWeight: 300, letterSpacing: '-.022em', color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 11 }}>
+          {screen === 'perfil' && <Swatch color={colorOf(selected)} size={11} />}
+          {title}
+        </h1>
         <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.55, color: 'var(--ink-3)', maxWidth: '66ch', fontWeight: 300 }}>{sub}</p>
       </div>
       {right}
@@ -318,10 +371,18 @@ function Palette({ onClose }: { onClose: () => void }) {
   const items = useMemo<PaletteItem[]>(() => {
     const out: PaletteItem[] = [];
     for (const [glabel, group] of navGroups()) {
-      for (const it of group) out.push({ key: 's:' + it.id, label: it.label, hint: glabel, run: () => app.go(it.id) });
+      for (const it of group) out.push({ key: 's:' + it.id, label: it.label, hint: glabel || t('Inicio'), run: () => app.go(it.id) });
     }
     for (const p of app.profiles) {
-      out.push({ key: 'p:' + p.name, label: p.name, hint: t('cuenta'), run: () => app.select(p.name, 'perfil') });
+      out.push({ key: 'p:' + p.name, label: p.name, hint: t('cuenta'), run: () => app.openProfile(p.name, 'resumen') });
+    }
+    out.push({ key: 'a:cloud-sync', label: t('Sincronizar con la nube'), hint: t('Nube'), run: () => void syncCloud(app.mutate) });
+    // Cada pestaña de cada cuenta, para saltar directo a «work · Rotación».
+    for (const p of app.profiles) {
+      for (const [tab, label] of profileTabs(p)) {
+        if (tab === 'resumen') continue;
+        out.push({ key: `p:${p.name}:${tab}`, label: `${p.name} · ${label}`, hint: t('cuenta'), run: () => app.openProfile(p.name, tab) });
+      }
     }
     for (const c of convs.data?.items ?? []) {
       out.push({

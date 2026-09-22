@@ -1,5 +1,9 @@
 // P-10 Rotación automática — qué cuentas respaldan a la principal de la
 // carpeta en contexto, en qué orden, con qué permisos y con qué parámetros.
+//
+// Con `profile` es la pestaña Rotación de una cuenta: la cadena es la de esa
+// cuenta sin selector, y abajo, en vez de todas las cadenas, las que la
+// incluyen (quién puede prestarle a ella).
 
 import { useState } from 'react';
 
@@ -34,15 +38,16 @@ function linkNote(l: ChainLink): string {
   return t('Acceso listo · sensores instalados');
 }
 
-export function Rotacion() {
+export function Rotacion({ profile: fixed }: { profile?: string } = {}) {
   const app = useApp();
-  const { folder, openModal, mutate, colorOf, go, profiles } = app;
+  const { folder, openModal, mutate, colorOf, go, profiles, openProfile } = app;
   // Qué cuenta se está editando. Vacío = la principal de la carpeta en contexto,
   // que es el caso normal y el que había antes. El selector existe porque sin él
   // la pantalla solo sabía editar la cadena de la carpeta: para tocar la de otra
   // cuenta había que cambiar de carpeta, y una cuenta sin regla no se podía
   // editar en absoluto.
-  const [pick, setPick] = useState('');
+  const [picked, setPick] = useState('');
+  const pick = fixed ?? picked;
   const st = useCall(() => api.autoStatus(folder, undefined, pick || undefined), [folder, pick]);
   const rules = useCall(() => api.resolve(folder), [folder]);
   const s: AutoStatus | undefined = st.data;
@@ -137,6 +142,9 @@ export function Rotacion() {
         <Card shadow>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <Label style={{ flexShrink: 0 }}>{t('Cadena de')}</Label>
+            {fixed ? (
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: 'var(--ink)' }}>{fixed}</span>
+            ) : (
             <select
               value={pick || s.primary}
               onChange={(e) => setPick(e.target.value === folderPrimary ? '' : e.target.value)}
@@ -146,6 +154,7 @@ export function Rotacion() {
                 <option key={n} value={n}>{n === folderPrimary ? t('{n} (esta carpeta)', { n }) : n}</option>
               ))}
             </select>
+            )}
             {/* De dónde sale la cadena. Sin esta marca, «sin respaldos» no
                 distingue «esta cuenta no presta a nadie» de «la lista compartida
                 está vacía», y cada una se arregla en un sitio distinto. */}
@@ -163,7 +172,9 @@ export function Rotacion() {
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: 'block', fontSize: 13, color: 'var(--ink)' }}>{s.primary}</span>
               <span style={{ display: 'block', fontSize: 11, color: 'var(--ink-4)', marginTop: 2, fontWeight: 300 }}>
-                {viewing !== folderPrimary
+                {fixed
+                  ? t('La cuenta que se agota; los respaldos toman el relevo en este orden')
+                  : viewing !== folderPrimary
                   ? t('Cuenta elegida arriba; la principal de {f} es {p}', { f: tilde(s.cwd), p: folderPrimary })
                   : rules.data?.rule
                     ? t('Principal de {f}, por la regla {r}', { f: tilde(s.cwd), r: tilde(rules.data.rule.path) })
@@ -262,8 +273,12 @@ export function Rotacion() {
           )}
         </div>
       </div>
-      <ChainsPorPerfil onPick={(n) => setPick(n === folderPrimary ? '' : n)} viewing={viewing} />
-      <CliBar cmd="ccp auto chain show" />
+      {fixed ? (
+        <ChainsPorPerfil onPick={(n) => openProfile(n, 'rotacion')} viewing={viewing} lendsTo={fixed} />
+      ) : (
+        <ChainsPorPerfil onPick={(n) => setPick(n === folderPrimary ? '' : n)} viewing={viewing} />
+      )}
+      <CliBar cmd={fixed ? `ccp auto chain show --for ${fixed}` : 'ccp auto chain show'} />
     </div>
   );
 }
@@ -276,17 +291,27 @@ export function Rotacion() {
  * por una — que es exactamente la ceguera que había cuando la cadena era una
  * sola. Es informativa: se edita desde la tarjeta de cada carpeta o por CLI.
  */
-function ChainsPorPerfil({ onPick, viewing }: { onPick: (n: string) => void; viewing: string }) {
+function ChainsPorPerfil({ onPick, viewing, lendsTo }: { onPick: (n: string) => void; viewing: string; lendsTo?: string }) {
   const { colorOf } = useApp();
   const rows = useCall(() => api.chains(), []);
-  if (!rows.data || rows.data.length === 0) return null;
+  if (!rows.data) return null;
+  // Con `lendsTo`: solo las cadenas donde aparece esa cuenta, es decir, a
+  // quién puede sacar ella de un apuro. Es la otra mitad de la relación, la que
+  // la tarjeta de arriba no enseña.
+  const list = lendsTo ? rows.data.filter((r) => r.profile !== lendsTo && r.fallback.includes(lendsTo)) : rows.data;
+  if (!lendsTo && list.length === 0) return null;
   return (
     <Card shadow style={{ marginTop: 14 }}>
-      <Label style={{ marginBottom: 6 }}>{t('Cadenas por perfil')}</Label>
+      <Label style={{ marginBottom: 6 }}>{lendsTo ? t('A quién respalda {p}', { p: lendsTo }) : t('Cadenas por perfil')}</Label>
       <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 14, fontWeight: 300 }}>
-        {t('Cada cuenta puede prestar a cuentas distintas. Las que dicen «heredada» usan la lista compartida de su política. Pulsa una para editarla arriba.')}
+        {lendsTo
+          ? t('Las cuentas que, al agotarse, pueden pasar su conversación a {p}. Pulsa una para abrir su rotación.', { p: lendsTo })
+          : t('Cada cuenta puede prestar a cuentas distintas. Las que dicen «heredada» usan la lista compartida de su política. Pulsa una para editarla arriba.')}
       </div>
-      {rows.data.map((r) => (
+      {lendsTo && list.length === 0 && (
+        <div style={{ fontSize: 12, color: 'var(--ink-4)', fontWeight: 300 }}>{t('Ninguna cadena incluye a {p}.', { p: lendsTo })}</div>
+      )}
+      {list.map((r) => (
         <div
           key={r.profile}
           onClick={() => onPick(r.profile)}

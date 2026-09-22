@@ -12,7 +12,8 @@ pub fn run() {
             bridge::ccp_call,
             bridge::ccp_bridge_info,
             native::open_terminal,
-            native::reveal_path
+            native::reveal_path,
+            native::restart_app
         ])
         .run(tauri::generate_context!())
         .expect("no se pudo arrancar la app de ccp");
