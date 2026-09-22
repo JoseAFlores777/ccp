@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [2.19.0] — una fuente declarada, varias proyecciones, y la misma configuración en otra máquina
+
+La versión más grande desde el paso a Go. Lo que antes se declaraba en un sitio y se leía en otro ahora se
+declara una vez y ccp lo **proyecta** a donde cada app lo lee de verdad —el CLI, la pestaña Code y el chat de
+Desktop—, con los MCP por capas, los artefactos por perfil y los permisos que pueden sumar en vez de tapar.
+Encima de eso, la configuración entera tiene **historia** (`ccp snapshot`) y puede **viajar**: a una carpeta
+que ya sincronizas (`ccp sync`) o a un servidor propio (`ccp cloud`) donde nada sale sin cifrar y el servidor
+no puede leer lo que guarda. Cierra los subproyectos A, B, C, D, E y F del diseño del 2026-09-18.
+
+Dos cosas que solo se supieron corriendo el código contra su sitio de verdad, y que estaban verdes en los
+tests: una revisión que solo nombra un snapshot moría contra Postgres (`body` es `NOT NULL` y un `[]byte` nil
+viaja como `NULL`), porque todas las pruebas usaban el almacén en memoria, que acepta nil; y el binario se
+presentaba como «ccp vcloud-v0.1.0» en cuanto existió una etiqueta de la imagen del servidor.
+
 ### Added
 
 - **Sincronización sin servidor: el remoto es una carpeta o un bucket (E1)** — `internal/cloud/remote`.
