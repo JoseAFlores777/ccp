@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [2.21.2] — el lienzo enfocaba una cuenta y editaba la de otra
+
+Tres sitios se quedaron suponiendo que la cadena seguía siendo **una sola**. Los tres son del mismo cambio
+de 2.21.0 y los tres fallaban callando, que es lo peor que podían hacer.
+
+- **El lienzo (Mapa).** Ya dibujaba `allow_from` por la cuenta **enfocada** —eso siempre fue por principal—
+  pero la CADENA la sacaba del primario de la carpeta. Mientras hubo una lista compartida daba igual; desde
+  que son por perfil significaba enfocar `a-cc`, ver la cadena de `e-cc` y, al aplicar, **escribirla en
+  `e-cc`**. Ahora el status del lienzo es el de la cuenta enfocada y las escrituras van ahí; el borrador se
+  descarta al cambiar de cuenta, para que uno de `a-cc` no acabe aplicándose sobre `e-cc`.
+- **«Está en alguna cadena»** en la lista de perfiles solo miraba las listas compartidas, así que una cuenta
+  que solo respalda a otra concreta salía como «fuera de cadenas» — una media verdad que invita a borrarla.
+- **Deshacer** releía la cadena de la carpeta en vez de la de la cuenta tocada: fallaba, o acertaba por
+  coincidencia cuando eran la misma.
+
+El resumen de «Revisar y aplicar» del lienzo también nombra ahora la CUENTA y no la política —«la cadena de
+la política default» describe otra cosa, la lista compartida, y eso no la toca— y avisa si al aplicar vas a
+bifurcar la herencia.
+
 ## [2.21.1] — se puede elegir QUÉ cadena se edita
 
 La pantalla de rotación editaba la cadena del perfil de la **carpeta** en contexto y no había forma de decir

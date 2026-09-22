@@ -423,7 +423,10 @@ export function chainSnapshot(st: AutoStatus) {
     if (fallback.length) {
       await api.chain({ op: 'set', ...target, names: fallback, allow: false });
     } else {
-      const now = await api.autoStatus(st.cwd, st.policy);
+      // Se relee la cadena DE ESA CUENTA, no la de la carpeta: si no, deshacer
+      // sobre un perfil elegido a mano intentaba quitar los nombres de otra
+      // cadena y fallaba, o peor, acertaba por coincidencia.
+      const now = await api.autoStatus(st.cwd, undefined, st.primary);
       if (now.fallback?.length) await api.chain({ op: 'rm', ...target, names: now.fallback });
     }
     await api.allow(allow);

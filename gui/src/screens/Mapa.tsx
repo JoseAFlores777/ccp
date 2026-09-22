@@ -129,7 +129,13 @@ export function Mapa() {
   const here = useCall(() => api.resolve(folder), [folder]);
   const [focusPick, setFocusPick] = useState<string>('');
   const focus = focusPick || here.data?.profile || 'default';
-  const st = useCall(() => api.autoStatus(folder), [folder]);
+  // El status es el de la cuenta ENFOCADA, no el de la carpeta. El lienzo ya
+  // dibujaba `allow_from` por `focus` —siempre fue por principal—, pero la
+  // CADENA salía del primario del cwd: mientras hubo una sola cadena compartida
+  // daba igual, y desde que son por perfil significaba enfocar una cuenta y ver
+  // (y escribir) la de otra. Vacío = que lo resuelva serve por el cwd, para no
+  // mandar un 'default' equivocado mientras `here` todavía carga.
+  const st = useCall(() => api.autoStatus(folder, undefined, focusPick || undefined), [folder, focusPick]);
   const loans = useCall(() => api.handoffs(), [], 30_000);
   const rules = useCall(() => api.rules(), []);
   const desk = useCall(() => api.desktop(), []);
@@ -161,7 +167,7 @@ export function Mapa() {
     setChainDraft(null);
     setAllowDraft(undefined);
     setSim(null);
-  }, [s?.cwd, s?.policy]);
+  }, [s?.cwd, s?.policy, s?.primary]);
 
   // Coloca las cuentas que aún no tienen sitio en el lienzo.
   useEffect(() => {
@@ -278,7 +284,13 @@ export function Mapa() {
   const applyModal = (): ModalSpec => {
     const lines: string[] = [];
     if (dirtyChain) {
-      lines.push(t('Cadena de la política {p}: {a} pasa a {b}.', { p: s?.policy ?? 'default', a: savedChain.join(' → ') || t('(vacía)'), b: chain.join(' → ') || t('(vacía)') }));
+      // Se nombra la CUENTA, no la política: desde que las cadenas son por
+      // perfil, «la cadena de la política default» describe otra cosa —la lista
+      // compartida— y esto no la toca.
+      lines.push(t('Cadena de {p}: {a} pasa a {b}.', { p: focus, a: savedChain.join(' → ') || t('(vacía)'), b: chain.join(' → ') || t('(vacía)') }));
+      if (!s?.chain_own) {
+        lines.push(t('{p} pasa a tener cadena propia: dejará de seguir la lista compartida de la política {n}.', { p: focus, n: s?.policy ?? 'default' }));
+      }
     }
     if (dirtyAllow) {
       if (savedAllow === null && allow !== null) lines.push(t('Se declara el mapa de permisos con {n} entradas: desde ahora cada principal solo usa sus flechas.', { n: Object.keys(allow).length }));
@@ -300,19 +312,19 @@ export function Mapa() {
       sub: t('Esto es lo que se va a escribir en ccp.yaml. Se puede deshacer justo después.'),
       warns: [...lines, ...bad],
       confirmLabel: t('Aplicar'),
-      cli: () => [dirtyChain && chain.length ? `ccp auto chain set ${chain.join(' ')} --for ${s?.primary ?? '<perfil>'} --no-allow` : '', dirtyAllow ? 'ccp config edit  # allow_from' : ''].filter(Boolean).join(' && '),
+      cli: () => [dirtyChain && chain.length ? `ccp auto chain set ${chain.join(' ')} --for ${focus} --no-allow` : '', dirtyAllow ? 'ccp config edit  # allow_from' : ''].filter(Boolean).join(' && '),
       onConfirm: async () => {
         if (!s?.present) await api.autoInit(false);
         if (dirtyChain) {
-          if (chain.length) await api.chain({ op: 'set', for: s?.primary, cwd: folder, names: chain, allow: false });
-          else if (savedChain.length) await api.chain({ op: 'rm', for: s?.primary, cwd: folder, names: savedChain });
+          if (chain.length) await api.chain({ op: 'set', for: focus, cwd: folder, names: chain, allow: false });
+          else if (savedChain.length) await api.chain({ op: 'rm', for: focus, cwd: folder, names: savedChain });
         }
         if (dirtyAllow || (dirtyChain && savedAllow !== null)) await api.allow(allow);
         discard();
         return t('Mapa aplicado');
       },
       undo: () => async () => {
-        if (savedChain.length) await api.chain({ op: 'set', for: s?.primary, cwd: folder, names: savedChain, allow: false });
+        if (savedChain.length) await api.chain({ op: 'set', for: focus, cwd: folder, names: savedChain, allow: false });
         await api.allow(savedAllow);
       },
     };
