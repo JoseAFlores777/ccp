@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [2.19.1] — el doctor deja de pedir que reinicies una ventana para no cambiar nada
+
+`ProjectMCPToDesktop` escribía el marcador de «pendiente de reiniciar» en cuanto la ventana del perfil
+estaba abierta, **sin mirar si la proyección cambiaría algo**. Un perfil sin MCP declarados —el caso normal
+recién actualizado— salía con `desktop_restart_pending` en el doctor y como desfasado en
+`profile sync --check`, para aplicar exactamente nada. Ese es el aviso que se aprende a ignorar, y entonces
+ya no avisa de nada ([ADR 0009](docs/adr/0009-desktop-identity-is-not-durable.md)).
+
+Ahora la decisión va **después** de clasificar, no antes: hay que leer el destino para saber si difiere. Si
+no difiere no se aplaza, y un marcador que quedó de cuando sí había desfase se retira. Con la ventana viva
+sigue sin escribirse nada (M3 y M5 no han cambiado), y el informe ya no dice «escrito» de algo que solo
+quedó pendiente.
+
+De paso, un test del CLI pasaba **gracias** al defecto: construía su `MCPEntry` sin `Targets`, así que la
+entrada no tenía el chat por destino y no había nada que aplazar. Con el aplazamiento incondicional daba
+igual; ahora el fixture declara los destinos que un sync real produce.
+
 ## [2.19.0] — una fuente declarada, varias proyecciones, y la misma configuración en otra máquina
 
 La versión más grande desde el paso a Go. Lo que antes se declaraba en un sitio y se leía en otro ahora se

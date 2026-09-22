@@ -297,14 +297,6 @@ func projectMCPToDesktop(home, name string, eff []MCPEntry, running, dry bool) (
 	}
 	p.File = filepath.Join(dir, "claude_desktop_config.json")
 	want := mcpWant(eff, MCPTargetDesktop, &p)
-	if running && !dry {
-		// Lo que se sabe de M5 no basta para escribir con la ventana viva.
-		if err := writeFileAtomic(desktopPendingPath(home, name), []byte("{}\n"), 0o600); err != nil {
-			return p, err
-		}
-		p.Deferred = true
-		return p, nil
-	}
 
 	managedPath := filepath.Join(dir, ".ccp-managed-mcp.json")
 	live, err := os.ReadFile(p.File)
@@ -323,6 +315,35 @@ func projectMCPToDesktop(home, name string, eff []MCPEntry, running, dry bool) (
 	}
 	managed := reconcileManaged(readManaged(managedPath), servers, want)
 	servers, now, changed := projectMCPInto(servers, want, managed, &p)
+
+	// Con la ventana viva no se escribe (M3: no relee en caliente; M5: reescribe
+	// el archivo desde su copia en memoria), pero aplazar solo tiene sentido si
+	// hay algo que aplicar. Escribir el marcador en cuanto la ventana estaba
+	// abierta hacía que el doctor pidiera reiniciarla para no cambiar nada, y un
+	// aviso que no significa nada es el que se aprende a ignorar (ADR 0009).
+	// Por eso la decisión va DESPUÉS de clasificar, no antes: hay que leer el
+	// destino para saber si difiere.
+	if running {
+		// Nada se ha escrito, así que el informe no puede decir que sí: lo que
+		// queda es «pendiente», y los conflictos y lo que el chat no carga, que
+		// son estados del destino y se informan igual.
+		p.Written, p.Removed = nil, nil
+		if !changed {
+			if !dry {
+				// Un marcador de cuando sí había desfase ya no describe nada.
+				_ = os.Remove(desktopPendingPath(home, name))
+			}
+			return p, nil
+		}
+		p.Deferred = true
+		if dry {
+			return p, nil
+		}
+		if err := writeFileAtomic(desktopPendingPath(home, name), []byte("{}\n"), 0o600); err != nil {
+			return p, err
+		}
+		return p, nil
+	}
 	if dry {
 		return p, nil
 	}
