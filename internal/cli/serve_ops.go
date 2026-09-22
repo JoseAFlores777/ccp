@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,6 +31,38 @@ func profileAccess(home string, cfg *core.Config, name string) string {
 		return "ok"
 	}
 	return "nologin"
+}
+
+// profileHasSessions dice si ALGUNA VEZ ha corrido Claude Code con este perfil,
+// mirando si su cc-home tiene algún transcript.
+//
+// Es la mitad que faltaba para distinguir los dos silencios. «El sensor nunca ha
+// corrido» puede significar dos cosas muy distintas: que la cuenta no se usa, o
+// que se usa MUCHO desde un sitio que no ejecuta la barra de estado — la pestaña
+// Code de Desktop, medido: 341 sesiones y cero muestras. La primera se arregla
+// usando la cuenta; la segunda no se arregla, se explica.
+//
+// Para aquí en cuanto encuentra uno: la pregunta es «¿hay?», no «¿cuántos?», y
+// un perfil con cientos de proyectos no puede costarle una pasada completa a
+// cada refresco de la lista de perfiles.
+func profileHasSessions(home string, cfg *core.Config, name string) bool {
+	cch, err := core.CCHome(home, name)
+	if err != nil {
+		return false
+	}
+	found := false
+	root := filepath.Join(cch, "projects")
+	_ = filepath.WalkDir(root, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil // un directorio ilegible no es una respuesta, es un hueco
+		}
+		if !d.IsDir() && strings.HasSuffix(d.Name(), ".jsonl") {
+			found = true
+			return fs.SkipAll
+		}
+		return nil
+	})
+	return found
 }
 
 func profileSensors(cfg *core.Config, name string) string {

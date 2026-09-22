@@ -343,6 +343,17 @@ su propia copia y deja de seguir la lista compartida. Se avisa cuando pasa, y
 	// El estado que faltaba en el sensor: corre, pero el payload del statusLine
 	// de Claude Code no trae el consumo. Decir «sin muestra» ahí mandaba a
 	// reinstalar un sensor que ya estaba puesto y funcionando.
+	// Y el otro silencio: la cuenta SÍ se usa, pero desde la pestaña Code de
+	// Desktop, que no pinta barra de estado. «Aún sin muestra» valía también
+	// para esto y no decía qué hacer.
+	"cli.auto.status_only_desktop": {
+		En: "in use, but only from the Desktop window: the sensor does not run there",
+		Es: "se usa, pero solo desde la ventana de Desktop: ahí no corre el sensor",
+	},
+	"cli.auto.status_provider_no_usage": {
+		En: "providers do not report a usage window",
+		Es: "los proveedores no informan de su ventana de uso",
+	},
 	"cli.auto.status_cc_silent": {
 		En: "sensor runs; Claude Code %s does not report usage",
 		Es: "el sensor corre; Claude Code %s no informa del consumo",

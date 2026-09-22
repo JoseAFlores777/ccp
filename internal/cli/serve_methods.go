@@ -382,6 +382,7 @@ type srvProfile struct {
 	SensorReports bool              `json:"sensor_reports"`
 	CCVersion     string            `json:"cc_version,omitempty"`
 	SensorSeenAt  string            `json:"sensor_seen_at,omitempty"`
+	HasSessions   bool              `json:"has_sessions"`
 	InChain       bool              `json:"in_chain"`
 	Rules         int               `json:"rules"`
 	Desktop       srvProfileDesktop `json:"desktop"`
@@ -443,6 +444,12 @@ func srvProfilesList(s *server, _ json.RawMessage) (any, error) {
 		sp.CCVersion = st.CCVersion
 		if st.Present && !st.Reported {
 			sp.SensorSeenAt = timeOrEmpty(st.SampledAt)
+		}
+		// HasSessions solo hace falta cuando el sensor NUNCA corrió: es ahí donde
+		// «esta cuenta no se usa» y «se usa mucho, pero desde donde el sensor no
+		// llega» se confunden, y solo la segunda merece una explicación.
+		if !st.Present && sp.Sensors == "installed" {
+			sp.HasSessions = profileHasSessions(s.home, cfg, name)
 		}
 		if rl, sampled, ok := core.ReadRateLimits(s.home, name); ok {
 			sp.Usage = &srvUsage{

@@ -928,6 +928,8 @@ export const en: Record<string, string> = {
   // Cadenas por perfil (auto_handoff.chains)
   "Cadena de {p}": "{p}'s chain",
   "Cadena de": "Chain of",
+  "se usa, pero solo desde la ventana de Desktop: ahí no corre el sensor": "in use, but only from the Desktop window, where the sensor does not run",
+  "{p} se usan, pero el sensor nunca ha corrido con ellas. La barra de estado que alimenta estas cifras la ejecuta Claude Code en una terminal; la pestaña Code de Desktop no la pinta, así que desde ahí no hay nada que medir. Abre una sesión en una terminal con esa cuenta y volverán a leerse.": "{p} are in use, but the sensor has never run with them. The status line these figures come from is run by Claude Code in a terminal; Desktop's Code tab does not paint it, so there is nothing to measure from there. Open a terminal session with that account and they will start reading again.",
   "el sensor corre, pero Claude Code {v} no informa del consumo": "the sensor runs, but Claude Code {v} does not report usage",
   "Reiniciar la ventana": "Restart the window",
   "Reiniciar {p}": "Restart {p}",
