@@ -2,7 +2,7 @@
 // carpeta en contexto, en qué orden, con qué permisos y con qué parámetros.
 
 import { api, type AutoStatus, type ChainLink, type PolicyParams } from '../lib/api';
-import { chainAddModal, chainSnapshot, must, PARAM_LABELS, paramModal } from '../lib/actions';
+import { chainAddModal, chainSnapshot, chainTarget, must, PARAM_LABELS, paramModal } from '../lib/actions';
 import { tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
@@ -69,12 +69,13 @@ export function Rotacion() {
     const i = fb.indexOf(l.profile);
     const j = i + delta;
     if (i < 0 || j < 0 || j >= fb.length) return;
-    void mutate(() => api.chain({ op: 'mv', policy: s.policy, cwd: s.cwd, names: [l.profile], pos: j + 1 }), {
+    void mutate(() => api.chain({ op: 'mv', ...chainTarget(s), names: [l.profile], pos: j + 1 }), {
       msg: t('{p} pasa a la posición {n}', { p: l.profile, n: j + 1 }),
       undo,
     });
   };
   const missingSensors = chain.filter((l) => l.sensors === 'missing').map((l) => l.profile);
+  const own = !!s.chain_own;
   const totalDeny = !!s.gate?.declared && !s.gate.entry;
   const params = s.params;
 
@@ -110,9 +111,18 @@ export function Rotacion() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.2fr) minmax(0,1fr)', gap: 14 }}>
         <Card shadow>
-          <Label style={{ marginBottom: 6 }}>{t('Cadena de esta carpeta')}</Label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <Label style={{ flex: 1 }}>{t('Cadena de {p}', { p: s.primary })}</Label>
+            {/* De dónde sale la cadena. Sin esta marca, «sin respaldos» no
+                distingue «esta cuenta no presta a nadie» de «la lista compartida
+                está vacía», y cada una se arregla en un sitio distinto. */}
+            <Pill tone={own ? 'ok' : undefined}>{own ? t('propia') : t('heredada')}</Pill>
+            {s.policy_pinned && <Pill>{t('política {n}', { n: s.policy ?? 'default' })}</Pill>}
+          </div>
           <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 16, fontWeight: 300 }}>
-            {t('Principal arriba; debajo los respaldos en el orden en que se usarían.')}
+            {own
+              ? t('Cadena propia de {p}: solo la suya. Los respaldos van en el orden en que se usarían.', { p: s.primary })
+              : t('Heredada de la lista compartida de la política {n}: la usan todas las cuentas que no tienen la suya. Al editarla aquí, {p} pasa a tener cadena propia.', { n: s.policy ?? 'default', p: s.primary })}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 12px', border: '1px solid var(--accent-line)', borderRadius: 9, marginBottom: 8, background: 'var(--accent-soft)' }}>
             <span className="mono" style={{ fontSize: 10, color: 'var(--ink-4)', width: 16 }}>—</span>
@@ -153,7 +163,7 @@ export function Rotacion() {
                   <button
                     className="btn quiet danger icon"
                     title={t('Quitar de la cadena')}
-                    onClick={() => mutate(() => api.chain({ op: 'rm', policy: s.policy, cwd: s.cwd, names: [l.profile] }), { msg: t('Se quitó {p} de la cadena', { p: l.profile }), undo })}
+                    onClick={() => mutate(() => api.chain({ op: 'rm', ...chainTarget(s), names: [l.profile] }), { msg: t('Se quitó {p} de la cadena', { p: l.profile }), undo })}
                   >
                     ×
                   </button>
@@ -163,6 +173,15 @@ export function Rotacion() {
           })}
           <div style={{ marginTop: 12, paddingTop: 14, borderTop: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <button className="btn lg dashed" onClick={() => openModal(chainAddModal(app, s))}>{t('Añadir a la cadena')}</button>
+            {own && (
+              <button
+                className="btn lg"
+                title={t('Quita la cadena propia: {p} vuelve a usar la lista compartida', { p: s.primary })}
+                onClick={() => mutate(() => api.chain({ op: 'reset', ...chainTarget(s) }), { msg: t('{p} vuelve a heredar la cadena', { p: s.primary }), undo })}
+              >
+                {t('Volver a heredar')}
+              </button>
+            )}
             {missingSensors.length > 0 && (
               <button
                 className="btn lg"
@@ -208,7 +227,43 @@ export function Rotacion() {
           )}
         </div>
       </div>
+      <ChainsPorPerfil />
       <CliBar cmd="ccp auto chain show" />
     </div>
+  );
+}
+
+/**
+ * Todas las cadenas de un vistazo.
+ *
+ * La tarjeta de arriba solo enseña la de la carpeta en contexto, así que sin
+ * esta tabla la pregunta «¿y las demás?» obliga a ir cambiando de carpeta una
+ * por una — que es exactamente la ceguera que había cuando la cadena era una
+ * sola. Es informativa: se edita desde la tarjeta de cada carpeta o por CLI.
+ */
+function ChainsPorPerfil() {
+  const { colorOf } = useApp();
+  const rows = useCall(() => api.chains(), []);
+  if (!rows.data || rows.data.length === 0) return null;
+  return (
+    <Card shadow style={{ marginTop: 14 }}>
+      <Label style={{ marginBottom: 6 }}>{t('Cadenas por perfil')}</Label>
+      <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 14, fontWeight: 300 }}>
+        {t('Cada cuenta puede prestar a cuentas distintas. Las que dicen «heredada» usan la lista compartida de su política.')}
+      </div>
+      {rows.data.map((r) => (
+        <div key={r.profile} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--line-soft)' }}>
+          <span className="swatch" style={{ background: colorOf(r.profile) }} />
+          <span style={{ fontSize: 12.5, color: 'var(--ink)', minWidth: 130 }}>{r.profile}</span>
+          <Pill tone={r.own ? 'ok' : undefined}>{r.own ? t('propia') : t('heredada')}</Pill>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: r.fallback.length ? 'var(--ink-2)' : 'var(--ink-4)', fontWeight: 300 }}>
+            {r.fallback.length ? r.fallback.join(' → ') : t('no presta a nadie')}
+          </span>
+          {r.pinned && <Pill>{t('política {n}', { n: r.policy })}</Pill>}
+          {r.missing.length > 0 && <Pill tone="err">{t('{n} inexistentes', { n: r.missing.length })}</Pill>}
+          {r.orphan && <Pill tone="err">{t('perfil borrado')}</Pill>}
+        </div>
+      ))}
+    </Card>
   );
 }

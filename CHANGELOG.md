@@ -2,6 +2,58 @@
 
 ## [Unreleased]
 
+## [2.21.0] — la cadena de rotación es de cada perfil
+
+Hasta aquí la cadena de préstamos era **una sola** (`policies.<n>.fallback`) y la usaban todos los perfiles,
+en el mismo orden. Añadir un perfil a «la cadena» desde un repo se la cambiaba a todos los demás. Pero qué
+cuentas pueden respaldar a cuáles es del usuario y no hay nada que ccp pueda mirar que se lo diga: una cuenta
+de trabajo presta a su gemela del mismo sitio y a nadie más, la personal presta a su proveedor, la de un
+cliente no presta a nadie. El único mecanismo por perfil que existía, `allow_from`, no sirve para eso: solo
+**resta** de la lista compartida —que era el techo de todos— y no sabe reordenar.
+
+Ahora cada perfil tiene la suya, en `auto_handoff.chains` ([ADR 0017](docs/adr/0017-la-cadena-de-rotacion-es-de-cada-perfil.md)).
+Aditivo: el esquema sigue en `version: 2` y una configuración que ya funcionaba se comporta igual hasta que
+declares una cadena.
+
+```yaml
+auto_handoff:
+  chains:
+    a-cc: [a-cc-2]                  # a-cc solo presta a a-cc-2
+    e-cc: []                        # declarada y vacía: no presta a NADIE
+    personal-cc:
+      fallback: [personal-deepseek]
+      policy: lenta                 # y usa los umbrales de otra política
+```
+
+Cuatro reglas que el cambio fija:
+
+- **Tres estados, no dos** — la misma lección que `allow_from` ya había aprendido. Entrada **ausente** es
+  «hereda la lista compartida»; entrada **declarada y vacía** es «no presta a nadie». Apagar la rotación de un
+  solo perfil tiene que poder escribirse, así que `[]` no puede leerse como ausente: por eso la entrada guarda
+  si la clave `fallback` **estaba**, en vez de deducirlo de una lista vacía, y al guardar elige entre dos
+  formas — con `omitempty` la cadena vacía se escribiría sin la clave y la rotación volvería sola al releer.
+- **Las mutaciones apuntan al perfil, no a la lista compartida.** `ccp auto chain add x` dentro de un repo
+  edita la cadena de ESE perfil. La compartida sigue alcanzable con `--shared` (o nombrando `--policy`) y
+  otro perfil con `--for <perfil>`; las dos cosas a la vez son un error, no un desempate.
+- **La bifurcación se dice en voz alta.** La primera edición sobre un perfil que heredaba crea su cadena
+  propia **sembrada con la heredada** (añadir uno no puede significar quitar todos los demás) y a partir de
+  ahí los cambios de la compartida ya no le llegan. Eso es invisible en el yaml y solo muerde meses después,
+  así que se avisa en el momento — en el CLI, en la GUI antes de confirmar — y `ccp auto chain reset` lo deshace.
+- **Nadie puede enseñar una cadena sin decir de dónde sale.** `fallback: []` no distingue «este perfil no
+  presta a nadie» de «la lista compartida está vacía», y cada una se arregla en un sitio distinto. De ahí la
+  línea `origen` en el CLI y en la TUI, las píldoras *propia*/*heredada* en la GUI, y `chain_own` /
+  `policy_pinned` en `ccp auto status --json`.
+
+Comandos nuevos: `ccp auto chain list [--json]` (la cadena de cada perfil, propia o heredada),
+`ccp auto chain reset` (volver a heredar) y `ccp auto chain policy <nombre>|--none` (ligar una política a un
+perfil, que es cómo se le dan otros umbrales o `cooldown: fixed` sin inventar una tercera capa de ajustes).
+
+Todas las superficies que escribían apuntaban a la lista compartida y hubo que moverlas: la TUI, el modal y
+el lienzo de la GUI, el deshacer, y el arreglo de un clic del diagnóstico. El diagnóstico además solo
+revisaba las listas compartidas —o sea justo las que un perfil con cadena propia ya no usa— y daba verde
+sobre la configuración que nadie lee; ahora revisa también las propias y marca las entradas huérfanas de un
+perfil borrado.
+
 ## [2.20.1] — el arranque «plano» dice cómo salir de él
 
 Crear una ventana desde la GUI la abre **sin lanzador a propósito**: los lanzadores no declaran `claude://`,

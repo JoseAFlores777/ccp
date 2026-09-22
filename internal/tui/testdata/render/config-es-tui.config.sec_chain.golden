@@ -21,6 +21,6 @@ ccp  configuración
 │ 0/3                                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
-política: default — el orden ES la preferencia (al primero se le presta antes)
+política: default — el orden ES la preferencia (al primero se le presta antes) · cadena heredada de default
 
 tab: sección · j/k: mover · enter: actuar · a/d/J/K: cadena · e: editor · esc: volver · q: salir

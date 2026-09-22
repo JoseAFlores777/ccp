@@ -241,6 +241,7 @@ func stripKnownKeys(m map[string]any) {
 var knownAutoKeys = map[string]struct{}{
 	"enabled":    {},
 	"policies":   {},
+	"chains":     {},
 	"allow_from": {},
 	"hooks":      {},
 }
@@ -274,6 +275,15 @@ func stripAutoKnownKeys(a *AutoHandoff) {
 			delete(p.Extra, k)
 		}
 		a.Policies[name] = p
+	}
+	for name, c := range a.Chains {
+		if c.Extra == nil {
+			continue
+		}
+		for k := range knownChainKeys {
+			delete(c.Extra, k)
+		}
+		a.Chains[name] = c
 	}
 }
 

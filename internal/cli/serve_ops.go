@@ -414,6 +414,31 @@ func srvAutoStatus(s *server, raw json.RawMessage) (any, error) {
 	}
 	gate := core.AutoGateFor(cfg, rc.Primary)
 	out["primary"] = rc.Primary
+	// De dónde sale la cadena. `fallback` de arriba es el de la POLÍTICA; con
+	// cadenas por perfil eso ya no es lo que se usa, así que la pantalla necesita
+	// saber cuál de las dos está mirando o pintará la compartida creyéndola la
+	// del perfil.
+	out["chain_own"] = rc.OwnChain
+	out["policy_pinned"] = rc.PolicyPinned
+
+	// `declared` es la lista que ESTE perfil usa, cruda: la suya propia si la
+	// declara, y si no la de la política. Es la que hay que pintar y sobre la que
+	// cuentan las posiciones de `mv`; seguir usando la de la política dejaría a la
+	// pantalla enseñando la cadena compartida mientras el supervisor lee otra.
+	declared := eff.Fallback
+	if rc.OwnChain {
+		declared = core.AutoChainFor(cfg, rc.Primary).Fallback
+	}
+	// `fallback` pasa a ser esa lista; la compartida sigue disponible aparte para
+	// quien quiera enseñar de qué se hereda. Campo añadido, forma intacta.
+	out["fallback"] = append([]string{}, declared...)
+	out["shared_fallback"] = append([]string{}, eff.Fallback...)
+	if rc.OwnChain || rc.PolicyPinned {
+		// La política EFECTIVA puede no ser la pedida: si el perfil liga una, es
+		// la suya la que manda, y `policy` arriba traía la del parámetro.
+		out["policy"] = rc.Policy.Name
+		out["params"] = effectiveParams(rc.Policy)
+	}
 	out["gate"] = map[string]any{"absent": gate.Absent, "declared": gate.Declared, "entry": gate.Entry}
 	allowed := map[string]bool{}
 	for _, f := range rc.Fallback {
@@ -429,7 +454,7 @@ func srvAutoStatus(s *server, raw json.RawMessage) (any, error) {
 		Sensors string `json:"sensors"`
 	}
 	chain := []link{}
-	for i, f := range eff.Fallback {
+	for i, f := range declared {
 		if f == rc.Primary {
 			continue
 		}
@@ -492,12 +517,19 @@ func srvAutoChain(s *server, raw json.RawMessage) (any, error) {
 		Pos    int      `json:"pos"`
 		At     int      `json:"at"`
 		Allow  *bool    `json:"allow"`
+
+		// For/Shared son el DESTINO, igual que en el CLI. La GUI los manda
+		// siempre explícitos: serve no tiene terminal de la que sacar un perfil
+		// activo, así que adivinarlo aquí escribiría en una cadena distinta de la
+		// que la pantalla está enseñando.
+		For    string `json:"for"`
+		Shared bool   `json:"shared"`
 	}](raw)
 	if err != nil {
 		return nil, err
 	}
 	opts := core.ChainOpts{Policy: p.Policy, Cwd: s.cwdOrHome(p.Cwd), At: p.At,
-		NoAllow: p.Allow != nil && !*p.Allow}
+		NoAllow: p.Allow != nil && !*p.Allow, For: p.For, Shared: p.Shared}
 	var res core.ChainResult
 	switch p.Op {
 	case "add":
@@ -511,8 +543,18 @@ func srvAutoChain(s *server, raw json.RawMessage) (any, error) {
 		res, err = core.ChainMv(s.home, opts, p.Names[0], p.Pos)
 	case "set":
 		res, err = core.ChainSet(s.home, opts, p.Names)
+	case "reset":
+		res, err = core.ChainReset(s.home, opts)
+	case "policy":
+		// names vacío desliga. Es la misma forma que el `--none` del CLI, y la
+		// ausencia significa lo mismo en los dos sitios a propósito.
+		if len(p.Names) == 0 {
+			res, err = core.ChainPolicySet(s.home, opts, "", true)
+		} else {
+			res, err = core.ChainPolicySet(s.home, opts, p.Names[0], false)
+		}
 	default:
-		return nil, badParams("op desconocida: %q (add, rm, mv, set)", p.Op)
+		return nil, badParams("op desconocida: %q (add, rm, mv, set, reset, policy)", p.Op)
 	}
 	if err != nil {
 		return nil, err
@@ -522,7 +564,43 @@ func srvAutoChain(s *server, raw json.RawMessage) (any, error) {
 		"removed": res.Removed, "moved": res.Moved, "moved_to": res.MovedTo,
 		"allow_entry": res.AllowEntry, "allow_added": res.AllowAdded, "allow_removed": res.AllowRemoved,
 		"allow_created": res.AllowCreated, "gate_absent": res.GateAbsent, "allow_skipped": res.AllowSkipped,
+		// Campos AÑADIDOS (la forma del mensaje no cambia): dónde se escribió y
+		// si esta mutación bifurcó la herencia. La pantalla tiene que poder decir
+		// las dos cosas sin recalcularlas, que es como dos superficies acaban
+		// contando estados distintos del mismo yaml.
+		"owner": res.Owner, "shared": res.Shared, "gate": res.Gate,
+		"forked": res.Forked, "inherited": res.Inherited, "reset": res.Reset,
+		"policy_bound": res.PolicyBound, "policy_cleared": res.PolicyCleared,
 	}, nil
+}
+
+// srvAutoChains es `ccp auto chain list` para la GUI: la cadena de CADA perfil,
+// con su procedencia. La pantalla de rotación la necesita entera para poder
+// enseñar quién hereda y quién no sin pedir un status por perfil.
+func srvAutoChains(s *server, raw json.RawMessage) (any, error) {
+	if _, err := params[struct{}](raw); err != nil {
+		return nil, err
+	}
+	cfg, err := s.cfg()
+	if err != nil {
+		return nil, err
+	}
+	rows := core.ChainOverview(cfg)
+	out := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		fb, miss := r.Fallback, r.Missing
+		if fb == nil {
+			fb = []string{}
+		}
+		if miss == nil {
+			miss = []string{}
+		}
+		out = append(out, map[string]any{
+			"profile": r.Profile, "own": r.Own, "fallback": fb,
+			"policy": r.Policy, "pinned": r.Pinned, "missing": miss, "orphan": r.Orphan,
+		})
+	}
+	return out, nil
 }
 
 func srvAutoAllow(s *server, raw json.RawMessage) (any, error) {
@@ -979,6 +1057,12 @@ type srvFinding struct {
 	Profile  string `json:"profile,omitempty"`
 	Subject  string `json:"subject,omitempty"`
 	Detail   string `json:"detail,omitempty"`
+
+	// Owner es el perfil dueño de la cadena PROPIA implicada. Vacío = el hallazgo
+	// habla de la lista compartida de una política (Subject es su nombre). La
+	// distinción decide dónde escribe el arreglo de un clic: escribir en la
+	// compartida un arreglo que era de un perfil se lo cambiaría a todos.
+	Owner string `json:"owner,omitempty"`
 }
 
 // sensorBinOf devuelve el binario al que apunta la statusLine gestionada de un
@@ -1069,27 +1153,55 @@ func srvDiagRun(s *server, _ json.RawMessage) (any, error) {
 		if !block.Enabled {
 			add(srvFinding{Code: "auto_disabled", Severity: "info"})
 		}
+		// chainCheck son las cuatro revisiones de una cadena. Se extrajo cuando
+		// apareció la segunda clase de cadena (las propias de cada perfil): tener
+		// dos copias del mismo bucle es cómo una de las dos deja de revisar algo y
+		// el doctor empieza a dar por buena media configuración.
+		chainCheck := func(list []string, policy, owner string, cooldown string) {
+			for _, f := range list {
+				if !profileExists(cfg, f) {
+					code := "chain_unknown_profile"
+					if owner != "" {
+						code = "chain_own_unknown_profile"
+					}
+					add(srvFinding{Code: code, Severity: "error", Subject: policy, Profile: f, Owner: owner})
+					continue
+				}
+				if profileAccess(s.home, cfg, f) != "ok" {
+					add(srvFinding{Code: "chain_no_access", Severity: "error", Subject: policy, Profile: f, Owner: owner})
+				}
+				if f != "default" && !core.AutoHooksEnabled(cfg, f) {
+					add(srvFinding{Code: "chain_no_sensors", Severity: "warn", Subject: policy, Profile: f, Owner: owner})
+				}
+				if p, ok := cfg.Profiles[f]; ok && core.IsProviderType(p.Type) && cooldown == core.CooldownResetsAt {
+					add(srvFinding{Code: "chain_provider_resets_at", Severity: "info", Subject: policy, Profile: f, Owner: owner})
+				}
+			}
+		}
 		for _, name := range core.AutoPolicyNames(cfg) {
 			eff, err := block.Policies[name].Effective(name)
 			if err != nil {
 				add(srvFinding{Code: "policy_invalid", Severity: "error", Subject: name, Detail: err.Error()})
 				continue
 			}
-			for _, f := range eff.Fallback {
-				if !profileExists(cfg, f) {
-					add(srvFinding{Code: "chain_unknown_profile", Severity: "error", Subject: name, Profile: f})
-					continue
-				}
-				if profileAccess(s.home, cfg, f) != "ok" {
-					add(srvFinding{Code: "chain_no_access", Severity: "error", Subject: name, Profile: f})
-				}
-				if f != "default" && !core.AutoHooksEnabled(cfg, f) {
-					add(srvFinding{Code: "chain_no_sensors", Severity: "warn", Subject: name, Profile: f})
-				}
-				if p, ok := cfg.Profiles[f]; ok && core.IsProviderType(p.Type) && eff.CooldownStrategy == core.CooldownResetsAt {
-					add(srvFinding{Code: "chain_provider_resets_at", Severity: "info", Subject: name, Profile: f})
-				}
+			chainCheck(eff.Fallback, name, "", eff.CooldownStrategy)
+		}
+		// Las cadenas PROPIAS. Sin este bucle el doctor solo miraba las listas
+		// compartidas, o sea justo las que un perfil con cadena propia ya no usa:
+		// daba verde sobre la configuración que nadie lee.
+		for _, row := range core.ChainOverview(cfg) {
+			if row.Orphan {
+				add(srvFinding{Code: "chain_orphan", Severity: "warn", Subject: row.Profile, Owner: row.Profile})
+				continue
 			}
+			if !row.Own {
+				continue
+			}
+			cooldown := core.CooldownResetsAt
+			if eff, err := block.Policies[row.Policy].Effective(row.Policy); err == nil {
+				cooldown = eff.CooldownStrategy
+			}
+			chainCheck(row.Fallback, row.Policy, row.Profile, cooldown)
 		}
 	}
 	for _, f := range s.desktopFindings(cfg, "") {

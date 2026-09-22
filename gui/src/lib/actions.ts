@@ -389,18 +389,42 @@ export function clearRulesModal(rules: Rule[]): ModalSpec {
 
 // --- rotación ---
 
+/**
+ * Destino de toda mutación de la cadena desde esta pantalla: la cadena PROPIA
+ * del perfil principal de la carpeta.
+ *
+ * Nunca `policy`. En el motor, nombrar una política apunta a su lista
+ * COMPARTIDA, así que pasar `policy: st.policy` —como se hacía— le cambiaba la
+ * cadena a todos los perfiles que heredan, no al que la pantalla enseña. Es
+ * exactamente el problema que las cadenas por perfil vinieron a resolver, y
+ * dejarlo aquí lo habría reproducido dentro de la app.
+ */
+export function chainTarget(st: AutoStatus) {
+  return { for: st.primary, cwd: st.cwd };
+}
+
 /** Foto de la cadena y de los permisos, para poder deshacer un cambio entero. */
 export function chainSnapshot(st: AutoStatus) {
   const fallback = [...(st.fallback ?? [])];
+  const own = !!st.chain_own;
   const allow = st.allow_declared ? { ...(st.allow_from ?? {}) } : null;
+  const target = chainTarget(st);
   return async () => {
+    if (!own) {
+      // No tenía cadena propia: deshacer es quitarla, no reescribirla. Un `set`
+      // con la lista heredada dejaría al perfil bifurcado para siempre, que es
+      // justo el estado que el usuario acaba de deshacer.
+      await api.chain({ op: 'reset', ...target });
+      await api.allow(allow);
+      return;
+    }
     // `set` exige al menos un perfil: una cadena que estaba vacía se restaura
     // quitando lo que haya ahora. Los permisos se reponen después, tal cual.
     if (fallback.length) {
-      await api.chain({ op: 'set', policy: st.policy, cwd: st.cwd, names: fallback, allow: false });
+      await api.chain({ op: 'set', ...target, names: fallback, allow: false });
     } else {
       const now = await api.autoStatus(st.cwd, st.policy);
-      if (now.fallback?.length) await api.chain({ op: 'rm', policy: st.policy, cwd: st.cwd, names: now.fallback });
+      if (now.fallback?.length) await api.chain({ op: 'rm', ...target, names: now.fallback });
     }
     await api.allow(allow);
   };
@@ -411,7 +435,7 @@ export function chainAddModal(app: Ctx, st: AutoStatus): ModalSpec {
   const candidates = app.profiles.filter((p) => p.name !== 'default' && p.name !== st.primary && !inChain.has(p.name));
   const undo = chainSnapshot(st);
   return {
-    title: t('Añadir a la cadena'),
+    title: t('Añadir a la cadena de {p}', { p: st.primary }),
     sub: t('Entra al final; el orden es la preferencia. Se usa cuando {p} se agote.', { p: st.primary }),
     initial: { name: candidates[0]?.name ?? '', allow: 'yes' },
     fields: [
@@ -427,6 +451,12 @@ export function chainAddModal(app: Ctx, st: AutoStatus): ModalSpec {
     ],
     warns: (f) => {
       const w: string[] = [];
+      // La bifurcación se avisa ANTES de confirmarla: a partir de aquí este
+      // perfil deja de recibir los cambios de la lista compartida, y eso no se
+      // nota hasta mucho después, cuando alguien la cambia y aquí no llega.
+      if (!st.chain_own) {
+        w.push(t('{p} pasa a tener cadena propia: dejará de seguir la lista compartida de la política {n}.', { p: st.primary, n: st.policy ?? 'default' }));
+      }
       const p = app.profiles.find((x) => x.name === f.name);
       if (p && p.access !== 'ok') w.push(t('{n} no tiene acceso todavía: la rotación la saltará hasta que lo tenga.', { n: p.name }));
       if (p && p.sensors === 'missing') w.push(t('{n} no tiene sensores: la rotación llegará cuando el límite ya cortó.', { n: p.name }));
@@ -436,10 +466,10 @@ export function chainAddModal(app: Ctx, st: AutoStatus): ModalSpec {
     },
     canConfirm: (f) => !!f.name,
     confirmLabel: t('Añadir'),
-    cli: (f) => shellJoin(['ccp', 'auto', 'chain', 'add', f.name || '<perfil>', ...(f.allow === 'no' ? ['--no-allow'] : []), ...(st.policy && st.policy !== 'default' ? ['--policy', st.policy] : [])]),
+    cli: (f) => shellJoin(['ccp', 'auto', 'chain', 'add', f.name || '<perfil>', '--for', st.primary, ...(f.allow === 'no' ? ['--no-allow'] : [])]),
     onConfirm: async (f) => {
-      await api.chain({ op: 'add', policy: st.policy, cwd: st.cwd, names: [f.name], allow: f.allow === 'yes' });
-      return t('Se añadió {n} a la cadena', { n: f.name });
+      await api.chain({ op: 'add', ...chainTarget(st), names: [f.name], allow: f.allow === 'yes' });
+      return t('Se añadió {n} a la cadena de {p}', { n: f.name, p: st.primary });
     },
     undo: () => undo,
   };

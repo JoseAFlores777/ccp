@@ -300,19 +300,19 @@ export function Mapa() {
       sub: t('Esto es lo que se va a escribir en ccp.yaml. Se puede deshacer justo después.'),
       warns: [...lines, ...bad],
       confirmLabel: t('Aplicar'),
-      cli: () => [dirtyChain && chain.length ? `ccp auto chain set ${chain.join(' ')} --no-allow` : '', dirtyAllow ? 'ccp config edit  # allow_from' : ''].filter(Boolean).join(' && '),
+      cli: () => [dirtyChain && chain.length ? `ccp auto chain set ${chain.join(' ')} --for ${s?.primary ?? '<perfil>'} --no-allow` : '', dirtyAllow ? 'ccp config edit  # allow_from' : ''].filter(Boolean).join(' && '),
       onConfirm: async () => {
         if (!s?.present) await api.autoInit(false);
         if (dirtyChain) {
-          if (chain.length) await api.chain({ op: 'set', policy: s?.policy, cwd: folder, names: chain, allow: false });
-          else if (savedChain.length) await api.chain({ op: 'rm', policy: s?.policy, cwd: folder, names: savedChain });
+          if (chain.length) await api.chain({ op: 'set', for: s?.primary, cwd: folder, names: chain, allow: false });
+          else if (savedChain.length) await api.chain({ op: 'rm', for: s?.primary, cwd: folder, names: savedChain });
         }
         if (dirtyAllow || (dirtyChain && savedAllow !== null)) await api.allow(allow);
         discard();
         return t('Mapa aplicado');
       },
       undo: () => async () => {
-        if (savedChain.length) await api.chain({ op: 'set', policy: s?.policy, cwd: folder, names: savedChain, allow: false });
+        if (savedChain.length) await api.chain({ op: 'set', for: s?.primary, cwd: folder, names: savedChain, allow: false });
         await api.allow(savedAllow);
       },
     };

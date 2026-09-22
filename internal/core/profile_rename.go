@@ -197,12 +197,14 @@ func renamedConfig(c *Config, oldName, newName string) *Config {
 	n.comments = renamedComments(c.comments, [][2]string{
 		{commentPath("profiles", oldName), commentPath("profiles", newName)},
 		{commentPath("auto_handoff", "allow_from", oldName), commentPath("auto_handoff", "allow_from", newName)},
+		{commentPath("auto_handoff", "chains", oldName), commentPath("auto_handoff", "chains", newName)},
 	})
 	return &n
 }
 
 // renamedAutoHandoff es la parte de renamedConfig que toca `auto_handoff`: el
-// fallback de cada política, las claves y las listas de allow_from, y hooks.
+// fallback de cada política, las claves y las listas de `chains` y de
+// `allow_from`, y hooks.
 // Los nombres de política no se tocan: no son perfiles.
 //
 // No deduplica. ProfileRename ya rechazó un newName que el bloque mencionara,
@@ -218,6 +220,21 @@ func renamedAutoHandoff(a *AutoHandoff, oldName, newName string) *AutoHandoff {
 		for name, pol := range a.Policies {
 			pol.Fallback = renamedList(pol.Fallback, oldName, newName)
 			n.Policies[name] = pol
+		}
+	}
+	// Las cadenas propias se renombran en las DOS posiciones: la clave (el dueño)
+	// y los nombres de dentro (los destinos). Renombrar solo una deja al perfil
+	// renombrado sin su cadena —volvería a heredar sin que nadie lo dijera— o con
+	// una cadena que apunta a un perfil que ya no existe, que es un error al
+	// resolver justo cuando toca rotar.
+	if a.Chains != nil {
+		n.Chains = make(map[string]AutoChain, len(a.Chains))
+		for owner, entry := range a.Chains {
+			if owner == oldName {
+				owner = newName
+			}
+			entry.Fallback = renamedList(entry.Fallback, oldName, newName)
+			n.Chains[owner] = entry
 		}
 	}
 	if a.AllowFrom != nil {
@@ -249,6 +266,11 @@ func autoHandoffMentions(a *AutoHandoff, name string) []string {
 	for _, pol := range slices.Sorted(maps.Keys(a.Policies)) {
 		if listMentions(a.Policies[pol].Fallback, name) {
 			where = append(where, "policies."+pol+".fallback")
+		}
+	}
+	for _, owner := range slices.Sorted(maps.Keys(a.Chains)) {
+		if owner == name || listMentions(a.Chains[owner].Fallback, name) {
+			where = append(where, "chains."+owner)
 		}
 	}
 	for _, primary := range slices.Sorted(maps.Keys(a.AllowFrom)) {

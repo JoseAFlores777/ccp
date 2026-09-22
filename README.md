@@ -318,8 +318,17 @@ auto_handoff:
   enabled: true              # master switch: false = ccp session refuses to run
   hooks: [personal-1, work-2]    # profiles with the sensor layer installed
                                  # (managed by `ccp auto install/uninstall`)
+  chains:                    # ONE CHAIN PER PROFILE (see below). A profile with
+    work-1: [work-2]         # no entry here inherits its policy's `fallback`.
+    work-2: [work-1]
+    client-a: []             # declared and empty: this one lends to NOBODY
+    personal-1:
+      fallback: [personal-deepseek]
+      policy: overnight      # …and pins a policy: its thresholds, not default's
+
   policies:
     default:
+      # The SHARED list: every profile with no chain of its own inherits it.
       # Loans, in order of preference. The primary is IMPLICIT (ccp resolve $PWD)
       # and is silently dropped if you list it here.
       fallback: [work-2, personal-deepseek]
@@ -365,46 +374,97 @@ That last row is the point: declaring the map is declaring the intent to govern 
 
 > **The row you'll hit first.** `ccp auto init` seeds `allow_from` with one entry per *named* profile, and `default` is never one of them. So in a directory with no path rule the primary is `default`, there is no entry for it, and the whole chain shows up as denied — `ccp session` still runs, it just has nowhere to hop when the limit lands. Either set a rule (`ccp path set . <profile>`) or add a `default:` entry to `allow_from` yourself. `--dry-run` shows this immediately: `chain: (empty)` with everything under *denied*.
 
+### One chain per profile
+
+The chain is **each profile's own**, not the policy's. Which accounts can back up
+which is your call and nothing ccp can look at tells it: a work account may lend
+to its twin at the same company and to nobody else, your personal one lends to
+its provider, a client's lends to no one. Those are three different chains, not
+three trims of one — which is all `allow_from` could ever give you, since it only
+**subtracts** from the shared list and cannot reorder it.
+
+```yaml
+auto_handoff:
+  chains:
+    work-1: [work-2]          # work-1 lends only to work-2
+    client-a: []              # declared and empty: lends to NOBODY
+    personal-1:
+      fallback: [personal-deepseek]
+      policy: overnight       # this profile uses another policy's knobs
+  policies:
+    default:
+      fallback: [work-2, personal-deepseek]   # inherited by anyone with no chain
+```
+
+Three states, and the middle one is the point:
+
+| `chains[<profile>]` | Effect |
+|---|---|
+| absent | **inherits** the `fallback` of its policy — what every profile did before this key existed |
+| declared with a list | that list, in that order, replacing the policy's |
+| declared **empty** (`[]`) | this profile lends to nobody: when it hits its limit the run stops |
+
+`ccp auto init` seeds no chains at all, so an existing config keeps behaving
+exactly as it did until you declare one.
+
 ### Editing the chain — add, reorder or remove a loan
 
 ```bash
 ccp auto chain                        # the EFFECTIVE chain for this directory
+ccp auto chain list                   # every profile's chain: own or inherited
 ccp auto chain add personal-deepseek  # append it, and authorise the loan
 ccp auto chain add work-2 --at 1      # insert at a 1-based position
 ccp auto chain mv work-2 2            # reorder — the order IS the preference
 ccp auto chain rm personal-deepseek   # take it out, and withdraw the authorisation
 ccp auto chain set work-1,work-2      # replace the whole chain
+ccp auto chain reset                  # drop the own chain: inherit again
+ccp auto chain policy overnight       # pin a policy to this profile (--none unpins)
 ```
 
-All of them take `--policy <name>` (default: `default`) and act on the primary of the **current directory**, which is the one whose `allow_from` entry they are allowed to touch.
+**Which chain they write.** By default, the **own chain of the current
+directory's primary** — inside a repo, "add it to the chain" is about that
+profile. `--for <profile>` targets another one without cd'ing there; `--shared`
+(or naming `--policy <name>`, which points at that policy's list) targets the
+shared list that every profile with no chain of its own inherits. `--for`
+together with `--shared`/`--policy` is an error, not a tie-break: they are two
+targets and writing to either would surprise you.
+
+**The first edit forks the inheritance, and says so.** A profile that was
+inheriting gets its own copy **seeded with the inherited list** — adding one
+cannot mean removing all the others — and from then on changes to the shared
+list no longer reach it. That is invisible in the YAML and only bites months
+later, so it is reported the moment it happens, and `ccp auto chain reset` undoes
+it:
+
+```console
+$ ccp auto chain add personal-deepseek
+
+[ok] target     own chain of personal-1
+[warn] personal-1 now has a chain of its own: changes to policy default's list will no longer reach it (it inherited: work-1 → work-2)
+[ok] fallback   work-1 → work-2 → personal-deepseek
+[ok] allow_from personal-1: +personal-deepseek
+```
 
 **`add` writes two keys, and that is the whole point.** Whoever types "add it to the chain" wants the profile to *be used*, and a `fallback` entry without its `allow_from` is never used — silently. Leaving the two keys apart in the CLI would just reproduce the trap the YAML already sets. But `allow_from` is a **compliance gate** and may be there on purpose, so the widening has three hard limits:
 
-1. It touches **only** the entry of the primary that the current directory resolves to. Never anyone else's — a blanket rewrite would widen permissions for repos you are not even standing in.
+1. It touches **only** the entry of the profile whose chain is being edited (the current directory's primary, or the one named by `--for`). Never anyone else's — a blanket rewrite would widen permissions for repos you are not even standing in.
 2. It prints **exactly what changed in each key, separately**. `+name` authorises, `-name` withdraws.
 3. `--no-allow` turns it off.
 
 `rm` (and the profiles that `set` drops) goes the other way and **withdraws** the authorisation, again only from that one entry. That is what makes `add` reversible: without it the gate could only ever grow, and undoing a mistaken `add` would mean hand-editing the YAML — exactly what these commands exist to avoid.
 
-```console
-$ ccp auto chain add personal-deepseek
-
-[ok] fallback   work-1 → work-2 → personal-deepseek
-[ok] allow_from personal-1: +personal-deepseek
-
-effective chain from this repo:
-  work-1 → work-2 → personal-deepseek
-```
-
-Every mutation ends by re-reading the effective chain **from disk**, so you see what the engine will see — including anything `allow_from` is still blocking.
+Every mutation ends by re-reading the effective chain **from disk**, so you see what the engine will see — including anything `allow_from` is still blocking. With `--for <profile>` it re-reads *that* profile's, not this directory's.
 
 | What you want | Command |
 |---|---|
 | Add a loan | `ccp auto chain add <profile>` (writes `fallback` **and** `allow_from[<primary>]`) |
 | Change the preference order | `ccp auto chain mv <profile> <pos>` — the **order is the preference** |
 | Remove a loan | `ccp auto chain rm <profile>` (withdraws the authorisation too; `--no-allow` keeps it) |
-| Stop rotating in a directory | `ccp auto chain rm` every loan, or give that primary a policy with `fallback: []` |
-| A different chain for a different job | add another policy under `policies:` and use `--policy <name>` |
+| Stop rotating in one directory | `ccp auto chain rm` every loan — that leaves `chains[<primary>]: []`, which is "lends to nobody" (`set` with no names is refused on purpose) |
+| A different chain for each account | it already is: every profile has its own (`ccp auto chain list` shows them all) |
+| Go back to the shared chain | `ccp auto chain reset` |
+| Different thresholds for one account | add a policy under `policies:` and pin it with `ccp auto chain policy <name>` |
+| Change the chain for everyone who inherits | `ccp auto chain <op> --shared` |
 
 Editing the file by hand is still perfectly fine, and is how you add a whole new policy. `ccp` rewrites `~/.config/ccp/ccp.yaml` atomically while **preserving your comments and any keys it doesn't know**, so an annotation about why a profile is in the list survives every later `ccp path set`, `profile add` or `auto install`.
 
