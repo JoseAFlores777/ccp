@@ -32,7 +32,20 @@ type Level = ConfigLayer['level'];
 const LEVELS: Level[] = ['global', 'profile', 'project', 'desktop'];
 
 function levelName(l: Level): string {
-  return { global: t('Global'), profile: t('Perfil'), project: t('Proyecto'), desktop: t('Ventana') }[l];
+  return { global: t('Global'), profile: t('Perfil'), project: t('Proyecto'), desktop: t('Chat de Desktop') }[l];
+}
+
+/** Qué lee cada capa, en una línea. Los nombres cortos del selector no bastan:
+ *  «Perfil» y «Ventana» no decían que una es Claude Code y la otra el chat. */
+function levelHelp(l: Level, fixed: boolean): string {
+  switch (l) {
+    case 'global': return t('~/.claude: lo leen Claude Code y todas las cuentas, salvo lo que una cuenta cambie en su capa.');
+    case 'profile': return fixed
+      ? t('Lo que lee Claude Code con esta cuenta, en la terminal y en la pestaña Code de su ventana de Desktop.')
+      : t('Lo que lee Claude Code con esa cuenta, en la terminal y en la pestaña Code de su ventana de Desktop.');
+    case 'project': return t('El .claude/ y el .mcp.json del repo: los lee Claude Code en esa carpeta, con cualquier cuenta.');
+    case 'desktop': return t('El chat de la ventana de Desktop: solo servidores MCP, solo de tipo stdio, y se aplican al reiniciar la ventana. La pestaña Code también los hereda.');
+  }
 }
 
 export function Configuracion({ profile: fixed }: { profile?: string } = {}) {
@@ -117,7 +130,10 @@ export function Configuracion({ profile: fixed }: { profile?: string } = {}) {
             setLevel(l);
             if (l === 'desktop') setType('mcp');
           }}
-          options={levels.map((l) => ({ value: l, label: fixed && l === 'desktop' ? t('Su ventana') : levelName(l) }))}
+          options={levels.map((l) => ({
+            value: l,
+            label: fixed ? (l === 'profile' ? t('Claude Code') : t('Chat de Desktop (solo MCP)')) : levelName(l),
+          }))}
         />
         {/* Con «Efectivo» la capa deja de mandar: lo efectivo es de una cuenta,
             así que el selector de perfil se enseña siempre que esté encendido. */}
@@ -145,6 +161,12 @@ export function Configuracion({ profile: fixed }: { profile?: string } = {}) {
           <Toggle on={eff} onChange={setEff} label={t('Efectivo')} />
         </label>
       </div>
+
+      {!eff && (
+        <div style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 300, lineHeight: 1.55, margin: '-4px 0 14px' }}>
+          {levelHelp(level, !!fixed)}
+        </div>
+      )}
 
       {fixed === 'default' && !eff && (
         <Note style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 14 }}>

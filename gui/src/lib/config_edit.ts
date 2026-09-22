@@ -45,7 +45,7 @@ export function scopeArg(l: ConfigLayer): string {
  *  traducen: son datos. */
 export function layerLabel(l: { level: string; name?: string }): string {
   const lv: Record<string, string> = {
-    global: t('Global'), profile: t('Perfil'), project: t('Proyecto'), desktop: t('Ventana'),
+    global: t('Global'), profile: t('Perfil'), project: t('Proyecto'), desktop: t('Chat de Desktop'),
     managed: t('Gestionado por la organización'), plugin: t('Plugin'), account: t('Cuenta de claude.ai'),
   };
   const base = lv[l.level] ?? l.level;

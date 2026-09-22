@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- **Las capas de configuración se explican solas.** Dentro de una cuenta, «Perfil / Su ventana» pasa a
+  «Claude Code / Chat de Desktop (solo MCP)», y debajo del selector una línea dice qué lee cada capa. En
+  General, la capa «Ventana» se llama «Chat de Desktop».
+
 ## [2.24.0] — la cuenta es la puerta de entrada
 
 La app pedía elegir la cuenta en cada pantalla, y cada pantalla lo hacía a su manera: unas miraban el perfil
