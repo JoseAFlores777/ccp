@@ -80,7 +80,7 @@ const CompletionBash = `_ccp() {
              [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" == "chain" ]] && COMPREPLY=( $(compgen -W "show list add rm mv set reset policy help --policy --for --shared" -- "$cur") )
              [[ $COMP_CWORD -ge 4 && "${COMP_WORDS[2]}" == "chain" && "${COMP_WORDS[3]}" =~ ^(add|rm|mv|set|reset|policy)$ ]] && COMPREPLY=( $(compgen -W "--policy --for --shared --at --no-allow $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
     session) COMPREPLY=( $(compgen -W "--dry-run --headless --policy --yolo --max-hops --no-return --setup --no-setup" -- "$cur") ) ;;
-    desktop) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "open app list path prepare rm default $(ccp profile list 2>/dev/null)" -- "$cur") )
+    desktop) [[ $COMP_CWORD -eq 2 ]] && COMPREPLY=( $(compgen -W "open app list path prepare restart rm default $(ccp profile list 2>/dev/null)" -- "$cur") )
              [[ $COMP_CWORD -eq 3 && "${COMP_WORDS[2]}" =~ ^(open|app|path|prepare|rm)$ ]] && COMPREPLY=( $(compgen -W "default $(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
     key)     COMPREPLY=( $(compgen -W "$(ccp profile list 2>/dev/null)" -- "$cur") ) ;;
     completion) COMPREPLY=( $(compgen -W "bash zsh" -- "$cur") ) ;;
@@ -109,7 +109,7 @@ _ccp() {
              (( CURRENT == 4 )) && [[ "${words[3]}" == chain ]] && compadd -- show list add rm mv set reset policy help --policy --for --shared
              (( CURRENT >= 5 )) && [[ "${words[3]}" == chain && "${words[4]}" =~ ^(add|rm|mv|set|reset|policy)$ ]] && compadd -- --policy --for --shared --at --no-allow ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     session) compadd -- --dry-run --headless --policy --yolo --max-hops --no-return --setup --no-setup ;;
-    desktop) (( CURRENT == 3 )) && compadd -- open app list path prepare rm default ${(f)"$(ccp profile list 2>/dev/null)"}
+    desktop) (( CURRENT == 3 )) && compadd -- open app list path prepare restart rm default ${(f)"$(ccp profile list 2>/dev/null)"}
              (( CURRENT == 4 )) && [[ "${words[3]}" =~ ^(open|app|path|prepare|rm)$ ]] && compadd -- default ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     key)     compadd -- ${(f)"$(ccp profile list 2>/dev/null)"} ;;
     completion) compadd -- bash zsh ;;

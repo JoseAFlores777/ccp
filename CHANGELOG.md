@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+## [2.22.0] — reiniciar la ventana de un perfil desde la app
+
+La proyección de MCP al chat de Desktop **se aplaza hasta el siguiente arranque** ([ADR 0016](docs/adr/0016-what-desktop-reads-from-a-profile.md)):
+hasta entonces la ventana sigue sirviendo los servidores de antes y no lo dice. El aviso «pendiente de
+reiniciar la ventana de X» traía el problema y no la salida — reiniciar era ir al Dock, cerrar a mano y
+volver a abrir desde el icono, tres pasos que nadie asocia con «he cambiado un MCP».
+
+`ccp desktop restart <perfil>` cierra esa ventana y la vuelve a abrir; si estaba cerrada, solo la abre. En
+la app hay botón en el propio aviso y otro permanente en la pantalla Desktop.
+
+Dos reglas gobiernan el cierre y ninguna es negociable:
+
+- **Solo se señala al proceso PRINCIPAL** de esa instancia. Los helpers de Chromium cuelgan de él:
+  señalarlos no cierra la ventana —el principal los relanza, o se cae llevándose la sesión sin guardar— y
+  solo el principal convierte un SIGTERM en un cierre ordenado.
+- **Nunca se manda SIGKILL.** Si la ventana no se cierra en 20 s se dice y se para. Un Chromium muerto a
+  golpes deja el data dir inconsistente —ahí viven la sesión, los tokens y el estado de Cowork— y reabrir
+  encima pondría dos procesos sobre el mismo `--user-data-dir`, que es lo que Chromium no admite. O sea:
+  este comando puede terminar **sin** haber reiniciado, y esa es una respuesta legítima.
+
+El botón permanente solo sale con la ventana abierta (cerrada, «Abrir» ya hace lo mismo) y nunca para
+`default`: esa ventana es el Claude del usuario, no una que ccp haya creado, y cerrarla desde aquí sería
+tomarle el mando.
+
 ## [2.21.3] — editar un MCP dejaba la app en blanco
 
 Abrir «Editar» sobre un servidor MCP lanzaba `TypeError: Cannot read properties of undefined (reading

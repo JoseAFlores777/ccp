@@ -84,6 +84,24 @@ export function Desktop() {
                   ) : (
                     <button className="btn" onClick={() => open(r)}>{r.running ? t('Traer al frente') : t('Abrir')}</button>
                   )}
+                  {/* Reiniciar solo se ofrece con la ventana ABIERTA: cerrada,
+                      «Abrir» ya hace lo mismo y dos botones para la misma acción
+                      obligan a elegir entre cosas iguales. `default` queda fuera
+                      —esa ventana es el Claude del usuario, no una que ccp haya
+                      creado— y cerrarla desde aquí sería tomarle el mando. */}
+                  {r.running && !isDefault && r.instance && (
+                    <button
+                      className="btn ghost"
+                      title={t('Cierra la ventana de {p} y la vuelve a abrir: es lo que hace que el chat cargue los MCP nuevos', { p: r.profile })}
+                      onClick={() =>
+                        mutate(async () => must(await api.desktopRun({ action: 'restart', profile: r.profile })), {
+                          msg: t('Ventana de {p} reiniciada', { p: r.profile }),
+                        })
+                      }
+                    >
+                      {t('Reiniciar')}
+                    </button>
+                  )}
                   {!isDefault && (
                     <>
                       <button

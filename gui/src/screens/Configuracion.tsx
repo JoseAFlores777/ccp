@@ -15,6 +15,7 @@ import {
   CFG_TYPES, deleteItemModal, hookAddModal, jsonModal, layerLabel, lastRestart, mcpModal,
   moveModal, permissionModal, scopeArg, textModal, typeLabel, whereLabel,
 } from '../lib/config_edit';
+import { must } from '../lib/actions';
 import { tilde, untilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
@@ -31,7 +32,7 @@ function levelName(l: Level): string {
 }
 
 export function Configuracion() {
-  const { profiles, selected, folder, openModal, colorOf } = useApp();
+  const { profiles, selected, folder, openModal, colorOf, mutate } = useApp();
   const [level, setLevel] = useState<Level>('global');
   const [profile, setProfile] = useState(selected || 'default');
   const [project, setProject] = useState(folder);
@@ -136,6 +137,23 @@ export function Configuracion() {
       {restart.length > 0 && (
         <Note kind="warn">
           {t('Pendiente de reiniciar la ventana de {p}: con la ventana abierta el chat sigue con los MCP de antes.', { p: restart.join(', ') })}{' '}
+          {/* El aviso traía el problema y no la salida: reiniciar era ir al Dock,
+              cerrar la ventana a mano y volver a abrirla desde su icono, tres
+              pasos que nadie asocia con «he cambiado un MCP». El botón lo hace. */}
+          {restart.map((n) => (
+            <button
+              key={n}
+              className="btn xs"
+              style={{ marginRight: 6 }}
+              onClick={() =>
+                void mutate(async () => must(await api.desktopRun({ action: 'restart', profile: n })), {
+                  msg: t('Ventana de {p} reiniciada', { p: n }),
+                })
+              }
+            >
+              {restart.length === 1 ? t('Reiniciar la ventana') : t('Reiniciar {p}', { p: n })}
+            </button>
+          ))}
           <button className="btn quiet xs" onClick={() => setSeenRestart(lastRestart.seq)}>{t('Entendido')}</button>
         </Note>
       )}

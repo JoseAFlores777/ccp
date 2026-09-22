@@ -8,6 +8,46 @@ func init() {
 // cli.desktop.* — register panica ante duplicados, así que ningún otro
 // catálogo puede usar ese prefijo.
 var catalogDesktop = map[string]map[Lang]string{
+	// --- ccp desktop restart ---
+	//
+	// El comando puede acabar SIN haber reiniciado (la ventana no se cerró a
+	// tiempo) y eso es una respuesta legítima, así que cada estado tiene su
+	// línea: sin ellas, «no pasó nada» y «no pude» se leen igual.
+	"cli.desktop.restart_usage": {
+		En: `Usage: ccp desktop restart <profile> [--force]
+
+Closes that profile's window if it is open and opens it again; if it was closed,
+it just opens it. Useful after changing something the window does not re-read
+while running — the chat's MCP servers are projected on the next start.`,
+		Es: `Uso: ccp desktop restart <perfil> [--force]
+
+Cierra la ventana de ese perfil si está abierta y la vuelve a abrir; si estaba
+cerrada, solo la abre. Sirve tras cambiar algo que la ventana no relee en
+caliente — los servidores MCP del chat se proyectan al siguiente arranque.`,
+	},
+	"cli.desktop.restart_not_open": {
+		En: "%s had no window open: opening it.",
+		Es: "%s no tenía ventana abierta: se abre.",
+	},
+	"cli.desktop.restart_closing": {
+		En: "closing %s's window…",
+		Es: "cerrando la ventana de %s…",
+	},
+	"cli.desktop.restart_closed": {
+		En: "%s's window closed; opening it again",
+		Es: "ventana de %s cerrada; se vuelve a abrir",
+	},
+	"cli.desktop.restart_signal_failed": {
+		En: "could not ask process %d to quit: %v",
+		Es: "no se pudo pedir al proceso %d que se cerrara: %v",
+	},
+	// Nada de matar a lo bruto: se dice y se para. Un Chromium muerto a golpes
+	// deja el data dir inconsistente —ahí viven la sesión y los tokens— y abrir
+	// encima pondría dos procesos sobre el mismo --user-data-dir.
+	"cli.desktop.restart_stuck": {
+		En: "%s's window did not close in %d s. It was NOT force-killed (that can corrupt its data dir) and nothing was reopened: close it by hand and try again.",
+		Es: "la ventana de %s no se cerró en %d s. NO se ha matado a la fuerza (eso puede corromper su data dir) ni se ha reabierto nada: ciérrala a mano y vuelve a intentarlo.",
+	},
 	"cli.desktop.usage": {
 		En: `Usage: ccp desktop <subcommand>
 
@@ -21,6 +61,7 @@ var catalogDesktop = map[string]map[Lang]string{
   app rm <profile>        delete the launcher (the instance and its session stay)
   list [--json]           instances on disk, their size and their launcher
   path <profile>          print the instance's --user-data-dir
+  restart <profile>        close that profile's window and open it again
   prepare <profile>       make the profile's cc-home acceptable to Desktop
   doctor [<profile>] [--json]
                           audit launchers, instances and their identity (diagnoses, never repairs)
@@ -42,6 +83,7 @@ var catalogDesktop = map[string]map[Lang]string{
   app rm <perfil>         borra el lanzador (la instancia y su sesión se quedan)
   list [--json]           instancias en disco, su tamaño y su lanzador
   path <perfil>           imprime el --user-data-dir de la instancia
+  restart <perfil>         cierra la ventana de ese perfil y la vuelve a abrir
   prepare <perfil>        deja el cc-home del perfil en la forma que Desktop acepta
   doctor [<perfil>] [--json]
                           audita lanzadores, instancias e identidad (diagnostica, nunca repara)

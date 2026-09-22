@@ -1056,6 +1056,11 @@ func srvDesktopRun(s *server, raw json.RawMessage) (any, error) {
 		args = []string{"desktop", "app", "rm", p.Profile}
 	case "prepare":
 		args = []string{"desktop", "prepare", p.Profile}
+	case "restart":
+		// Cierra la ventana si está abierta y la vuelve a abrir. Es el camino
+		// para que un cambio que la ventana no relee en caliente —la proyección
+		// de MCP al chat, ADR 0016— llegue sin ir a buscarla al Dock.
+		args = []string{"desktop", "restart", p.Profile}
 	case "rm":
 		// La CLI no lo comprueba; la GUI sí lo promete: borrar el data dir de una
 		// ventana abierta le arranca a Chromium los archivos que tiene mapeados.
