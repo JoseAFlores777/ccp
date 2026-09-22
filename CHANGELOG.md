@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+## [2.23.0] — el sensor de consumo callaba su propio fallo
+
+«Uso por cuenta» decía **«todavía no hay muestras»** para siempre, en todos los perfiles, con los sensores
+correctamente instalados. La causa, medida: **el payload del statusLine de Claude Code 2.1.236 no trae
+`rate_limits`**. Sus claves son `context_window`, `cost`, `model`, `thinking`… y ninguna es la ventana de
+5 h / 7 d (`context_window` es el contexto de la sesión, no la cuota).
+
+ccp lee `rate_limits` de ese payload. Como no viene, el sensor corría en cada refresco, no encontraba nada
+y **no escribía**. Y como por contrato nunca se queja —si fallara, Claude Code se quedaría sin barra de
+estado—, el resultado era un silencio idéntico al de un sensor no instalado. Dos causas con arreglos
+distintos y un único síntoma mudo; la de verdad, invisible.
+
+- **La muestra vacía ahora se guarda.** Es la constancia de que el sensor corrió, con la versión que se
+  presentó en el payload. Es la misma regla que el doctor de Desktop ya tenía ([ADR 0009](docs/adr/0009-desktop-identity-is-not-durable.md)):
+  una sonda que no puede medir produce «no lo sé», nunca silencio.
+- **Pero no cuenta como dato.** `ReadRateLimits` sigue diciendo que no hay nada utilizable: devolver la
+  muestra vacía como buena le daría al supervisor unos ceros que nadie midió, y con ellos decidiría que la
+  cuenta está libre justo antes de que un límite la corte. Las dos mitades tiran en direcciones opuestas y
+  por eso se afirman juntas en un test.
+- **La interfaz lo cuenta.** El CLI y la app dicen «el sensor corre; Claude Code 2.1.236 no informa del
+  consumo» en vez de «sin muestras», que mandaba a reinstalar un sensor que ya estaba puesto y funcionando.
+
+Y un fallo latente que apareció de camino: **sin `CCP_PROFILE`, el sensor atribuía la muestra a `default`**
+aunque `CLAUDE_CONFIG_DIR` apuntara a otro perfil. Ahora lo deduce del config dir. Caer a `default` no era
+un fallo visible, era peor: quien lanza `claude` con el config dir a mano —algo que la documentación de
+Claude Code enseña— veía su consumo contabilizado en otra cuenta, en silencio, mientras la cuenta real
+seguía diciendo «sin datos». Un número en la casilla equivocada es peor que ninguno, porque se actúa sobre él.
+
 ### `TestRunCtrlCNoRota` era una moneda al aire
 
 El test del Ctrl-C usaba el `min_dwell: 0s` del harness, y con permanencia cero el supervisor mata al hijo

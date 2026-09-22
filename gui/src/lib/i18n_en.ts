@@ -928,6 +928,7 @@ export const en: Record<string, string> = {
   // Cadenas por perfil (auto_handoff.chains)
   "Cadena de {p}": "{p}'s chain",
   "Cadena de": "Chain of",
+  "el sensor corre, pero Claude Code {v} no informa del consumo": "the sensor runs, but Claude Code {v} does not report usage",
   "Reiniciar la ventana": "Restart the window",
   "Reiniciar {p}": "Restart {p}",
   "Ventana de {p} reiniciada": "{p}'s window restarted",

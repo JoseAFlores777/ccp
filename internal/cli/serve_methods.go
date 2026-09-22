@@ -366,18 +366,25 @@ type srvProfileDesktop struct {
 }
 
 type srvProfile struct {
-	Name       string            `json:"name"`
-	Type       string            `json:"type"`
-	BaseURL    string            `json:"base_url"`
-	ModelPro   string            `json:"model_pro"`
-	ModelFlash string            `json:"model_flash"`
-	Effort     string            `json:"effort"`
-	Access     string            `json:"access"` // ok | nologin | nokey
-	Usage      *srvUsage         `json:"usage"`
-	Sensors    string            `json:"sensors"` // installed | missing | na
-	InChain    bool              `json:"in_chain"`
-	Rules      int               `json:"rules"`
-	Desktop    srvProfileDesktop `json:"desktop"`
+	Name       string    `json:"name"`
+	Type       string    `json:"type"`
+	BaseURL    string    `json:"base_url"`
+	ModelPro   string    `json:"model_pro"`
+	ModelFlash string    `json:"model_flash"`
+	Effort     string    `json:"effort"`
+	Access     string    `json:"access"` // ok | nologin | nokey
+	Usage      *srvUsage `json:"usage"`
+	Sensors    string    `json:"sensors"` // installed | missing | na
+
+	// SensorRan / SensorReports / CCVersion / SensorSeenAt: los tres estados del
+	// sensor. Campos AÑADIDOS, la forma del mensaje no cambia.
+	SensorRan     bool              `json:"sensor_ran"`
+	SensorReports bool              `json:"sensor_reports"`
+	CCVersion     string            `json:"cc_version,omitempty"`
+	SensorSeenAt  string            `json:"sensor_seen_at,omitempty"`
+	InChain       bool              `json:"in_chain"`
+	Rules         int               `json:"rules"`
+	Desktop       srvProfileDesktop `json:"desktop"`
 }
 
 func srvProfilesList(s *server, _ json.RawMessage) (any, error) {
@@ -426,6 +433,17 @@ func srvProfilesList(s *server, _ json.RawMessage) (any, error) {
 		}
 		sp.Access = profileAccess(s.home, cfg, name)
 		sp.Sensors = profileSensors(cfg, name)
+		// El estado del sensor viaja aunque no haya consumo: «no ha corrido» y
+		// «corre y tu Claude Code no informa» son dos cosas distintas y la
+		// pantalla tiene que poder decir cuál, en vez de un «sin datos» que vale
+		// para las dos.
+		st := core.ReadRateSample(s.home, name)
+		sp.SensorRan = st.Present
+		sp.SensorReports = st.Reported
+		sp.CCVersion = st.CCVersion
+		if st.Present && !st.Reported {
+			sp.SensorSeenAt = timeOrEmpty(st.SampledAt)
+		}
 		if rl, sampled, ok := core.ReadRateLimits(s.home, name); ok {
 			sp.Usage = &srvUsage{
 				FiveHour:  srvWindow{Pct: rl.FiveHour.UsedPercentage, ResetsAt: timeOrEmpty(rl.FiveHour.ResetsAt)},

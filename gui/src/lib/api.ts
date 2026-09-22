@@ -48,6 +48,13 @@ export interface Profile {
   access: Access;
   usage: Usage | null;
   sensors: 'installed' | 'missing' | 'na';
+  // sensor_ran / sensor_reports distinguen «el sensor no ha corrido nunca» de
+  // «corre y tu Claude Code no informa del consumo». Sin ellos las dos salían
+  // como el mismo «sin datos», y se arreglan en sitios distintos.
+  sensor_ran?: boolean;
+  sensor_reports?: boolean;
+  cc_version?: string;
+  sensor_seen_at?: string;
   in_chain: boolean;
   rules: number;
   desktop: { eligible: boolean; instance: boolean; running: boolean; launcher: Launcher | null };
