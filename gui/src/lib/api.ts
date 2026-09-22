@@ -55,6 +55,10 @@ export interface Profile {
   sensor_reports?: boolean;
   cc_version?: string;
   sensor_seen_at?: string;
+  // has_sessions: ha corrido Claude Code con esta cuenta alguna vez. Solo viene
+  // cuando el sensor NUNCA corrió, que es donde «no se usa» y «se usa desde
+  // donde el sensor no llega» se confunden.
+  has_sessions?: boolean;
   in_chain: boolean;
   rules: number;
   desktop: { eligible: boolean; instance: boolean; running: boolean; launcher: Launcher | null };

@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [2.23.1] — «aún sin muestra» tenía dos causas y solo una tiene arreglo
+
+Con 2.23.0 el sensor ya dejaba constancia de que había corrido, pero seguía habiendo un silencio que valía
+para dos cosas muy distintas: que la cuenta **no se usa**, o que se usa **mucho** desde un sitio donde el
+sensor no llega. Medido: 341 sesiones en una cuenta y cero muestras, porque **la pestaña Code de Desktop no
+ejecuta la barra de estado**. `claude` en una terminal sí — comprobado con una pty sobre la configuración
+real de ese perfil.
+
+Ahora se distinguen. Si hay transcripts pero el sensor nunca corrió, el CLI y la app dicen «se usa, pero
+solo desde la ventana de Desktop: ahí no corre el sensor», y la app añade arriba, una sola vez para todas
+las cuentas afectadas, qué hacer: abrir una sesión en una terminal con esa cuenta.
+
+La pregunta es «¿hay algún transcript?», no «¿cuántos?», así que el recorrido para en el primero: un perfil
+con cientos de proyectos no puede costar una pasada completa en cada refresco de la lista.
+
+Y de paso, una asimetría entre las dos superficies: un perfil de proveedor no tiene ventana de uso que
+informar, y la app ya lo decía mientras el CLI respondía «aún sin muestra» — que invita a buscar un fallo
+que no existe.
+
 ## [2.23.0] — el sensor de consumo callaba su propio fallo
 
 «Uso por cuenta» decía **«todavía no hay muestras»** para siempre, en todos los perfiles, con los sensores

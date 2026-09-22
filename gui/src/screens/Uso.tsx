@@ -7,7 +7,7 @@ import { isProvider, must } from '../lib/actions';
 import { ago, clock, pct } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
-import { Bar, Card, CliBar, CommandOutput, Pill, usageColor, type Tone } from '../components/ui';
+import { Bar, Card, CliBar, CommandOutput, Note, Pill, type Tone, usageColor } from '../components/ui';
 
 function state(p: Profile, threshold: number): { label: string; tone: Tone } {
   const u = p.usage?.five_hour?.pct;
@@ -49,8 +49,18 @@ export function Uso() {
   // Primero las que tienen muestra: son las que pueden cortar el trabajo.
   const list = profiles.filter((p) => p.name !== 'default').sort((a, b) => Number(!!b.usage) - Number(!!a.usage));
 
+  // El aviso va una vez arriba y no repetido en cada tarjeta: es la MISMA causa
+  // para todas las cuentas afectadas, y repetirlo cinco veces lo convierte en
+  // ruido que se deja de leer.
+  const soloDesktop = list.filter((p) => p.sensors === 'installed' && !p.sensor_ran && p.has_sessions);
+
   return (
     <div>
+      {soloDesktop.length > 0 && (
+        <Note kind="warn" style={{ marginBottom: 12 }}>
+          {t('{p} se usan, pero el sensor nunca ha corrido con ellas. La barra de estado que alimenta estas cifras la ejecuta Claude Code en una terminal; la pestaña Code de Desktop no la pinta, así que desde ahí no hay nada que medir. Abre una sesión en una terminal con esa cuenta y volverán a leerse.', { p: soloDesktop.map((p) => p.name).join(', ') })}
+        </Note>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {list.map((p) => {
           const s = state(p, threshold);
@@ -68,7 +78,9 @@ export function Uso() {
                 ? t('los proveedores no informan de su ventana de uso')
                 : p.sensor_ran && !p.sensor_reports
                   ? t('el sensor corre, pero Claude Code {v} no informa del consumo', { v: p.cc_version || '' })
-                  : t('todavía no hay muestras');
+                  : p.has_sessions
+                    ? t('se usa, pero solo desde la ventana de Desktop: ahí no corre el sensor')
+                    : t('todavía no hay muestras');
           return (
             <Card key={p.name} shadow style={{ padding: '17px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 15 }}>

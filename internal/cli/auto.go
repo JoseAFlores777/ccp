@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -305,6 +306,8 @@ type autoSensorJSON struct {
 	Profile          string  `json:"profile"`
 	Installed        bool    `json:"installed"`
 	SensorRan        bool    `json:"sensor_ran"`
+	HasSessions      bool    `json:"has_sessions"`
+	Provider         bool    `json:"provider"`
 	SensorReports    bool    `json:"sensor_reports"`
 	CCVersion        string  `json:"cc_version,omitempty"`
 	HasSample        bool    `json:"has_sample"`
@@ -415,6 +418,9 @@ func autoCollectSensors(home string, cfg *core.Config, threshold int, now time.T
 	out := make([]autoSensorJSON, 0, len(names))
 	for _, n := range names {
 		row := autoSensorJSON{Profile: n, Installed: core.AutoHooksEnabled(cfg, n)}
+		if p, ok := cfg.Profiles[n]; ok {
+			row.Provider = core.IsProviderType(p.Type)
+		}
 		// El estado del sensor va aparte del dato: «no ha corrido» y «corre y tu
 		// Claude Code no informa del consumo» tenían el mismo aspecto (ninguna
 		// muestra) y se arreglan en sitios distintos.
@@ -422,6 +428,11 @@ func autoCollectSensors(home string, cfg *core.Config, threshold int, now time.T
 			row.SensorRan = true
 			row.SensorReports = st.Reported
 			row.CCVersion = st.CCVersion
+		} else if row.Installed {
+			// Nunca corrió: ¿es que la cuenta no se usa, o que se usa desde donde
+			// el sensor no llega? Sin esta pregunta las dos dicen «aún sin
+			// muestra» y solo una tiene arreglo.
+			row.HasSessions = autoProfileHasSessions(home, n)
 		}
 		rl, sampled, ok := core.ReadRateLimits(home, n)
 		if ok {
@@ -532,6 +543,15 @@ func printAutoStatus(w io.Writer, lang i18n.Lang, s autoStatusJSON, configured b
 		// mandaba a reinstalar un sensor que ya estaba puesto y funcionando.
 		if sen.SensorRan && !sen.SensorReports {
 			sample = i18n.T(lang, "cli.auto.status_cc_silent", sen.CCVersion)
+		}
+		if !sen.SensorRan && sen.HasSessions {
+			sample = i18n.T(lang, "cli.auto.status_only_desktop")
+		}
+		// Un proveedor no tiene ventana de uso que informar: decirle «aún sin
+		// muestra» invita a buscar un fallo que no existe. La app ya lo decía y
+		// el CLI no; dos superficies con distinta verdad sobre el mismo estado.
+		if sen.Provider && !sen.SensorReports {
+			sample = i18n.T(lang, "cli.auto.status_provider_no_usage")
 		}
 		if sen.HasSample {
 			sample = i18n.T(lang, "cli.auto.status_sample",
@@ -801,6 +821,27 @@ func autoPayloadVersion(data []byte) string {
 		return ""
 	}
 	return strings.TrimSpace(obj.Version)
+}
+
+// autoProfileHasSessions dice si alguna vez corrió Claude Code con ese perfil.
+// Para en cuanto encuentra un transcript: la pregunta es «¿hay?», no «¿cuántos?».
+func autoProfileHasSessions(home, profile string) bool {
+	cch, err := core.CCHome(home, profile)
+	if err != nil {
+		return false
+	}
+	found := false
+	_ = filepath.WalkDir(filepath.Join(cch, "projects"), func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !d.IsDir() && strings.HasSuffix(d.Name(), ".jsonl") {
+			found = true
+			return fs.SkipAll
+		}
+		return nil
+	})
+	return found
 }
 
 // autoReadCapped lee el stdin completo con tope. El tope existe porque el productor
