@@ -1,6 +1,7 @@
 // App.tsx — enruta la pantalla elegida dentro del marco y monta los
 // elementos flotantes (modal, hoja de terminal, aviso).
 
+import { Boundary } from './components/Boundary';
 import { Modal } from './components/Modal';
 import { TerminalSheet, ToastView } from './components/Overlays';
 import { Header, Shell } from './components/Shell';
@@ -79,8 +80,17 @@ export function App() {
   return (
     <Shell>
       <Header />
-      {info ? <View key={screen} /> : <div className="skeleton" style={{ height: 200 }} />}
-      <Modal />
+      {/* Boundary por PANTALLA y otro para el modal, no uno solo arriba: así un
+          fallo en una vista deja la barra lateral viva y se puede ir a otra, y un
+          modal roto no se lleva por delante la pantalla que hay detrás. La `key`
+          lo remonta al cambiar de pantalla, que es lo que limpia el estado de
+          error sin recargar la app. */}
+      <Boundary key={screen}>
+        {info ? <View /> : <div className="skeleton" style={{ height: 200 }} />}
+      </Boundary>
+      <Boundary>
+        <Modal />
+      </Boundary>
       <TerminalSheet />
       <ToastView />
     </Shell>
