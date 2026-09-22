@@ -394,10 +394,19 @@ func srvProfilesList(s *server, _ json.RawMessage) (any, error) {
 			}
 		}
 	}
+	// «Está en alguna cadena» son ahora DOS sitios: las listas compartidas de las
+	// políticas y la cadena propia de cada perfil. Mirando solo las primeras, una
+	// cuenta que solo respalda a otra concreta salía como «fuera de cadenas» —una
+	// media verdad que invita a borrarla.
 	inChain := map[string]bool{}
 	if cfg.AutoHandoff != nil {
 		for _, pol := range cfg.AutoHandoff.Policies {
 			for _, f := range pol.Fallback {
+				inChain[strings.TrimSpace(f)] = true
+			}
+		}
+		for _, ch := range cfg.AutoHandoff.Chains {
+			for _, f := range ch.Fallback {
 				inChain[strings.TrimSpace(f)] = true
 			}
 		}

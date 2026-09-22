@@ -928,6 +928,7 @@ export const en: Record<string, string> = {
   // Cadenas por perfil (auto_handoff.chains)
   "Cadena de {p}": "{p}'s chain",
   "Cadena de": "Chain of",
+  "Cadena de {p}: {a} pasa a {b}.": "{p}'s chain: {a} becomes {b}.",
   "Tu ccp no sabe cambiar de cuenta aquí": "Your ccp cannot switch accounts here",
   "Lo de abajo es la cadena de {p}, la de esta carpeta, no la que elegiste. Actualiza con ccp upgrade y vuelve a abrir la app.": "What you see below is {p}'s chain — this folder's, not the one you picked. Update with ccp upgrade and reopen the app.",
   "{n} (esta carpeta)": "{n} (this folder)",
