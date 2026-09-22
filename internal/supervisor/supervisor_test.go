@@ -97,6 +97,7 @@ if [ -f "$FAKE_COUNT" ]; then read -r n < "$FAKE_COUNT"; fi
 n=$((n+1))
 printf '%s\n' "$n" > "$FAKE_COUNT"
 printf '%s %s %s\n' "$n" "$CCP_PROFILE" "$sid" >> "$FAKE_LOG"
+if [ -n "$FAKE_ARGS" ]; then printf '%s\n' "$*" >> "$FAKE_ARGS"; fi
 
 code=0
 where=""
@@ -1525,5 +1526,131 @@ func TestRunHijoQueAtrapaSIGTERMYSaleCeroSigueRotando(t *testing.T) {
 	}
 	if res.ExitCode != 0 {
 		t.Fatalf("ExitCode = %d, quería 0", res.ExitCode)
+	}
+}
+
+// --- mensajes de lanzamiento y principal explícita --------------------------
+
+// En headless nadie escribe: el primer lanzamiento lleva Prompt y cada
+// relanzamiento tras un salto lleva ResumePrompt. Sin eso, Claude reabierto en
+// otra cuenta se quedaba esperando o repetía la orden original desde cero.
+func TestRunPromptYResumePrompt(t *testing.T) {
+	e := setup(t, seed{
+		fallback: []string{"p2"},
+		maxHops:  3,
+		plan: []runStep{
+			{exit: 1, where: "stdout", emit: limitStdout("p1")},
+			{exit: 0},
+		},
+	})
+	argsLog := filepath.Join(t.TempDir(), "args")
+	t.Setenv("FAKE_ARGS", argsLog)
+
+	o := e.opts(seedSession)
+	o.Prompt = "haz la tarea"
+	o.ResumePrompt = "continúa donde te quedaste"
+	if _, err := Run(context.Background(), o); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	data, err := os.ReadFile(argsLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("lanzamientos = %d, quería 2: %q", len(lines), lines)
+	}
+	if !strings.HasSuffix(lines[0], "haz la tarea") || strings.Contains(lines[0], "continúa") {
+		t.Fatalf("el primer lanzamiento lleva Prompt: %q", lines[0])
+	}
+	if !strings.HasSuffix(lines[1], "continúa donde te quedaste") || strings.Contains(lines[1], "haz la tarea") {
+		t.Fatalf("el relanzamiento lleva ResumePrompt, no la orden original: %q", lines[1])
+	}
+}
+
+// Primary manda sobre la regla de la carpeta: una conversación de p2 sigue en
+// p2 aunque su carpeta sea de p1.
+func TestRunPrimaryExplicito(t *testing.T) {
+	e := setup(t, seed{
+		fallback: []string{"p1", "p3"},
+		maxHops:  3,
+		plan:     []runStep{{exit: 0}},
+	})
+	o := e.opts(seedSession)
+	o.Primary = "p2"
+	res, err := Run(context.Background(), o)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got := e.profiles(t); len(got) != 1 || got[0] != "p2" {
+		t.Fatalf("perfiles lanzados = %v, quería [p2]", got)
+	}
+	if res.Profile != "p2" {
+		t.Fatalf("terminó en %s, quería p2", res.Profile)
+	}
+}
+
+// --- estado en vivo ---------------------------------------------------------
+
+// La corrida publica su foto: al terminar, el archivo dice dónde acabó, qué
+// saltos hizo (y cuál fue vuelta a casa), cuántos préstamos gastó y con qué
+// uuid siguió. Es lo que pinta la app mientras ocurre.
+func TestRunPublicaEstadoEnVivo(t *testing.T) {
+	e := setup(t, seed{
+		fallback: []string{"p2"},
+		maxHops:  3,
+		plan: []runStep{
+			{exit: 1, where: "stdout", emit: limitStdout("p1")},
+			{exit: 0},
+		},
+	})
+	o := e.opts(seedSession)
+	o.Origin = "original-de-desktop"
+	res, err := Run(context.Background(), o)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	list, err := core.ReadLiveSessions(e.home)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("sesiones en vivo = %+v (%v), quería 1", list, err)
+	}
+	s := list[0]
+	if s.State != core.LiveDone || s.ExitCode != 0 {
+		t.Fatalf("estado final = %s/%d, quería done/0", s.State, s.ExitCode)
+	}
+	if s.Primary != "p1" || s.Current != "p1" || len(s.Chain) != 2 || s.Chain[1] != "p2" {
+		t.Fatalf("cadena/actual mal publicadas: %+v", s)
+	}
+	if s.LoansUsed != 1 || s.MaxHops != 3 {
+		t.Fatalf("préstamos = %d/%d, quería 1/3", s.LoansUsed, s.MaxHops)
+	}
+	if len(s.Hops) != 1 || s.Hops[0].From != "p1" || s.Hops[0].To != "p2" || s.Hops[0].Home {
+		t.Fatalf("saltos = %+v", s.Hops)
+	}
+	if s.Session != res.Session || !s.Involves(seedSession) || !s.Involves("original-de-desktop") {
+		t.Fatalf("la foto tiene que reconocer la sesión inicial, la final y el origen: %+v", s)
+	}
+}
+
+// Parar por agotamiento se publica como «parked», con el enfriamiento de cada
+// cuenta: es lo que permite a la app decir cuándo se libera cada una.
+func TestRunPublicaParked(t *testing.T) {
+	e := setup(t, seed{
+		fallback: []string{"p2"},
+		maxHops:  3,
+		plan: []runStep{
+			{exit: 1, where: "stdout", emit: limitStdout("p1")},
+			{exit: 1, where: "stdout", emit: limitStdout("p2")},
+		},
+	})
+	if _, err := Run(context.Background(), e.opts(seedSession)); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	list, _ := core.ReadLiveSessions(e.home)
+	if len(list) != 1 || list[0].State != core.LiveParked {
+		t.Fatalf("quería una sesión parked: %+v", list)
+	}
+	if len(list[0].Cooldowns) != 2 {
+		t.Fatalf("quería el enfriamiento de p1 y p2: %+v", list[0].Cooldowns)
 	}
 }

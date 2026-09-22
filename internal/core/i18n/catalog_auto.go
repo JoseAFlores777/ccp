@@ -18,7 +18,9 @@ var catalogAuto = map[string]map[Lang]string{
   uninstall [<profile>...] remove it and regenerate
   status [--json]          resolved policy, installed sensors, last samples, cooldowns
   test [--profile <n>]     inject a synthetic StopFailure and check the detection path
-  chain [show|add|rm|mv|set]  read and edit the loan chain (chain help for details)`,
+  chain [show|add|rm|mv|set]  read and edit the loan chain (chain help for details)
+  live [--json] [--running]   supervised sessions: where each conversation is now,
+                              where it went and when it comes home`,
 		Es: `Uso: ccp auto <subcomando>
 
   init [--force]           siembra el bloque auto_handoff en ccp.yaml
@@ -26,7 +28,9 @@ var catalogAuto = map[string]map[Lang]string{
   uninstall [<perfil>...]  la quita y regenera
   status [--json]          política resuelta, sensores instalados, últimas muestras, cooldowns
   test [--profile <n>]     inyecta un StopFailure sintético y comprueba la ruta de detección
-  chain [show|add|rm|mv|set]  lee y edita la cadena de préstamos (chain help para el detalle)`,
+  chain [show|add|rm|mv|set]  lee y edita la cadena de préstamos (chain help para el detalle)
+  live [--json] [--running]   sesiones supervisadas: dónde está cada conversación,
+                              a dónde pasó y cuándo vuelve a casa`,
 	},
 	"cli.auto.unknown_sub": {
 		En: "ccp auto: unknown subcommand %q",
@@ -39,6 +43,34 @@ var catalogAuto = map[string]map[Lang]string{
 	"cli.auto.flag_needs_value": {
 		En: "ccp auto: %s needs a value",
 		Es: "ccp auto: %s necesita un valor",
+	},
+
+	// --- live ---
+	"cli.auto.live_none": {
+		En: "No supervised sessions in the last 7 days.",
+		Es: "No hay sesiones supervisadas de los últimos 7 días.",
+	},
+	"cli.auto.live_state_running": {En: "running", Es: "corriendo"},
+	"cli.auto.live_state_parked":  {En: "stopped: every account exhausted", Es: "detenida: todas las cuentas agotadas"},
+	"cli.auto.live_state_done":    {En: "finished (exit %d)", Es: "terminada (exit %d)"},
+	"cli.auto.live_state_failed":  {En: "failed: %s", Es: "falló: %s"},
+	"cli.auto.live_state_lost":    {En: "lost: its process is gone without a final state", Es: "perdida: su proceso ya no existe y no dejó final"},
+	"cli.auto.live_where": {
+		En: "  in %s since %s · loans %d/%d · session %s",
+		Es: "  en %s desde %s · préstamos %d/%d · sesión %s",
+	},
+	"cli.auto.live_hop": {
+		En: "  %s  %s → %s%s",
+		Es: "  %s  %s → %s%s",
+	},
+	"cli.auto.live_home_mark": {En: "  (home)", Es: "  (vuelta a casa)"},
+	"cli.auto.live_cooldown": {
+		En: "  %s exhausted until %s",
+		Es: "  %s agotada hasta las %s",
+	},
+	"cli.auto.live_return": {
+		En: "  back home when %s frees up (%s) and the session has been idle %ds; checked every %ds",
+		Es: "  vuelve a casa cuando %s se libere (%s) y la sesión lleve %d s quieta; se comprueba cada %d s",
 	},
 
 	// --- init ---

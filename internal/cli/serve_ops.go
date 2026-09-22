@@ -1362,3 +1362,29 @@ func srvSystemRun(s *server, raw json.RawMessage) (any, error) {
 	}
 	return nil, badParams("acción desconocida: %q", p.Action)
 }
+
+// srvAutoLive es `ccp auto live --json` para la app: las sesiones supervisadas
+// y su estado en vivo. Con `session`, solo las que tienen que ver con esa
+// conversación (la usaron, o son su copia): es lo que pinta su detalle.
+func srvAutoLive(s *server, raw json.RawMessage) (any, error) {
+	p, err := params[struct {
+		Session string `json:"session"`
+	}](raw)
+	if err != nil {
+		return nil, err
+	}
+	list, err := core.ReadLiveSessions(s.home)
+	if err != nil {
+		return nil, err
+	}
+	if p.Session == "" {
+		return list, nil
+	}
+	out := []core.LiveSession{}
+	for _, l := range list {
+		if l.Involves(p.Session) {
+			out = append(out, l)
+		}
+	}
+	return out, nil
+}

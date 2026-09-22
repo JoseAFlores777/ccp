@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+## [2.26.0] — dejar a Claude trabajando de noche, y verlo girar en vivo
+
+- **«Dejar trabajando»** en cada conversación (Conversaciones y su detalle): la sigue desatendida en una
+  terminal, bajo el supervisor y con la rotación de SU cuenta. Un modal deja ajustar todo: qué decirle al
+  empezar, qué decirle tras cada cambio de cuenta, permisos, mantener la Mac despierta, máximo de
+  préstamos y política, y enseña la cadena real y lo que fallaría antes de empezar.
+- **`ccp session` gana cinco opciones**, las que usa ese botón y que sirven igual en la terminal:
+  - `--fork` sigue una COPIA de la conversación con uuid nuevo («[supervisada] …»): Desktop no se puede
+    pausar desde fuera, y así la original queda intacta y no hay dos Claude en el mismo archivo;
+  - `--profile` fija la cuenta principal: una conversación de Desktop es de la cuenta de su ventana, no
+    de la regla de la carpeta;
+  - `--prompt` / `--resume-prompt`: en headless nadie escribe, y cada relanzamiento tras un salto recibe
+    «continúa donde te quedaste» en vez de repetir la orden original;
+  - `--keep-awake`: `caffeinate` atado al proceso de ccp.
+- **La supervisión en vivo, dibujada.** El supervisor publica su estado en cada cambio y el detalle de la
+  conversación lo pinta: en qué cuenta está, préstamos gastados, cuenta atrás para volver a casa, la
+  cadena con la cuenta en uso latiendo y las agotadas con su «libre en …», los saltos como arcos y una
+  línea de tiempo con la vuelta prevista. Supervisadas lista las sesiones con su estado. En la terminal:
+  `ccp auto live [--json]`. Una sesión cuyo proceso murió sin avisar se lee «perdida», nunca «corriendo».
+
+
 ## [2.25.0] — el chat de Desktop desde ccp, la rotación entera a la vista y un glosario
 
 - **Servidores MCP del chat de Desktop desde la app.** En la cuenta → Configuración → Chat de Desktop se

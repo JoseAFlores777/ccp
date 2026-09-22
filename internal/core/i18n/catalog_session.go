@@ -37,6 +37,14 @@ Options:
       --setup                    offer to set this repo up even if it was already
                                  asked once (needs a terminal; never with -p)
       --no-setup                 never offer to set this repo up
+      --profile <name>           primary account (default: the folder's rule)
+      --fork                     with --session: continue a COPY of that session
+                                 under a new uuid; the original is left untouched
+      --prompt <text>            message for the first launch
+      --resume-prompt <text>     message for every relaunch after a hop or a
+                                 trip home (default: --prompt)
+      --keep-awake               keep the Mac awake while the session runs
+                                 (caffeinate; macOS only)
       --claude-bin <path>        internal: claude binary to run (used by the tests)
   --                             everything after this goes verbatim to claude
 
@@ -60,11 +68,41 @@ Opciones:
       --setup                    ofrece configurar este repo aunque ya se haya
                                  preguntado una vez (necesita terminal; nunca con -p)
       --no-setup                 no ofrece configurar este repo
+      --profile <nombre>         cuenta principal (por defecto: la regla de la carpeta)
+      --fork                     con --session: sigue una COPIA de esa sesión con
+                                 un uuid nuevo; la original no se toca
+      --prompt <texto>           mensaje del primer lanzamiento
+      --resume-prompt <texto>    mensaje de cada relanzamiento tras un salto o una
+                                 vuelta a casa (por defecto: --prompt)
+      --keep-awake               mantiene la Mac despierta mientras dura la sesión
+                                 (caffeinate; solo macOS)
       --claude-bin <ruta>        interno: binario de claude a lanzar (lo usan los tests)
   --                             todo lo que venga después va tal cual a claude
 
 Exit codes: 0 ok · 1 uso/config · 2 fallo de I/O de handoffs · 75 todos los
 perfiles agotados (reintenta luego) · si no, el código de salida de claude.`,
+	},
+
+	// --- dejar trabajando (--profile / --fork / --keep-awake) ---------------
+	"cli.session.fork_needs_session": {
+		En: "--fork needs --session <uuid>: it copies an existing session.",
+		Es: "--fork necesita --session <uuid>: copia una sesión que ya existe.",
+	},
+	"cli.session.unknown_profile": {
+		En: "There's no account called '%s'.",
+		Es: "No hay ninguna cuenta llamada '%s'.",
+	},
+	"cli.session.forked": {
+		En: "Continuing a copy of %s as %s; the original is left as it was.",
+		Es: "Se sigue una copia de %s como %s; la original queda como estaba.",
+	},
+	"cli.session.keep_awake": {
+		En: "The Mac stays awake while this session runs (caffeinate).",
+		Es: "La Mac se mantiene despierta mientras dure esta sesión (caffeinate).",
+	},
+	"cli.session.keep_awake_failed": {
+		En: "Couldn't keep the Mac awake (%v): if it sleeps, the session stops until it wakes.",
+		Es: "No se pudo mantener la Mac despierta (%v): si se duerme, la sesión se para hasta que despierte.",
 	},
 
 	// --- errores de parseo -------------------------------------------------

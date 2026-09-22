@@ -454,6 +454,21 @@ const G: Record<string, Entry> = {
       how: 'It opens in a terminal. At the limit, ccp closes Claude Code, lends the conversation and reopens it in the next account, right where it left off.',
     },
   },
+  dejar_trabajando: {
+    group: 'rotacion',
+    es: {
+      term: 'Dejar trabajando',
+      what: 'Seguir una conversación desatendida, en una terminal, con su cuenta y bajo el supervisor, para que cambie sola de cuenta si llega al límite.',
+      why: 'Para dejar a Claude programando de noche sin que un límite de uso lo pare a las 3 de la madrugada.',
+      how: 'ccp copia la conversación (la original, también la de Desktop, queda intacta), abre una terminal con ccp session y le manda un mensaje al empezar y otro en cada cambio de cuenta, porque nadie estará para escribir. Mantiene la Mac despierta y, si todas las cuentas se agotan, se detiene y dice cuándo se libera cada una.',
+    },
+    en: {
+      term: 'Leave working',
+      what: 'Continuing a conversation unattended, in a terminal, with its account and under the supervisor, so it switches account on its own if it hits the limit.',
+      why: 'To leave Claude coding overnight without a usage limit stopping it at 3 a.m.',
+      how: 'ccp copies the conversation (the original, including a Desktop one, stays untouched), opens a terminal with ccp session and sends it a message at the start and another on every account switch, since nobody will be there to type. It keeps the Mac awake and, if every account runs out, it stops and says when each one frees up.',
+    },
+  },
   mapa: {
     group: 'rotacion',
     es: {

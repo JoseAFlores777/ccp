@@ -83,6 +83,8 @@ func dispatchAuto(args []string, stdout, stderr io.Writer) int {
 		return autoTest(rest, stdout, stderr)
 	case "chain":
 		return autoChain(rest, stdout, stderr)
+	case "live":
+		return autoLive(rest, stdout, stderr)
 	case "", "help", "--help", "-h":
 		fmt.Fprintln(stdout, i18n.T(currentLang(), "cli.auto.usage"))
 		return 0

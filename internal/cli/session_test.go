@@ -88,6 +88,14 @@ func TestParseSessionFlags(t *testing.T) {
 			args: []string{"--help"},
 			want: sessionFlags{help: true},
 		},
+		{
+			// Lo que manda «Dejar trabajando» desde la app.
+			name: "dejar trabajando",
+			args: []string{"-p", "--profile", "p2", "--session", "u-1", "--fork", "--keep-awake",
+				"--prompt", "sigue", "--resume-prompt=continúa donde te quedaste", "--yolo"},
+			want: sessionFlags{headless: true, profile: "p2", session: "u-1", fork: true, keepAwake: true,
+				prompt: "sigue", resumePrompt: "continúa donde te quedaste", yolo: true},
+		},
 	}
 
 	for _, tc := range cases {
@@ -145,7 +153,9 @@ func sameSessionFlags(a, b sessionFlags) bool {
 	if a.headless != b.headless || a.policy != b.policy || a.maxHops != b.maxHops ||
 		a.yolo != b.yolo || a.session != b.session || a.dryRun != b.dryRun ||
 		a.noReturn != b.noReturn || a.claudeBin != b.claudeBin || a.help != b.help ||
-		a.setup != b.setup || a.noSetup != b.noSetup {
+		a.setup != b.setup || a.noSetup != b.noSetup ||
+		a.profile != b.profile || a.fork != b.fork || a.prompt != b.prompt ||
+		a.resumePrompt != b.resumePrompt || a.keepAwake != b.keepAwake {
 		return false
 	}
 	if len(a.args) != len(b.args) {
@@ -389,5 +399,92 @@ func TestCmdSessionPropagaExitCodeDelHijo(t *testing.T) {
 	_, _, code := runSession(t, "-p", "--claude-bin", bin)
 	if code != 7 {
 		t.Fatalf("code = %d, quería 7", code)
+	}
+}
+
+// --fork sin --session no tiene nada que copiar: se rechaza antes de lanzar.
+func TestParseSessionFlagsForkSinSesion(t *testing.T) {
+	if _, err := parseSessionFlags([]string{"--fork"}, i18n.En); err == nil || !strings.Contains(err.Error(), "--session") {
+		t.Fatalf("--fork sin --session debía fallar nombrando --session, dio %v", err)
+	}
+}
+
+// «Dejar trabajando» de punta a punta: la conversación de p2 (la cuenta de su
+// ventana) se copia con uuid nuevo, la original queda intacta, el hijo corre con
+// p2 aunque la carpeta sea de p1, retoma la COPIA y recibe el mensaje.
+func TestCmdSessionForkConProfileYPrompt(t *testing.T) {
+	home, cwd := seedSession(t, true)
+	sessionKeepAwake = func() error { return nil }
+	t.Cleanup(func() { sessionKeepAwake = defaultKeepAwake })
+
+	orig := "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb"
+	cc, err := core.CCHome(home, "p2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := core.ProjectDir(cc, core.SlugForCwd(cwd))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"type":"user","sessionId":"` + orig + `","uuid":"m1","parentUuid":null}` + "\n" +
+		`{"type":"custom-title","sessionId":"` + orig + `","customTitle":"Refactor"}` + "\n"
+	origPath := filepath.Join(dir, orig+".jsonl")
+	if err := os.WriteFile(origPath, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	bdir := t.TempDir()
+	bin := filepath.Join(bdir, "fake-claude")
+	if err := os.WriteFile(bin, []byte(fakeClaudeSession), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	logPath := filepath.Join(bdir, "log")
+	t.Setenv("FAKE_SESSION_LOG", logPath)
+
+	_, errs, code := runSession(t, "-p", "--claude-bin", bin, "--profile", "p2", "--session", orig,
+		"--fork", "--keep-awake", "--prompt", "continúa donde te quedaste")
+	if code != 0 {
+		t.Fatalf("code = %d (stderr=%q)", code, errs)
+	}
+
+	after, err := os.ReadFile(origPath)
+	if err != nil || string(after) != body {
+		t.Fatalf("la conversación original se tocó: %v %q", err, after)
+	}
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	if !strings.HasPrefix(got, "p2\n") {
+		t.Fatalf("el hijo debía correr con p2 (la cuenta pedida), no con la regla del cwd:\n%s", got)
+	}
+	if strings.Contains(got, "--resume "+orig) {
+		t.Fatalf("retomó la ORIGINAL en vez de la copia:\n%s", got)
+	}
+	if !strings.Contains(got, "--resume ") || !strings.HasSuffix(strings.TrimSpace(got), "continúa donde te quedaste") {
+		t.Fatalf("debía retomar la copia con el mensaje al final:\n%s", got)
+	}
+	copies, _ := filepath.Glob(filepath.Join(dir, "*.jsonl"))
+	if len(copies) != 2 {
+		t.Fatalf("debía haber original + copia, hay %v", copies)
+	}
+	for _, c := range copies {
+		if c == origPath {
+			continue
+		}
+		cb, _ := os.ReadFile(c)
+		if !strings.Contains(string(cb), "[supervisada] Refactor") {
+			t.Fatalf("la copia debía titularse «[supervisada] …»: %s", cb)
+		}
+	}
+}
+
+// Una cuenta que no existe se dice antes de copiar ni lanzar nada.
+func TestCmdSessionProfileInexistente(t *testing.T) {
+	seedSession(t, true)
+	_, errs, code := runSession(t, "-p", "--profile", "nadie", "--claude-bin", "/bin/false")
+	if code != 1 || !strings.Contains(errs, "nadie") {
+		t.Fatalf("code=%d stderr=%q", code, errs)
 	}
 }

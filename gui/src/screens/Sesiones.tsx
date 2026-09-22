@@ -37,6 +37,45 @@ function stepTone(s: SimStep['status']): { tone: Tone; label: string } {
   }
 }
 
+/** Las sesiones supervisadas de los últimos días, con su estado en vivo. Cada
+ *  una abre el detalle de su conversación, donde se ve dibujada. */
+function EnVivo() {
+  const { colorOf, openConversation } = useApp();
+  const live = useCall(() => api.autoLive(), [], 3000);
+  const list = live.data ?? [];
+  if (!live.data || list.length === 0) return null;
+  const tone = (st: string) => (st === 'running' ? 'ok' : st === 'parked' ? 'warn' : st === 'done' ? 'accent' : st === 'failed' ? 'err' : 'unk') as 'ok';
+  const label = (st: string, code: number) =>
+    st === 'running' ? t('corriendo') : st === 'parked' ? t('detenida') : st === 'done' ? (code === 0 ? t('terminada') : t('terminada ({n})', { n: code })) : st === 'failed' ? t('falló') : t('perdida');
+  return (
+    <Card pad={false} clip shadow style={{ marginBottom: 14 }}>
+      <div style={{ padding: '14px 20px 8px' }}>
+        <Label>{t('Sesiones supervisadas')}</Label>
+      </div>
+      {list.slice(0, 8).map((s) => (
+        <button
+          key={s.id}
+          className="nav-item"
+          style={{ borderRadius: 0, padding: '10px 20px', borderTop: '1px solid var(--line-soft)', gap: 12 }}
+          onClick={() => openConversation(s.session, s.current)}
+          title={t('Ver en vivo')}
+        >
+          {s.state === 'running' ? <span className="live-dot" /> : <span style={{ width: 8 }} />}
+          <Pill tone={tone(s.state)}>{label(s.state, s.exit_code)}</Pill>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--ink)' }}>
+            <span className="swatch" style={{ background: colorOf(s.current) }} />
+            {s.current}
+            {s.current !== s.primary && <span style={{ color: 'var(--ink-4)' }}>{t('(de {p})', { p: s.primary })}</span>}
+          </span>
+          <span className="mono ellipsis" style={{ flex: 1, minWidth: 0, fontSize: 11, color: 'var(--ink-4)' }}>{tilde(s.cwd)}</span>
+          <span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>{t('{n}/{m} préstamos', { n: s.loans_used, m: s.max_hops })}</span>
+          <span style={{ color: 'var(--accent)', fontSize: 12 }}>→</span>
+        </button>
+      ))}
+    </Card>
+  );
+}
+
 export function Sesiones() {
   const app = useApp();
   const { folder, mutate, openSheet, colorOf, go } = app;
@@ -57,6 +96,7 @@ export function Sesiones() {
 
   return (
     <div>
+      <EnVivo />
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 14, marginBottom: 14 }}>
         <Card shadow>
           <Label style={{ marginBottom: 14 }}>{t('Lo que le falta al repo')}</Label>

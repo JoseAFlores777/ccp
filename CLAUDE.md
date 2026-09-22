@@ -33,7 +33,8 @@ Auto-handoff surface (added on top of the frozen contract). `session` and `auto`
 
 ```bash
 ccp session [-p|--headless] [--policy <n>] [--max-hops N] [--yolo] \
-            [--session <uuid>] [--dry-run] [--no-return] [--claude-bin <path>] [-- <claude args>]
+            [--session <uuid> [--fork]] [--profile <n>] [--prompt <t>] [--resume-prompt <t>] \
+            [--keep-awake] [--dry-run] [--no-return] [--claude-bin <path>] [-- <claude args>]
 ccp auto init [--force] | install [<profile>…] | uninstall [<profile>…] | status [--json] | test [--profile <n>]
 ccp auto chain [show] | list [--json] | add|rm|mv|set … | reset | policy <n>|--none
                [--for <profile> | --shared | --policy <n>]   # destino: por defecto la cadena del primario del cwd
@@ -41,6 +42,10 @@ ccp handoff prune [--keep N] | sessions [--json]
 ccp _statusline [-- <wrapped cmd>]   # internal sensor: persists rate_limits, always exits 0
 ccp _limit-hook                      # internal StopFailure hook: writes a sentinel, always exits 0
 ```
+
+«Dejar trabajando» (the GUI's Conversations → row action, `lib/leaveWorking.ts`) is `ccp session -p --profile <acct> --session <uuid> --fork --prompt … --resume-prompt … --keep-awake`. `--fork` (`core.ForkSession`) continues a COPY under a new uuid titled `[supervisada] …`, because Desktop cannot be paused from outside and two Claudes on one transcript is the thing to avoid; `--profile` sets the primary (`Options.Primary` → `ResolveAutoChainFor`) because a Desktop conversation belongs to its window's account, not to the folder's rule; `--resume-prompt` is what every relaunch after a hop or a trip home receives (`runner.childArgs`), because in headless nobody types and repeating the original order restarts half-done work; `--keep-awake` is `caffeinate -w <pid>`, so it dies with ccp.
+
+**The live state of a supervised run** (`core/live.go`, `supervisor/live.go`, `ccp auto live [--json] [--running]`, serve `auto.live`): the supervisor decides in memory, so it publishes a `core.LiveSession` to `state/auto/live/<id>.json` (tmp+rename) at every change — before each launch and at the end (`Run` wraps `run` so the final state is written whatever happens). It only READS the chain and the result, and a write error is ignored: it is a presentation cache and cannot fail the session it describes. A `running` file whose pid is gone reads as `lost`, never as running (ADR 0009's rule); finished ones are pruned after 7 days. The final `current` is the account where the conversation ENDED (a clean exit on loan closes the loan and goes home without the chain advancing). `Involves(uuid)` matches the fork origin and every uuid the run used, which is how the GUI's conversation detail (`screens/Conversacion.tsx` + `ConversacionVivo.tsx`, polling every 3 s, countdowns recomputed every second) finds it from either the original or the copy.
 
 `ccp session` exit codes: `0` ok · `1` usage/config · `2` handoff I/O (`core.ErrHandoffIO`) · `75` all profiles exhausted (`supervisor.ParkedExitCode`, EX_TEMPFAIL) · otherwise the child's own code.
 

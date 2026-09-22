@@ -15,7 +15,7 @@ import { setLang as setI18nLang, t, type Lang } from './i18n';
 export type Screen =
   | 'inicio' | 'mapa' | 'perfiles' | 'perfil' | 'configuracion' | 'carpetas'
   | 'conv' | 'mover' | 'prestamos' | 'rotacion' | 'uso' | 'sesiones'
-  | 'desktop' | 'diag' | 'memoria' | 'ajustes' | 'copias' | 'snapshots' | 'nube' | 'bienvenida' | 'glosario';
+  | 'desktop' | 'diag' | 'memoria' | 'ajustes' | 'copias' | 'snapshots' | 'nube' | 'bienvenida' | 'glosario' | 'conversacion';
 
 /** Las pestañas del espacio de una cuenta. La cuenta es la puerta: lo que se
  *  mira dentro de una pestaña es SIEMPRE de esa cuenta, sin otro selector. */
@@ -111,6 +111,9 @@ export interface Ctx {
   mutate: <T>(fn: () => Promise<T>, opts?: { msg?: string | ((r: T) => string); undo?: () => Promise<unknown> }) => Promise<T | undefined>;
   moveDraft: MoveDraft | null;
   startMove: (c: Conversation) => void;
+  /** La conversación cuyo detalle se está mirando (por uuid y cuenta). */
+  convDetail: { uuid: string; profile: string } | null;
+  openConversation: (uuid: string, profile: string) => void;
   cli: string;
   setCli: (c: string) => void;
 }
@@ -184,6 +187,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [modal, setModal] = useState<ModalSpec | null>(null);
   const [sheet, setSheet] = useState<TerminalSheetSpec | null>(null);
   const [moveDraft, setMoveDraft] = useState<MoveDraft | null>(null);
+  const [convDetail, setConvDetail] = useState<{ uuid: string; profile: string } | null>(() => {
+    try {
+      const v = readPref('convDetail');
+      return v ? (JSON.parse(v) as { uuid: string; profile: string }) : null;
+    } catch {
+      return null;
+    }
+  });
   const [cli, setCli] = useState('');
   const toastTimer = useRef<number | undefined>(undefined);
 
@@ -315,9 +326,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setMoveDraft({ uuid: c.uuid, profile: c.profile, title: c.title || t('(sin título)'), cwd: c.cwd });
         setScreen('mover');
       },
+      convDetail,
+      openConversation: (uuid: string, profile: string) => {
+        const v = { uuid, profile };
+        setConvDetail(v);
+        writePref('convDetail', JSON.stringify(v));
+        setScreen('conversacion');
+        writePref('screen', 'conversacion');
+        setCli('');
+      },
       cli, setCli,
     };
-  }, [info, infoError, bridge, lang, theme, screen, selected, tab, folder, folders, version, profiles, toast, modal, sheet, moveDraft, cli, notify, refresh, mutate]);
+  }, [info, infoError, bridge, lang, theme, screen, selected, tab, folder, folders, version, profiles, toast, modal, sheet, moveDraft, convDetail, cli, notify, refresh, mutate]);
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
 }

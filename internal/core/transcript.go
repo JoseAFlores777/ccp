@@ -210,6 +210,36 @@ func CopyTranscript(srcPath, dstDir string, force bool) (string, error) {
 // contenido de los mensajes. Escribe en dstPath y valida que el resultado no
 // contenga oldID en sessionId y sea JSONL válido.
 func RewriteSession(srcPath, dstPath, oldID, newID, fromLabel string) error {
+	return rewriteSession(srcPath, dstPath, oldID, newID, "[de "+fromLabel+"] ", "[de ")
+}
+
+// ForkSession copia la conversación `oldID` de <ccHome>/projects/<slug de cwd>
+// bajo un uuid NUEVO, en la misma carpeta, y devuelve ese uuid. La original no
+// se toca.
+//
+// Es lo que hace `ccp session --fork`: seguir supervisada en una terminal una
+// conversación que vive en otra parte (la pestaña Code de Desktop) sin que dos
+// Claude escriban en el mismo transcript. La copia se titula «[supervisada] …»
+// para distinguirla de la original en cualquier lista de sesiones.
+func ForkSession(ccHome, cwd, oldID string) (string, error) {
+	dir := ProjectDir(ccHome, SlugForCwd(cwd))
+	src := filepath.Join(dir, oldID+".jsonl")
+	if _, err := os.Stat(src); err != nil {
+		return "", fmt.Errorf("no se encontró la conversación %s en %s", oldID, dir)
+	}
+	newID, err := NewUUID()
+	if err != nil {
+		return "", err
+	}
+	if err := rewriteSession(src, filepath.Join(dir, newID+".jsonl"), oldID, newID, "[supervisada] ", "[supervisada] "); err != nil {
+		return "", err
+	}
+	return newID, nil
+}
+
+// rewriteSession es RewriteSession con el prefijo del título explícito: `prefix`
+// se antepone a los títulos que no empiecen ya por `guard` (idempotencia).
+func rewriteSession(srcPath, dstPath, oldID, newID, prefix, guard string) error {
 	f, err := os.Open(srcPath)
 	if err != nil {
 		return fmt.Errorf("no se pudo leer %s: %w", srcPath, err)
@@ -244,9 +274,9 @@ func RewriteSession(srcPath, dstPath, oldID, newID, fromLabel string) error {
 			}
 			switch m["type"] {
 			case "custom-title":
-				prefixTitle(m, "customTitle", fromLabel)
+				prefixTitle(m, "customTitle", prefix, guard)
 			case "ai-title":
-				prefixTitle(m, "aiTitle", fromLabel)
+				prefixTitle(m, "aiTitle", prefix, guard)
 			}
 			if eerr := enc.Encode(m); eerr != nil { // Encode añade '\n'
 				return fmt.Errorf("no se pudo serializar línea: %w", eerr)
@@ -292,8 +322,8 @@ func RewriteSession(srcPath, dstPath, oldID, newID, fromLabel string) error {
 // Un título en blanco se deja como está: TranscriptTitle lo ignora, y con el
 // prefijo pasaría a ser el título, uno que solo dice de dónde viene y que tapa
 // el de verdad.
-func prefixTitle(m map[string]any, field, fromLabel string) {
-	if t, ok := m[field].(string); ok && strings.TrimSpace(t) != "" && !strings.HasPrefix(t, "[de ") {
-		m[field] = "[de " + fromLabel + "] " + t
+func prefixTitle(m map[string]any, field, prefix, guard string) {
+	if t, ok := m[field].(string); ok && strings.TrimSpace(t) != "" && !strings.HasPrefix(t, guard) {
+		m[field] = prefix + t
 	}
 }
