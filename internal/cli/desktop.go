@@ -271,7 +271,10 @@ func desktopOpen(args []string, stdout, stderr io.Writer) int {
 		// verdad sobre lo que el usuario va a obtener.
 		fmt.Fprintln(stderr, warnLine(stderr, i18n.T(lang, "cli.desktop.plain_no_isolation", name)))
 	} else if plain && name != "default" {
-		fmt.Fprintln(stderr, warnLine(stderr, i18n.T(lang, "cli.desktop.plain_no_isolation", name)))
+		// Con lanzador ya construido, «créalo» no es el consejo: el usuario
+		// pidió este arranque a propósito (es el que deja llegar el enlace de
+		// vuelta del login) y lo que le falta saber es cómo salir de aquí.
+		fmt.Fprintln(stderr, warnLine(stderr, i18n.T(lang, plainWarnKey(app != nil), name)))
 	}
 
 	if len(extra) > 0 {
@@ -990,4 +993,17 @@ func desktopRm(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	return 0
+}
+
+// plainWarnKey elige qué advertir tras un arranque `--plain`. Es una función
+// con nombre y no un if suelto porque las dos ramas se ven igual en pantalla
+// (un aviso amarillo) y solo se distinguen por si el consejo sirve de algo:
+// con lanzador ya construido, «créalo» manda al usuario a un comando que no
+// cambia nada, y lo que necesita es saber que tiene que cerrar la ventana y
+// abrirla desde su icono.
+func plainWarnKey(hasLauncher bool) string {
+	if hasLauncher {
+		return "cli.desktop.plain_has_launcher"
+	}
+	return "cli.desktop.plain_no_isolation"
 }

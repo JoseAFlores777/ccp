@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/JoseAFlores777/ccp/internal/core"
+	"github.com/JoseAFlores777/ccp/internal/core/i18n"
 )
 
 // homeConPerfil monta un CCP_HOME temporal con un ~/.claude falso. Nunca se
@@ -202,5 +203,26 @@ func TestDesktopOpenAvisaDeLoAplazado(t *testing.T) {
 	}
 	if !core.DesktopProjectionPending(home, "work") {
 		t.Error("--dry-run aplicó la proyección")
+	}
+}
+
+// El consejo tras un arranque --plain depende de si el perfil YA tiene
+// lanzador: con uno, «créalo» manda a un comando que no cambia nada. Caso real
+// (2026-09-21): un perfil recién creado desde la GUI quedó en
+// instance_foreign_exec y el aviso no decía cómo salir de ahí.
+func TestPlainWarnKeySegunElLanzador(t *testing.T) {
+	if got := plainWarnKey(true); got != "cli.desktop.plain_has_launcher" {
+		t.Errorf("con lanzador = %q", got)
+	}
+	if got := plainWarnKey(false); got != "cli.desktop.plain_no_isolation" {
+		t.Errorf("sin lanzador = %q", got)
+	}
+	// Los dos textos existen en los dos idiomas, y el de «ya tiene lanzador»
+	// nombra la salida: cerrar y volver a abrir.
+	for _, lang := range []i18n.Lang{i18n.Es, i18n.En} {
+		msg := i18n.T(lang, "cli.desktop.plain_has_launcher", "work")
+		if !strings.Contains(msg, "work") || len(msg) < 80 {
+			t.Errorf("%s: texto sospechoso: %q", string(lang), msg)
+		}
 	}
 }

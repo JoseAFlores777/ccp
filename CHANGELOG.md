@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [2.20.1] — el arranque «plano» dice cómo salir de él
+
+Crear una ventana desde la GUI la abre **sin lanzador a propósito**: los lanzadores no declaran `claude://`,
+así que es la única forma de que el enlace de vuelta del login llegue a ESA ventana. El precio es que,
+mientras corra, macOS no la distingue del Claude principal — y eso es lo que `ccp desktop doctor` marca como
+`instance_foreign_exec`, en rojo. Faltaba la segunda mitad de la frase, así que el paso intermedio esperado
+parecía una avería.
+
+- El aviso del motor ahora depende de si el perfil **ya tiene lanzador**: con uno, «ejecuta `ccp desktop app`»
+  manda a un comando que no cambia nada; lo que hace falta es cerrar la ventana y abrirla desde su icono.
+  La decisión es una función con nombre (`plainWarnKey`) y se afirma en un test, porque las dos ramas se ven
+  igual en pantalla y solo se distinguen por si el consejo sirve de algo.
+- El modal de la GUI dice las tres cosas: por qué arranca así, qué implica mientras dure y **qué hacer
+  después**. El mensaje de éxito también, que es lo único que se lee al terminar.
+
 ## [2.20.0] — la capa de un perfil enseña también lo que hereda
 
 `ccp mcp list --scope profile <n>` y la pantalla Configuración decían **«ningún servidor MCP»** de un perfil
