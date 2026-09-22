@@ -307,3 +307,38 @@ func TestProyeccionPendienteSinVentanaNoCuentaYSeLimpia(t *testing.T) {
 		t.Error("el sync no limpió el marcador huérfano")
 	}
 }
+
+// Aplazar «por si acaso» convierte el doctor en un aviso que se aprende a
+// ignorar: pedía reiniciar la ventana para no cambiar nada. Solo se aplaza si
+// la proyección tiene algo que aplicar. Caso real de un perfil sin MCP
+// declarados (2026-09-21).
+func TestProjectMCPToDesktopConVentanaAbiertaSinNadaQueAplicar(t *testing.T) {
+	home, src := mcpFixture(t)
+	dd := DesktopDataDir(home, "work")
+	cfgFile := filepath.Join(dd, "claude_desktop_config.json")
+	mustWrite(t, cfgFile, `{"preferences":{}}`)
+
+	// Con la ventana abierta y el destino ya al día, no hay nada que aplazar.
+	eff := efectivo(t, home, src, "work")
+	if _, err := ProjectMCPToDesktop(home, "work", eff, false); err != nil {
+		t.Fatal(err) // primero se aplica con la ventana cerrada
+	}
+	p, err := ProjectMCPToDesktop(home, "work", eff, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Deferred || DesktopProjectionPending(home, "work") {
+		t.Fatalf("aplazó sin nada que aplicar: %+v", p)
+	}
+
+	// Y un marcador que quedó de antes se retira en cuanto ya no hay desfase.
+	if err := writeFileAtomic(desktopPendingPath(home, "work"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ProjectMCPToDesktop(home, "work", eff, true); err != nil {
+		t.Fatal(err)
+	}
+	if DesktopProjectionPending(home, "work") {
+		t.Fatal("el marcador viejo sobrevivió a una proyección sin cambios")
+	}
+}

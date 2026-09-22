@@ -183,8 +183,12 @@ func TestDesktopOpenAvisaDeLoAplazado(t *testing.T) {
 	if err := os.WriteFile(cfgFile, []byte(`{"preferences":{}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	// Se deja pendiente como lo dejaría un sync con la ventana viva.
-	eff := []core.MCPEntry{{Name: "fs", Def: map[string]any{"command": "npx"}}}
+	// Se deja pendiente como lo dejaría un sync con la ventana viva. Los Targets
+	// no son decorado: sin ellos la entrada no tiene el chat por destino, así que
+	// no habría nada que aplazar y este test pasaría por el motivo equivocado
+	// (como pasó hasta que aplazar dejó de ser incondicional).
+	eff := []core.MCPEntry{{Name: "fs", Def: map[string]any{"command": "npx"},
+		Targets: []string{core.MCPTargetCLI, core.MCPTargetDesktop}}}
 	if _, err := core.ProjectMCPToDesktop(home, "work", eff, true); err != nil {
 		t.Fatal(err)
 	}
