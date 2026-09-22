@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [2.21.3] — editar un MCP dejaba la app en blanco
+
+Abrir «Editar» sobre un servidor MCP lanzaba `TypeError: Cannot read properties of undefined (reading
+'trim')` y, sin ningún error boundary en la app, React desmontaba el árbol entero: ventana negra y matar el
+proceso. El error real quedaba en una consola que nadie abre.
+
+La causa estaba en `Modal`, no en el formulario del MCP. El estado del formulario se sembraba desde
+`modal.initial` en un **efecto**, y los efectos corren DESPUÉS de pintar: en el primer render con un modal
+nuevo, `modal` ya era el nuevo y `form` seguía vacío, así que cualquier spec que diera por hecha una clave
+suya —`f.name.trim()` sin guarda— recibía `undefined`. Ahora lo que ven `warns`, `preview`, `canConfirm` y
+`onConfirm` es `initial` con lo tecleado encima, así que el formulario **siempre trae sus claves**. Se
+arregla ahí y no poniendo guardas en cada modal porque las specs son muchas y crecen: la invariante tiene
+que valer una vez para todas.
+
+Y la red que faltaba: **dos error boundaries**, uno por pantalla y otro para el modal. Un fallo al pintar ya
+no se lleva la app — dice qué pasó, deja copiar la traza con la pila de componentes y ofrece volver. Van
+separados a propósito: así un fallo en una vista deja la barra lateral viva y un modal roto no tira la
+pantalla de detrás.
+
 ## [2.21.2] — el lienzo enfocaba una cuenta y editaba la de otra
 
 Tres sitios se quedaron suponiendo que la cadena seguía siendo **una sola**. Los tres son del mismo cambio

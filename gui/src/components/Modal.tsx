@@ -100,21 +100,36 @@ export function Modal() {
     setError(null);
   }, [modal]);
 
-  const fields = useMemo(() => (modal?.fields ?? []).filter((f) => !f.show || f.show(form)), [modal, form]);
+  // El formulario que ven warns/preview/canConfirm/onConfirm es `initial` con lo
+  // tecleado ENCIMA, no `form` a secas.
+  //
+  // El efecto de arriba corre DESPUÉS de pintar, así que en el primer render con
+  // un modal nuevo `modal` ya es el nuevo y `form` todavía es el vacío (o el del
+  // modal anterior). Cualquier spec que dé por hecha una clave suya —`f.name.trim()`
+  // sin guarda— recibía undefined y lanzaba: una excepción en render desmonta el
+  // árbol entero y deja la app en blanco, sin más salida que matarla. Pasaba al
+  // editar un MCP.
+  //
+  // Se arregla aquí y no poniendo guardas en cada spec porque las specs son
+  // muchas y crecen: la invariante «el formulario siempre trae sus claves» tiene
+  // que valer una vez para todas, no recordarse en cada modal nuevo.
+  const view = useMemo(() => ({ ...(modal?.initial ?? {}), ...form }), [modal, form]);
+
+  const fields = useMemo(() => (modal?.fields ?? []).filter((f) => !f.show || f.show(view)), [modal, view]);
   const warns = useMemo(() => {
     if (!modal?.warns) return [];
-    return typeof modal.warns === 'function' ? modal.warns(form) : modal.warns;
-  }, [modal, form]);
-  const preview = useMemo(() => modal?.preview?.(form) ?? null, [modal, form]);
-  const can = modal ? (modal.canConfirm ? modal.canConfirm(form) : true) && !busy : false;
+    return typeof modal.warns === 'function' ? modal.warns(view) : modal.warns;
+  }, [modal, view]);
+  const preview = useMemo(() => modal?.preview?.(view) ?? null, [modal, view]);
+  const can = modal ? (modal.canConfirm ? modal.canConfirm(view) : true) && !busy : false;
 
   const confirm = async () => {
     if (!modal || !can) return;
     setBusy(true);
     setError(null);
     try {
-      const msg = await modal.onConfirm(form);
-      const undo = modal.undo?.(form);
+      const msg = await modal.onConfirm(view);
+      const undo = modal.undo?.(view);
       closeModal();
       if (msg) notify(msg, 'ok', undo);
     } catch (e) {
@@ -176,7 +191,7 @@ export function Modal() {
             {fields.map((f, i) => (
               <label key={f.key} style={{ display: 'block' }}>
                 <span className="field-label">{f.label}</span>
-                <FieldInput f={f} value={form[f.key] ?? ''} autoFocus={i === 0} onChange={(v) => setForm((s) => ({ ...s, [f.key]: v }))} />
+                <FieldInput f={f} value={view[f.key] ?? ''} autoFocus={i === 0} onChange={(v) => setForm((s) => ({ ...s, [f.key]: v }))} />
                 {f.hint && <span className="field-hint">{f.hint}</span>}
               </label>
             ))}
@@ -231,7 +246,7 @@ export function Modal() {
               CLI
             </span>
             <code className="mono ellipsis selectable" style={{ fontSize: 11.5, color: 'var(--ink-2)', flex: 1 }}>
-              {modal.cli(form)}
+              {modal.cli(view)}
             </code>
           </div>
         )}
