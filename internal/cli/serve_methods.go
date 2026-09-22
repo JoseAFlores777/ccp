@@ -93,6 +93,7 @@ func serveRegistry() map[string]serveMethod {
 		"auto.chain":          w(srvAutoChain),
 		"auto.allow":          w(srvAutoAllow),
 		"auto.policy":         w(srvAutoPolicy),
+		"auto.chains":         r(srvAutoChains),
 		"auto.test":           w(srvAutoTest),
 		"auto.simulate":       r(srvAutoSimulate),
 		"auto.bootstrap":      r(srvAutoBootstrap),

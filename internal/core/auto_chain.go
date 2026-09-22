@@ -27,10 +27,21 @@ import (
 
 // ChainOpts son las opciones comunes de las mutaciones de la cadena.
 type ChainOpts struct {
-	Policy  string // "" => "default"
+	Policy  string // "" => "default". Nombrarla APUNTA a su lista compartida.
 	Cwd     string // desde dónde se resuelve el primario (core.Resolve)
 	At      int    // solo add: posición 1-based donde insertar; 0 = al final
 	NoAllow bool   // solo add: NO tocar allow_from
+
+	// For es el perfil cuya cadena PROPIA se edita. Vacío = el primario del cwd,
+	// que es el destino por defecto desde que las cadenas son por perfil: quien
+	// escribe `ccp auto chain add x` dentro de un repo está hablando de ESE
+	// perfil, no de la lista que comparten todos.
+	For string
+
+	// Shared apunta a la lista compartida de la política (el comportamiento de
+	// antes). Nombrar --policy lo implica: pedir una política concreta solo tiene
+	// sentido sobre su propia lista.
+	Shared bool
 }
 
 // ChainNoteKind clasifica los avisos que una mutación quiere que el usuario lea
@@ -48,6 +59,13 @@ const (
 	// no tocó la cadena — lo único que hizo fue abrirle el gate. Sin esta nota, la
 	// línea de fallback saldría idéntica a como estaba y parecería un no-op.
 	ChainNoteAlreadyInChain
+
+	// ChainNoteSelf: se metió un perfil en SU PROPIA cadena. A diferencia de
+	// ChainNotePrimaryImplicit —que depende de dónde esté el cwd y mañana puede
+	// dejar de cumplirse—, esto no vale nunca: nadie se presta la sesión a sí
+	// mismo. Se acepta y se dice, en vez de rechazarlo, porque llegar aquí suele
+	// ser un `--for` copiado y el error útil es saber que esa entrada no hará nada.
+	ChainNoteSelf
 )
 
 // ChainNote es un aviso con el perfil al que se refiere.
@@ -60,12 +78,37 @@ type ChainNote struct {
 // tocó. El CLI lo imprime desglosado; no hay ningún campo que resuma «todo bien»
 // a propósito.
 type ChainResult struct {
-	Policy   string   // política mutada
+	Policy   string   // política implicada (la mutada si Shared; la aplicable si no)
 	Primary  string   // primario resuelto para Cwd
 	Fallback []string // la lista `fallback` YA mutada (sin filtrar por allow_from)
 	Removed  []string // perfiles sacados de la cadena (rm)
 	Moved    string   // perfil recolocado (mv)
 	MovedTo  int      // su nueva posición 1-based (mv)
+
+	// --- el destino: qué clave del yaml se escribió --------------------------
+	//
+	// Owner/Shared no son adorno: son la diferencia entre haber tocado la cadena
+	// de UN perfil y habérsela cambiado a todos, y el CLI está obligado a decir
+	// cuál de las dos hizo. Una salida que solo dijera «fallback: a, b» ya no
+	// identifica lo que cambió desde que hay más de una lista.
+
+	Owner  string // perfil cuya cadena propia se escribió ("" => lista compartida)
+	Shared bool   // se escribió policies[Policy].fallback
+	Gate   string // perfil cuya entrada de allow_from se ajustó
+
+	// Forked: este perfil HEREDABA y a partir de ahora no. Es la consecuencia
+	// invisible de la primera mutación sobre una cadena que no existía, y la que
+	// hay que contar en voz alta: desde aquí, los cambios de la lista compartida
+	// dejan de llegarle.
+	Forked    bool
+	Inherited []string // la lista que deja de seguir (solo con Forked)
+
+	// Reset: se borró la cadena propia y el perfil vuelve a heredar.
+	Reset bool
+
+	// PolicyBound / PolicyCleared: se ligó o se desligó una política del perfil.
+	PolicyBound   string
+	PolicyCleared bool
 
 	// --- el desglose de allow_from, uno por estado posible del gate ---
 
@@ -107,6 +150,13 @@ const (
 	ChainErrDuration        // duración que no parsea
 	ChainErrDurationNeg     // duración sintácticamente válida pero negativa
 	ChainErrCooldown        // cooldown.strategy desconocida
+
+	// --- cadenas propias (auto_chains.go) ---
+
+	ChainErrChainProfile // chains[<perfil>] apunta a un perfil que no existe
+	ChainErrChainPolicy  // chains[<perfil>].policy nombra una política que no existe
+	ChainErrNoChain      // el perfil no declara cadena propia (reset sobre lo que no hay)
+	ChainErrTargetClash  // --for y --shared/--policy a la vez: dos destinos
 )
 
 // ChainError es un error tipado: el CLI lo traduce por Kind a los dos idiomas
@@ -121,6 +171,7 @@ type ChainError struct {
 	Min     int
 	Max     int
 	Detail  string // lista de contexto (políticas existentes, cadena actual)
+	Owner   string // perfil dueño de la cadena propia implicada (chains[<owner>])
 	Key     string // clave del yaml ofensiva (min_dwell, cooldown.fallback…)
 	Value   string // su valor, tal cual lo escribió el usuario
 	Num     int    // su valor cuando es numérico (threshold, max_hops)
@@ -163,6 +214,15 @@ func (e *ChainError) Error() string {
 	case ChainErrCooldown:
 		return fmt.Sprintf("política %q: cooldown.strategy %q desconocida (usa %q o %q)",
 			e.Policy, e.Value, CooldownResetsAt, CooldownFixed)
+	case ChainErrChainProfile:
+		return fmt.Sprintf("la cadena propia de %q apunta al perfil %q, que no existe", e.Owner, e.Profile)
+	case ChainErrChainPolicy:
+		return fmt.Sprintf("la cadena propia de %q liga la política %q, que no existe (hay: %s)",
+			e.Owner, e.Policy, e.Detail)
+	case ChainErrNoChain:
+		return fmt.Sprintf("%q no declara cadena propia: ya hereda la de la política %q", e.Owner, e.Policy)
+	case ChainErrTargetClash:
+		return "--for y --shared/--policy nombran destinos distintos: elige uno"
 	}
 	return "cadena: error desconocido"
 }
@@ -198,11 +258,10 @@ func ChainAdd(home string, opts ChainOpts, names []string) (ChainResult, error) 
 	if err != nil {
 		return ChainResult{}, err
 	}
-	cfg, pol, policyName, primary, err := chainBegin(home, opts.Policy, opts.Cwd)
+	cfg, tgt, list, err := chainBegin(home, opts)
 	if err != nil {
 		return ChainResult{}, err
 	}
-	list := chainList(pol)
 	ah := cfg.AutoHandoff
 
 	// Validación COMPLETA antes de mutar, igual que `auto install`: un
@@ -218,15 +277,15 @@ func ChainAdd(home string, opts ChainOpts, names []string) (ChainResult, error) 
 		}
 		// Repetido DENTRO de la misma invocación: eso siempre es un dedo pegado.
 		if chainIndex(names[:i], n) >= 0 {
-			return ChainResult{}, &ChainError{Kind: ChainErrDuplicate, Profile: n, Policy: policyName}
+			return ChainResult{}, tgt.err(ChainErrDuplicate, n, "")
 		}
 		if chainIndex(list, n) < 0 {
 			insert = append(insert, n)
 			continue
 		}
 		// Ya está en la cadena: solo tiene sentido seguir si queda gate que abrir.
-		if opts.NoAllow || !chainGateWouldOpen(ah, primary, n) {
-			return ChainResult{}, &ChainError{Kind: ChainErrDuplicate, Profile: n, Policy: policyName}
+		if opts.NoAllow || !chainGateWouldOpen(ah, tgt.Gate, n) {
+			return ChainResult{}, tgt.err(ChainErrDuplicate, n, "")
 		}
 		already = append(already, n)
 	}
@@ -244,21 +303,35 @@ func ChainAdd(home string, opts ChainOpts, names []string) (ChainResult, error) 
 	}
 	list = chainInsert(list, at, insert)
 
-	res := ChainResult{Policy: policyName, Primary: primary, Fallback: list}
-	for _, n := range names {
-		if n == primary {
-			res.Notes = append(res.Notes, ChainNote{Kind: ChainNotePrimaryImplicit, Profile: n})
-		}
-	}
+	res := tgt.result(list)
+	chainSelfNotes(&res, tgt, names)
 	for _, n := range already {
 		res.Notes = append(res.Notes, ChainNote{Kind: ChainNoteAlreadyInChain, Profile: n})
 	}
-	chainGate(ah, primary, names, nil, opts.NoAllow, &res)
+	chainGate(ah, tgt.Gate, names, nil, opts.NoAllow, &res)
 
-	if err := chainFinish(home, cfg, policyName, pol, list); err != nil {
+	if err := chainFinish(home, cfg, tgt, list); err != nil {
 		return ChainResult{}, err
 	}
 	return res, nil
+}
+
+// chainSelfNotes avisa de los nombres que no van a hacer nada en este destino.
+// En una cadena propia es el dueño (nadie se presta a sí mismo, nunca); en la
+// compartida es el primario del cwd, que HOY se filtra pero mañana puede dejar
+// de ser el primario de esta carpeta — por eso son dos avisos y no uno.
+func chainSelfNotes(res *ChainResult, tgt chainTarget, names []string) {
+	kind := ChainNoteSelf
+	subject := tgt.Owner
+	if tgt.Shared {
+		kind = ChainNotePrimaryImplicit
+		subject = tgt.Primary
+	}
+	for _, n := range names {
+		if n == subject {
+			res.Notes = append(res.Notes, ChainNote{Kind: kind, Profile: n})
+		}
+	}
 }
 
 // ChainRm saca perfiles de la cadena y —salvo --no-allow— retira su autorización
@@ -280,15 +353,13 @@ func ChainRm(home string, opts ChainOpts, names []string) (ChainResult, error) {
 	if err != nil {
 		return ChainResult{}, err
 	}
-	cfg, pol, policyName, primary, err := chainBegin(home, opts.Policy, opts.Cwd)
+	cfg, tgt, list, err := chainBegin(home, opts)
 	if err != nil {
 		return ChainResult{}, err
 	}
-	list := chainList(pol)
 	for _, n := range names {
 		if chainIndex(list, n) < 0 {
-			return ChainResult{}, &ChainError{
-				Kind: ChainErrNotInChain, Profile: n, Policy: policyName, Detail: chainDetail(list)}
+			return ChainResult{}, tgt.err(ChainErrNotInChain, n, chainDetail(list))
 		}
 	}
 
@@ -300,9 +371,10 @@ func ChainRm(home string, opts ChainOpts, names []string) (ChainResult, error) {
 		out = append(out, n)
 	}
 
-	res := ChainResult{Policy: policyName, Primary: primary, Fallback: out, Removed: names}
-	chainGate(cfg.AutoHandoff, primary, nil, names, opts.NoAllow, &res)
-	if err := chainFinish(home, cfg, policyName, pol, out); err != nil {
+	res := tgt.result(out)
+	res.Removed = names
+	chainGate(cfg.AutoHandoff, tgt.Gate, nil, names, opts.NoAllow, &res)
+	if err := chainFinish(home, cfg, tgt, out); err != nil {
 		return ChainResult{}, err
 	}
 	return res, nil
@@ -321,15 +393,13 @@ func ChainMv(home string, opts ChainOpts, name string, pos int) (ChainResult, er
 	}
 	name = one[0]
 
-	cfg, pol, policyName, primary, err := chainBegin(home, opts.Policy, opts.Cwd)
+	cfg, tgt, list, err := chainBegin(home, opts)
 	if err != nil {
 		return ChainResult{}, err
 	}
-	list := chainList(pol)
 	i := chainIndex(list, name)
 	if i < 0 {
-		return ChainResult{}, &ChainError{
-			Kind: ChainErrNotInChain, Profile: name, Policy: policyName, Detail: chainDetail(list)}
+		return ChainResult{}, tgt.err(ChainErrNotInChain, name, chainDetail(list))
 	}
 	if pos < 1 || pos > len(list) {
 		return ChainResult{}, &ChainError{Kind: ChainErrRange, Pos: pos, Min: 1, Max: len(list)}
@@ -340,13 +410,14 @@ func ChainMv(home string, opts ChainOpts, name string, pos int) (ChainResult, er
 	out = append(out, list[i+1:]...)
 	out = chainInsert(out, pos-1, []string{name})
 
-	res := ChainResult{Policy: policyName, Primary: primary, Fallback: out, Moved: name, MovedTo: pos}
+	res := tgt.result(out)
+	res.Moved, res.MovedTo = name, pos
 	// mv no cambia QUIÉN está en la cadena, solo el orden, así que no hay nada que
 	// autorizar ni que retirar. Se llama igual para que el resultado lleve el
 	// estado del gate (--no-allow / sin gate) y el CLI pueda imprimir una línea de
 	// allow_from también aquí: el silencio se lee como «no me he fijado».
-	chainGate(cfg.AutoHandoff, primary, nil, nil, opts.NoAllow, &res)
-	if err := chainFinish(home, cfg, policyName, pol, out); err != nil {
+	chainGate(cfg.AutoHandoff, tgt.Gate, nil, nil, opts.NoAllow, &res)
+	if err := chainFinish(home, cfg, tgt, out); err != nil {
 		return ChainResult{}, err
 	}
 	return res, nil
@@ -369,7 +440,7 @@ func ChainSet(home string, opts ChainOpts, names []string) (ChainResult, error) 
 	if err != nil {
 		return ChainResult{}, err
 	}
-	cfg, pol, policyName, primary, err := chainBegin(home, opts.Policy, opts.Cwd)
+	cfg, tgt, list, err := chainBegin(home, opts)
 	if err != nil {
 		return ChainResult{}, err
 	}
@@ -378,26 +449,22 @@ func ChainSet(home string, opts ChainOpts, names []string) (ChainResult, error) 
 			return ChainResult{}, &ChainError{Kind: ChainErrNoProfile, Profile: n}
 		}
 		if chainIndex(names[:i], n) >= 0 {
-			return ChainResult{}, &ChainError{Kind: ChainErrDuplicate, Profile: n, Policy: policyName}
+			return ChainResult{}, tgt.err(ChainErrDuplicate, n, "")
 		}
 	}
 
 	// Los que se caen de la cadena: pierden la autorización igual que con `rm`.
 	var gone []string
-	for _, n := range chainList(pol) {
+	for _, n := range list {
 		if chainIndex(names, n) < 0 {
 			gone = append(gone, n)
 		}
 	}
 
-	res := ChainResult{Policy: policyName, Primary: primary, Fallback: names}
-	for _, n := range names {
-		if n == primary {
-			res.Notes = append(res.Notes, ChainNote{Kind: ChainNotePrimaryImplicit, Profile: n})
-		}
-	}
-	chainGate(cfg.AutoHandoff, primary, names, gone, opts.NoAllow, &res)
-	if err := chainFinish(home, cfg, policyName, pol, names); err != nil {
+	res := tgt.result(names)
+	chainSelfNotes(&res, tgt, names)
+	chainGate(cfg.AutoHandoff, tgt.Gate, names, gone, opts.NoAllow, &res)
+	if err := chainFinish(home, cfg, tgt, names); err != nil {
 		return ChainResult{}, err
 	}
 	return res, nil
@@ -427,6 +494,11 @@ func ChainSet(home string, opts ChainOpts, names []string) (ChainResult, error) 
 // a leer. Y `add` gana a `remove` para el mismo nombre, que es lo que hace que
 // `set a,b` sobre una cadena `[a]` no quite y vuelva a poner a `a`.
 func chainGate(ah *AutoHandoff, primary string, add, remove []string, noAllow bool, res *ChainResult) {
+	// `primary` es el DUEÑO de la entrada a ajustar: el primario del cwd cuando se
+	// edita la lista compartida, y el perfil dueño cuando se edita su cadena
+	// propia. Es el mismo criterio en los dos casos —la entrada que gobierna los
+	// préstamos DESDE quien acaba de cambiar de cadena—, y por eso lo decide
+	// chainBegin (tgt.Gate) y no cada llamador por su cuenta.
 	if noAllow {
 		res.AllowSkipped = true
 		return
@@ -483,58 +555,279 @@ func chainGateWouldOpen(ah *AutoHandoff, primary, name string) bool {
 	return chainIndex(entry, name) < 0
 }
 
-// chainBegin carga la config y localiza la política a mutar. Devuelve también el
-// primario del cwd (core.Resolve, el MISMO que usa ResolveAutoChain: reimplementar
-// la resolución aquí sería tener dos ideas distintas de «dónde estoy»).
+// chainTarget es A QUÉ CLAVE del yaml apunta esta mutación. Existe porque desde
+// que hay cadenas por perfil «la cadena» ya no identifica nada: hay una por
+// perfil más la compartida de cada política, y escribir en la que no era es
+// exactamente el fallo que no se ve hasta que la rotación salta mal a las 3am.
+//
+// El destino se decide UNA vez, en chainBegin, y viaja hasta chainFinish y hasta
+// el parte que se imprime. Que las tres cosas —de dónde se lee, dónde se escribe
+// y qué se cuenta— salgan del mismo valor es lo que impide que el mensaje diga
+// una cosa y el archivo acabe con otra.
+type chainTarget struct {
+	Shared  bool   // se edita policies[Policy].fallback
+	Owner   string // perfil dueño de la cadena propia (vacío si Shared)
+	Policy  string // política implicada
+	Primary string // primario del cwd (contexto del parte)
+	Gate    string // perfil cuya entrada de allow_from se ajusta
+
+	// Fork/Inherited: la cadena propia NO existía y esta mutación la crea a
+	// partir de la heredada.
+	Fork      bool
+	Inherited []string
+
+	pol   AutoPolicy // la política cargada (solo si Shared)
+	entry AutoChain  // la entrada actual de chains[Owner] (cero si no había)
+}
+
+// result siembra el parte con el destino ya decidido.
+func (t chainTarget) result(list []string) ChainResult {
+	return ChainResult{
+		Policy: t.Policy, Primary: t.Primary, Fallback: list,
+		Owner: t.Owner, Shared: t.Shared, Gate: t.Gate,
+		Forked: t.Fork, Inherited: t.Inherited,
+	}
+}
+
+// err completa un error con las coordenadas del destino, para que el CLI pueda
+// decir «en la cadena de a-cc» o «en la política default» sin adivinarlo.
+func (t chainTarget) err(kind ChainErrKind, profile, detail string) *ChainError {
+	e := &ChainError{Kind: kind, Profile: profile, Policy: t.Policy, Detail: detail}
+	if !t.Shared {
+		e.Owner = t.Owner
+	}
+	return e
+}
+
+// chainBegin carga la config, decide el destino y devuelve la lista a mutar.
+//
+// Devuelve también el primario del cwd (core.Resolve, el MISMO que usa
+// ResolveAutoChain: reimplementar la resolución aquí sería tener dos ideas
+// distintas de «dónde estoy»).
 //
 // NO exige `enabled: true`: editar la cadena con la rotación apagada es legítimo
 // —se configura primero y se enciende después— y negarse ahí obligaría a
 // habilitar el auto-handoff solo para poder preparar su política.
-func chainBegin(home, policyName, cwd string) (*Config, AutoPolicy, string, string, error) {
+//
+// La SIEMBRA desde la lista heredada (Fork) es la decisión con filo. Un perfil
+// que hereda y recibe su primer `add` podría: (a) arrancar con una cadena de un
+// solo nombre, o (b) quedarse con la heredada más el nuevo. Se elige (b) porque
+// (a) convierte «añade uno» en «quita todos los demás», que es justo lo contrario
+// de lo que se pidió. El precio es que a partir de ese momento el perfil deja de
+// seguir la lista compartida, y por eso Fork viaja hasta la salida: bifurcar en
+// silencio sería dejar una herencia rota que no se nota hasta meses después.
+func chainBegin(home string, opts ChainOpts) (*Config, chainTarget, []string, error) {
 	cfg, err := Load(home)
 	if err != nil {
-		return nil, AutoPolicy{}, "", "", err
+		return nil, chainTarget{}, nil, err
 	}
 	ah := cfg.AutoHandoff
 	if ah == nil {
-		return nil, AutoPolicy{}, "", "", &ChainError{Kind: ChainErrNotConfigured}
+		return nil, chainTarget{}, nil, &ChainError{Kind: ChainErrNotConfigured}
 	}
-	if policyName == "" {
-		policyName = "default"
+
+	forName := strings.TrimSpace(opts.For)
+	policyName := strings.TrimSpace(opts.Policy)
+	shared := opts.Shared || policyName != ""
+	if forName != "" && shared {
+		// Dos destinos a la vez no se resuelve eligiendo uno: el usuario nombró
+		// las dos cosas y cualquiera de las dos que se escriba va a sorprenderle.
+		return nil, chainTarget{}, nil, &ChainError{Kind: ChainErrTargetClash}
 	}
-	pol, ok := ah.Policies[policyName]
+	primary := Resolve(opts.Cwd, cfg.Rules)
+
+	if shared {
+		if policyName == "" {
+			policyName = "default"
+		}
+		pol, ok := ah.Policies[policyName]
+		if !ok {
+			return nil, chainTarget{}, nil, &ChainError{
+				Kind: ChainErrNoPolicy, Policy: policyName, Detail: autoPolicyNames(ah.Policies)}
+		}
+		t := chainTarget{Shared: true, Policy: policyName, Primary: primary, Gate: primary, pol: pol}
+		return cfg, t, chainClean(pol.Fallback), nil
+	}
+
+	owner := forName
+	if owner == "" {
+		owner = primary
+	}
+	if !autoProfileExists(cfg, owner) {
+		return nil, chainTarget{}, nil, &ChainError{Kind: ChainErrNoProfile, Profile: owner}
+	}
+	pc := AutoChainFor(cfg, owner)
+	if pc.Policy != "" {
+		if _, ok := ah.Policies[pc.Policy]; !ok {
+			return nil, chainTarget{}, nil, &ChainError{
+				Kind: ChainErrChainPolicy, Policy: pc.Policy, Owner: owner,
+				Detail: autoPolicyNames(ah.Policies)}
+		}
+	}
+	t := chainTarget{
+		Owner: owner, Policy: autoPolicyOr(pc.Policy), Primary: primary,
+		Gate: owner, entry: ah.Chains[owner],
+	}
+	if pc.Declared {
+		return cfg, t, pc.Fallback, nil
+	}
+
+	pol, ok := ah.Policies[t.Policy]
 	if !ok {
-		return nil, AutoPolicy{}, "", "", &ChainError{
-			Kind: ChainErrNoPolicy, Policy: policyName, Detail: autoPolicyNames(ah.Policies)}
+		return nil, chainTarget{}, nil, &ChainError{
+			Kind: ChainErrNoPolicy, Policy: t.Policy, Detail: autoPolicyNames(ah.Policies)}
 	}
-	return cfg, pol, policyName, Resolve(cwd, cfg.Rules), nil
+	t.Fork = true
+	t.Inherited = chainClean(pol.Fallback)
+	return cfg, t, append([]string(nil), t.Inherited...), nil
 }
 
-// chainFinish persiste la política mutada por el camino normal del core (Save:
-// tmp+rename bajo flock, conservando comentarios y Config.Extra, sin tocar la
-// version del esquema).
+// chainFinish persiste el destino por el camino normal del core (Save: tmp+rename
+// bajo flock, conservando comentarios y Config.Extra, sin tocar la version del
+// esquema).
 //
-// La reasignación al mapa NO es un descuido: Policies es map[string]AutoPolicy
-// por VALOR, así que `Policies[n].Fallback = x` ni siquiera compila — hay que
-// copiar, mutar y volver a meter.
-func chainFinish(home string, cfg *Config, policyName string, pol AutoPolicy, list []string) error {
-	pol.Fallback = list
-	cfg.AutoHandoff.Policies[policyName] = pol
+// Las reasignaciones al mapa NO son un descuido: Policies y Chains son mapas por
+// VALOR, así que `Policies[n].Fallback = x` ni siquiera compila — hay que copiar,
+// mutar y volver a meter.
+//
+// La entrada se escribe SIEMPRE con la cadena declarada (NewAutoChain / hasFallback):
+// guardar una lista sin declarar la clave dejaría un `chains[<perfil>]` que al
+// releerse significa «hereda», o sea la escritura se perdería en silencio.
+func chainFinish(home string, cfg *Config, t chainTarget, list []string) error {
+	ah := cfg.AutoHandoff
+	if t.Shared {
+		pol := t.pol
+		pol.Fallback = list
+		ah.Policies[t.Policy] = pol
+		return Save(home, cfg)
+	}
+	entry := t.entry
+	entry.Fallback = list
+	entry.hasFallback = true
+	if ah.Chains == nil {
+		ah.Chains = map[string]AutoChain{}
+	}
+	ah.Chains[t.Owner] = entry
 	return Save(home, cfg)
 }
 
-// chainList devuelve la cadena de la política como copia saneada: sin espacios y
-// sin entradas vacías (`fallback: [a, , b]` es un typo tan común como silencioso,
-// y Effective ya las descarta al resolver). Es copia para que un fallo a mitad de
-// validación no deje el Config en memoria a medio mutar.
-func chainList(pol AutoPolicy) []string {
-	out := make([]string, 0, len(pol.Fallback))
-	for _, n := range pol.Fallback {
-		if n = strings.TrimSpace(n); n != "" {
-			out = append(out, n)
+// ChainReset borra la cadena propia de un perfil: vuelve a heredar la de su
+// política, y vuelve a recibir los cambios de esa lista compartida.
+//
+// Es la vuelta atrás de la bifurcación, y hace falta justamente porque la
+// bifurcación es fácil de provocar sin querer (el primer `add` dentro de un
+// repo). Sin este comando, deshacerla obligaba a editar el yaml a mano.
+//
+// NO toca allow_from. Quitar la cadena propia no retira permisos: el gate se
+// declaró aparte y puede estar puesto a propósito, y estrecharlo aquí sería
+// adivinar. Lo que sí hace es decir con qué cadena se queda el perfil.
+func ChainReset(home string, opts ChainOpts) (ChainResult, error) {
+	if opts.Shared || strings.TrimSpace(opts.Policy) != "" {
+		return ChainResult{}, &ChainError{Kind: ChainErrTargetClash}
+	}
+	cfg, t, _, err := chainBegin(home, opts)
+	if err != nil {
+		return ChainResult{}, err
+	}
+	ah := cfg.AutoHandoff
+	pc := AutoChainFor(cfg, t.Owner)
+	if !pc.Entry {
+		return ChainResult{}, &ChainError{Kind: ChainErrNoChain, Owner: t.Owner, Policy: t.Policy}
+	}
+
+	delete(ah.Chains, t.Owner)
+	if len(ah.Chains) == 0 {
+		// El mapa vacío se borra para que la clave desaparezca del yaml en vez de
+		// quedarse como un `chains: {}` que se lee como una decisión.
+		ah.Chains = nil
+	}
+
+	// La política aplicable vuelve a ser la del camino normal: la ligadura se va
+	// con la entrada, así que el parte tiene que recalcularla o diría que el
+	// perfil hereda la cadena de una política que ya no le aplica.
+	polName := "default"
+	pol, ok := ah.Policies[polName]
+	if !ok {
+		return ChainResult{}, &ChainError{
+			Kind: ChainErrNoPolicy, Policy: polName, Detail: autoPolicyNames(ah.Policies)}
+	}
+	res := ChainResult{
+		Policy: polName, Primary: t.Primary, Owner: t.Owner, Gate: t.Gate,
+		Fallback: chainClean(pol.Fallback), Reset: true,
+	}
+	chainGate(ah, t.Gate, nil, nil, opts.NoAllow, &res)
+	if err := Save(home, cfg); err != nil {
+		return ChainResult{}, err
+	}
+	return res, nil
+}
+
+// ChainPolicySet liga (o desliga) una política a un perfil: `chains[<p>].policy`.
+//
+// Ligar una política a un perfil que HEREDA le cambia también la cadena, porque
+// la hereda de la política ligada y no de `default`. Eso no se puede evitar —es
+// lo que significa ligar— pero sí se puede contar: el resultado trae la cadena
+// que queda en vigor, y el CLI la imprime. Lo que NO se hace es declarar de paso
+// una cadena propia vacía: escribir `{policy: x}` sin `fallback` deja al perfil
+// heredando, que es lo que el usuario pidió, mientras que forzar la clave le
+// apagaría la rotación con un `[ok]` delante.
+func ChainPolicySet(home string, opts ChainOpts, policy string, clear bool) (ChainResult, error) {
+	if opts.Shared || strings.TrimSpace(opts.Policy) != "" {
+		return ChainResult{}, &ChainError{Kind: ChainErrTargetClash}
+	}
+	policy = strings.TrimSpace(policy)
+	if !clear && policy == "" {
+		return ChainResult{}, &ChainError{Kind: ChainErrEmpty}
+	}
+	cfg, t, _, err := chainBegin(home, opts)
+	if err != nil {
+		return ChainResult{}, err
+	}
+	ah := cfg.AutoHandoff
+	if !clear {
+		if _, ok := ah.Policies[policy]; !ok {
+			return ChainResult{}, &ChainError{
+				Kind: ChainErrNoPolicy, Policy: policy, Detail: autoPolicyNames(ah.Policies)}
 		}
 	}
-	return out
+
+	entry := ah.Chains[t.Owner]
+	if clear {
+		entry.Policy = ""
+	} else {
+		entry.Policy = policy
+		entry.long = true
+	}
+
+	if entry.Policy == "" && !entry.hasFallback && len(entry.Extra) == 0 {
+		// Entrada que ya no dice nada: se borra en vez de dejar un `a-cc: {}` en
+		// el yaml, que no significa nada y parece un resto.
+		delete(ah.Chains, t.Owner)
+		if len(ah.Chains) == 0 {
+			ah.Chains = nil
+		}
+	} else {
+		if ah.Chains == nil {
+			ah.Chains = map[string]AutoChain{}
+		}
+		ah.Chains[t.Owner] = entry
+	}
+
+	polName := autoPolicyOr(entry.Policy)
+	res := ChainResult{
+		Policy: polName, Primary: t.Primary, Owner: t.Owner, Gate: t.Gate,
+		PolicyBound: policy, PolicyCleared: clear,
+	}
+	if entry.hasFallback {
+		res.Fallback = chainClean(entry.Fallback)
+	} else {
+		res.Fallback = chainClean(ah.Policies[polName].Fallback)
+	}
+	chainGate(ah, t.Gate, nil, nil, opts.NoAllow, &res)
+	if err := Save(home, cfg); err != nil {
+		return ChainResult{}, err
+	}
+	return res, nil
 }
 
 // chainCleanNames normaliza los nombres que llegan del CLI y exige al menos uno.

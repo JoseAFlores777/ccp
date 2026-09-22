@@ -19,7 +19,7 @@ export interface FindingText {
 
 export type FixKind =
   | 'set_key' | 'login' | 'shell_install' | 'sensors_install' | 'rule_reassign' | 'rule_remove'
-  | 'handoff_discard' | 'auto_enable' | 'chain_remove' | 'desktop_rebuild' | 'desktop_retry' | 'launcher_remove';
+  | 'handoff_discard' | 'auto_enable' | 'chain_remove' | 'chain_reset' | 'desktop_rebuild' | 'desktop_retry' | 'launcher_remove';
 
 export function sevTone(sev: Finding['severity']): 'err' | 'warn' | 'unk' | 'accent' {
   return sev === 'error' ? 'err' : sev === 'warn' ? 'warn' : sev === 'unknown' ? 'unk' : 'accent';
@@ -103,9 +103,21 @@ export function describeFinding(f: Finding): FindingText {
       };
     case 'chain_unknown_profile':
       return {
-        title: t('La cadena de {s} nombra una cuenta que no existe', { s }),
+        title: t('La cadena compartida de {s} nombra una cuenta que no existe', { s }),
         what: t('{p} está en la cadena pero ya no es un perfil: se ignora al rotar.', { p }),
         action: { label: t('Quitar de la cadena'), fix: 'chain_remove' },
+      };
+    case 'chain_own_unknown_profile':
+      return {
+        title: t('La cadena propia de {o} nombra una cuenta que no existe', { o: f.owner ?? '' }),
+        what: t('{p} está en la cadena pero ya no es un perfil: se ignora al rotar.', { p }),
+        action: { label: t('Quitar de la cadena'), fix: 'chain_remove' },
+      };
+    case 'chain_orphan':
+      return {
+        title: t('{s} tiene cadena pero ya no es un perfil', { s }),
+        what: t('Quedó una entrada en auto_handoff.chains de un perfil borrado: no la lee nadie y crece sola.'),
+        action: { label: t('Quitar la cadena'), fix: 'chain_reset' },
       };
     case 'chain_no_access':
       return {

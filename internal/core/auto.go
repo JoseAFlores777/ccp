@@ -21,10 +21,18 @@ import (
 
 // AutoHandoff es el bloque `auto_handoff` de ccp.yaml.
 type AutoHandoff struct {
-	Enabled   bool                  `yaml:"enabled"`
-	Policies  map[string]AutoPolicy `yaml:"policies,omitempty"`
-	AllowFrom map[string][]string   `yaml:"allow_from,omitempty"`
-	Hooks     []string              `yaml:"hooks,omitempty"` // perfiles con la capa de sensores instalada
+	Enabled  bool                  `yaml:"enabled"`
+	Policies map[string]AutoPolicy `yaml:"policies,omitempty"`
+
+	// Chains es la cadena PROPIA de cada perfil (auto_chains.go). Un perfil sin
+	// entrada hereda el `fallback` de su política, que es lo que hacían todos
+	// antes de que esta clave existiera. Va aquí y no dentro de `policies`
+	// porque la cadena es del PRIMARIO —a quién le presta él— mientras que la
+	// política es el cuándo y el cuánto, y eso sí se comparte entre perfiles.
+	Chains map[string]AutoChain `yaml:"chains,omitempty"`
+
+	AllowFrom map[string][]string `yaml:"allow_from,omitempty"`
+	Hooks     []string            `yaml:"hooks,omitempty"` // perfiles con la capa de sensores instalada
 
 	// Extra es el catch-all del bloque, el mismo que Config tiene en su nivel
 	// superior y por la misma razón. `auto_handoff` está en knownTopKeys, así
@@ -238,6 +246,17 @@ type ResolvedChain struct {
 	Primary  string   // core.Resolve(cwd, cfg.Rules)
 	Fallback []string // préstamos permitidos, en orden
 	Denied   []string // los que allow_from bloqueó (para --dry-run)
+
+	// OwnChain: la cadena salió de `chains[Primary]`, no del `fallback` de la
+	// política. Se reporta porque cambia lo que hay que editar para cambiarla, y
+	// porque una cadena vacía significa cosas distintas según de dónde venga
+	// («este perfil no presta» vs. «la política no tiene cadena»).
+	OwnChain bool
+
+	// PolicyPinned: la política salió de `chains[Primary].policy` y no del
+	// `--policy` ni del default. Sin esto, `ccp auto status` diría «política
+	// relajada» sin que exista ningún sitio visible donde se eligiera.
+	PolicyPinned bool
 }
 
 // ResolveAutoChain resuelve la política aplicable a cwd: quién es el primario y
@@ -274,6 +293,25 @@ func ResolveAutoChain(home string, cfg *Config, policyName, cwd string) (Resolve
 		}
 		cfg = loaded
 	}
+	return ResolveAutoChainFor(home, cfg, policyName, Resolve(cwd, cfg.Rules))
+}
+
+// ResolveAutoChainFor es ResolveAutoChain a partir del PRIMARIO ya resuelto, sin
+// pasar por un cwd.
+//
+// Existe porque desde que la cadena es por perfil hay preguntas legítimas sobre
+// un perfil en el que no estás: `ccp auto chain --for <otro>` tiene que poder
+// enseñar la cadena efectiva de ESE perfil, y la pantalla de rotación de la GUI
+// las pinta todas a la vez. Inventarse un cwd que resolviera a ese perfil para
+// poder preguntar habría sido la otra salida, y es la que acaba divergiendo.
+func ResolveAutoChainFor(home string, cfg *Config, policyName, primary string) (ResolvedChain, error) {
+	if cfg == nil {
+		loaded, err := Load(home)
+		if err != nil {
+			return ResolvedChain{}, err
+		}
+		cfg = loaded
+	}
 
 	ah := cfg.AutoHandoff
 	if ah == nil {
@@ -283,11 +321,36 @@ func ResolveAutoChain(home string, cfg *Config, policyName, cwd string) (Resolve
 		return ResolvedChain{}, &ChainError{Kind: ChainErrDisabled}
 	}
 
+	// La política se elige DESPUÉS de saber el primario: con `chains` puede venir
+	// ligada a él, así que preguntar «¿qué política?» sin saber «¿de quién?» es
+	// preguntar en el orden equivocado. Por eso el primario es parámetro y no se
+	// resuelve aquí dentro.
+	pc := AutoChainFor(cfg, primary)
+
+	// Precedencia de la política: la bandera explícita gana siempre —quien la
+	// escribe está pidiendo ver o usar OTRA, y una ligadura del yaml que la
+	// pisara convertiría --policy en decoración—, luego la ligadura del perfil,
+	// luego `default`.
+	pinned := false
 	if policyName == "" {
-		policyName = "default"
+		if pc.Policy != "" {
+			policyName = pc.Policy
+			pinned = true
+		} else {
+			policyName = "default"
+		}
 	}
 	pol, ok := ah.Policies[policyName]
 	if !ok {
+		if pinned {
+			// Error propio: mandar a mirar «las políticas que hay» sin decir que
+			// el nombre roto está en chains[<primario>].policy deja al usuario
+			// buscándolo en la línea de comandos que acaba de escribir, donde no
+			// está.
+			return ResolvedChain{}, &ChainError{
+				Kind: ChainErrChainPolicy, Policy: policyName,
+				Owner: primary, Detail: autoPolicyNames(ah.Policies)}
+		}
 		return ResolvedChain{}, &ChainError{
 			Kind: ChainErrNoPolicy, Policy: policyName, Detail: autoPolicyNames(ah.Policies)}
 	}
@@ -297,15 +360,26 @@ func ResolveAutoChain(home string, cfg *Config, policyName, cwd string) (Resolve
 		return ResolvedChain{}, err
 	}
 
-	primary := Resolve(cwd, cfg.Rules)
+	// La cadena propia SUSTITUYE al fallback de la política, no se suma: si se
+	// sumara, un perfil no podría quitarse un destino que la lista compartida
+	// trae, que es justo la mitad del problema que `chains` viene a resolver.
+	// Declarada y vacía sustituye igual, y entonces ese perfil no presta a nadie.
+	list := eff.Fallback
+	if pc.Declared {
+		list = pc.Fallback
+	}
 
 	// Validación + filtrado en una sola pasada, conservando el orden del yaml
 	// (el orden ES la preferencia del usuario). Se deduplica porque un perfil
 	// repetido no aporta un préstamo extra y ensucia la traza del --dry-run.
 	seen := map[string]bool{}
-	candidates := make([]string, 0, len(eff.Fallback))
-	for _, name := range eff.Fallback {
+	candidates := make([]string, 0, len(list))
+	for _, name := range list {
 		if !autoProfileExists(cfg, name) {
+			if pc.Declared {
+				return ResolvedChain{}, &ChainError{
+					Kind: ChainErrChainProfile, Owner: primary, Profile: name}
+			}
 			return ResolvedChain{}, &ChainError{
 				Kind: ChainErrFallbackProfile, Policy: policyName, Profile: name}
 		}
@@ -316,7 +390,7 @@ func ResolveAutoChain(home string, cfg *Config, policyName, cwd string) (Resolve
 		candidates = append(candidates, name)
 	}
 
-	rc := ResolvedChain{Policy: eff, Primary: primary}
+	rc := ResolvedChain{Policy: eff, Primary: primary, OwnChain: pc.Declared, PolicyPinned: pinned}
 
 	gate := AutoGateFor(cfg, primary)
 	if gate.Absent {

@@ -249,20 +249,30 @@ func autoSortedProfileNames(cfg *core.Config) []string {
 //	policy        objeto  — política efectiva ya con defaults aplicados
 //	primary       string  — perfil que las reglas resuelven para cwd
 //	fallback      []string— préstamos permitidos, EN ORDEN de preferencia
+//	chain_own     bool    — la cadena sale de chains[<primary>], no de la política
+//	policy_pinned bool    — la política viene ligada al perfil (chains[…].policy)
 //	denied        []string— candidatos que allow_from bloqueó
 //	sensors       []objeto— un elemento por perfil conocido (ver autoSensorJSON)
 //
 // `fallback`, `denied` y `sensors` se emiten siempre como array (nunca null)
 // para que un `jq '.fallback | length'` funcione sin guardas.
 type autoStatusJSON struct {
-	Enabled  bool             `json:"enabled"`
-	Cwd      string           `json:"cwd"`
-	Error    string           `json:"error,omitempty"`
-	Policy   *autoPolicyJSON  `json:"policy,omitempty"`
-	Primary  string           `json:"primary,omitempty"`
-	Fallback []string         `json:"fallback"`
-	Denied   []string         `json:"denied"`
-	Sensors  []autoSensorJSON `json:"sensors"`
+	Enabled  bool            `json:"enabled"`
+	Cwd      string          `json:"cwd"`
+	Error    string          `json:"error,omitempty"`
+	Policy   *autoPolicyJSON `json:"policy,omitempty"`
+	Primary  string          `json:"primary,omitempty"`
+	Fallback []string        `json:"fallback"`
+
+	// ChainOwn/PolicyPinned dicen DE DÓNDE sale lo de arriba. Sin ellos, un
+	// consumidor que lea `fallback: []` no puede distinguir «este perfil no
+	// presta a nadie» de «la lista compartida está vacía», que se arreglan en
+	// sitios distintos del yaml. Campos añadidos, no forma cambiada.
+	ChainOwn     bool `json:"chain_own"`
+	PolicyPinned bool `json:"policy_pinned"`
+
+	Denied  []string         `json:"denied"`
+	Sensors []autoSensorJSON `json:"sensors"`
 }
 
 // autoPolicyJSON son las duraciones ya normalizadas a texto Go ("20m0s"): el
@@ -347,6 +357,8 @@ func autoStatus(args []string, stdout, stderr io.Writer) int {
 	} else {
 		threshold = rc.Policy.Threshold
 		out.Primary = rc.Primary
+		out.ChainOwn = rc.OwnChain
+		out.PolicyPinned = rc.PolicyPinned
 		out.Fallback = append(out.Fallback, rc.Fallback...)
 		out.Denied = append(out.Denied, rc.Denied...)
 		out.Policy = &autoPolicyJSON{
@@ -464,8 +476,22 @@ func printAutoStatus(w io.Writer, lang i18n.Lang, s autoStatusJSON, configured b
 	fmt.Fprintln(w, boldLine(w, i18n.T(lang, "cli.auto.status_header")))
 	fmt.Fprintln(w, hr(w))
 	if s.Policy != nil {
-		fmt.Fprintln(w, "  "+i18n.T(lang, "cli.auto.status_policy", s.Policy.Name))
+		policyLine := i18n.T(lang, "cli.auto.status_policy", s.Policy.Name)
+		if s.PolicyPinned {
+			policyLine += " " + i18n.T(lang, "cli.auto.chain_policy_pinned", s.Primary)
+		}
+		fmt.Fprintln(w, "  "+policyLine)
 		fmt.Fprintln(w, "  "+i18n.T(lang, "cli.auto.status_primary", accent(w, s.Primary), s.Cwd))
+		// De dónde sale la cadena: propia del perfil o heredada de la política.
+		// Es la misma línea que imprime `ccp auto chain show`, por la misma razón
+		// —dos superficies contando el mismo dato de dos maneras es cómo se pierde
+		// una tarde— y aquí hace más falta todavía, porque status es donde la
+		// gente mira cuando la rotación no hace lo que esperaba.
+		if s.ChainOwn {
+			fmt.Fprintln(w, "  "+mute(w, i18n.T(lang, "cli.auto.chain_src_own", s.Primary)))
+		} else {
+			fmt.Fprintln(w, "  "+mute(w, i18n.T(lang, "cli.auto.chain_src_inherited", s.Policy.Name)))
+		}
 		fmt.Fprintln(w, "  "+i18n.T(lang, "cli.auto.status_fallback", autoJoinOrNone(lang, s.Fallback)))
 		if len(s.Denied) > 0 {
 			fmt.Fprintln(w, "  "+mute(w, i18n.T(lang, "cli.auto.status_denied", strings.Join(s.Denied, ", "))))

@@ -229,7 +229,26 @@ export interface AutoStatus {
   fallback?: string[];
   gate?: { absent: boolean; declared: boolean; entry: string[] | null };
   chain?: ChainLink[];
+  // chain_own / policy_pinned dicen DE DÓNDE sale la cadena: la propia del
+  // perfil (auto_handoff.chains) o la compartida de la política. Sin ellos,
+  // `fallback: []` no distingue «este perfil no presta a nadie» de «la lista
+  // compartida está vacía», que se arreglan en sitios distintos.
+  chain_own?: boolean;
+  policy_pinned?: boolean;
   error?: string;
+}
+
+// ChainRow es una fila de `auto.chains`: la cadena de cada perfil con su
+// procedencia. Es lo que permite enseñar de un vistazo que las cadenas son
+// distintas por perfil, que es justo lo que antes no se podía ni expresar.
+export interface ChainRow {
+  profile: string;
+  own: boolean;
+  fallback: string[];
+  policy: string;
+  pinned: boolean;
+  missing: string[];
+  orphan: boolean;
 }
 
 export interface SimStep {
@@ -289,6 +308,10 @@ export interface Finding {
   profile?: string;
   subject?: string;
   detail?: string;
+  // owner: el perfil dueño de la cadena propia implicada. Vacío = el hallazgo
+  // habla de la lista compartida de una política. Decide dónde escribe el
+  // arreglo de un clic.
+  owner?: string;
 }
 
 /** Un snapshot en la línea de tiempo. `bytes` es lo que captura, no lo que
@@ -733,8 +756,21 @@ export const api = {
   autoInit: (force = false) => ccpCall('auto.init', { force }),
   autoEnabled: (enabled: boolean) => ccpCall('auto.setEnabled', { enabled }),
   sensors: (profiles: string[], install: boolean) => ccpCall<CliRun>('auto.sensors', { profiles, install }),
-  chain: (p: { op: 'add' | 'rm' | 'mv' | 'set'; policy?: string; cwd?: string; names: string[]; pos?: number; at?: number; allow?: boolean }) =>
-    ccpCall<{ fallback: string[] }>('auto.chain', p),
+  chain: (p: {
+    op: 'add' | 'rm' | 'mv' | 'set' | 'reset' | 'policy';
+    policy?: string;
+    cwd?: string;
+    names?: string[];
+    pos?: number;
+    at?: number;
+    allow?: boolean;
+    // El destino va SIEMPRE explícito desde la GUI: serve no tiene terminal de
+    // la que sacar un perfil activo, así que dejarlo implícito escribiría en una
+    // cadena distinta de la que la pantalla está enseñando.
+    for?: string;
+    shared?: boolean;
+  }) => ccpCall<{ fallback: string[]; owner?: string; forked?: boolean; inherited?: string[] }>('auto.chain', p),
+  chains: () => ccpCall<ChainRow[]>('auto.chains'),
   allow: (allow_from: Record<string, string[]> | null) => ccpCall('auto.allow', { allow_from }),
   policy: (p: Partial<PolicyParams> & { policy?: string }) => ccpCall('auto.policy', p),
   autoTest: (profile?: string) => ccpCall<CliRun>('auto.test', { profile }),

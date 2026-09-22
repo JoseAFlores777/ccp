@@ -183,9 +183,12 @@ func TestChainBanderaAntesDelSubcomando(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := cfg.AutoHandoff.Policies["default"].Fallback
+	// Se lee la cadena PROPIA del primario porque ahí es donde `add` escribe
+	// desde que las cadenas son por perfil. Leer la lista compartida daba por
+	// bueno el fallo contrario: el comando sí escribió, solo que en otra clave.
+	got := core.AutoChainFor(cfg, "a-cc").Fallback
 	if len(got) == 0 || got[0] != "c-cc" {
-		t.Fatalf("fallback = %v: la bandera delante degradó el comando a show", got)
+		t.Fatalf("cadena de a-cc = %v: la bandera delante degradó el comando a show", got)
 	}
 }
 

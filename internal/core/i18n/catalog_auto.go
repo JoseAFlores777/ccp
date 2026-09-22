@@ -171,33 +171,174 @@ var catalogAuto = map[string]map[Lang]string{
 	// para que las dos claves del yaml que este comando toca se lean como dos
 	// filas de la misma tabla, no como dos frases sueltas.
 	"cli.auto.chain_usage": {
-		En: `Usage: ccp auto chain <subcommand> [--policy <name>]
+		En: `Usage: ccp auto chain <subcommand> [--for <profile> | --shared | --policy <name>]
 
-  show                     effective chain for the cwd (after the allow_from gate)
+  show                     effective chain (after the allow_from gate)
+  list [--json]            every profile's chain: own or inherited
   add <profile>... [--at N] [--no-allow]
                            append to the chain (or insert at 1-based position N)
-                           and authorise the loan from the current primary
+                           and authorise the loan
   rm <profile>...          take profiles out of the chain
   mv <profile> <pos>       move a profile to the 1-based position pos
   set <a,b,c>              replace the whole chain (order = preference)
+  reset                    drop the profile's own chain: inherit again
+  policy <name>|--none     pin a policy to this profile (thresholds, cooldown)
+
+WHICH chain. By default every subcommand works on the OWN chain of the cwd's
+primary — one chain per profile, which is the point. --for <profile> targets
+another profile without cd'ing there; --shared (or --policy <name>) targets the
+policy's shared list, which every profile with no chain of its own inherits.
 
 The order IS the preference: the supervisor walks the chain top to bottom.
-'add' also touches allow_from[<primary>] —and only that entry— because a profile
+'add' also touches allow_from[<profile>] —and only that entry— because a profile
 in the chain without its allow_from is never used, silently. --no-allow turns
-that off.`,
-		Es: `Uso: ccp auto chain <subcomando> [--policy <nombre>]
+that off.
 
-  show                     cadena efectiva para el cwd (tras el gate allow_from)
+The first mutation on an inherited chain FORKS it: the profile gets its own copy
+and stops tracking the shared list. It is reported when it happens, and 'reset'
+undoes it.`,
+		Es: `Uso: ccp auto chain <subcomando> [--for <perfil> | --shared | --policy <nombre>]
+
+  show                     cadena efectiva (tras el gate allow_from)
+  list [--json]            la cadena de cada perfil: propia o heredada
   add <perfil>... [--at N] [--no-allow]
                            añade al final de la cadena (o en la posición N, 1-based)
-                           y autoriza el préstamo desde el primario actual
+                           y autoriza el préstamo
   rm <perfil>...           saca perfiles de la cadena
   mv <perfil> <pos>        mueve un perfil a la posición pos (1-based)
   set <a,b,c>              reemplaza la cadena entera (el orden = la preferencia)
+  reset                    quita la cadena propia del perfil: vuelve a heredar
+  policy <nombre>|--none   liga una política a este perfil (umbral, cooldown)
+
+QUÉ cadena. Por defecto todos los subcomandos trabajan sobre la cadena PROPIA
+del primario del cwd — una cadena por perfil, que es de lo que se trata.
+--for <perfil> apunta a otro perfil sin cambiar de carpeta; --shared (o
+--policy <nombre>) apunta a la lista compartida de la política, que es la que
+hereda todo perfil sin cadena propia.
 
 El orden ES la preferencia: el supervisor recorre la cadena de arriba abajo.
-'add' toca además allow_from[<primario>] —y solo esa entrada— porque un perfil
-en la cadena sin su allow_from no se usa nunca, en silencio. --no-allow lo apaga.`,
+'add' toca además allow_from[<perfil>] —y solo esa entrada— porque un perfil
+en la cadena sin su allow_from no se usa nunca, en silencio. --no-allow lo apaga.
+
+La primera mutación sobre una cadena heredada la BIFURCA: el perfil se queda con
+su propia copia y deja de seguir la lista compartida. Se avisa cuando pasa, y
+'reset' lo deshace.`,
+	},
+	// --- destino de la mutación: qué clave del yaml se escribió ---
+	//
+	// Estas líneas son la mitad del valor del comando desde que hay más de una
+	// cadena. Sin ellas, «fallback: a, b» vale igual para «le cambié la cadena a
+	// este repo» que para «se la cambié a todos», y son cosas muy distintas.
+	"cli.auto.chain_target": {
+		En: "target     %s",
+		Es: "destino    %s",
+	},
+	"cli.auto.chain_target_own": {
+		En: "own chain of %s",
+		Es: "cadena propia de %s",
+	},
+	"cli.auto.chain_target_shared": {
+		En: "shared list of policy %s (every profile with no chain of its own)",
+		Es: "lista compartida de la política %s (la que hereda todo perfil sin cadena propia)",
+	},
+	// La bifurcación se avisa porque es la consecuencia que nadie pidió: a partir
+	// de aquí los cambios de la lista compartida dejan de llegarle a ese perfil.
+	"cli.auto.chain_forked": {
+		En: "%s now has a chain of its own: changes to policy %s's list will no longer reach it (it inherited: %s)",
+		Es: "%s pasa a tener cadena propia: los cambios de la lista de la política %s ya no le llegarán (heredaba: %s)",
+	},
+	"cli.auto.chain_reset_done": {
+		En: "reset      %s inherits the chain of policy %s again",
+		Es: "reset      %s vuelve a heredar la cadena de la política %s",
+	},
+	"cli.auto.chain_policy_bound": {
+		En: "policy     %s now uses policy %s (thresholds, dwell, cooldown)",
+		Es: "policy     %s pasa a usar la política %s (umbral, permanencia, cooldown)",
+	},
+	"cli.auto.chain_policy_cleared": {
+		En: "policy     %s no longer pins a policy: back to %s",
+		Es: "policy     %s deja de ligar política: vuelve a %s",
+	},
+	"cli.auto.chain_policy_pinned": {
+		En: "(pinned to %s)",
+		Es: "(ligada a %s)",
+	},
+	// De dónde sale la cadena. Sin esto, «cadena: (ninguna)» no distingue «este
+	// perfil no presta a nadie» de «la lista compartida está vacía», y el arreglo
+	// de cada una está en un sitio distinto del yaml.
+	// «origen» y no «cadena»: la línea de al lado ya se llama así (status_fallback
+	// = "cadena      %s"), y dos líneas que empiezan igual con contenidos
+	// distintos se leen mal a la primera y se parsean mal siempre.
+	"cli.auto.chain_src_own": {
+		En: "source      %s's own chain",
+		Es: "origen      cadena propia de %s",
+	},
+	"cli.auto.chain_src_inherited": {
+		En: "source      inherited from policy %s",
+		Es: "origen      heredada de la política %s",
+	},
+	// Alineada a 12 columnas como sus vecinas (política/origen/cadena): esta
+	// línea se lee en bloque con ellas y una etiqueta descuadrada delata que se
+	// añadió después.
+	"cli.auto.chain_show_profile": {
+		En: "profile     %s",
+		Es: "perfil      %s",
+	},
+	"cli.auto.chain_list_own": {
+		En: "own",
+		Es: "propia",
+	},
+	"cli.auto.chain_list_inherited": {
+		En: "inherited",
+		Es: "heredada",
+	},
+	"cli.auto.chain_list_policy": {
+		En: "· policy %s",
+		Es: "· política %s",
+	},
+	"cli.auto.chain_list_missing": {
+		En: "profiles that no longer exist: %s",
+		Es: "perfiles que ya no existen: %s",
+	},
+	"cli.auto.chain_list_orphan": {
+		En: "%s has a chain but is no longer a profile: `ccp auto chain reset --for %[1]s`",
+		Es: "%s tiene cadena pero ya no es un perfil: `ccp auto chain reset --for %[1]s`",
+	},
+	"cli.auto.chain_note_self": {
+		En: "%s is the owner of this chain: nobody lends to themselves, so it does nothing",
+		Es: "%s es el dueño de esta cadena: nadie se presta a sí mismo, así que no hace nada",
+	},
+	"cli.auto.chain_reset_usage": {
+		En: "ccp auto chain reset takes no arguments (use --for <profile> to target another one)",
+		Es: "ccp auto chain reset no lleva argumentos (usa --for <perfil> para apuntar a otro)",
+	},
+	"cli.auto.chain_policy_usage": {
+		En: "ccp auto chain policy needs exactly one argument: <policy name> or --none",
+		Es: "ccp auto chain policy necesita exactamente un argumento: <nombre de política> o --none",
+	},
+	"cli.auto.chain_err_chain_profile": {
+		En: "%s's own chain points at profile %q, which does not exist",
+		Es: "la cadena propia de %s apunta al perfil %q, que no existe",
+	},
+	"cli.auto.chain_err_chain_policy": {
+		En: "%s pins policy %q, which does not exist (there are: %s)",
+		Es: "%s liga la política %q, que no existe (hay: %s)",
+	},
+	"cli.auto.chain_err_no_chain": {
+		En: "%s has no chain of its own: it already inherits policy %s's",
+		Es: "%s no tiene cadena propia: ya hereda la de la política %s",
+	},
+	"cli.auto.chain_err_target_clash": {
+		En: "--for and --shared/--policy name different targets: pick one",
+		Es: "--for y --shared/--policy nombran destinos distintos: elige uno",
+	},
+	"cli.auto.chain_err_duplicate_own": {
+		En: "%q is already in %s's chain",
+		Es: "%q ya está en la cadena de %s",
+	},
+	"cli.auto.chain_err_not_in_chain_own": {
+		En: "%q is not in %s's chain (there is: %s)",
+		Es: "%q no está en la cadena de %s (hay: %s)",
 	},
 	"cli.auto.chain_unknown_sub": {
 		En: "ccp auto chain: unknown subcommand %q",
@@ -279,6 +420,17 @@ en la cadena sin su allow_from no se usa nunca, en silencio. --no-allow lo apaga
 	"cli.auto.chain_effective": {
 		En: "effective chain from this repo:",
 		Es: "cadena efectiva desde este repo:",
+	},
+	// La variante con nombre existe por `--for`: cerrar la operación con «desde
+	// este repo» después de haberle tocado la cadena a OTRO perfil enseña una
+	// lista que no tiene nada que ver con lo que se acaba de escribir.
+	"cli.auto.chain_effective_for": {
+		En: "effective chain for %s:",
+		Es: "cadena efectiva de %s:",
+	},
+	"cli.auto.chain_target_profile": {
+		En: "profile %s",
+		Es: "perfil %s",
 	},
 	"cli.auto.chain_denied": {
 		En: "denied by allow_from: %s",

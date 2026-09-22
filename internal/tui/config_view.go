@@ -104,10 +104,16 @@ func (m *model) policyName() string {
 	return names[0]
 }
 
-// chainOpts arma las opciones comunes de las mutaciones de cadena. Cwd es lo que
-// decide el primario, y por tanto qué entrada de allow_from se toca.
+// chainOpts arma las opciones comunes de las mutaciones de cadena.
+//
+// El destino es la cadena PROPIA del primario, no la lista compartida de la
+// política. Pasar Policy —como se hacía— significa en el core «apunta a la lista
+// compartida», así que esta vista le cambiaba la cadena a todos los perfiles que
+// heredan mientras enseñaba la de uno. For va explícito aunque el core lo
+// deduciría del Cwd: si configCwd() no se puede leer, deducirlo daría `default`
+// y se escribiría en la cadena de otro perfil.
 func (m *model) chainOpts() core.ChainOpts {
-	return core.ChainOpts{Policy: m.policyName(), Cwd: configCwd()}
+	return core.ChainOpts{Cwd: configCwd(), For: m.primaryProfile()}
 }
 
 // resolvedChain es la LECTURA por el core: quién es el primario, qué préstamos
@@ -135,9 +141,16 @@ func (m *model) resolvedChain() (core.ResolvedChain, bool) {
 	sim.Enabled = true
 	cfg := *m.cfg
 	cfg.AutoHandoff = &sim
-	rc, err := core.ResolveAutoChain("", &cfg, m.policyName(), configCwd())
+	// Sin política explícita, para que una ligada al perfil (chains[…].policy)
+	// gane: pasar m.policyName() la pisaría y la vista enseñaría unos knobs que
+	// el supervisor no va a usar. El reintento conserva la tolerancia vieja —un
+	// yaml sin `default` pero con otras políticas sigue pintándose— en vez de
+	// dejar la sección en blanco.
+	rc, err := core.ResolveAutoChainFor("", &cfg, "", m.primaryProfile())
 	if err != nil {
-		return core.ResolvedChain{}, false
+		if rc, err = core.ResolveAutoChainFor("", &cfg, m.policyName(), m.primaryProfile()); err != nil {
+			return core.ResolvedChain{}, false
+		}
 	}
 	return rc, true
 }
@@ -198,13 +211,33 @@ func (m *model) chainList() []string {
 	if ah == nil {
 		return nil
 	}
-	out := make([]string, 0, len(ah.Policies[m.policyName()].Fallback))
-	for _, n := range ah.Policies[m.policyName()].Fallback {
+	// La cadena que este perfil USA: la suya propia si la declara, y si no la de
+	// la política. Leer siempre la de la política dejaría a las filas enseñando
+	// una lista y a las teclas reordenando otra.
+	list := ah.Policies[m.chainPolicyName()].Fallback
+	if pc := core.AutoChainFor(m.cfg, m.primaryProfile()); pc.Declared {
+		list = pc.Fallback
+	}
+	out := make([]string, 0, len(list))
+	for _, n := range list {
 		if n = strings.TrimSpace(n); n != "" {
 			out = append(out, n)
 		}
 	}
 	return out
+}
+
+// chainPolicyName es la política que aplica al primario: la ligada en
+// `chains[<primario>].policy` si la hay, y si no la de policyName().
+func (m *model) chainPolicyName() string {
+	if pc := core.AutoChainFor(m.cfg, m.primaryProfile()); pc.Policy != "" {
+		if ah := m.autoHandoff(); ah != nil {
+			if _, ok := ah.Policies[pc.Policy]; ok {
+				return pc.Policy
+			}
+		}
+	}
+	return m.policyName()
 }
 
 // primaryProfile es el perfil que las reglas resuelven para el cwd: el dueño de
@@ -1021,7 +1054,14 @@ func (m *model) configNote(sec configSection) string {
 		if m.autoHandoff() == nil {
 			return i18n.T(m.lang, "tui.config.auto_missing_note")
 		}
-		return i18n.T(m.lang, "tui.config.policy_is", m.policyName())
+		// De dónde sale la cadena va en la misma línea que la política: es donde
+		// el usuario mira antes de reordenar, y sin ello reordenar «la cadena» no
+		// dice si está tocando la de este perfil o la que heredan todos.
+		src := i18n.T(m.lang, "tui.config.chain_inherited", m.chainPolicyName())
+		if pc := core.AutoChainFor(m.cfg, m.primaryProfile()); pc.Declared {
+			src = i18n.T(m.lang, "tui.config.chain_own", m.primaryProfile())
+		}
+		return i18n.T(m.lang, "tui.config.policy_is", m.chainPolicyName()) + " · " + src
 	case cfgSecAllow:
 		if m.autoHandoff() == nil {
 			return i18n.T(m.lang, "tui.config.auto_missing_note")

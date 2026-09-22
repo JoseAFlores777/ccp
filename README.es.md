@@ -319,8 +319,17 @@ auto_handoff:
   enabled: true              # interruptor maestro: false = ccp session se niega a correr
   hooks: [personal-1, work-2]    # perfiles con la capa de sensores instalada
                                  # (la gestiona `ccp auto install/uninstall`)
+  chains:                    # UNA CADENA POR PERFIL (ver abajo). Un perfil sin
+    work-1: [work-2]         # entrada aquí hereda el `fallback` de su política.
+    work-2: [work-1]
+    cliente-a: []            # declarada y vacía: este no le presta a NADIE
+    personal-1:
+      fallback: [personal-deepseek]
+      policy: overnight      # …y liga una política: sus umbrales, no los de default
+
   policies:
     default:
+      # La lista COMPARTIDA: la hereda todo perfil sin cadena propia.
       # Préstamos, en orden de preferencia. El primario es IMPLÍCITO (ccp resolve $PWD)
       # y se descarta en silencio si lo listas aquí.
       fallback: [work-2, personal-deepseek]
@@ -366,46 +375,96 @@ Esa última fila es el punto: declarar el mapa es declarar la intención de gobe
 
 > **La fila con la que topas primero.** `ccp auto init` siembra `allow_from` con una entrada por perfil *con nombre*, y `default` nunca es una de ellas. Así que en un directorio sin regla de ruta el primario es `default`, no hay entrada para él, y la cadena entera sale denegada — `ccp session` corre igual, solo que no tiene a dónde saltar cuando llegue el límite. O pones una regla (`ccp path set . <perfil>`) o añades tú una entrada `default:` a `allow_from`. `--dry-run` lo enseña de inmediato: `chain: (empty)` con todo bajo *denegados*.
 
+### Una cadena por perfil
+
+La cadena es **de cada perfil**, no de la política. Qué cuentas pueden respaldar a
+cuáles lo decides tú y no hay nada que ccp pueda mirar que se lo diga: una cuenta
+de trabajo puede prestarle a su gemela del mismo sitio y a nadie más, la personal
+le presta a su proveedor, la de un cliente no le presta a nadie. Son tres cadenas
+distintas, no tres recortes de una — que es todo lo que `allow_from` podía dar,
+porque solo **resta** de la lista compartida y no sabe reordenarla.
+
+```yaml
+auto_handoff:
+  chains:
+    work-1: [work-2]          # work-1 solo le presta a work-2
+    cliente-a: []             # declarada y vacía: no le presta a NADIE
+    personal-1:
+      fallback: [personal-deepseek]
+      policy: overnight       # este perfil usa los knobs de otra política
+  policies:
+    default:
+      fallback: [work-2, personal-deepseek]   # la hereda quien no tenga cadena
+```
+
+Tres estados, y el del medio es el punto:
+
+| `chains[<perfil>]` | Efecto |
+|---|---|
+| ausente | **hereda** el `fallback` de su política — lo que hacían todos antes de que esta clave existiera |
+| declarada con lista | esa lista, en ese orden, sustituyendo a la de la política |
+| declarada **vacía** (`[]`) | este perfil no le presta a nadie: cuando tope su límite, la corrida se detiene |
+
+`ccp auto init` no siembra ninguna cadena, así que una configuración que ya
+tenías se comporta exactamente igual hasta que declares una.
+
 ### Editar la cadena — añadir, reordenar o quitar un préstamo
 
 ```bash
 ccp auto chain                        # la cadena EFECTIVA de este directorio
+ccp auto chain list                   # la cadena de cada perfil: propia o heredada
 ccp auto chain add personal-deepseek  # lo añade al final, y autoriza el préstamo
 ccp auto chain add work-2 --at 1      # lo inserta en una posición (1-based)
 ccp auto chain mv work-2 2            # reordena — el orden ES la preferencia
 ccp auto chain rm personal-deepseek   # lo saca, y retira la autorización
 ccp auto chain set work-1,work-2      # reemplaza la cadena entera
+ccp auto chain reset                  # quita la cadena propia: vuelve a heredar
+ccp auto chain policy overnight       # liga una política a este perfil (--none la desliga)
 ```
 
-Todos aceptan `--policy <nombre>` (por defecto: `default`) y actúan sobre el primario del **directorio actual**, que es el único cuya entrada de `allow_from` pueden tocar.
+**Sobre qué cadena escriben.** Por defecto, sobre la **cadena propia del primario
+del directorio actual** — dentro de un repo, «añádelo a la cadena» habla de ese
+perfil. `--for <perfil>` apunta a otro sin cambiar de carpeta; `--shared` (o
+nombrar `--policy <nombre>`, que apunta a la lista de esa política) apunta a la
+lista compartida que hereda todo perfil sin cadena propia. `--for` junto a
+`--shared`/`--policy` es un error, no un desempate: son dos destinos y escribir
+en cualquiera de los dos te sorprendería.
+
+**La primera edición bifurca la herencia, y lo dice.** Un perfil que heredaba se
+queda con su propia copia **sembrada con la heredada** —añadir uno no puede
+significar quitar todos los demás— y a partir de ahí los cambios de la lista
+compartida ya no le llegan. Eso es invisible en el yaml y solo muerde meses
+después, así que se avisa en el momento, y `ccp auto chain reset` lo deshace:
+
+```console
+$ ccp auto chain add personal-deepseek
+
+[ok] destino    cadena propia de personal-1
+[warn] personal-1 pasa a tener cadena propia: los cambios de la lista de la política default ya no le llegarán (heredaba: work-1 → work-2)
+[ok] fallback   work-1 → work-2 → personal-deepseek
+[ok] allow_from personal-1: +personal-deepseek
+```
 
 **`add` escribe dos claves, y eso es justo el punto.** Quien escribe «añádelo a la cadena» quiere que el perfil *se use*, y un `fallback` sin su `allow_from` no se usa jamás, en silencio. Dejar las dos claves separadas en la CLI reproduciría la trampa que el yaml ya tiende. Pero `allow_from` es un **gate de cumplimiento** y puede estar puesto a propósito, así que el ensanche va con tres límites duros:
 
-1. Toca **solo** la entrada del primario al que resuelve el directorio actual. Nunca la de otro — un rewrite en bloque ensancharía permisos de repos donde ni siquiera estás.
+1. Toca **solo** la entrada del perfil cuya cadena se está editando (el primario del directorio actual, o el que nombre `--for`). Nunca la de otro — un rewrite en bloque ensancharía permisos de repos donde ni siquiera estás.
 2. Imprime **exactamente qué cambió en cada clave, por separado**. `+nombre` autoriza, `-nombre` retira.
 3. `--no-allow` lo desactiva.
 
 `rm` (y los perfiles que `set` deja fuera) va en la dirección contraria y **retira** la autorización, otra vez solo de esa entrada. Eso es lo que hace reversible a `add`: sin ello el gate solo podría crecer, y deshacer un `add` equivocado exigiría editar el yaml a mano — exactamente lo que estos comandos vienen a evitar.
 
-```console
-$ ccp auto chain add personal-deepseek
-
-[ok] fallback   work-1 → work-2 → personal-deepseek
-[ok] allow_from personal-1: +personal-deepseek
-
-cadena efectiva desde este repo:
-  work-1 → work-2 → personal-deepseek
-```
-
-Toda mutación cierra releyendo la cadena efectiva **del disco**, así que ves lo que va a ver el motor — incluido lo que `allow_from` siga bloqueando.
+Toda mutación cierra releyendo la cadena efectiva **del disco**, así que ves lo que va a ver el motor — incluido lo que `allow_from` siga bloqueando. Con `--for <perfil>` releé la de *ese* perfil, no la de este directorio.
 
 | Lo que quieres | Comando |
 |---|---|
 | Añadir un préstamo | `ccp auto chain add <perfil>` (escribe `fallback` **y** `allow_from[<primario>]`) |
 | Cambiar el orden de preferencia | `ccp auto chain mv <perfil> <pos>` — el **orden es la preferencia** |
 | Quitar un préstamo | `ccp auto chain rm <perfil>` (retira también la autorización; `--no-allow` la conserva) |
-| Dejar de rotar en un directorio | `ccp auto chain rm` de cada préstamo, o dale a ese primario una política con `fallback: []` |
-| Otra cadena para otro trabajo | añade otra política bajo `policies:` y usa `--policy <nombre>` |
+| Dejar de rotar en un directorio | `ccp auto chain rm` de cada préstamo — eso deja `chains[<primario>]: []`, que significa «no le presta a nadie» (`set` sin nombres se rechaza a propósito) |
+| Una cadena distinta por cuenta | ya lo es: cada perfil tiene la suya (`ccp auto chain list` las enseña todas) |
+| Volver a la cadena compartida | `ccp auto chain reset` |
+| Otros umbrales para una cuenta | añade una política bajo `policies:` y lígala con `ccp auto chain policy <nombre>` |
+| Cambiar la cadena de todos los que heredan | `ccp auto chain <op> --shared` |
 
 Editar el archivo a mano sigue siendo perfectamente válido, y es como se añade una política nueva entera. `ccp` reescribe `~/.config/ccp/ccp.yaml` de forma atómica **conservando tus comentarios y cualquier clave que no conozca**, así que una anotación sobre por qué un perfil está en la lista sobrevive a cada `ccp path set`, `profile add` o `auto install` posterior.
 

@@ -21,6 +21,6 @@ ccp  configuration
 │ 0/3                                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
-policy: default — the order IS the preference (the first one is lent first)
+policy: default — the order IS the preference (the first one is lent first) · chain inherited from default
 
 tab: section · j/k: move · enter: act · a/d/J/K: chain · e: editor · esc: back · q: quit

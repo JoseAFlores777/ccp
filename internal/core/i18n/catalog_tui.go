@@ -517,6 +517,17 @@ var catalogTUI = map[string]map[Lang]string{
 		En: "policy: %s — the order IS the preference (the first one is lent first)",
 		Es: "política: %s — el orden ES la preferencia (al primero se le presta antes)",
 	},
+	// Propia vs heredada: la misma distinción que el CLI imprime en `auto chain
+	// show`, dicha con las mismas palabras. Dos superficies con vocabulario
+	// distinto para el mismo estado obligan a traducir mentalmente.
+	"tui.config.chain_own": {
+		En: "%s's own chain",
+		Es: "cadena propia de %s",
+	},
+	"tui.config.chain_inherited": {
+		En: "chain inherited from %s",
+		Es: "cadena heredada de %s",
+	},
 	"tui.config.chain_now": {
 		En: "chain: %s",
 		Es: "cadena: %s",

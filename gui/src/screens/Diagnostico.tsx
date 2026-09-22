@@ -62,7 +62,15 @@ export function Diagnostico() {
       case 'auto_enable':
         return mutate(() => api.autoEnabled(true), { msg: t('Rotación encendida'), undo: () => api.autoEnabled(false) });
       case 'chain_remove':
-        return mutate(() => api.chain({ op: 'rm', policy: f.subject, cwd: folder, names: [f.profile!] }), { msg: t('Se quitó {p} de la cadena', { p: f.profile! }) });
+        // El destino sale del hallazgo, no de la pantalla: `owner` significa que
+        // el problema está en la cadena PROPIA de ese perfil, y arreglarlo en la
+        // lista compartida se la cambiaría a todos los demás sin tocar la rota.
+        return mutate(
+          () => api.chain(f.owner ? { op: 'rm', for: f.owner, cwd: folder, names: [f.profile!] } : { op: 'rm', policy: f.subject, cwd: folder, names: [f.profile!] }),
+          { msg: t('Se quitó {p} de la cadena', { p: f.profile! }) },
+        );
+      case 'chain_reset':
+        return mutate(() => api.chain({ op: 'reset', for: f.subject, cwd: folder }), { msg: t('Se quitó la cadena de {p}', { p: f.subject ?? '' }) });
       case 'desktop_rebuild':
         return mutate(async () => must(await api.desktopRun({ action: 'app', profile: f.profile! })), { msg: t('Lanzador de {p} reconstruido', { p: f.profile! }) });
       case 'desktop_retry': return res.reload();

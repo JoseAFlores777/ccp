@@ -171,6 +171,13 @@ func chainOnDisk(t *testing.T, home string) []string {
 	if cfg.AutoHandoff == nil {
 		t.Fatal("el bloque auto_handoff desapareció")
 	}
+	// La cadena que el primario USA. Desde que son por perfil, la vista escribe
+	// en `chains[<primario>]`; seguir leyendo la lista compartida daba por bueno
+	// el fallo contrario —la tecla sí escribió, solo que en otra clave—, que es
+	// precisamente lo que este test existe para cazar.
+	if pc := core.AutoChainFor(cfg, "default"); pc.Declared {
+		return pc.Fallback
+	}
 	return cfg.AutoHandoff.Policies["default"].Fallback
 }
 
@@ -190,7 +197,10 @@ func TestConfigViewUsaCoreParaElGate(t *testing.T) {
 		t.Fatalf("los dos homes no partían idénticos:\n--- tui\n%s\n--- cli\n%s", before, after)
 	}
 
-	opts := core.ChainOpts{Policy: "default", Cwd: configCwd()}
+	// El MISMO destino que usa la vista (chainOpts): la cadena propia del
+	// primario. Apuntar aquí a la lista compartida compararía dos operaciones
+	// distintas y el test pasaría o fallaría por el destino, no por el gate.
+	opts := core.ChainOpts{Cwd: configCwd(), For: "default"}
 
 	// Camino TUI: la vista con el cursor sobre b-cc en la sección allow_from,
 	// pulsando enter (el toggle del gate).
