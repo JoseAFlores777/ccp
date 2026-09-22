@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+## [2.21.1] — se puede elegir QUÉ cadena se edita
+
+La pantalla de rotación editaba la cadena del perfil de la **carpeta** en contexto y no había forma de decir
+otra: para tocar la de otra cuenta había que cambiar de carpeta, y una cuenta **sin regla de carpeta no se
+podía editar en absoluto**. La tarjeta «Cadenas por perfil» las enseñaba todas y no dejaba tocar ninguna,
+que es enseñar el problema sin la salida.
+
+Ahora la tarjeta lleva un selector de cuenta —por defecto la de la carpeta, como antes— y las filas de
+«Cadenas por perfil» se pulsan para editarlas arriba. `auto.status` acepta un `profile` para eso.
+
+Dos reglas que el arreglo fija:
+
+- **La fila de la principal deja de mentir cuando miras otra cuenta.** Decía «principal de ~/x por la regla
+  y»; con una cuenta elegida a mano eso es falso, así que dice cuál es la de la carpeta y cuál estás mirando.
+- **Un ccp viejo se detecta, no se disimula.** Ese binario ignora el parámetro nuevo y devuelve la cuenta de
+  la carpeta, así que el selector parecería roto sin decir por qué. Se detecta por el campo que ese ccp **no
+  emite** —no comparando nombres, que coinciden a menudo— y la pantalla lo dice en rojo en vez de enseñar la
+  cadena de otra cuenta como si fuera la pedida.
+
+Y el panel de parámetros respeta la política **ligada** al perfil: antes enseñaba los umbrales de `default`
+mientras el supervisor usaba otros.
+
 ## [2.21.0] — la cadena de rotación es de cada perfil
 
 Hasta aquí la cadena de préstamos era **una sola** (`policies.<n>.fallback`) y la usaban todos los perfiles,

@@ -235,6 +235,10 @@ export interface AutoStatus {
   // compartida está vacía», que se arreglan en sitios distintos.
   chain_own?: boolean;
   policy_pinned?: boolean;
+  // for_profile: se pidió esta cuenta expresamente, no es la de la carpeta. La
+  // pantalla lo necesita para no decir «principal de ~/x por la regla y», que
+  // sería falso, y no puede deducirlo comparando nombres: coinciden a menudo.
+  for_profile?: string;
   error?: string;
 }
 
@@ -752,7 +756,11 @@ export const api = {
   copy: (uuid: string, from: string, to: string, no_open = false) =>
     ccpCall<CliRun>('conversations.copy', { uuid, from, to, no_open }),
 
-  autoStatus: (cwd?: string, policy?: string) => ccpCall<AutoStatus>('auto.status', { cwd, policy }),
+  // `profile` mira la cadena de ESA cuenta en vez de la del primario del cwd:
+  // es lo que permite editar la de una cuenta sin regla de carpeta, que de otra
+  // forma no se podía tocar desde la app en absoluto.
+  autoStatus: (cwd?: string, policy?: string, profile?: string) =>
+    ccpCall<AutoStatus>('auto.status', { cwd, policy, profile }),
   autoInit: (force = false) => ccpCall('auto.init', { force }),
   autoEnabled: (enabled: boolean) => ccpCall('auto.setEnabled', { enabled }),
   sensors: (profiles: string[], install: boolean) => ccpCall<CliRun>('auto.sensors', { profiles, install }),

@@ -364,6 +364,12 @@ func srvAutoStatus(s *server, raw json.RawMessage) (any, error) {
 	p, err := params[struct {
 		Cwd    string `json:"cwd"`
 		Policy string `json:"policy"`
+
+		// Profile mira la cadena de UN perfil en vez de la del primario del cwd.
+		// Existe porque la pantalla es lo único que decidía qué cadena se edita, y
+		// lo hacía por la CARPETA: para tocar la de otra cuenta había que cambiar
+		// de carpeta, y una cuenta sin regla no se podía editar en absoluto.
+		Profile string `json:"profile"`
 	}](raw)
 	if err != nil {
 		return nil, err
@@ -373,15 +379,32 @@ func srvAutoStatus(s *server, raw json.RawMessage) (any, error) {
 		return nil, err
 	}
 	cwd := s.cwdOrHome(p.Cwd)
+	primary := core.Resolve(cwd, cfg.Rules)
+	if n := strings.TrimSpace(p.Profile); n != "" {
+		if !profileExists(cfg, n) {
+			return nil, badParams("no existe el perfil %q", n)
+		}
+		primary = n
+	}
+	// for_profile dice si lo de abajo describe una cuenta PEDIDA y no la de esta
+	// carpeta: la pantalla tiene que explicar la fila de otra manera («principal
+	// de ~/x por la regla y» sería mentira) y no puede deducirlo comparando, que
+	// es como se acaba enseñando lo uno por lo otro cuando coinciden.
 	out := map[string]any{"present": cfg.AutoHandoff != nil, "cwd": cwd,
-		"primary": core.Resolve(cwd, cfg.Rules)}
+		"primary": primary, "for_profile": strings.TrimSpace(p.Profile)}
 	if cfg.AutoHandoff == nil {
 		return out, nil
 	}
 	block := cfg.AutoHandoff
 	name := p.Policy
 	if name == "" {
-		name = "default"
+		// La ligada al perfil manda sobre `default`: si no, el panel de parámetros
+		// enseñaría los umbrales de una política que el supervisor no va a usar.
+		if pc := core.AutoChainFor(cfg, primary); pc.Policy != "" {
+			name = pc.Policy
+		} else {
+			name = "default"
+		}
 	}
 	pol := block.Policies[name]
 	out["enabled"] = block.Enabled
@@ -407,7 +430,7 @@ func srvAutoStatus(s *server, raw json.RawMessage) (any, error) {
 	out["params"] = effectiveParams(eff)
 	out["fallback"] = eff.Fallback
 
-	rc, rerr := core.ResolveAutoChain(s.home, cfg, name, cwd)
+	rc, rerr := core.ResolveAutoChainFor(s.home, cfg, name, primary)
 	if rerr != nil {
 		out["error"] = rerr.Error()
 		return out, nil

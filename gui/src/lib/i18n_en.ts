@@ -927,6 +927,13 @@ export const en: Record<string, string> = {
   "Cadena de esta carpeta": "Chain for this folder",
   // Cadenas por perfil (auto_handoff.chains)
   "Cadena de {p}": "{p}'s chain",
+  "Cadena de": "Chain of",
+  "Tu ccp no sabe cambiar de cuenta aquí": "Your ccp cannot switch accounts here",
+  "Lo de abajo es la cadena de {p}, la de esta carpeta, no la que elegiste. Actualiza con ccp upgrade y vuelve a abrir la app.": "What you see below is {p}'s chain — this folder's, not the one you picked. Update with ccp upgrade and reopen the app.",
+  "{n} (esta carpeta)": "{n} (this folder)",
+  "Cuenta elegida arriba; la principal de {f} es {p}": "Account picked above; {f}'s primary is {p}",
+  "Editar la cadena de {p} arriba": "Edit {p}'s chain above",
+  "Cada cuenta puede prestar a cuentas distintas. Las que dicen «heredada» usan la lista compartida de su política. Pulsa una para editarla arriba.": "Each account can lend to different accounts. The ones marked “inherited” use their policy's shared list. Click one to edit it above.",
   "propia": "own",
   "heredada": "inherited",
   "política {n}": "policy {n}",

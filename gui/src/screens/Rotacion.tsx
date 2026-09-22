@@ -1,6 +1,8 @@
 // P-10 Rotación automática — qué cuentas respaldan a la principal de la
 // carpeta en contexto, en qué orden, con qué permisos y con qué parámetros.
 
+import { useState } from 'react';
+
 import { api, type AutoStatus, type ChainLink, type PolicyParams } from '../lib/api';
 import { chainAddModal, chainSnapshot, chainTarget, must, PARAM_LABELS, paramModal } from '../lib/actions';
 import { tilde } from '../lib/format';
@@ -34,8 +36,14 @@ function linkNote(l: ChainLink): string {
 
 export function Rotacion() {
   const app = useApp();
-  const { folder, openModal, mutate, colorOf, go } = app;
-  const st = useCall(() => api.autoStatus(folder), [folder]);
+  const { folder, openModal, mutate, colorOf, go, profiles } = app;
+  // Qué cuenta se está editando. Vacío = la principal de la carpeta en contexto,
+  // que es el caso normal y el que había antes. El selector existe porque sin él
+  // la pantalla solo sabía editar la cadena de la carpeta: para tocar la de otra
+  // cuenta había que cambiar de carpeta, y una cuenta sin regla no se podía
+  // editar en absoluto.
+  const [pick, setPick] = useState('');
+  const st = useCall(() => api.autoStatus(folder, undefined, pick || undefined), [folder, pick]);
   const rules = useCall(() => api.resolve(folder), [folder]);
   const s: AutoStatus | undefined = st.data;
 
@@ -76,6 +84,11 @@ export function Rotacion() {
   };
   const missingSensors = chain.filter((l) => l.sensors === 'missing').map((l) => l.profile);
   const own = !!s.chain_own;
+  // La principal de la CARPETA, que no tiene por qué ser la que se está mirando.
+  // Sale de `resolve`, no de s.primary, porque s.primary ya es la elegida.
+  const folderPrimary = rules.data?.profile ?? s.primary;
+  const chainCandidates = ['default', ...profiles.map((p) => p.name).filter((n) => n !== 'default')];
+  const viewing = pick || s.primary;
   const totalDeny = !!s.gate?.declared && !s.gate.entry;
   const params = s.params;
 
@@ -103,6 +116,17 @@ export function Rotacion() {
         <button className="btn" onClick={() => go('mapa')}>{t('Ver como lienzo')}</button>
       </Card>
 
+      {/* Un ccp anterior a este selector IGNORA el parámetro y devuelve la cuenta
+          de la carpeta: el desplegable parecería roto sin decir por qué. Se
+          detecta por el campo que ese ccp no emite —no comparando nombres, que
+          coinciden a menudo— y se dice, en vez de enseñar la cadena de otra
+          cuenta como si fuera la pedida. */}
+      {pick && s.for_profile !== pick && (
+        <Note kind="err" title={t('Tu ccp no sabe cambiar de cuenta aquí')} style={{ marginBottom: 14 }}>
+          {t('Lo de abajo es la cadena de {p}, la de esta carpeta, no la que elegiste. Actualiza con ccp upgrade y vuelve a abrir la app.', { p: s.primary })}
+        </Note>
+      )}
+
       {s.error && (
         <Note kind="err" title={t('La política no se puede usar')} style={{ marginBottom: 14 }}>
           <span className="selectable">{s.error}</span>
@@ -112,7 +136,16 @@ export function Rotacion() {
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.2fr) minmax(0,1fr)', gap: 14 }}>
         <Card shadow>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <Label style={{ flex: 1 }}>{t('Cadena de {p}', { p: s.primary })}</Label>
+            <Label style={{ flexShrink: 0 }}>{t('Cadena de')}</Label>
+            <select
+              value={pick || s.primary}
+              onChange={(e) => setPick(e.target.value === folderPrimary ? '' : e.target.value)}
+              style={{ flex: 1, minWidth: 0, fontSize: 13, color: 'var(--ink)', background: 'var(--surface-2)', border: '1px solid var(--line)', borderRadius: 6, padding: '3px 8px' }}
+            >
+              {chainCandidates.map((n) => (
+                <option key={n} value={n}>{n === folderPrimary ? t('{n} (esta carpeta)', { n }) : n}</option>
+              ))}
+            </select>
             {/* De dónde sale la cadena. Sin esta marca, «sin respaldos» no
                 distingue «esta cuenta no presta a nadie» de «la lista compartida
                 está vacía», y cada una se arregla en un sitio distinto. */}
@@ -130,9 +163,11 @@ export function Rotacion() {
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: 'block', fontSize: 13, color: 'var(--ink)' }}>{s.primary}</span>
               <span style={{ display: 'block', fontSize: 11, color: 'var(--ink-4)', marginTop: 2, fontWeight: 300 }}>
-                {rules.data?.rule
-                  ? t('Principal de {f}, por la regla {r}', { f: tilde(s.cwd), r: tilde(rules.data.rule.path) })
-                  : t('Principal de {f}: ninguna regla la cubre', { f: tilde(s.cwd) })}
+                {viewing !== folderPrimary
+                  ? t('Cuenta elegida arriba; la principal de {f} es {p}', { f: tilde(s.cwd), p: folderPrimary })
+                  : rules.data?.rule
+                    ? t('Principal de {f}, por la regla {r}', { f: tilde(s.cwd), r: tilde(rules.data.rule.path) })
+                    : t('Principal de {f}: ninguna regla la cubre', { f: tilde(s.cwd) })}
               </span>
             </span>
             <Pill>{t('principal')}</Pill>
@@ -227,7 +262,7 @@ export function Rotacion() {
           )}
         </div>
       </div>
-      <ChainsPorPerfil />
+      <ChainsPorPerfil onPick={(n) => setPick(n === folderPrimary ? '' : n)} viewing={viewing} />
       <CliBar cmd="ccp auto chain show" />
     </div>
   );
@@ -241,7 +276,7 @@ export function Rotacion() {
  * por una — que es exactamente la ceguera que había cuando la cadena era una
  * sola. Es informativa: se edita desde la tarjeta de cada carpeta o por CLI.
  */
-function ChainsPorPerfil() {
+function ChainsPorPerfil({ onPick, viewing }: { onPick: (n: string) => void; viewing: string }) {
   const { colorOf } = useApp();
   const rows = useCall(() => api.chains(), []);
   if (!rows.data || rows.data.length === 0) return null;
@@ -249,10 +284,15 @@ function ChainsPorPerfil() {
     <Card shadow style={{ marginTop: 14 }}>
       <Label style={{ marginBottom: 6 }}>{t('Cadenas por perfil')}</Label>
       <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 14, fontWeight: 300 }}>
-        {t('Cada cuenta puede prestar a cuentas distintas. Las que dicen «heredada» usan la lista compartida de su política.')}
+        {t('Cada cuenta puede prestar a cuentas distintas. Las que dicen «heredada» usan la lista compartida de su política. Pulsa una para editarla arriba.')}
       </div>
       {rows.data.map((r) => (
-        <div key={r.profile} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--line-soft)' }}>
+        <div
+          key={r.profile}
+          onClick={() => onPick(r.profile)}
+          title={t('Editar la cadena de {p} arriba', { p: r.profile })}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px', borderBottom: '1px solid var(--line-soft)', cursor: 'pointer', borderRadius: 6, background: r.profile === viewing ? 'var(--accent-soft)' : undefined }}
+        >
           <span className="swatch" style={{ background: colorOf(r.profile) }} />
           <span style={{ fontSize: 12.5, color: 'var(--ink)', minWidth: 130 }}>{r.profile}</span>
           <Pill tone={r.own ? 'ok' : undefined}>{r.own ? t('propia') : t('heredada')}</Pill>
