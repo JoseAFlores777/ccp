@@ -178,8 +178,12 @@ install_from_source() {
   info "Compilando desde el código (go build)…"
   # versión: el tag git más cercano (sin la "v", que el CLI antepone); si no
   # hay repo/tags, cae al default compilado en version.go.
+  #
+  # --match 'v[0-9]*' no es cosmético: desde que el API de la nube se etiqueta
+  # aparte (cloud-vX.Y.Z), un `git describe` a secas elegía ESE tag y el binario
+  # se presentaba como «ccp vcloud-v0.1.0». Aquí solo cuentan los tags de ccp.
   local ver xpkg ldflags=""
-  ver="$(cd "$SRC_DIR" && git describe --tags --always --dirty 2>/dev/null || true)"
+  ver="$(cd "$SRC_DIR" && git describe --tags --always --dirty --match 'v[0-9]*' 2>/dev/null || true)"
   ver="${ver#v}"
   if [[ -n "$ver" ]]; then
     xpkg="github.com/JoseAFlores777/ccp/internal/core.Version"
