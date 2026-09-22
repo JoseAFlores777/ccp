@@ -15,7 +15,7 @@ import { setLang as setI18nLang, t, type Lang } from './i18n';
 export type Screen =
   | 'inicio' | 'mapa' | 'perfiles' | 'perfil' | 'configuracion' | 'carpetas'
   | 'conv' | 'mover' | 'prestamos' | 'rotacion' | 'uso' | 'sesiones'
-  | 'desktop' | 'diag' | 'memoria' | 'ajustes' | 'copias' | 'snapshots' | 'nube' | 'bienvenida';
+  | 'desktop' | 'diag' | 'memoria' | 'ajustes' | 'copias' | 'snapshots' | 'nube' | 'bienvenida' | 'glosario';
 
 /** Las pestañas del espacio de una cuenta. La cuenta es la puerta: lo que se
  *  mira dentro de una pestaña es SIEMPRE de esa cuenta, sin otro selector. */

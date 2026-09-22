@@ -24,6 +24,7 @@ import { tilde, untilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, CliBar, Empty, ErrorNote, Loading, Note, Pill, Segmented, Toggle } from '../components/ui';
+import { Help } from '../components/Help';
 import { Efectivo } from './ConfiguracionEfectivo';
 import { McpTable } from './ConfiguracionMcp';
 
@@ -35,6 +36,8 @@ function levelName(l: Level): string {
   return { global: t('Global'), profile: t('Perfil'), project: t('Proyecto'), desktop: t('Chat de Desktop') }[l];
 }
 
+const LEVEL_TERM: Record<Level, string> = { global: 'capa_global', profile: 'capa_claude_code', project: 'capa_proyecto', desktop: 'capa_chat' };
+
 /** Qué lee cada capa, en una línea. Los nombres cortos del selector no bastan:
  *  «Perfil» y «Ventana» no decían que una es Claude Code y la otra el chat. */
 function levelHelp(l: Level, fixed: boolean): string {
@@ -44,7 +47,7 @@ function levelHelp(l: Level, fixed: boolean): string {
       ? t('Lo que lee Claude Code con esta cuenta, en la terminal y en la pestaña Code de su ventana de Desktop.')
       : t('Lo que lee Claude Code con esa cuenta, en la terminal y en la pestaña Code de su ventana de Desktop.');
     case 'project': return t('El .claude/ y el .mcp.json del repo: los lee Claude Code en esa carpeta, con cualquier cuenta.');
-    case 'desktop': return t('El chat de la ventana de Desktop: solo servidores MCP, solo de tipo stdio, y se aplican al reiniciar la ventana. La pestaña Code también los hereda.');
+    case 'desktop': return t('El chat de la ventana de Desktop: solo admite servidores MCP locales (stdio), y se aplican al reiniciar la ventana. Instrucciones, skills, agentes y lo demás llegan a la pestaña Code de esa ventana desde la capa Claude Code.');
   }
 }
 
@@ -158,6 +161,7 @@ export function Configuracion({ profile: fixed }: { profile?: string } = {}) {
             enciende. */}
         <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 12.5, color: 'var(--ink-3)', cursor: 'pointer' }} title={t('Lo que recibe de verdad la cuenta, sumando todas las capas')}>
           {t('Efectivo')}
+          <Help term="efectivo" size={13} style={{ marginLeft: -3 }} />
           <Toggle on={eff} onChange={setEff} label={t('Efectivo')} />
         </label>
       </div>
@@ -165,6 +169,7 @@ export function Configuracion({ profile: fixed }: { profile?: string } = {}) {
       {!eff && (
         <div style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 300, lineHeight: 1.55, margin: '-4px 0 14px' }}>
           {levelHelp(level, !!fixed)}
+          <Help term={LEVEL_TERM[level]} size={13} />
         </div>
       )}
 
@@ -214,11 +219,14 @@ export function Configuracion({ profile: fixed }: { profile?: string } = {}) {
                   key={ty}
                   className={`nav-item${ty === type ? ' on' : ''}`}
                   disabled={off}
-                  title={off ? t('La capa de ventana solo declara MCP.') : undefined}
+                  title={off ? t('El chat de Desktop solo lee MCP. Esto llega a la pestaña Code desde la capa Claude Code.') : undefined}
                   onClick={() => setType(ty)}
                   style={{ width: '100%', display: 'flex', justifyContent: 'space-between', gap: 8, opacity: off ? 0.4 : 1 }}
                 >
-                  <span>{typeLabel(ty)}</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                    {typeLabel(ty)}
+                    {ty === 'mcp' && <Help term="mcp" size={12} />}
+                  </span>
                   <span style={{ color: 'var(--ink-4)', fontSize: 11 }}>{n || ''}</span>
                 </button>
               );

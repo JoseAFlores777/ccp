@@ -9,24 +9,73 @@ import { tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, Empty, ErrorNote, Loading, Pill, Toggle } from '../components/ui';
+import { Help } from '../components/Help';
 
 function targetsLabel(r: McpRow): string {
   if (r.targets.length === 0) return t('sin proyectar');
   return r.targets.map((x) => (x === 'cli' ? t('CLI y Code') : t('chat de Desktop'))).join(' · ');
 }
 
+/** El «por qué» con el que core marca una entrada que ccp escribió y ya no
+ *  declara nadie (cfgWhyProjectedOther): se retira en la siguiente regeneración. */
+const WHY_STALE = 'lo proyecta ccp desde otra capa';
+
+/** La capa de una fila, desde su `scope` (la sintaxis de --scope). */
+function layerOfScope(scope: string): ConfigLayer | null {
+  if (scope === 'global') return { level: 'global' };
+  const i = scope.indexOf(':');
+  if (i < 0) return null;
+  const level = scope.slice(0, i);
+  if (level !== 'profile' && level !== 'project') return null;
+  return { level, name: scope.slice(i + 1) };
+}
+
 export function McpTable({ layer, onAdd }: { layer: ConfigLayer; onAdd: () => void }) {
   const { openModal, mutate } = useApp();
   const rows = useCall(() => api.mcpList(layer), [layer.level, layer.name]);
   const list = rows.data ?? [];
+  // En la vista del chat las filas son proyecciones: no se editan AHÍ, se
+  // editan donde están declaradas. Para saber dónde, la lista de la cuenta
+  // (su capa y la global) dice quién declara cada nombre.
+  const chatOf = layer.level === 'desktop' && layer.name && layer.name !== 'default' ? layer.name : '';
+  // La cuenta primero (gana en un choque de nombres) y después la global:
+  // desde la cuenta, lo global sale como proyección no editable.
+  const declared = useCall(
+    async () =>
+      chatOf
+        ? [...(await api.mcpList({ level: 'profile', name: chatOf })), ...(await api.mcpList({ level: 'global' }))]
+        : ([] as McpRow[]),
+    [chatOf],
+  );
+  const declaring = (r: McpRow): { row: McpRow; layer: ConfigLayer } | null => {
+    const d = (declared.data ?? []).find((x) => x.name === r.name && x.editable);
+    const l = d ? layerOfScope(d.scope) : null;
+    return d && l ? { row: d, layer: l } : null;
+  };
 
   // Apagar es de perfil: es lo que hace que un servidor heredado no llegue a
   // ESTA cuenta sin tocar la capa que lo declara.
   const canDisable = layer.level === 'profile' && !!layer.name;
 
-  const openEdit = async (r: McpRow) => {
-    const v = await api.configItem({ layer, type: 'mcp', name: r.name, source: r.source });
-    openModal(mcpModal(layer, r, (v.json ?? {}) as Record<string, unknown>));
+  const openEdit = async (r: McpRow, at: ConfigLayer = layer) => {
+    const v = await api.configItem({ layer: at, type: 'mcp', name: r.name, source: r.source });
+    openModal(mcpModal(at, r, (v.json ?? {}) as Record<string, unknown>, { chat: at !== layer }));
+  };
+
+  // Quitar del chat no borra el servidor: le quita el chat de los destinos, y
+  // sigue llegando a Claude Code si ya llegaba.
+  const removeFromChat = (d: { row: McpRow; layer: ConfigLayer }) => {
+    const rest = d.row.targets.filter((x) => x !== 'desktop');
+    openModal({
+      title: t('Quitar {n} del chat', { n: d.row.name }),
+      sub: rest.length
+        ? t('Sigue declarado donde está y sigue llegando a Claude Code. Solo deja de escribirse en el chat de Desktop.')
+        : t('Sigue declarado donde está, pero sin destinos: no llegará a ninguna parte hasta que le pongas uno.'),
+      warns: d.layer.level === 'global' ? [t('Está declarado en la capa global: deja de ir al chat de todas las ventanas, no solo al de {p}.', { p: chatOf })] : [],
+      cli: () => `ccp mcp targets ${d.row.name} ${rest.length ? rest.join(',') : 'none'}`,
+      confirmLabel: t('Quitar del chat'),
+      onConfirm: async () => writeMsg(await api.mcpSetTargets(d.row.name, rest)),
+    });
   };
 
   return (
@@ -63,6 +112,28 @@ export function McpTable({ layer, onAdd }: { layer: ConfigLayer; onAdd: () => vo
                 <button className="btn quiet xs" onClick={() => void openEdit(r)}>{t('Editar')}</button>
                 <button className="btn quiet danger xs" onClick={() => openModal(mcpDeleteModal(layer, r))}>{t('Quitar')}</button>
               </>
+            ) : chatOf && declaring(r) ? (
+              <>
+                <button
+                  className="btn quiet xs"
+                  title={t('Se edita donde está declarado: {s}', { s: declaring(r)!.row.scope })}
+                  onClick={() => void openEdit(declaring(r)!.row, declaring(r)!.layer)}
+                >
+                  {t('Editar')}
+                </button>
+                <button className="btn quiet danger xs" onClick={() => removeFromChat(declaring(r)!)}>{t('Quitar del chat')}</button>
+              </>
+            ) : chatOf && r.why === WHY_STALE ? (
+              <>
+                <span style={{ fontSize: 11, color: 'var(--warn)' }}>{t('ya no está declarado en ninguna capa')}</span>
+                <button
+                  className="btn quiet xs"
+                  title={t('Regenera la cuenta: ccp retira del chat y de Claude Code lo que escribió y ya nadie declara')}
+                  onClick={() => void mutate(() => api.syncProfile(chatOf), { msg: t('{p} sincronizada', { p: chatOf }) })}
+                >
+                  {t('Sincronizar')}
+                </button>
+              </>
             ) : (
               <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>{r.why || t('no se edita desde aquí')}</span>
             )}
@@ -79,6 +150,89 @@ export function McpTable({ layer, onAdd }: { layer: ConfigLayer; onAdd: () => vo
           <button className="btn dashed" onClick={onAdd}>{t('Añadir un servidor')}</button>
         </div>
       )}
+      {layer.level === 'desktop' && layer.name && <ChatFooter profile={layer.name} />}
     </Card>
+  );
+}
+
+/**
+ * El pie de la vista del chat de Desktop: cómo meter servidores en él desde
+ * ccp. La ventana no es una capa que declare —ccp la escribe al regenerar—, así
+ * que «añadir al chat» es declararlo en la cuenta con el chat entre sus
+ * destinos, y «llevar al chat» es añadir ese destino a uno que ya existe. Las
+ * dos rutas acaban en el mismo motor que `ccp mcp add` / `ccp mcp targets`.
+ */
+function ChatFooter({ profile }: { profile: string }) {
+  const { openModal, mutate } = useApp();
+  const profileLayer: ConfigLayer = { level: 'profile', name: profile };
+  const cc = useCall(() => api.mcpList(profileLayer), [profile]);
+
+  if (profile === 'default') {
+    return (
+      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--line)', fontSize: 12, color: 'var(--ink-3)', fontWeight: 300, lineHeight: 1.55 }}>
+        {t('La ventana de default es tu Claude de siempre y ccp no escribe en su configuración: sus servidores del chat se añaden en Claude Desktop → Ajustes → Desarrollador.')}
+      </div>
+    );
+  }
+
+  // Lo que Claude Code de esta cuenta ya tiene y el chat no recibe. Los remotos
+  // no se ofrecen: el chat los descartaría al arrancar.
+  const live = (cc.data ?? []).filter((r) => !r.disabled);
+  const local = live.filter((r) => r.type === 'stdio' && !r.targets.includes('desktop'));
+  // Los remotos, vayan dirigidos al chat o no: el chat los descarta al arrancar.
+  const remote = live.filter((r) => r.type !== 'stdio');
+
+  return (
+    <div style={{ borderTop: '1px solid var(--line)' }}>
+      <div style={{ padding: '12px 16px' }}>
+        <button className="btn dashed" onClick={() => openModal(mcpModal(profileLayer, undefined, undefined, { chat: true }))}>
+          {t('Añadir un servidor al chat')}
+        </button>
+      </div>
+      {local.length > 0 && (
+        <div style={{ padding: '4px 16px 14px' }}>
+          <div className="label" style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
+            {t('Los tiene Claude Code y el chat no')}
+            <Help term="destinos" size={12} />
+          </div>
+          {local.map((r) => (
+            <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: '1px solid var(--line-soft)' }}>
+              <span className="mono" style={{ fontSize: 12 }}>{r.name}</span>
+              <Pill>{r.scope}</Pill>
+              <span className="mono ellipsis" style={{ fontSize: 10.5, color: 'var(--ink-4)', flex: 1 }}>{r.detail}</span>
+              <button
+                className="btn xs"
+                title={t('Añade el chat de Desktop a los destinos de {n}: sigue declarado donde está', { n: r.name })}
+                onClick={() => {
+                  const run = () => api.mcpSetTargets(r.name, [...new Set([...r.targets, 'desktop'])]);
+                  // Los destinos van por nombre, no por cuenta: uno declarado en
+                  // la capa global llegará al chat de TODAS las ventanas. Eso se
+                  // pregunta; uno propio de la cuenta se lleva sin más.
+                  if (!r.scope.startsWith('profile')) {
+                    openModal({
+                      title: t('Llevar {n} al chat', { n: r.name }),
+                      sub: t('{n} está declarado en {s}, no solo en esta cuenta.', { n: r.name, s: r.scope }),
+                      warns: [t('Llegará al chat de todas las ventanas de Desktop que lo reciban, no solo al de {p}.', { p: profile })],
+                      cli: () => `ccp mcp targets ${r.name} ${[...new Set([...r.targets, 'desktop'])].join(',')}`,
+                      confirmLabel: t('Llevar al chat'),
+                      onConfirm: async () => writeMsg(await run()),
+                    });
+                    return;
+                  }
+                  void mutate(run, { msg: (w) => `${t('{n} irá también al chat', { n: r.name })} · ${writeMsg(w)}` });
+                }}
+              >
+                {t('Llevar al chat')}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {remote.length > 0 && (
+        <div style={{ padding: '0 16px 14px', fontSize: 11.5, color: 'var(--ink-4)', fontWeight: 300 }}>
+          {t('{n} no pueden ir al chat porque son remotos (el chat solo carga stdio): {l}.', { n: remote.length, l: remote.map((r) => r.name).join(', ') })}
+        </div>
+      )}
+    </div>
   );
 }
