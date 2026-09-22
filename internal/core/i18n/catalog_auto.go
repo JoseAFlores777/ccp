@@ -340,6 +340,13 @@ su propia copia y deja de seguir la lista compartida. Se avisa cuando pasa, y
 		En: "%q is not in %s's chain (there is: %s)",
 		Es: "%q no está en la cadena de %s (hay: %s)",
 	},
+	// El estado que faltaba en el sensor: corre, pero el payload del statusLine
+	// de Claude Code no trae el consumo. Decir «sin muestra» ahí mandaba a
+	// reinstalar un sensor que ya estaba puesto y funcionando.
+	"cli.auto.status_cc_silent": {
+		En: "sensor runs; Claude Code %s does not report usage",
+		Es: "el sensor corre; Claude Code %s no informa del consumo",
+	},
 	"cli.auto.chain_unknown_sub": {
 		En: "ccp auto chain: unknown subcommand %q",
 		Es: "ccp auto chain: subcomando desconocido %q",

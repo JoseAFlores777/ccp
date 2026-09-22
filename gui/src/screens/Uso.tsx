@@ -54,13 +54,21 @@ export function Uso() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {list.map((p) => {
           const s = state(p, threshold);
+          // Cuatro respuestas distintas, y la tercera es la que faltaba: el
+          // sensor corre en cada refresco y Claude Code NO informa del consumo en
+          // su barra de estado. Antes eso decía «todavía no hay muestras», la
+          // misma frase que cuando no está instalado — dos causas con arreglos
+          // distintos y un único síntoma mudo, que es como se pierde una tarde
+          // buscando en el sitio equivocado.
           const why = p.usage
             ? t('muestra {a}', { a: ago(p.usage.sampled_at) })
             : p.sensors !== 'installed'
               ? t('sin sensores instalados')
               : isProvider(p.type)
                 ? t('los proveedores no informan de su ventana de uso')
-                : t('todavía no hay muestras');
+                : p.sensor_ran && !p.sensor_reports
+                  ? t('el sensor corre, pero Claude Code {v} no informa del consumo', { v: p.cc_version || '' })
+                  : t('todavía no hay muestras');
           return (
             <Card key={p.name} shadow style={{ padding: '17px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 15 }}>

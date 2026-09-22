@@ -304,6 +304,9 @@ type autoPolicyJSON struct {
 type autoSensorJSON struct {
 	Profile          string  `json:"profile"`
 	Installed        bool    `json:"installed"`
+	SensorRan        bool    `json:"sensor_ran"`
+	SensorReports    bool    `json:"sensor_reports"`
+	CCVersion        string  `json:"cc_version,omitempty"`
 	HasSample        bool    `json:"has_sample"`
 	SampledAt        string  `json:"sampled_at,omitempty"`
 	AgeSeconds       int64   `json:"age_seconds"`
@@ -412,6 +415,14 @@ func autoCollectSensors(home string, cfg *core.Config, threshold int, now time.T
 	out := make([]autoSensorJSON, 0, len(names))
 	for _, n := range names {
 		row := autoSensorJSON{Profile: n, Installed: core.AutoHooksEnabled(cfg, n)}
+		// El estado del sensor va aparte del dato: «no ha corrido» y «corre y tu
+		// Claude Code no informa del consumo» tenían el mismo aspecto (ninguna
+		// muestra) y se arreglan en sitios distintos.
+		if st := core.ReadRateSample(home, n); st.Present {
+			row.SensorRan = true
+			row.SensorReports = st.Reported
+			row.CCVersion = st.CCVersion
+		}
 		rl, sampled, ok := core.ReadRateLimits(home, n)
 		if ok {
 			row.HasSample = true
@@ -515,6 +526,13 @@ func printAutoStatus(w io.Writer, lang i18n.Lang, s autoStatusJSON, configured b
 			state = i18n.T(lang, "cli.auto.status_sensor_on")
 		}
 		sample := i18n.T(lang, "cli.auto.status_no_sample")
+		// El estado que faltaba, dicho con las mismas palabras que la app: el
+		// sensor sí corre, es Claude Code el que no manda el consumo en su barra
+		// de estado. Sin esta línea, «sin muestra» valía también para eso y
+		// mandaba a reinstalar un sensor que ya estaba puesto y funcionando.
+		if sen.SensorRan && !sen.SensorReports {
+			sample = i18n.T(lang, "cli.auto.status_cc_silent", sen.CCVersion)
+		}
 		if sen.HasSample {
 			sample = i18n.T(lang, "cli.auto.status_sample",
 				sen.FiveHourPct, sen.SevenDayPct,
@@ -697,18 +715,20 @@ func runStatusLine(stdin io.Reader, args []string, stdout, stderr io.Writer) (co
 	// minuto desde dentro de CC y disparar la migración de config desde un
 	// sensor sería mutar el estado del usuario en su nombre, sin que lo pida.
 	home := resolveHome()
-	profile := os.Getenv("CCP_PROFILE")
-	if profile == "" {
-		profile = "default"
-	}
+	profile := statusLineProfile()
 	// Un solo reloj para el muestreo y para la cuenta atrás: si se leyera dos
 	// veces, la muestra que se persiste y la que se pinta podrían caer a lados
 	// distintos de un reset.
 	now := time.Now()
 	rl, sampled := core.ParseStatusLineInput(data)
-	if sampled {
-		_ = core.WriteRateLimits(home, profile, rl, now)
-	}
+	// Se persiste SIEMPRE, traiga consumo o no. Antes solo se escribía cuando lo
+	// traía, así que un Claude Code que no informa del consumo —el payload de
+	// 2.1.236 no lleva `rate_limits`: sus claves son context_window, cost, model,
+	// thinking…— dejaba el directorio sin crear, y la pantalla decía «todavía no
+	// hay muestras» para siempre. Esa frase es la misma que cuando el sensor no
+	// está instalado: dos causas con arreglos distintos y un único síntoma mudo.
+	// Dejando constancia de la muestra vacía, la interfaz puede decir cuál es.
+	_ = core.WriteRateSample(home, profile, rl, sampled, autoPayloadVersion(data), now)
 
 	wrapped := autoWrappedCommand(args)
 	if len(wrapped) == 0 {
@@ -738,6 +758,49 @@ func runStatusLine(stdin io.Reader, args []string, stdout, stderr io.Writer) (co
 	cmd.Stderr = stderr
 	_ = cmd.Run()
 	return 0
+}
+
+// statusLineProfile decide a qué perfil pertenece esta muestra.
+//
+// CCP_PROFILE es la fuente buena: lo exporta la función de shell y lo inyecta el
+// lanzador de Desktop. Cuando falta se DEDUCE de CLAUDE_CONFIG_DIR en vez de
+// caer a "default", que es lo que hacía antes: quien lanza `claude` con el config
+// dir a mano —algo que la documentación de Claude Code enseña— veía su consumo
+// contabilizado en otra cuenta, en silencio, y la cuenta real seguía marcando
+// «sin datos». Un dato en la casilla equivocada es peor que ninguno: se actúa
+// sobre él.
+func statusLineProfile() string {
+	if p := strings.TrimSpace(os.Getenv("CCP_PROFILE")); p != "" {
+		return p
+	}
+	// <home>/profiles/<perfil>/cc-home  ->  <perfil>
+	dir := strings.TrimSpace(os.Getenv("CLAUDE_CONFIG_DIR"))
+	if dir != "" {
+		// Clean antes de partir: una barra final deja a Dir() devolviendo el
+		// propio directorio y el perfil saldría "cc-home", que es un nombre
+		// plausible y por tanto un fallo que no se ve.
+		dir = filepath.Clean(dir)
+		if base := filepath.Base(dir); base == "cc-home" {
+			if name := filepath.Base(filepath.Dir(dir)); name != "" && name != "." && name != string(filepath.Separator) {
+				return name
+			}
+		}
+	}
+	return "default"
+}
+
+// autoPayloadVersion saca la versión que Claude Code declara en el payload. Es
+// lo que permite que el aviso diga QUÉ versión no informa en vez de un genérico
+// «tu Claude Code»: la respuesta cambia con la versión y el usuario necesita
+// saber cuál mirar.
+func autoPayloadVersion(data []byte) string {
+	var obj struct {
+		Version string `json:"version"`
+	}
+	if json.Unmarshal(bytes.TrimSpace(data), &obj) != nil {
+		return ""
+	}
+	return strings.TrimSpace(obj.Version)
 }
 
 // autoReadCapped lee el stdin completo con tope. El tope existe porque el productor

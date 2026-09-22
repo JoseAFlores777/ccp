@@ -85,6 +85,23 @@ func sentinelsDir(home string) string  { return filepath.Join(AutoStateDir(home)
 type rateLimitsFile struct {
 	SampledAt time.Time  `json:"sampled_at"`
 	Limits    RateLimits `json:"limits"`
+
+	// Reported dice si la muestra traía consumo. Existe porque «el sensor no ha
+	// corrido nunca» y «el sensor corre y Claude Code no informa del consumo»
+	// producían EXACTAMENTE el mismo silencio —ningún archivo— y son dos
+	// problemas distintos con dos arreglos distintos.
+	//
+	// El caso real: el payload del statusLine de Claude Code 2.1.236 no trae
+	// `rate_limits` (sus claves son context_window, cost, model, thinking…), así
+	// que el sensor corría en cada refresco, no encontraba nada y no escribía. La
+	// pantalla decía «todavía no hay muestras» para siempre, que es falso: las
+	// muestras llegaban, vacías.
+	Reported bool `json:"reported"`
+
+	// CCVersion es la versión que se presentó en el payload. Se guarda porque lo
+	// que se puede medir depende de ella, y sin el número el aviso solo puede
+	// decir «tu Claude Code» en vez de cuál.
+	CCVersion string `json:"cc_version,omitempty"`
 }
 
 // writeAtomicJSON serializa v y lo deja en path con tmp+rename.
@@ -126,6 +143,20 @@ func randToken() string {
 
 // WriteRateLimits persiste la última muestra del statusLine de un perfil.
 func WriteRateLimits(home, profile string, rl RateLimits, now time.Time) error {
+	return WriteRateSample(home, profile, rl, true, "", now)
+}
+
+// WriteRateSample persiste la muestra DIGA LO QUE DIGA, incluso vacía.
+//
+// Escribir la muestra vacía es el punto: antes el sensor solo escribía cuando
+// encontraba consumo, así que un Claude Code que no lo informa dejaba el
+// directorio sin crear y la pantalla decía «todavía no hay muestras» — la misma
+// frase que cuando el sensor no está instalado. Dos causas, un síntoma, y la de
+// verdad invisible.
+//
+// Es la misma regla que el doctor de Desktop ya tenía (ADR 0009): una sonda que
+// no puede medir produce «no lo sé», nunca silencio ni un verde.
+func WriteRateSample(home, profile string, rl RateLimits, reported bool, ccVersion string, now time.Time) error {
 	name, err := sanitizeAutoName("perfil", profile)
 	if err != nil {
 		return err
@@ -136,7 +167,40 @@ func WriteRateLimits(home, profile string, rl RateLimits, now time.Time) error {
 	return writeAtomicJSON(filepath.Join(rateLimitsDir(home), name+".json"), rateLimitsFile{
 		SampledAt: now.UTC(),
 		Limits:    rl,
+		Reported:  reported,
+		CCVersion: strings.TrimSpace(ccVersion),
 	})
+}
+
+// RateSampleState es lo que se sabe del sensor de un perfil. Los TRES estados
+// son el valor de esto: sin ellos, la interfaz no puede distinguir «no está
+// instalado» de «está instalado y tu Claude Code no informa».
+type RateSampleState struct {
+	Present   bool       // hay muestra en disco (el sensor corrió)
+	Reported  bool       // …y traía consumo
+	SampledAt time.Time  // cuándo
+	CCVersion string     // versión que se presentó en el payload
+	Limits    RateLimits // el consumo, si Reported
+}
+
+// ReadRateSample devuelve el estado completo del sensor de un perfil.
+func ReadRateSample(home, profile string) RateSampleState {
+	name, err := sanitizeAutoName("perfil", profile)
+	if err != nil {
+		return RateSampleState{}
+	}
+	data, err := os.ReadFile(filepath.Join(rateLimitsDir(home), name+".json"))
+	if err != nil {
+		return RateSampleState{}
+	}
+	var f rateLimitsFile
+	if json.Unmarshal(data, &f) != nil {
+		return RateSampleState{}
+	}
+	return RateSampleState{
+		Present: true, Reported: f.Reported, SampledAt: f.SampledAt,
+		CCVersion: f.CCVersion, Limits: f.Limits,
+	}
 }
 
 // ReadRateLimits devuelve la muestra y su antigüedad. ok=false si no hay.
@@ -156,6 +220,14 @@ func ReadRateLimits(home, profile string) (rl RateLimits, sampled time.Time, ok 
 	var f rateLimitsFile
 	if json.Unmarshal(data, &f) != nil {
 		return RateLimits{}, time.Time{}, false
+	}
+	// Una muestra que se escribió SIN consumo no es un dato: es la constancia de
+	// que el sensor corrió. Devolverla como buena le daría al supervisor unos
+	// ceros que nadie midió, justo lo que el «sin datos, nunca 0 %» evita en la
+	// pantalla. ok=false la manda al respaldo (ReadCachedUsage), que es donde
+	// debe ir.
+	if !f.Reported {
+		return RateLimits{}, f.SampledAt, false
 	}
 	return f.Limits, f.SampledAt, true
 }
