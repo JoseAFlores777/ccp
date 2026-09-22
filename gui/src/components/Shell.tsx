@@ -50,7 +50,7 @@ export function navGroups(): [string, NavItem[]][] {
 /** Qué entrada de la barra lateral se enciende para cada pantalla: las que no
  *  tienen entrada propia (un flujo, una sub-vista) encienden la de su padre. */
 function navOwner(s: Screen): Screen {
-  if (s === 'mover' || s === 'prestamos') return 'conv';
+  if (s === 'mover' || s === 'prestamos' || s === 'conversacion') return 'conv';
   if (s === 'copias' || s === 'snapshots' || s === 'bienvenida') return 'ajustes';
   return s;
 }
@@ -94,6 +94,7 @@ export function screenHead(s: Screen, selected: string, selectedType: string): [
     case 'copias': return [t('Copias de seguridad'), t('Exportar con o sin secretos, y restaurar viendo antes qué trae el archivo.')];
     case 'snapshots': return [t('Snapshots'), t('La historia de toda la configuración: qué había, qué cambió desde entonces y cómo volver, viendo antes el plan.')];
     case 'nube': return [t('Nube'), t('La cuenta, la bóveda y tus equipos. El portal propone y esta máquina aplica: lo que ejecuta código espera aquí a que lo confirmes.')];
+    case 'conversacion': return [t('Conversación'), t('Dónde vive y, si la dejaste trabajando, en qué cuenta está ahora, a cuál pasó y cuándo vuelve a casa, en vivo.')];
     case 'glosario': return [t('Glosario'), t('Lo que significa cada palabra de ccp: qué es, para qué sirve y cómo funciona. Los «?» de la app explican lo mismo en el sitio donde aparece.')];
     case 'bienvenida': return [t('Detectar esta máquina'), t('Todo lo de Claude que hay aquí, dónde aplica cada cosa y el plan para traer a ccp lo que vive fuera.')];
   }
@@ -352,6 +353,7 @@ function headTerm(s: Screen, type: string): string | null {
     case 'configuracion': return 'configuracion';
     case 'carpetas': return 'carpetas';
     case 'conv': return 'conversaciones';
+    case 'conversacion': return 'conversacion';
     case 'mover': return 'mover';
     case 'prestamos': return 'prestamo';
     case 'rotacion': return 'rotacion';

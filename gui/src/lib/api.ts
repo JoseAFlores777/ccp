@@ -174,6 +174,34 @@ export interface Conversation {
   transcript: string;
 }
 
+/** Una sesión supervisada vista desde fuera (`ccp auto live --json`). */
+export interface LiveSession {
+  id: string;
+  pid: number;
+  state: 'running' | 'parked' | 'done' | 'failed' | 'lost';
+  exit_code: number;
+  error?: string;
+  started_at: string;
+  updated_at: string;
+  cwd: string;
+  origin?: string;
+  session: string;
+  sessions: string[];
+  primary: string;
+  current: string;
+  since: string;
+  chain: string[];
+  loans_used: number;
+  max_hops: number;
+  policy: string;
+  return_check_s: number;
+  return_idle_s: number;
+  no_return: boolean;
+  headless: boolean;
+  hops: { from: string; to: string; at: string; reason: string; session: string; home: boolean }[];
+  cooldowns: { profile: string; until: string }[];
+}
+
 export interface ConversationList {
   total: number;
   items: Conversation[];
@@ -794,6 +822,7 @@ export const api = {
   policy: (p: Partial<PolicyParams> & { policy?: string }) => ccpCall('auto.policy', p),
   autoTest: (profile?: string) => ccpCall<CliRun>('auto.test', { profile }),
   simulate: (p: { cwd?: string; primary?: string; policy?: string }) => ccpCall<Simulation>('auto.simulate', p),
+  autoLive: (session?: string) => ccpCall<LiveSession[]>('auto.live', { session: session ?? '' }),
   bootstrap: (cwd: string, policy?: string, profile?: string) => ccpCall<Bootstrap>('auto.bootstrap', { cwd, policy, profile }),
   bootstrapApply: (cwd: string, policy?: string, profile?: string) =>
     ccpCall<Bootstrap>('auto.bootstrapApply', { cwd, policy, profile }),

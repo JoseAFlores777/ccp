@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -43,7 +45,15 @@ type sessionFlags struct {
 	setup     bool // --setup: preguntar aunque la caché diga que ya se preguntó
 	noSetup   bool // --no-setup: no preguntar nada
 	help      bool
-	args      []string // lo que va DESPUÉS de `--`, sin interpretar
+
+	// «Dejar trabajando»: seguir una conversación concreta de una cuenta
+	// concreta, desatendida.
+	profile      string   // --profile: primaria explícita en vez de la regla del cwd
+	fork         bool     // --fork: continuar una COPIA de --session, no la original
+	prompt       string   // --prompt: mensaje del primer lanzamiento
+	resumePrompt string   // --resume-prompt: mensaje de cada relanzamiento
+	keepAwake    bool     // --keep-awake: caffeinate mientras dura la sesión
+	args         []string // lo que va DESPUÉS de `--`, sin interpretar
 }
 
 // cmdSession implementa `ccp session`. La firma la fija el dispatch de cli.go.
@@ -115,7 +125,13 @@ func cmdSession(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "[error] %s\n", i18n.T(lang, "cli.session.disabled"))
 		return 1
 	}
-	if _, err := core.ResolveAutoChain(home, cfg, f.policy, cwd); err != nil {
+	if f.profile != "" {
+		if _, ok := cfg.Profiles[f.profile]; !ok && f.profile != "default" {
+			fmt.Fprintf(stderr, "[error] %s\n", i18n.T(lang, "cli.session.unknown_profile", f.profile))
+			return 1
+		}
+	}
+	if _, err := sessionResolveChain(home, cfg, f.policy, cwd, f.profile); err != nil {
 		// Política inexistente, fallback a un perfil que no existe, duración mal
 		// escrita: errores de ccp.yaml, no del supervisor. Fallar aquí evita
 		// dejar un claude lanzado y morir en el primer salto, dos horas después.
@@ -138,21 +154,59 @@ func cmdSession(args []string, stdout, stderr io.Writer) int {
 	// (los saltos, la vuelta a casa, la tabla de cooldowns) ES la salida del
 	// comando, no un log secundario. En headless, Out lleva además el
 	// stream-json del hijo, ya serializado por el propio supervisor.
+	// --fork: la conversación sigue en una COPIA con uuid nuevo, en la misma
+	// cuenta y carpeta. Es lo que deja intacta la original (la de una ventana de
+	// Desktop, por ejemplo) y evita dos Claude escribiendo en el mismo archivo.
+	// Va después de validar la cadena y antes de lanzar: un fork seguido de un
+	// error de configuración dejaría una copia huérfana por nada.
+	session := f.session
+	origin := ""
+	if f.fork && !f.dryRun {
+		primary := f.profile
+		if primary == "" {
+			primary = core.Resolve(cwd, cfg.Rules)
+		}
+		ccHome, err := core.CCHome(home, primary)
+		if err != nil {
+			fmt.Fprintf(stderr, "[error] %v\n", err)
+			return 1
+		}
+		forked, err := core.ForkSession(ccHome, cwd, session)
+		if err != nil {
+			fmt.Fprintf(stderr, "[error] %v\n", err)
+			return 1
+		}
+		fmt.Fprintln(stderr, i18n.T(lang, "cli.session.forked", shortID(session), shortID(forked)))
+		origin, session = session, forked
+	}
+
+	if f.keepAwake && !f.dryRun {
+		if err := sessionKeepAwake(); err != nil {
+			fmt.Fprintln(stderr, warnLine(stderr, i18n.T(lang, "cli.session.keep_awake_failed", err)))
+		} else {
+			fmt.Fprintln(stderr, i18n.T(lang, "cli.session.keep_awake"))
+		}
+	}
+
 	res, runErr := supervisor.Run(context.Background(), supervisor.Options{
-		Home:      home,
-		Cwd:       cwd,
-		Policy:    f.policy,
-		Headless:  f.headless,
-		Yolo:      f.yolo,
-		MaxHops:   f.maxHops,
-		Session:   f.session,
-		Args:      f.args,
-		ClaudeBin: f.claudeBin,
-		Out:       stdout,
-		Err:       stderr,
-		Stdin:     os.Stdin,
-		DryRun:    f.dryRun,
-		NoReturn:  f.noReturn,
+		Home:         home,
+		Cwd:          cwd,
+		Policy:       f.policy,
+		Headless:     f.headless,
+		Yolo:         f.yolo,
+		MaxHops:      f.maxHops,
+		Session:      session,
+		Args:         f.args,
+		Primary:      f.profile,
+		Origin:       origin,
+		Prompt:       f.prompt,
+		ResumePrompt: f.resumePrompt,
+		ClaudeBin:    f.claudeBin,
+		Out:          stdout,
+		Err:          stderr,
+		Stdin:        os.Stdin,
+		DryRun:       f.dryRun,
+		NoReturn:     f.noReturn,
 	})
 	if runErr != nil {
 		fmt.Fprintf(stderr, "[error] %v\n", runErr)
@@ -182,6 +236,28 @@ func sessionExitCode(res supervisor.Result, err error) int {
 		return supervisor.ParkedExitCode
 	}
 	return res.ExitCode
+}
+
+// sessionResolveChain es la cadena con la que va a correr la sesión: la de la
+// cuenta pedida con --profile, o la de la regla de la carpeta.
+func sessionResolveChain(home string, cfg *core.Config, policy, cwd, profile string) (core.ResolvedChain, error) {
+	if profile != "" {
+		return core.ResolveAutoChainFor(home, cfg, policy, profile)
+	}
+	return core.ResolveAutoChain(home, cfg, policy, cwd)
+}
+
+// sessionKeepAwake impide que la Mac se duerma mientras viva ESTE proceso:
+// `caffeinate -w <pid>` se suelta solo cuando ccp termina, así que ni queda
+// colgado si la sesión muere ni hay que acordarse de pararlo. Fuera de macOS no
+// hay caffeinate y se dice, en vez de fingir.
+var sessionKeepAwake = defaultKeepAwake
+
+func defaultKeepAwake() error {
+	if runtime.GOOS != "darwin" {
+		return fmt.Errorf("solo en macOS")
+	}
+	return exec.Command("caffeinate", "-dimsu", "-w", strconv.Itoa(os.Getpid())).Start()
 }
 
 // sessionHasTTY reporta si stdin es un dispositivo de caracteres. Es la misma
@@ -347,6 +423,18 @@ func parseSessionFlags(args []string, lang i18n.Lang) (sessionFlags, error) {
 			f.session, err = value()
 		case "--claude-bin":
 			f.claudeBin, err = value()
+		case "--profile":
+			f.profile, err = value()
+		case "--prompt":
+			f.prompt, err = value()
+		case "--resume-prompt":
+			f.resumePrompt, err = value()
+		case "--fork":
+			err = bare()
+			f.fork = true
+		case "--keep-awake":
+			err = bare()
+			f.keepAwake = true
 		case "--max-hops":
 			var raw string
 			if raw, err = value(); err == nil {
@@ -377,6 +465,9 @@ func parseSessionFlags(args []string, lang i18n.Lang) (sessionFlags, error) {
 	// escriba. Se rechaza en vez de elegir por él.
 	if f.setup && f.noSetup {
 		return f, fmt.Errorf("%s", i18n.T(lang, "cli.session.setup_conflict"))
+	}
+	if f.fork && f.session == "" {
+		return f, fmt.Errorf("%s", i18n.T(lang, "cli.session.fork_needs_session"))
 	}
 	return f, nil
 }

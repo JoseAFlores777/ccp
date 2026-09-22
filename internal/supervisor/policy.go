@@ -263,6 +263,15 @@ func (c *Chain) DwellFor(source string) time.Duration {
 	return reactiveDwellCap
 }
 
+// Fallback son los respaldos en orden (sin la principal). Copia.
+func (c *Chain) Fallback() []string { return append([]string{}, c.fallback...) }
+
+// MaxHops es el tope de préstamos efectivo.
+func (c *Chain) MaxHops() int { return c.maxHops }
+
+// Since es el instante en que se llegó a la cuenta actual.
+func (c *Chain) Since() time.Time { return c.since }
+
 // Hops es el número de PRÉSTAMOS consumidos (las vueltas a casa no cuentan).
 func (c *Chain) Hops() int { return c.hops }
 

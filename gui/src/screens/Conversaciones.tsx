@@ -14,6 +14,7 @@ import { useApp, useCall } from '../lib/store';
 import { Card, Chips, CliBar, Empty, ErrorNote, Loading, Note, Row, Segmented, TableHead } from '../components/ui';
 import { Help } from '../components/Help';
 import { Prestamos } from './Prestamos';
+import { openLeaveWorking } from '../lib/leaveWorking';
 
 type Filter = 'here' | 'all' | 'desktop' | 'loaned' | 'archived';
 
@@ -22,7 +23,7 @@ export function whereLabel(c: Conversation): string {
   return c.profile === 'default' ? t('Ventana principal') : t('Ventana {p}', { p: c.profile });
 }
 
-const COLS = '2fr 1fr 1.1fr 1fr 1fr';
+const COLS = '2fr 1fr 1fr 1fr 1.6fr';
 
 type View = 'list' | 'loans';
 
@@ -47,6 +48,7 @@ export function Conversaciones({ profile: fixed, view: routeView }: { profile?: 
       />
       <Help term="conversacion" size={14} style={{ marginLeft: 10 }} />
       <Help term="prestamo" size={14} style={{ marginLeft: 4 }} />
+      <Help term="dejar_trabajando" size={14} style={{ marginLeft: 4 }} />
       {view === 'loans' ? <Prestamos profile={fixed} /> : <Lista fixed={fixed} />}
     </div>
   );
@@ -128,9 +130,14 @@ function Lista({ fixed }: { fixed?: string }) {
           {items.map((c) => (
             <Row key={c.profile + c.uuid} cols={COLS}>
               <span style={{ minWidth: 0 }}>
-                <span className="ellipsis selectable" style={{ display: 'block', fontSize: 13, color: c.title ? 'var(--ink)' : 'var(--ink-4)' }} title={c.title}>
+                <button
+                  className="ellipsis conv-link"
+                  style={{ display: 'block', fontSize: 13, color: c.title ? 'var(--ink)' : 'var(--ink-4)' }}
+                  title={t('Ver el detalle de la conversación')}
+                  onClick={() => app.openConversation(c.uuid, c.profile)}
+                >
                   {c.title || t('(sin título)')}
-                </span>
+                </button>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 3 }}>
                   <span className="mono selectable" style={{ fontSize: 10, color: 'var(--ink-4)' }} title={c.uuid}>{shortUUID(c.uuid)}</span>
                   <span className="mono" style={{ fontSize: 10, color: 'var(--ink-4)' }}>{bytes(c.bytes)}</span>
@@ -150,7 +157,18 @@ function Lista({ fixed }: { fixed?: string }) {
               <span className="mono ellipsis" style={{ fontSize: 11, color: 'var(--ink-4)' }} title={c.cwd}>{tilde(c.cwd) || '—'}</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 11.5, color: 'var(--ink-4)', fontWeight: 300 }}>{ago(c.last_activity)}</span>
-                <button className="btn quiet sm" onClick={() => startMove(c)}>{t('Mover')}</button>
+                <span style={{ display: 'flex', gap: 4 }}>
+                  {!c.archived && !c.loan && (
+                    <button
+                      className="btn quiet sm"
+                      title={t('Seguir esta conversación desatendida en una terminal, con rotación automática')}
+                      onClick={() => void openLeaveWorking(app, c)}
+                    >
+                      {t('Dejar trabajando')}
+                    </button>
+                  )}
+                  <button className="btn quiet sm" onClick={() => startMove(c)}>{t('Mover')}</button>
+                </span>
               </span>
             </Row>
           ))}

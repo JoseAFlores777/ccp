@@ -78,6 +78,25 @@ type Options struct {
 	NoReturn  bool
 	Poll      time.Duration // 0 => 2s (los tests lo bajan)
 
+	// Origin es la conversación de la que se copió esta sesión (--fork). Solo
+	// viaja al estado en vivo, para que la app la relacione con la original.
+	Origin string
+
+	// Primary fija la cuenta principal en vez de resolverla por la regla de Cwd.
+	// Hace falta al continuar una conversación que ya es de una cuenta concreta
+	// (una de Desktop, por ejemplo): su carpeta puede no tener regla, o tener la
+	// de otra cuenta, y la conversación tiene que seguir en la suya.
+	Primary string
+
+	// Prompt es el mensaje del PRIMER lanzamiento y ResumePrompt el de cada
+	// relanzamiento tras un salto o una vuelta a casa. Sin ResumePrompt se repite
+	// Prompt. Existen porque en headless nadie escribe: reabrir Claude Code en
+	// otra cuenta sin mensaje lo deja esperando toda la noche, y repetir la
+	// orden original («implementa X») le pide empezar otra vez algo a medias.
+	// Van al final de los argumentos de claude, después de Args.
+	Prompt       string
+	ResumePrompt string
+
 	// childOut/childErr son Out/Err SIN el envoltorio con mutex, y son los que
 	// recibe el proceso hijo. Los rellena normalize; nadie de fuera los fija.
 	childOut, childErr io.Writer
@@ -151,6 +170,10 @@ type runner struct {
 	cfg   *core.Config
 	rc    core.ResolvedChain
 	chain *Chain
+
+	// launches cuenta los hijos lanzados: el primero lleva Prompt y los demás
+	// ResumePrompt.
+	launches int
 
 	// seen deduplica eventos por contenido DENTRO DE UN LANZAMIENTO. Lo resetea
 	// launchAndWatch en cada hijo; nunca sobrevive a un hop.
@@ -241,6 +264,17 @@ func (r *runner) adoptHome(from, primary, session string) (string, bool, error) 
 
 // Run corre el bucle lanzar → vigilar → detectar → handoff → relanzar.
 func Run(ctx context.Context, o Options) (Result, error) {
+	var lv *liveRecorder
+	res, err := run(ctx, o, &lv)
+	if lv != nil {
+		lv.finish(res, err)
+	}
+	return res, err
+}
+
+// run es el bucle. Deja en *lv el grabador del estado en vivo en cuanto hay una
+// cadena que contar, para que Run publique el final pase lo que pase.
+func run(ctx context.Context, o Options, lv **liveRecorder) (Result, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -256,7 +290,12 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	if err != nil {
 		return Result{ExitCode: 1}, err
 	}
-	rc, err := core.ResolveAutoChain(o.Home, cfg, o.Policy, o.Cwd)
+	var rc core.ResolvedChain
+	if o.Primary != "" {
+		rc, err = core.ResolveAutoChainFor(o.Home, cfg, o.Policy, o.Primary)
+	} else {
+		rc, err = core.ResolveAutoChain(o.Home, cfg, o.Policy, o.Cwd)
+	}
 	if err != nil {
 		return Result{ExitCode: 1}, err
 	}
@@ -286,6 +325,7 @@ func Run(ctx context.Context, o Options) (Result, error) {
 
 	res := Result{Session: session, Profile: r.chain.Current()}
 	enteredAt := start
+	*lv = newLiveRecorder(o, r.chain, session, start)
 
 	// marker/markerLive son el reflejo en memoria de handoffs.yaml: si hay un
 	// préstamo vivo, quién lo prestó (marker.From) es a dónde vuelve la sesión.
@@ -300,6 +340,7 @@ func Run(ctx context.Context, o Options) (Result, error) {
 		// transcript) no describe un camino de vuelta a casa.
 		onLoan := markerLive && marker.From == r.chain.Primary()
 
+		(*lv).sync(session, res.Hops)
 		out, err := r.launchAndWatch(ctx, session, resume, onLoan)
 		res.Profile = r.chain.Current()
 		res.Session = session
@@ -615,6 +656,21 @@ type waitResult struct {
 // es la invariante que garantiza que nunca haya dos claude vivos a la vez.
 // `onLoan` dice que la conversación está PRESTADA y que el marcador vivo la
 // devuelve al primario: es la condición para armar el temporizador de regreso.
+// childArgs son los argumentos del usuario más el mensaje que toca en este
+// lanzamiento (ver Options.Prompt). Avanza el contador: se llama una vez por hijo.
+func (r *runner) childArgs() []string {
+	r.launches++
+	prompt := r.o.Prompt
+	if r.launches > 1 && r.o.ResumePrompt != "" {
+		prompt = r.o.ResumePrompt
+	}
+	args := append([]string{}, r.o.Args...)
+	if prompt != "" {
+		args = append(args, prompt)
+	}
+	return args
+}
+
 func (r *runner) launchAndWatch(ctx context.Context, session string, resume, onLoan bool) (childOutcome, error) {
 	o := r.o
 	profile := r.chain.Current()
@@ -645,7 +701,7 @@ func (r *runner) launchAndWatch(ctx context.Context, session string, resume, onL
 
 	proc, err := Launch(ctx, LaunchSpec{
 		Bin:      o.ClaudeBin,
-		Args:     BuildArgs(session, resume, o.Headless, o.Yolo, o.Args),
+		Args:     BuildArgs(session, resume, o.Headless, o.Yolo, r.childArgs()),
 		Env:      core.EnvForChild(os.Environ(), o.Home, profile, r.cfg),
 		Dir:      o.Cwd,
 		Headless: o.Headless,

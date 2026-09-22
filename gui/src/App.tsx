@@ -16,6 +16,7 @@ import { Ajustes, Copias } from './screens/Ajustes';
 import { Carpetas } from './screens/Carpetas';
 import { Configuracion } from './screens/Configuracion';
 import { Conversaciones } from './screens/Conversaciones';
+import { Conversacion } from './screens/Conversacion';
 import { Desktop } from './screens/Desktop';
 import { Diagnostico } from './screens/Diagnostico';
 import { Inicio } from './screens/Inicio';
@@ -54,6 +55,7 @@ const SCREENS: Record<Screen, () => React.JSX.Element | null> = {
   nube: Nube,
   bienvenida: Detectar,
   glosario: Glosario,
+  conversacion: Conversacion,
 };
 
 /** Si el motor no arranca no hay nada que enseñar: se dice qué falló y cómo
