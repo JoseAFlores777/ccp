@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### `TestRunCtrlCNoRota` era una moneda al aire
+
+El test del Ctrl-C usaba el `min_dwell: 0s` del harness, y con permanencia cero el supervisor mata al hijo
+en cuanto ve el límite: competía con la salida del propio hijo y el desenlace lo decidía quién llegara
+antes. Falló en CI y pasaba en local por eso, no por otra cosa — el mismo commit salió verde en el run del
+tag y rojo en el de `main`.
+
+No había nada que arreglar en el supervisor: `out.code == exitSIGINT` va ANTES de la rotación, así que un
+130 observado decide solo. Lo que pasaba es que el hijo no llegaba a salir. Con permanencia, el supervisor
+hace lo que hace en producción —deja al hijo vivo mientras espera— y su 130 se observa primero. Es además
+la configuración real: `min_dwell` viene en 20m y los orígenes reactivos tienen un techo de 30s; el cero no
+sale de ninguna parte salvo que alguien lo escriba a mano.
+
 ## [2.22.0] — reiniciar la ventana de un perfil desde la app
 
 La proyección de MCP al chat de Desktop **se aplaza hasta el siguiente arranque** ([ADR 0016](docs/adr/0016-what-desktop-reads-from-a-profile.md)):

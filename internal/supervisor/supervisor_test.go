@@ -668,10 +668,24 @@ func TestRunDryRunNoLanzaNada(t *testing.T) {
 
 // Un 130 no rota AUNQUE el sensor haya visto un límite: el usuario interrumpió
 // a propósito y mover su conversación de perfil sería lo contrario de lo pedido.
+//
+// El `minDwell` NO es decoración y por eso no usa el "0s" del harness: con
+// permanencia cero el supervisor mata al hijo en cuanto ve el límite, o sea que
+// compite con la salida del propio hijo y el desenlace lo decide quién llegue
+// antes. Este test fallaba en CI —una máquina cargada— y pasaba en local por
+// eso, no por otra cosa.
+//
+// Con permanencia, el supervisor hace lo que hace en producción: deja al hijo
+// VIVO mientras espera, así que su 130 se observa primero y el caso queda
+// afirmado en vez de sorteado. Y es además la configuración real: `min_dwell`
+// viene en 20m por defecto y los orígenes reactivos tienen un techo de 30s —
+// cero no sale de ninguna parte salvo que alguien lo escriba a mano. El test no
+// tarda nada aun así: el hijo sale de inmediato y nadie espera esos 30s.
 func TestRunCtrlCNoRota(t *testing.T) {
 	e := setup(t, seed{
 		fallback: []string{"p2"},
 		maxHops:  3,
+		minDwell: "5m",
 		plan: []runStep{
 			{exit: 130, where: "stdout", emit: limitStdout("p1")},
 			{exit: 0},
