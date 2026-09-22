@@ -644,13 +644,17 @@ export function windowNewModal(name: string): ModalSpec {
     warns: [
       t('Cada instancia descarga su propio Claude Code, unos 190 MB.'),
       t('El primer arranque es sin lanzador para que el enlace de vuelta del login llegue a esta ventana.'),
+      t('Mientras dure, macOS no la distingue de tu Claude principal: el Dock y «open -a Claude» activan ESTA ventana.'),
+      t('Cuando termines de entrar, ciérrala y vuelve a abrirla desde su icono. Ahí recupera su identidad y el doctor se calla.'),
       t('Se abre con el entorno de la cuenta y el actualizador apagado, para que no toque tu Claude principal.'),
     ],
     confirmLabel: t('Crear y abrir'),
     cli: () => shellJoin(['ccp', 'desktop', 'open', name, '--plain']),
     onConfirm: async () => {
       must(await api.desktopRun({ action: 'open', profile: name, plain: true }));
-      return t('Ventana de {n} abierta', { n: name });
+      // El mensaje de éxito es lo único que se lee después, así que lleva el
+      // paso que falta: sin él, el error del doctor parece una avería.
+      return t('Ventana de {n} abierta. Entra en la cuenta, luego ciérrala y ábrela desde su icono.', { n: name });
     },
   };
 }

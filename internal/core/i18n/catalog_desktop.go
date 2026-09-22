@@ -254,6 +254,10 @@ perfil official. El lanzador sigue solo las actualizaciones de Claude.app.`,
 		En: "'%s' is being launched through /Applications/Claude.app itself, so macOS cannot tell it apart from your main Claude: the Dock, Cmd-Tab, 'open -a' and claude:// links treat both windows as the same app. Run 'ccp desktop app %[1]s' to give it its own icon and identity.",
 		Es: "«%s» se está lanzando a través de /Applications/Claude.app, así que macOS no puede distinguirla de tu Claude principal: el Dock, Cmd-Tab, «open -a» y los enlaces claude:// tratan las dos ventanas como la misma app. Ejecuta «ccp desktop app %[1]s» para darle icono e identidad propios.",
 	},
+	"cli.desktop.plain_has_launcher": {
+		En: "'%s' is starting through /Applications/Claude.app on purpose: launchers do not claim claude://, so this is the only way the login callback lands in THIS window. While it runs, macOS cannot tell it apart from your main Claude — the Dock, Cmd-Tab and 'open -a' treat both as the same app. When you have finished signing in, close it and open it again from its own icon (or run 'ccp desktop open %[1]s'): that gives it back its identity.",
+		Es: "«%s» arranca a través de /Applications/Claude.app a propósito: los lanzadores no declaran claude://, así que es la única forma de que el enlace de vuelta del login llegue a ESTA ventana. Mientras corra, macOS no la distingue de tu Claude principal: el Dock, Cmd-Tab y «open -a» tratan las dos como la misma app. Cuando termines de entrar, ciérrala y vuelve a abrirla desde su propio icono (o ejecuta «ccp desktop open %[1]s»): así recupera su identidad.",
+	},
 	"cli.desktop.open.instance_running": {
 		En: "'%s' already has a window open on this data dir. A second one puts two Chromium processes on the same profile and can corrupt its sessions. Bring the existing one to the front, or pass --force.",
 		Es: "«%s» ya tiene una ventana abierta sobre este data dir. Una segunda pone dos procesos Chromium sobre el mismo perfil y puede corromper sus sesiones. Trae al frente la que ya existe, o pasa --force.",
