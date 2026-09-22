@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+## [2.20.0] — la capa de un perfil enseña también lo que hereda
+
+`ccp mcp list --scope profile <n>` y la pantalla Configuración decían **«ningún servidor MCP»** de un perfil
+cuyas ventanas sí cargan uno. El MCP que trae un plugin no vive en los archivos del perfil —está en la
+carpeta compartida `~/.claude/plugins`—, así que el recorrido de la capa no lo veía; pero el `settings.json`
+del perfil lleva `enabledPlugins` y su cc-home comparte `plugins/`, de modo que su CLI y su pestaña Code lo
+cargan igual ([ADR 0016](docs/adr/0016-what-desktop-reads-from-a-profile.md)). La misma pantalla respondía
+«qué declara esta capa» en un perfil y «qué aplica» en la global, que son dos preguntas distintas.
+
+Ahora la capa de un perfil añade lo **heredado**: los MCP (y lo demás) que trae un plugin **encendido en ese
+perfil** y lo que impone `managed-settings`. Se enseñan con su procedencia real y sin editar, exactamente
+como ya hacía la global — y la GUI no necesitó cambios, porque ya pintaba la píldora de la capa de origen y
+el motivo; solo le faltaban las filas.
+
+Dos reglas que el arreglo fija:
+
+- **Los plugins se preguntan al perfil, no al global.** Un plugin que el overlay del perfil apaga no aporta
+  nada ahí, así que la respuesta sale de su `settings.json` generado (o de global ⊕ overlay si aún no se ha
+  sincronizado), nunca de `enabledPlugins` del global a secas.
+- **La capa global NO se hereda**, y esa omisión es deliberada: un perfil no lee `~/.claude.json`. Lo que sí
+  hereda del global (settings, `CLAUDE.md`, skills) ya se veía, porque la regeneración lo escribe en su
+  cc-home o lo comparte por symlink. Añadirlo aquí habría duplicado filas y prometido en un perfil MCP que
+  ese perfil no carga.
+
 ## [2.19.1] — el doctor deja de pedir que reinicies una ventana para no cambiar nada
 
 `ProjectMCPToDesktop` escribía el marcador de «pendiente de reiniciar» en cuanto la ventana del perfil

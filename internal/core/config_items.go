@@ -328,6 +328,7 @@ func ConfigItems(r InventoryRoots, layer ConfigLayer) (ConfigList, error) {
 		used[ci.Ref.Source] = true
 	}
 	out.Items = append(out.Items, declared...)
+	out.Items = append(out.Items, cfgInherited(r, look, write, inv, dup)...)
 	out.Probes = append(out.Probes, cfgLayerProbes(r, look, inv.Probes, used)...)
 	cfgSortItems(out.Items)
 	return out, nil
@@ -526,4 +527,82 @@ func cfgDeclaredProfile(r InventoryRoots, look, write ConfigLayer, probes *[]Inv
 		}
 	}
 	return out
+}
+
+// cfgInherited son los elementos que la capa de un perfil NO declara pero sí
+// aplican en ella: los que trae un plugin encendido en ese perfil y los que
+// impone managed-settings. Ninguno vive en los archivos del perfil —el .mcp.json
+// de un plugin está en la carpeta compartida de plugins y managed-settings es de
+// la máquina—, así que el recorrido de la capa no los veía: la pantalla decía
+// «ningún servidor MCP» de una ventana que sí lo carga (su settings.json lleva
+// `enabledPlugins` y su cc-home comparte `plugins/`, ADR 0016). Se enseñan con su
+// procedencia real y sin editar, que es lo que ya hace la capa global con ellos;
+// lo editable de un plugin es encenderlo o apagarlo.
+//
+// La global no pasa por aquí a propósito: un perfil NO lee ~/.claude.json, y lo
+// que sí hereda del global (settings, CLAUDE.md, skills) ya se ve en su capa,
+// porque la regeneración lo escribe en su cc-home o lo comparte por symlink.
+func cfgInherited(r InventoryRoots, look, write ConfigLayer, inv Inventory, dup map[string]bool) []ConfigItem {
+	if look.Level != "profile" || look.Name == "" || look.Name == "default" {
+		return nil
+	}
+	on := cfgProfilePlugins(r, look.Name)
+	out := []ConfigItem{}
+	for _, it := range inv.Items {
+		switch it.Scope.Level {
+		case "plugin":
+			if !on[it.Scope.Name] {
+				continue
+			}
+		case "managed":
+		default:
+			continue
+		}
+		ci, ok := cfgItemFrom(it, write)
+		if !ok {
+			continue
+		}
+		// Declarado aquí y además traído por un plugin es UN servidor: gana la
+		// fila que se edita, igual que con la copia proyectada.
+		if ci.Ref.Type == CfgTypeMCP && dup[ci.Name] {
+			continue
+		}
+		out = append(out, ci)
+	}
+	return out
+}
+
+// cfgProfilePlugins dice qué plugins están encendidos PARA ESE PERFIL. Su
+// settings.json generado es la respuesta cuando existe; si no (perfil recién
+// creado, o sin sincronizar), se calcula lo que la regeneración escribiría, que
+// es global ⊕ overlay. Preguntarlo al global sin más daría por encendido en el
+// perfil un plugin que su overlay apaga.
+func cfgProfilePlugins(r InventoryRoots, name string) map[string]bool {
+	on := map[string]bool{}
+	read := func(b []byte) bool {
+		m, err := decodeOverlayObject(b)
+		if err != nil {
+			return false
+		}
+		ep, isMap := m["enabledPlugins"].(map[string]any)
+		if !isMap {
+			return true // settings legible sin plugins: ninguno encendido
+		}
+		for k, v := range ep {
+			if b, _ := v.(bool); b {
+				on[k] = true
+			}
+		}
+		return true
+	}
+	gen := filepath.Join(ccHomePath(r.CCPHome, name), "settings.json")
+	if b, err := os.ReadFile(gen); err == nil && read(b) {
+		return on
+	}
+	ov, _ := os.ReadFile(cfgSettingsFile(r.CCPHome, name)) // el del overlay
+	built, err := cfgBuildUserSettings(name, r.ClaudeSrc, ov)
+	if err == nil {
+		read(built)
+	}
+	return on
 }

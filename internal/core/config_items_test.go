@@ -629,3 +629,54 @@ func TestConfigItemPutRechazaProyectoInexistente(t *testing.T) {
 		t.Fatalf("Put en un proyecto real: %v", err)
 	}
 }
+
+// Un MCP que trae un plugin activo SÍ lo carga el perfil (su settings.json
+// lleva enabledPlugins y su cc-home comparte la carpeta de plugins, ADR 0016),
+// así que la capa del perfil tiene que enseñarlo: heredado y no editable ahí.
+// Sin esto la pantalla decía «ningún servidor MCP» de una ventana que sí lo
+// carga, que es la clase de respuesta que este diseño no admite.
+func TestConfigItemsPerfilHeredaElMCPDeUnPlugin(t *testing.T) {
+	r := invFixture(t)
+	// El plugin a@m (activo en el global) trae un MCP; b@m está apagado.
+	for _, p := range []string{"a@m", "b@m"} {
+		dir := filepath.Join(r.ClaudeSrc, "plugins", "cache", p)
+		mustWrite(t, filepath.Join(dir, ".mcp.json"),
+			`{"mcpServers":{"`+strings.ReplaceAll(p, "@", "-")+`":{"command":"npx"}}}`)
+	}
+	mustWrite(t, filepath.Join(r.ClaudeSrc, "plugins", "installed_plugins.json"),
+		`{"version":2,"plugins":{"a@m":[{"scope":"user","installPath":`+
+			`"`+filepath.Join(r.ClaudeSrc, "plugins", "cache", "a@m")+`"}],`+
+			`"b@m":[{"scope":"user","installPath":`+
+			`"`+filepath.Join(r.ClaudeSrc, "plugins", "cache", "b@m")+`"}]}}`)
+
+	// En la global ya salía.
+	g, err := ConfigItems(r, ConfigLayer{Level: "global"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfgItemFind(g, CfgTypeMCP, "a-m") == nil {
+		t.Fatal("la capa global no ve el MCP del plugin: el fixture no reproduce el caso")
+	}
+
+	l, err := ConfigItems(r, ConfigLayer{Level: "profile", Name: "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	it := cfgItemFind(l, CfgTypeMCP, "a-m")
+	if it == nil {
+		t.Fatal("el perfil no enseña el MCP que le trae un plugin activo")
+	}
+	if it.Editable {
+		t.Error("lo heredado no se edita en la capa del perfil")
+	}
+	if it.Scope.Level != "plugin" || it.Scope.Name != "a@m" {
+		t.Errorf("la procedencia no es el plugin: %+v", it.Scope)
+	}
+	if !strings.Contains(it.Why, "a@m") {
+		t.Errorf("el motivo no nombra al plugin: %q", it.Why)
+	}
+	// Y un plugin apagado no aporta nada.
+	if cfgItemFind(l, CfgTypeMCP, "b-m") != nil {
+		t.Error("un plugin apagado no debería aportar MCP")
+	}
+}
