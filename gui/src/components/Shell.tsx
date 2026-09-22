@@ -9,6 +9,8 @@ import { t } from '../lib/i18n';
 import { useApp, useCall, type ProfileTab, type Screen } from '../lib/store';
 import { isProvider, syncCloud } from '../lib/actions';
 import { Swatch } from './ui';
+import { Help } from './Help';
+import { glossary, glossaryKeys } from '../lib/glossary';
 
 export interface NavItem {
   label: string;
@@ -39,6 +41,7 @@ export function navGroups(): [string, NavItem[]][] {
       { label: t('Memoria'), id: 'memoria' },
       { label: t('Nube'), id: 'nube' },
       { label: t('Diagnóstico'), id: 'diag' },
+      { label: t('Glosario'), id: 'glosario' },
       { label: t('Ajustes'), id: 'ajustes' },
     ]],
   ];
@@ -91,6 +94,7 @@ export function screenHead(s: Screen, selected: string, selectedType: string): [
     case 'copias': return [t('Copias de seguridad'), t('Exportar con o sin secretos, y restaurar viendo antes qué trae el archivo.')];
     case 'snapshots': return [t('Snapshots'), t('La historia de toda la configuración: qué había, qué cambió desde entonces y cómo volver, viendo antes el plan.')];
     case 'nube': return [t('Nube'), t('La cuenta, la bóveda y tus equipos. El portal propone y esta máquina aplica: lo que ejecuta código espera aquí a que lo confirmes.')];
+    case 'glosario': return [t('Glosario'), t('Lo que significa cada palabra de ccp: qué es, para qué sirve y cómo funciona. Los «?» de la app explican lo mismo en el sitio donde aparece.')];
     case 'bienvenida': return [t('Detectar esta máquina'), t('Todo lo de Claude que hay aquí, dónde aplica cada cosa y el plan para traer a ccp lo que vive fuera.')];
   }
 }
@@ -211,6 +215,7 @@ function TopBar({ onSearch }: { onSearch: () => void }) {
       </div>
       <div data-tauri-drag-region style={{ flex: 1, alignSelf: 'stretch' }} />
       <FolderPicker />
+      <Help term="carpeta_contexto" size={14} style={{ marginLeft: -8 }} />
       <div data-tauri-drag-region style={{ flex: 1, alignSelf: 'stretch' }} />
       <div style={{ display: 'flex', border: '1px solid var(--line)', borderRadius: 7, overflow: 'hidden' }} className="no-drag">
         {(['es', 'en'] as const).map((l) => (
@@ -306,8 +311,9 @@ function Sidebar() {
       {navGroups().map(([label, items]) => (
         <div key={label || '_'} style={{ padding: '0 12px', marginBottom: 14 }}>
           {label && (
-            <div className="label" style={{ padding: '6px 10px' }}>
+            <div className="label" style={{ padding: '6px 10px', display: 'flex', alignItems: 'center' }}>
               {label}
+              {label === t('Cuentas') && <Help term="cuenta" size={13} />}
             </div>
           )}
           {/* Las cuentas van primero en su grupo: son la puerta. «Todas las
@@ -337,6 +343,30 @@ function Sidebar() {
   );
 }
 
+/** El término del glosario que explica cada pantalla: el «?» junto al título. */
+function headTerm(s: Screen, type: string): string | null {
+  switch (s) {
+    case 'perfil': return type === 'default' ? 'default' : isProvider(type) ? 'proveedor' : 'oficial';
+    case 'perfiles': return 'cuenta';
+    case 'mapa': return 'mapa';
+    case 'configuracion': return 'configuracion';
+    case 'carpetas': return 'carpetas';
+    case 'conv': return 'conversaciones';
+    case 'mover': return 'mover';
+    case 'prestamos': return 'prestamo';
+    case 'rotacion': return 'rotacion';
+    case 'uso': return 'uso';
+    case 'sesiones': return 'supervisada';
+    case 'desktop': return 'desktop';
+    case 'diag': return 'diagnostico';
+    case 'memoria': return 'memoria';
+    case 'copias': return 'copia';
+    case 'snapshots': return 'snapshot';
+    case 'nube': return 'nube';
+    default: return null;
+  }
+}
+
 export function Header({ right }: { right?: ReactNode }) {
   const { screen, selected, profiles, colorOf } = useApp();
   const type = profiles.find((p) => p.name === selected)?.type ?? (selected === 'default' ? 'default' : 'official');
@@ -347,6 +377,7 @@ export function Header({ right }: { right?: ReactNode }) {
         <h1 style={{ margin: '0 0 6px', fontSize: 25, fontWeight: 300, letterSpacing: '-.022em', color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 11 }}>
           {screen === 'perfil' && <Swatch color={colorOf(selected)} size={11} />}
           {title}
+          {headTerm(screen, type) && <Help term={headTerm(screen, type)!} size={16} style={{ marginLeft: 2 }} />}
         </h1>
         <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.55, color: 'var(--ink-3)', maxWidth: '66ch', fontWeight: 300 }}>{sub}</p>
       </div>
@@ -375,6 +406,10 @@ function Palette({ onClose }: { onClose: () => void }) {
     }
     for (const p of app.profiles) {
       out.push({ key: 'p:' + p.name, label: p.name, hint: t('cuenta'), run: () => app.openProfile(p.name, 'resumen') });
+    }
+    for (const k of glossaryKeys()) {
+      const g = glossary(k);
+      if (g) out.push({ key: 'g:' + k, label: g.term, hint: t('Glosario'), run: () => app.go('glosario') });
     }
     out.push({ key: 'a:cloud-sync', label: t('Sincronizar con la nube'), hint: t('Nube'), run: () => void syncCloud(app.mutate) });
     // Cada pestaña de cada cuenta, para saltar directo a «work · Rotación».

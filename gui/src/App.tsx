@@ -11,6 +11,7 @@ import { useEffect } from 'react';
 import { useApp, type Screen } from './lib/store';
 import { resumeAfterUpgrade } from './lib/upgrade';
 import { Detectar } from './screens/Detectar';
+import { Glosario } from './screens/Glosario';
 import { Ajustes, Copias } from './screens/Ajustes';
 import { Carpetas } from './screens/Carpetas';
 import { Configuracion } from './screens/Configuracion';
@@ -52,6 +53,7 @@ const SCREENS: Record<Screen, () => React.JSX.Element | null> = {
   snapshots: Snapshots,
   nube: Nube,
   bienvenida: Detectar,
+  glosario: Glosario,
 };
 
 /** Si el motor no arranca no hay nada que enseñar: se dice qué falló y cómo

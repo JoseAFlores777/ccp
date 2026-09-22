@@ -15,6 +15,7 @@ import { syncCloud } from '../lib/actions';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, CardHead, Checkbox, CliBar, Empty, ErrorNote, KV, Loading, Note, Pill, Segmented } from '../components/ui';
+import { Help } from '../components/Help';
 import { Historial, reasonLabel } from './NubeHistorial';
 
 const short = (id: string) => id.slice(0, 12);
@@ -82,7 +83,7 @@ function Cuenta({ st, reload }: { st: CloudStatus | null; reload: () => void }) 
           [t('Servidor'), <span className="mono selectable" key="s">{st?.server ?? ''}</span>],
           [t('Cuenta'), <span className="mono selectable" key="e">{st?.email ?? ''}</span>],
           [t('Este equipo'), <span key="d">{st?.device_name ?? ''} <span className="mono" style={{ color: 'var(--ink-4)' }}>{short(st?.device_id ?? '')}</span></span>],
-          [t('Bóveda'), <Pill key="v" tone={vtone}>{vlabel}</Pill>],
+          [<span key="bl" style={{ display: 'inline-flex', alignItems: 'center' }}>{t('Bóveda')}<Help term="boveda" size={13} /></span>, <Pill key="v" tone={vtone}>{vlabel}</Pill>],
           [t('Sin subir'), <span key="p">{t('{n} snapshots', { n: String(st?.pending_push ?? 0) })}</span>],
         ]}
       />
@@ -122,6 +123,7 @@ function Cuenta({ st, reload }: { st: CloudStatus | null; reload: () => void }) 
             {syncing ? t('Sincronizando…') : t('Sincronizar ahora')}
           </button>
         )}
+        {st?.vault === 'unlocked' && <Help term="sincronizar" size={14} style={{ alignSelf: 'center', marginLeft: -4 }} />}
         {st?.vault === 'unlocked' && (
           <button
             className="btn"
@@ -296,7 +298,7 @@ function Politica({ st, reload }: { st: CloudStatus | null; reload: () => void }
   const value: DevicePolicy = st?.policy ?? 'auto';
   return (
     <Card>
-      <CardHead label={t('Qué se aplica solo en este equipo')} />
+      <CardHead label={<span style={{ display: 'inline-flex', alignItems: 'center' }}>{t('Qué se aplica solo en este equipo')}<Help term="revision" size={13} /></span>} />
       <Segmented
         value={value}
         options={[

@@ -2,9 +2,26 @@
 
 ## [Unreleased]
 
-- **Las capas de configuración se explican solas.** Dentro de una cuenta, «Perfil / Su ventana» pasa a
-  «Claude Code / Chat de Desktop (solo MCP)», y debajo del selector una línea dice qué lee cada capa. En
-  General, la capa «Ventana» se llama «Chat de Desktop».
+## [2.25.0] — el chat de Desktop desde ccp, la rotación entera a la vista y un glosario
+
+- **Servidores MCP del chat de Desktop desde la app.** En la cuenta → Configuración → Chat de Desktop se
+  puede añadir un servidor al chat (se declara en la cuenta y ccp lo escribe en la configuración de su
+  ventana), llevar al chat uno que Claude Code ya tenía, editarlo en la capa que lo declara y quitarlo del
+  chat sin borrarlo. Solo stdio, porque el chat descarta en silencio los remotos, y la vista lo dice. Una
+  entrada que ccp escribió y ya nadie declara se marca así, con un botón para sincronizar, en vez de pasar
+  por «proyectada desde otra capa».
+- **Las capas se explican solas.** Dentro de una cuenta, «Perfil / Su ventana» pasa a «Claude Code / Chat
+  de Desktop (solo MCP)», con una línea que dice qué lee cada una; en General, «Ventana» es «Chat de Desktop».
+- **La cadena de rotación se ordena arrastrando** en vez de con flechas (también con ↑/↓ desde el teclado),
+  con eventos de puntero: el arrastre nativo del webview se lo queda Tauri para soltar archivos.
+- **«Cómo gira»**: cada cuenta enseña en su pestaña Rotación un lienzo pequeño de su cadena, con el arco de
+  vuelta a la principal cuando se libera, que es lo que la lista no contaba.
+- **Un glosario de ccp, en el sitio donde hace falta.** Un «?» junto a cada término (el título de cada
+  pantalla, las pestañas de una cuenta, los parámetros de la rotación, las capas de configuración, la
+  bóveda…) explica al pasar por encima qué es, para qué existe y cómo funciona. La pantalla General →
+  Glosario los reúne todos, por tema y con buscador, y ⌘K también los encuentra.
+- **Todas las cuentas entrelazadas**: en General → Rotación, la red entera de quién respalda a quién, con el
+  orden en cada flecha, qué cuentas dependen de cada una y cuáles son las más usadas como respaldo.
 
 ## [2.24.0] — la cuenta es la puerta de entrada
 

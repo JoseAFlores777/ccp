@@ -14,6 +14,7 @@ import { t } from '../lib/i18n';
 import { useApp, useCall, type ProfileTab } from '../lib/store';
 import { Bar, Card, CardHead, CliBar, KV, Label, Note, Pill, ShortcutButton, toneColors, usageColor } from '../components/ui';
 import { profileTabs } from '../components/Shell';
+import { Help } from '../components/Help';
 import { desktopLabel } from './Perfiles';
 import { Configuracion } from './Configuracion';
 import { Conversaciones } from './Conversaciones';
@@ -38,6 +39,12 @@ function UsageBlock({ label, w, sampled }: { label: string; w: UsageWindow | und
   );
 }
 
+/** El término del glosario de cada pestaña de la cuenta. */
+const TAB_TERM: Record<ProfileTab, string> = {
+  resumen: 'resumen', carpetas: 'carpetas', conv: 'conversaciones', rotacion: 'rotacion',
+  config: 'configuracion', desktop: 'desktop', memoria: 'memoria',
+};
+
 export function Perfil() {
   const app = useApp();
   const { profiles, selected, tab, setTab } = app;
@@ -52,8 +59,9 @@ export function Perfil() {
     <div>
       <div className="tabs" role="tablist">
         {tabs.map(([k, label]) => (
-          <button key={k} role="tab" aria-selected={k === current} className={k === current ? 'on' : ''} onClick={() => setTab(k)}>
+          <button key={k} role="tab" aria-selected={k === current} className={k === current ? 'on' : ''} onClick={() => setTab(k)} style={{ display: 'inline-flex', alignItems: 'center' }}>
             {label}
+            <Help term={TAB_TERM[k]} size={13} />
           </button>
         ))}
       </div>
@@ -82,7 +90,7 @@ function CarpetasDeCuenta({ p }: { p: Profile }) {
     <div>
       <Card pad={false} clip shadow>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px 12px' }}>
-          <span className="label" style={{ flex: 1 }}>{t('Carpetas de esta cuenta')}</span>
+          <span className="label" style={{ flex: 1, display: 'flex', alignItems: 'center' }}>{t('Carpetas de esta cuenta')}<Help term="carpetas" size={13} /><Help term="excepcion" size={13} style={{ marginLeft: 4 }} /></span>
           <button className="btn sm" onClick={() => openModal(newRuleModal(app, rules.data ?? [], { profile: p.name }))}>
             {t('Añadir')}
           </button>
@@ -136,7 +144,7 @@ function Resumen({ p }: { p: Profile }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.5fr) minmax(0,1fr)', gap: 14 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <Card shadow>
-            <Label style={{ marginBottom: 14 }}>{t('Acceso')}</Label>
+            <Label style={{ marginBottom: 14, display: 'flex', alignItems: 'center' }}>{t('Acceso')}<Help term={isDefault ? 'default' : prov ? 'proveedor' : 'oficial'} size={13} /></Label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span className="dot" style={{ background: toneColors(acc.tone).fg }} />
               <span style={{ fontSize: 13.5, color: 'var(--ink)' }}>{acc.label}</span>
@@ -202,7 +210,7 @@ function Resumen({ p }: { p: Profile }) {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <Card>
-            <Label style={{ marginBottom: 14 }}>{t('Uso')}</Label>
+            <Label style={{ marginBottom: 14, display: 'flex', alignItems: 'center' }}>{t('Uso')}<Help term="uso" size={13} /><Help term="sensores" size={13} style={{ marginLeft: 4 }} /></Label>
             {p.usage ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <UsageBlock label={t('Ventana de 5 h')} w={p.usage.five_hour} sampled={p.usage.sampled_at} />

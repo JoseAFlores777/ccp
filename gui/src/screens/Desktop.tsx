@@ -8,6 +8,7 @@ import { bytes, tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, CliBar, ErrorNote, Label, Loading, Note, Pill, toneColors } from '../components/ui';
+import { Help } from '../components/Help';
 
 // `identity` solo dice algo de una ventana abierta: «none» es «no hay nada que
 // comprobar», no «no hay instancia». La instancia es el data dir en disco.
@@ -114,6 +115,7 @@ export function Desktop({ profile }: { profile?: string } = {}) {
                       >
                         {r.launcher ? t('Lanzador') : t('Crear lanzador')}
                       </button>
+                      <Help term="lanzador" size={13} style={{ alignSelf: 'center', marginLeft: -4 }} />
                       {r.instance && (
                         <button className="btn quiet danger" onClick={() => openModal(windowDeleteModal(r))}>{t('Borrar')}</button>
                       )}
@@ -168,7 +170,7 @@ export function Desktop({ profile }: { profile?: string } = {}) {
             {t('Las sondas del sistema no respondieron para {p}. Nada se da por bueno: este estado tiene su propio color y nunca cuenta como correcto.', { p: unknown.map((u) => u.profile).join(', ') })}
           </Note>
         ) : (
-          <Note title={t('Identidad')}>
+          <Note title={<>{t('Identidad')}<Help term="identidad" size={13} /></>}>
             {t('Cada ventana de perfil corre desde su lanzador y con el actualizador apagado. Si una se reinicia por dentro puede perder su identidad: el doctor lo detecta y lo dice aquí.')}
           </Note>
         )}

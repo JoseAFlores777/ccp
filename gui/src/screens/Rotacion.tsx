@@ -13,6 +13,15 @@ import { tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, CliBar, Empty, ErrorNote, Label, Loading, Note, Pill, Toggle } from '../components/ui';
+import { Help } from '../components/Help';
+import { SortableList } from '../components/Sortable';
+import { RotacionRed } from './RotacionRed';
+
+/** El término del glosario de cada parámetro de la política. */
+const PARAM_TERM: Record<string, string> = {
+  threshold: 'threshold', min_dwell: 'min_dwell', max_hops: 'max_hops', return_check: 'return_check',
+  return_idle: 'return_idle', cooldown_strategy: 'cooldown', cooldown_fallback: 'cooldown',
+};
 
 export function durationLabel(d: string): string {
   // Go imprime 15m0s, 1h30m0s, 90s: se enseña sin los ceros sobrantes.
@@ -77,13 +86,16 @@ export function Rotacion({ profile: fixed }: { profile?: string } = {}) {
 
   const chain = s.chain ?? [];
   const undo = chainSnapshot(s);
-  const move = (l: ChainLink, delta: number) => {
-    const fb = [...(s.fallback ?? [])];
-    const i = fb.indexOf(l.profile);
-    const j = i + delta;
-    if (i < 0 || j < 0 || j >= fb.length) return;
-    void mutate(() => api.chain({ op: 'mv', ...chainTarget(s), names: [l.profile], pos: j + 1 }), {
-      msg: t('{p} pasa a la posición {n}', { p: l.profile, n: j + 1 }),
+  // Arrastrar deja `profile` en la posición `to` de la cadena que se ve. La
+  // posición se traduce a la de `fallback` por el perfil que ocupaba ese
+  // hueco, para no suponer que las dos listas coinciden índice a índice.
+  const move = (profile: string, to: number) => {
+    const fb = s.fallback ?? [];
+    const target = chain[to]?.profile;
+    const j = target ? fb.indexOf(target) : -1;
+    if (j < 0 || fb.indexOf(profile) < 0) return;
+    void mutate(() => api.chain({ op: 'mv', ...chainTarget(s), names: [profile], pos: j + 1 }), {
+      msg: t('{p} pasa a la posición {n}', { p: profile, n: j + 1 }),
       undo,
     });
   };
@@ -100,6 +112,7 @@ export function Rotacion({ profile: fixed }: { profile?: string } = {}) {
   return (
     <div>
       <Card shadow style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '15px 20px', marginBottom: 14 }}>
+        <Help term="rotacion" size={14} style={{ marginLeft: 0 }} />
         <Toggle
           on={!!s.enabled}
           label={t('Rotación activa')}
@@ -138,10 +151,15 @@ export function Rotacion({ profile: fixed }: { profile?: string } = {}) {
         </Note>
       )}
 
+      {/* En General, primero la red entera: todas las cuentas y quién depende
+          de quién. Dentro de una cuenta basta con su propia cadena. */}
+      {!fixed && <RotacionRed />}
+      <ChainCanvas s={s} chain={chain} colorOf={colorOf} onOpenMap={() => go('mapa')} />
+
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.2fr) minmax(0,1fr)', gap: 14 }}>
         <Card shadow>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <Label style={{ flexShrink: 0 }}>{t('Cadena de')}</Label>
+            <Label style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{t('Cadena de')}<Help term="cadena" size={13} /></Label>
             {fixed ? (
               <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: 'var(--ink)' }}>{fixed}</span>
             ) : (
@@ -159,6 +177,7 @@ export function Rotacion({ profile: fixed }: { profile?: string } = {}) {
                 distingue «esta cuenta no presta a nadie» de «la lista compartida
                 está vacía», y cada una se arregla en un sitio distinto. */}
             <Pill tone={own ? 'ok' : undefined}>{own ? t('propia') : t('heredada')}</Pill>
+            <Help term="cadena_propia" size={13} style={{ marginLeft: -2 }} />
             {s.policy_pinned && <Pill>{t('política {n}', { n: s.policy ?? 'default' })}</Pill>}
           </div>
           <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 16, fontWeight: 300 }}>
@@ -182,30 +201,47 @@ export function Rotacion({ profile: fixed }: { profile?: string } = {}) {
               </span>
             </span>
             <Pill>{t('principal')}</Pill>
+            <Help term="principal" size={13} style={{ marginLeft: -4 }} />
           </div>
           {chain.length === 0 && (
             <div style={{ fontSize: 12, color: 'var(--ink-4)', padding: '10px 2px', fontWeight: 300 }}>
               {t('Sin respaldos: si {p} se agota, la sesión se detiene y espera.', { p: s.primary })}
             </div>
           )}
-          {chain.map((l, i) => {
-            const blocked = !l.allowed || l.access !== 'ok';
-            return (
-              <div key={l.profile} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 12px', border: '1px solid var(--line)', borderRadius: 9, marginBottom: 8, background: 'var(--surface)', opacity: blocked ? 0.8 : 1 }}>
-                <span className="mono" style={{ fontSize: 10, color: 'var(--ink-4)', width: 16 }}>{i + 1}</span>
-                <span className="swatch" style={{ background: colorOf(l.profile) }} />
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: 'block', fontSize: 13, color: 'var(--ink)' }}>{l.profile}</span>
-                  <span style={{ display: 'block', fontSize: 11, color: blocked ? 'var(--err)' : l.sensors === 'missing' ? 'var(--warn)' : 'var(--ink-4)', marginTop: 2, fontWeight: 300 }}>
-                    {linkNote(l)}
+          {chain.length > 1 && (
+            <div style={{ fontSize: 11, color: 'var(--ink-4)', margin: '0 2px 8px', fontWeight: 300 }}>
+              {t('Arrastra para cambiar el orden: se prueba de arriba abajo.')}
+            </div>
+          )}
+          <SortableList
+            items={chain}
+            keyOf={(l) => l.profile}
+            onReorder={move}
+            label={t('Cadena de respaldos de {p}', { p: s.primary })}
+            render={(l, row) => {
+              const blocked = !l.allowed || l.access !== 'ok';
+              return (
+                <div
+                  {...row.props}
+                  title={t('Arrastra para cambiar el orden')}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 11, padding: '11px 12px', border: '1px solid var(--line)', borderRadius: 9,
+                    marginBottom: 8, background: 'var(--surface)', opacity: blocked && !row.dragging ? 0.8 : 1,
+                    borderColor: row.dragging ? 'var(--accent-line)' : 'var(--line)', ...row.props.style,
+                  }}
+                >
+                  <span aria-hidden style={{ color: 'var(--ink-4)', fontSize: 13, lineHeight: 1, width: 10, letterSpacing: '-2px' }}>⋮⋮</span>
+                  <span className="mono" style={{ fontSize: 10, color: 'var(--ink-4)', width: 14 }}>{row.position + 1}</span>
+                  <span className="swatch" style={{ background: colorOf(l.profile) }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: 13, color: 'var(--ink)' }}>{l.profile}</span>
+                    <span style={{ display: 'block', fontSize: 11, color: blocked ? 'var(--err)' : l.sensors === 'missing' ? 'var(--warn)' : 'var(--ink-4)', marginTop: 2, fontWeight: 300 }}>
+                      {linkNote(l)}
+                    </span>
                   </span>
-                </span>
-                <Pill tone={!l.allowed ? 'err' : l.access !== 'ok' ? 'err' : 'ok'}>
-                  {!l.allowed ? t('sin permiso') : l.access !== 'ok' ? t('bloqueado') : s.gate?.absent ? t('implícito') : t('autorizado')}
-                </Pill>
-                <span style={{ display: 'flex', gap: 4 }}>
-                  <button className="btn quiet icon" title={t('Subir')} disabled={i === 0} onClick={() => move(l, -1)}>↑</button>
-                  <button className="btn quiet icon" title={t('Bajar')} disabled={i === chain.length - 1} onClick={() => move(l, +1)}>↓</button>
+                  <Pill tone={!l.allowed ? 'err' : l.access !== 'ok' ? 'err' : 'ok'}>
+                    {!l.allowed ? t('sin permiso') : l.access !== 'ok' ? t('bloqueado') : s.gate?.absent ? t('implícito') : t('autorizado')}
+                  </Pill>
                   <button
                     className="btn quiet danger icon"
                     title={t('Quitar de la cadena')}
@@ -213,10 +249,10 @@ export function Rotacion({ profile: fixed }: { profile?: string } = {}) {
                   >
                     ×
                   </button>
-                </span>
-              </div>
-            );
-          })}
+                </div>
+              );
+            }}
+          />
           <div style={{ marginTop: 12, paddingTop: 14, borderTop: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <button className="btn lg dashed" onClick={() => openModal(chainAddModal(app, s))}>{t('Añadir a la cadena')}</button>
             {own && (
@@ -241,11 +277,11 @@ export function Rotacion({ profile: fixed }: { profile?: string } = {}) {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <Card shadow>
-            <Label style={{ marginBottom: 14 }}>{t('Parámetros')}</Label>
+            <Label style={{ marginBottom: 14, display: 'flex', alignItems: 'center' }}>{t('Parámetros')}<Help term="politica" size={13} /></Label>
             {params ? (
               (Object.keys(PARAM_LABELS) as (keyof PolicyParams)[]).map((k) => (
                 <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0', borderBottom: '1px solid var(--line-soft)' }}>
-                  <span style={{ flex: 1, fontSize: 12.5, color: 'var(--ink-2)', fontWeight: 300, lineHeight: 1.4 }}>{t(PARAM_LABELS[k])}</span>
+                  <span style={{ flex: 1, fontSize: 12.5, color: 'var(--ink-2)', fontWeight: 300, lineHeight: 1.4 }}>{t(PARAM_LABELS[k])}<Help term={PARAM_TERM[k]} size={13} /></span>
                   <button
                     className="mono"
                     onClick={() => openModal(paramModal(s, k))}
@@ -260,11 +296,11 @@ export function Rotacion({ profile: fixed }: { profile?: string } = {}) {
             )}
           </Card>
           {totalDeny ? (
-            <Note kind="err" title={t('Ningún respaldo pasa')}>
+            <Note kind="err" title={<>{t('Ningún respaldo pasa')}<Help term="permisos" size={13} /></>}>
               {t('El mapa de permisos está declarado pero no tiene entrada para {p}: la rotación no ocurre, en silencio. Añade una cuenta a la cadena autorizándola, o fija las flechas desde el lienzo.', { p: s.primary })}
             </Note>
           ) : (
-            <Note kind="err" title={t('El caso que sorprende')}>
+            <Note kind="err" title={<>{t('El caso que sorprende')}<Help term="permisos" size={13} /></>}>
               {t('Si el mapa de permisos existe pero no tiene entrada para la cuenta principal, ningún respaldo pasa y la rotación no ocurre, en silencio. Con el mapa declarado, cada principal necesita su propia entrada.')}
             </Note>
           )}
@@ -329,6 +365,101 @@ function ChainsPorPerfil({ onPick, viewing, lendsTo }: { onPick: (n: string) => 
           {r.orphan && <Pill tone="err">{t('perfil borrado')}</Pill>}
         </div>
       ))}
+    </Card>
+  );
+}
+
+/**
+ * El lienzo pequeño de la cadena: cómo gira de verdad. La principal a la
+ * izquierda, cada respaldo en el orden en que se probaría, una flecha por
+ * «si se agota» y el arco de vuelta a casa, que es lo que la lista no dice: el
+ * supervisor vuelve a la principal en cuanto se libera, desde cualquier
+ * préstamo (el péndulo de `Chain.Next`). Es solo dibujo, sin estado: lo que se
+ * reordena arrastrando en la lista se ve aquí al releer.
+ */
+function ChainCanvas({ s, chain, colorOf, onOpenMap }: {
+  s: AutoStatus; chain: ChainLink[]; colorOf: (n: string) => string; onOpenMap: () => void;
+}) {
+  const NW = 132, NH = 48, GAP = 46, TOP = 52, PAD = 12;
+  const nodes = [{ name: s.primary, primary: true, blocked: false, note: t('principal') }, ...chain.map((l, i) => ({
+    name: l.profile,
+    primary: false,
+    blocked: !l.allowed || l.access !== 'ok',
+    note: !l.allowed ? t('sin permiso') : l.access !== 'ok' ? t('bloqueada') : t('respaldo {n}', { n: i + 1 }),
+  }))];
+  const x = (i: number) => PAD + i * (NW + GAP);
+  const width = x(nodes.length - 1) + NW + PAD;
+  const height = TOP + NH + (chain.length ? 34 : 30);
+  const mid = TOP + NH / 2;
+  const cx = (i: number) => x(i) + NW / 2;
+  const clip = (n: string) => (n.length > 15 ? n.slice(0, 14) + '…' : n);
+
+  return (
+    <Card shadow style={{ marginBottom: 14, padding: '14px 18px 10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+        <Label style={{ flex: 1, display: 'flex', alignItems: 'center' }}>{t('Cómo gira')}<Help term="respaldo" size={13} /><Help term="return_check" size={13} style={{ marginLeft: 4 }} /></Label>
+        <button className="btn quiet xs" onClick={onOpenMap}>{t('Abrir el lienzo completo')}</button>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          width={Math.max(width, 320)}
+          height={height}
+          role="img"
+          aria-label={chain.length
+            ? t('{p} rota a {l} en ese orden y vuelve cuando se libera', { p: s.primary, l: chain.map((l) => l.profile).join(', ') })
+            : t('{p} no tiene respaldos', { p: s.primary })}
+          style={{ display: 'block', maxWidth: '100%', fontFamily: 'inherit' }}
+        >
+          <defs>
+            <marker id="cc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--ink-4)" />
+            </marker>
+            <marker id="cc-home" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)" />
+            </marker>
+          </defs>
+
+          {chain.length > 0 && (
+            <>
+              <path
+                d={`M ${cx(nodes.length - 1)} ${TOP} C ${cx(nodes.length - 1)} 22, ${cx(0)} 22, ${cx(0)} ${TOP - 2}`}
+                fill="none" stroke="var(--accent)" strokeWidth={1.3} strokeDasharray="4 4" markerEnd="url(#cc-home)" opacity={0.85}
+              />
+              <text x={(cx(0) + cx(nodes.length - 1)) / 2} y={14} textAnchor="middle" fontSize={10.5} fill="var(--accent)">
+                {t('vuelve a {p} cuando se libera', { p: clip(s.primary) })}
+              </text>
+            </>
+          )}
+
+          {nodes.slice(1).map((_, i) => (
+            <g key={'a' + i}>
+              <line x1={x(i) + NW + 2} y1={mid} x2={x(i + 1) - 3} y2={mid} stroke="var(--ink-4)" strokeWidth={1.2} markerEnd="url(#cc-arrow)" />
+              <text x={x(i) + NW + GAP / 2} y={mid - 7} textAnchor="middle" fontSize={9} fill="var(--ink-4)">{t('se agota')}</text>
+            </g>
+          ))}
+
+          {nodes.map((n, i) => (
+            <g key={n.name + i} opacity={n.blocked ? 0.6 : 1}>
+              <rect
+                x={x(i)} y={TOP} width={NW} height={NH} rx={9}
+                fill={n.primary ? 'var(--accent-soft)' : 'var(--surface)'}
+                stroke={n.blocked ? 'var(--err)' : n.primary ? 'var(--accent-line)' : 'var(--line-strong)'}
+                strokeDasharray={n.blocked ? '4 3' : undefined}
+              />
+              <rect x={x(i) + 12} y={TOP + 14} width={8} height={8} rx={2} fill={colorOf(n.name)} />
+              <text x={x(i) + 27} y={TOP + 22} fontSize={12.5} fill="var(--ink)">{clip(n.name)}</text>
+              <text x={x(i) + 12} y={TOP + 38} fontSize={10} fill={n.blocked ? 'var(--err)' : 'var(--ink-4)'}>{n.note}</text>
+            </g>
+          ))}
+
+          <text x={PAD} y={height - 8} fontSize={10.5} fill="var(--ink-4)">
+            {chain.length
+              ? t('Se prueba de izquierda a derecha; el préstamo salta al siguiente si también se agota.')
+              : t('Sin respaldos: si {p} se agota, la sesión se detiene y espera.', { p: s.primary })}
+          </text>
+        </svg>
+      </div>
     </Card>
   );
 }

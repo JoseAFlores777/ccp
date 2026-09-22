@@ -173,7 +173,13 @@ const MCP_DEFAULT_TARGETS = 'cli,desktop';
 
 /** Alta y edición de un servidor MCP. `def` es lo que hay guardado: con él el
  *  formulario abre relleno y los secretos que no se toquen se restituyen. */
-export function mcpModal(layer: ConfigLayer, row?: McpRow, def?: Record<string, unknown>): ModalSpec {
+/** `chat`: el servidor se añade DESDE la vista del chat de Desktop de una
+ *  cuenta. Se declara en la capa de esa cuenta (`layer` es la del perfil: la
+ *  ventana es un destino de proyección, nunca una capa que declare) y sus
+ *  destinos incluyen el chat. Solo stdio, porque Desktop descarta en silencio
+ *  una entrada remota al arrancar. */
+export function mcpModal(layer: ConfigLayer, row?: McpRow, def?: Record<string, unknown>, opts: { chat?: boolean } = {}): ModalSpec {
+  const chat = !!opts.chat;
   const editing = !!row;
   const kind = String(def?.type ?? (def?.url ? 'http' : def?.command ? 'stdio' : 'stdio'));
   const known = kind === 'stdio' || kind === 'http' || kind === 'sse';
@@ -195,9 +201,17 @@ export function mcpModal(layer: ConfigLayer, row?: McpRow, def?: Record<string, 
     }
     return out;
   };
-  const mcpErrors = (b: McpBuild): string[] => [...b.errors, ...(b.errors.length ? [] : maskLost(b.config))];
+  const remoteForChat = (b: McpBuild): string[] =>
+    chat && b.config && (b.config.url || (b.config.type && b.config.type !== 'stdio'))
+      ? [t('El chat de Desktop solo carga servidores locales (stdio): una entrada con URL la descarta al arrancar.')]
+      : [];
+  const mcpErrors = (b: McpBuild): string[] => [...b.errors, ...(b.errors.length ? [] : [...maskLost(b.config), ...remoteForChat(b)])];
   return {
-    title: editing ? t('Editar {n}', { n: row.name }) : t('Nuevo servidor MCP en {l}', { l: layerLabel(layer) }),
+    title: editing
+      ? t('Editar {n}', { n: row.name })
+      : chat
+        ? t('Nuevo servidor MCP para el chat de {p}', { p: layer.name ?? '' })
+        : t('Nuevo servidor MCP en {l}', { l: layerLabel(layer) }),
     sub: t('El nombre es con el que Claude Code nombra sus herramientas (mcp__nombre__tool): sin espacios ni barras.'),
     initial: {
       name: row?.name ?? '',
@@ -208,16 +222,29 @@ export function mcpModal(layer: ConfigLayer, row?: McpRow, def?: Record<string, 
       url: String(def?.url ?? ''),
       headers: maskedLines(def?.headers as Record<string, unknown> | undefined, ': '),
       json: def && !known ? JSON.stringify(def, null, 2) : '',
+      targets: 'cli,desktop',
     },
     fields: [
       { key: 'name', label: t('Nombre'), kind: 'text', placeholder: 'figma' },
       {
         key: 'transport', label: t('Cómo se conecta'), kind: 'select',
+        options: chat
+          ? [
+            { value: 'stdio', label: t('Programa local (stdio): Desktop lo arranca') },
+            { value: 'json', label: t('Avanzado: pegar la entrada en JSON') },
+          ]
+          : [
+            { value: 'stdio', label: t('Programa local (stdio): Claude Code lo arranca') },
+            { value: 'http', label: t('Servidor remoto por HTTP (una URL)') },
+            { value: 'sse', label: t('Servidor remoto por SSE (una URL, la forma antigua)') },
+            { value: 'json', label: t('Avanzado: pegar la entrada en JSON') },
+          ],
+      },
+      {
+        key: 'targets', label: t('Dónde se usa'), kind: 'select', show: () => chat && !editing,
         options: [
-          { value: 'stdio', label: t('Programa local (stdio): Claude Code lo arranca') },
-          { value: 'http', label: t('Servidor remoto por HTTP (una URL)') },
-          { value: 'sse', label: t('Servidor remoto por SSE (una URL, la forma antigua)') },
-          { value: 'json', label: t('Avanzado: pegar la entrada en JSON') },
+          { value: 'cli,desktop', label: t('En el chat y en Claude Code (terminal y pestaña Code)') },
+          { value: 'desktop', label: t('Solo en el chat de Desktop') },
         ],
       },
       { key: 'command', label: t('Programa'), kind: 'text', show: isStdio, placeholder: 'npx' },
@@ -242,6 +269,11 @@ export function mcpModal(layer: ConfigLayer, row?: McpRow, def?: Record<string, 
         w.push(t('Un .mcp.json viaja en el repo: un secreto en claro acabaría en git. ccp lo rechaza; escribe ${VARIABLE}.'));
       }
       if (layer.level === 'desktop') w.push(t('El chat de Desktop solo carga servidores stdio y no relee el archivo en caliente.'));
+      if (chat) {
+        w.push(t('Se declara en la cuenta {p} y ccp lo escribe en la configuración del chat de su ventana.', { p: layer.name ?? '' }));
+        w.push(t('Si la ventana está abierta, el chat lo verá al reiniciarla: la app te ofrece el botón.'));
+        if (fv(f.targets) === 'desktop') w.push(t('Los destinos van por nombre: si otra cuenta declara un servidor con este mismo nombre, también dejará de llegar a su Claude Code.'));
+      }
       return w;
     },
     canConfirm: (f) => mcpErrors(buildMcp(f)).length === 0,
@@ -251,7 +283,7 @@ export function mcpModal(layer: ConfigLayer, row?: McpRow, def?: Record<string, 
       if (errs.length) return { label: t('Falta algo'), text: errs.join('\n') };
       return { label: t('Lo que se guarda'), text: JSON.stringify({ [f.name]: b.config }, null, 2) };
     },
-    cli: (f) => mcpAddCli(layer, f),
+    cli: (f) => mcpAddCli(layer, f) + (chat && fv(f.targets) === 'desktop' ? ` && ccp mcp targets ${shellQuote(f.name || '<nombre>')} desktop` : ''),
     confirmLabel: editing ? t('Guardar') : t('Añadir'),
     onConfirm: async (f) => {
       const b = buildMcp(f);
@@ -266,6 +298,9 @@ export function mcpModal(layer: ConfigLayer, row?: McpRow, def?: Record<string, 
       // veces) y el usuario creía haber renombrado uno.
       const name = f.name.trim();
       const msg = writeMsg(await api.mcpPut(layer, name, cfg));
+      // Desde el chat, «solo el chat» son destinos distintos de los de por
+      // defecto (que ya incluyen el chat): se fijan después de declararlo.
+      if (chat && !row && f.targets === 'desktop') await api.mcpSetTargets(name, ['desktop']);
       if (!row || name === row.name) return msg;
       await api.mcpDelete(layer, row.name);
       // Los destinos viven en ccp.yaml por NOMBRE, así que el nombre nuevo

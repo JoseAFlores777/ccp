@@ -3,6 +3,7 @@
 // estados con punto de color y la barra «Equivalente CLI» al pie.
 
 import { useState, type CSSProperties, type ReactNode } from 'react';
+import { Help } from './Help';
 import { copyText } from '../lib/bridge';
 import { t } from '../lib/i18n';
 import { useApp } from '../lib/store';
@@ -247,8 +248,9 @@ export function CliBar({ cmd }: { cmd: string }) {
         border: '1px solid var(--line)', borderRadius: 9, padding: '10px 14px',
       }}
     >
-      <span className="label" style={{ fontSize: 9, letterSpacing: '.12em', flex: '0 0 auto' }}>
+      <span className="label" style={{ fontSize: 9, letterSpacing: '.12em', flex: '0 0 auto', display: 'inline-flex', alignItems: 'center' }}>
         {t('Equivalente CLI')}
+        <Help term="cli" size={13} />
       </span>
       <code className="mono ellipsis selectable" style={{ fontSize: 11.5, color: 'var(--ink-2)', flex: 1 }} title={shown}>
         {shown}

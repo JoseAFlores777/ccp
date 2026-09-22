@@ -12,6 +12,7 @@ import { ago, bytes, shortUUID, tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, Chips, CliBar, Empty, ErrorNote, Loading, Note, Row, Segmented, TableHead } from '../components/ui';
+import { Help } from '../components/Help';
 import { Prestamos } from './Prestamos';
 
 type Filter = 'here' | 'all' | 'desktop' | 'loaned' | 'archived';
@@ -42,8 +43,10 @@ export function Conversaciones({ profile: fixed, view: routeView }: { profile?: 
           { value: 'list', label: t('Conversaciones') },
           { value: 'loans', label: t('Préstamos') },
         ]}
-        style={{ marginBottom: 14 }}
+        style={{ marginBottom: 14, display: 'inline-flex' }}
       />
+      <Help term="conversacion" size={14} style={{ marginLeft: 10 }} />
+      <Help term="prestamo" size={14} style={{ marginLeft: 4 }} />
       {view === 'loans' ? <Prestamos profile={fixed} /> : <Lista fixed={fixed} />}
     </div>
   );
