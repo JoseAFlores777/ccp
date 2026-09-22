@@ -53,6 +53,8 @@ func dispatchDesktop(args []string, stdout, stderr io.Writer) int {
 		return desktopPath(rest, stdout, stderr)
 	case "prepare":
 		return desktopPrepare(rest, stdout, stderr)
+	case "restart":
+		return desktopRestart(rest, stdout, stderr)
 	case "rm":
 		return desktopRm(rest, stdout, stderr)
 	case "sessions":

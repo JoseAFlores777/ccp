@@ -789,7 +789,7 @@ export const api = {
 
   desktop: () => ccpCall<DesktopRow[]>('desktop.list'),
   desktopDoctor: (profile?: string) => ccpCall<Finding[]>('desktop.doctor', { profile }),
-  desktopRun: (p: { action: 'open' | 'app' | 'app_rm' | 'prepare' | 'rm'; profile: string; color?: string; label?: string; plain?: boolean; force?: boolean }) =>
+  desktopRun: (p: { action: 'open' | 'app' | 'app_rm' | 'prepare' | 'rm' | 'restart'; profile: string; color?: string; label?: string; plain?: boolean; force?: boolean }) =>
     ccpCall<CliRun>('desktop.run', p),
 
   diag: () => ccpCall<Finding[]>('diag.run'),

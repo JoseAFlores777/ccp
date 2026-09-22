@@ -928,6 +928,11 @@ export const en: Record<string, string> = {
   // Cadenas por perfil (auto_handoff.chains)
   "Cadena de {p}": "{p}'s chain",
   "Cadena de": "Chain of",
+  "Reiniciar la ventana": "Restart the window",
+  "Reiniciar {p}": "Restart {p}",
+  "Ventana de {p} reiniciada": "{p}'s window restarted",
+  "Reiniciar": "Restart",
+  "Cierra la ventana de {p} y la vuelve a abrir: es lo que hace que el chat cargue los MCP nuevos": "Closes {p}'s window and opens it again: that is what makes the chat load the new MCP servers",
   "Cadena de {p}: {a} pasa a {b}.": "{p}'s chain: {a} becomes {b}.",
   "Tu ccp no sabe cambiar de cuenta aquí": "Your ccp cannot switch accounts here",
   "Lo de abajo es la cadena de {p}, la de esta carpeta, no la que elegiste. Actualiza con ccp upgrade y vuelve a abrir la app.": "What you see below is {p}'s chain — this folder's, not the one you picked. Update with ccp upgrade and reopen the app.",
