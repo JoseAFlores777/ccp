@@ -1,12 +1,18 @@
 // P-07 Conversaciones — todas las sesiones, de terminal y de Desktop, de
-// todas las cuentas. Se busca por título.
+// todas las cuentas. Se busca por título. Los préstamos (P-09) son una vista
+// de esta misma pantalla, no otra: son conversaciones en un estado concreto, y
+// «Mover» es una acción de cada fila.
+//
+// Con `profile` es la pestaña de una cuenta: solo las suyas, en todas las
+// carpetas, y sin selector de cuenta.
 
 import { useMemo, useState } from 'react';
 import { api, type Conversation } from '../lib/api';
 import { ago, bytes, shortUUID, tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
-import { Card, Chips, CliBar, Empty, ErrorNote, Loading, Note, Row, TableHead } from '../components/ui';
+import { Card, Chips, CliBar, Empty, ErrorNote, Loading, Note, Row, Segmented, TableHead } from '../components/ui';
+import { Prestamos } from './Prestamos';
 
 type Filter = 'here' | 'all' | 'desktop' | 'loaned' | 'archived';
 
@@ -17,11 +23,38 @@ export function whereLabel(c: Conversation): string {
 
 const COLS = '2fr 1fr 1.1fr 1fr 1fr';
 
-export function Conversaciones() {
+type View = 'list' | 'loans';
+
+export function Conversaciones({ profile: fixed, view: routeView }: { profile?: string; view?: View } = {}) {
+  const app = useApp();
+  const { go } = app;
+  // En «General» la vista es la ruta (conv / prestamos), para que los enlaces a
+  // «Préstamos» sigan llegando; dentro de una cuenta es estado local.
+  const [localView, setLocalView] = useState<View>('list');
+  const view = fixed ? localView : routeView ?? 'list';
+  const setView = (v: View) => (fixed ? setLocalView(v) : go(v === 'loans' ? 'prestamos' : 'conv'));
+  return (
+    <div>
+      <Segmented<View>
+        value={view}
+        onChange={setView}
+        options={[
+          { value: 'list', label: t('Conversaciones') },
+          { value: 'loans', label: t('Préstamos') },
+        ]}
+        style={{ marginBottom: 14 }}
+      />
+      {view === 'loans' ? <Prestamos profile={fixed} /> : <Lista fixed={fixed} />}
+    </div>
+  );
+}
+
+function Lista({ fixed }: { fixed?: string }) {
   const app = useApp();
   const { folder, colorOf, startMove, selected } = app;
-  const [filter, setFilter] = useState<Filter>('here');
-  const [profile, setProfile] = useState<string>('');
+  const [filter, setFilter] = useState<Filter>(fixed ? 'all' : 'here');
+  const [picked, setProfile] = useState<string>('');
+  const profile = fixed ?? picked;
   const [q, setQ] = useState('');
 
   const res = useCall(
@@ -60,13 +93,15 @@ export function Conversaciones() {
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         <input className="input" style={{ fontFamily: 'inherit', flex: 1 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('Buscar por título…')} />
-        <select className="input" style={{ width: 200 }} value={profile} onChange={(e) => setProfile(e.target.value)}>
-          <option value="">{t('Todas las cuentas')}</option>
-          {app.profiles.map((p) => (
-            <option key={p.name} value={p.name}>{p.name}</option>
-          ))}
-        </select>
-        {profile !== selected && app.profiles.some((p) => p.name === selected) && selected !== 'default' && !profile && (
+        {!fixed && (
+          <select className="input" style={{ width: 200 }} value={profile} onChange={(e) => setProfile(e.target.value)}>
+            <option value="">{t('Todas las cuentas')}</option>
+            {app.profiles.map((p) => (
+              <option key={p.name} value={p.name}>{p.name}</option>
+            ))}
+          </select>
+        )}
+        {!fixed && profile !== selected && app.profiles.some((p) => p.name === selected) && selected !== 'default' && !profile && (
           <button className="btn" onClick={() => setProfile(selected)}>{t('Solo {p}', { p: selected })}</button>
         )}
       </div>
@@ -121,7 +156,7 @@ export function Conversaciones() {
       <Note style={{ marginTop: 14 }}>
         {t('Una conversación que vive en varias cuentas sale una vez por cuenta: son copias independientes, con el mismo uuid. «Mover» copia o presta, nunca borra el original.')}
       </Note>
-      <CliBar cmd={filter === 'here' ? 'ccp handoff sessions --json && ccp desktop sessions' : 'ccp desktop sessions'} />
+      <CliBar cmd={fixed ? `ccp desktop sessions ${fixed}` : filter === 'here' ? 'ccp handoff sessions --json && ccp desktop sessions' : 'ccp desktop sessions'} />
     </div>
   );
 }

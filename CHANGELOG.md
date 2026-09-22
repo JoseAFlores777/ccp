@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+## [2.24.0] — la cuenta es la puerta de entrada
+
+La app pedía elegir la cuenta en cada pantalla, y cada pantalla lo hacía a su manera: unas miraban el perfil
+seleccionado, otras la carpeta de arriba y otras tenían su propio desplegable, que además arrancaba en un
+sitio distinto en cada una. Los atajos del detalle decían «sus conversaciones» y abrían todas.
+
+- **La barra lateral es Inicio · Cuentas · General.** Cada cuenta es una entrada; al abrirla, todo lo suyo
+  vive en pestañas: Resumen, Carpetas, Conversaciones, Rotación, Configuración, Desktop y Memoria. Cada
+  pestaña es la misma pantalla que en General, fijada a esa cuenta y sin un segundo selector que pueda
+  contradecir a la barra lateral. En General queda lo que cruza cuentas o es de la máquina.
+- **Préstamos es una vista de Conversaciones**, no otra pantalla, y «Mover» es una acción de cada fila. La
+  rotación de una cuenta enseña también a quién respalda ella. Desaparece la vista efectiva suelta (P-05): ya
+  era el interruptor «Efectivo» de Configuración.
+- **«Sincronizar ahora» en Nube** (y en ⌘K): guarda un snapshot si cambió algo y sube lo que falte, con un
+  método nuevo de `serve`, `cloud.sync`. Solo `push` no bastaba: un cambio de hace un minuto no viajaba y la
+  pantalla decía «todo subido».
+- **Actualizar ccp reinicia lo que hace falta.** Por defecto, después de instalar la versión nueva la app se
+  cierra y se vuelve a abrir, y desde la app nueva se reinician las ventanas de Desktop de tus cuentas que
+  estaban abiertas, para que su lanzador se reconstruya con el ccp nuevo (con la ventana abierta no se
+  reconstruye nunca). Tu Claude principal (`default`) no se toca.
+
 ## [2.23.1] — «aún sin muestra» tenía dos causas y solo una tiene arreglo
 
 Con 2.23.0 el sensor ya dejaba constancia de que había corrido, pero seguía habiendo un silencio que valía

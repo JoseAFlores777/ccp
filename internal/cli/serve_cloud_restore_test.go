@@ -83,3 +83,52 @@ func TestServeCloudRestorePideElSnapshot(t *testing.T) {
 	}
 	_ = json.Unmarshal(got["1"].Result, &params)
 }
+
+// TestServeCloudSyncCapturaYSube: el botón «Sincronizar» captura lo que cambió
+// y lo sube en un paso. Sin la captura, un cambio de hace un minuto no viajaría
+// y la pantalla diría «todo subido»; la segunda pulsación, sin cambios, no
+// inventa un snapshot nuevo ni sube nada.
+func TestServeCloudSyncCapturaYSube(t *testing.T) {
+	url := cloudServer(t)
+	_, src := snapEnv(t)
+	t.Setenv("CCP_DESKTOP_APPS_DIR", t.TempDir())
+	cloudUp(t, url)
+
+	type syncRes struct {
+		Captured bool `json:"captured"`
+		Push     struct {
+			Snapshots int `json:"snapshots"`
+		} `json:"push"`
+	}
+	_, got := serveRun(t, req(1, "cloud.sync", nil))
+	var r syncRes
+	mustResult(t, got["1"], &r)
+	if !r.Captured || r.Push.Snapshots != 1 {
+		t.Fatalf("la primera sincronización captura y sube uno: %+v", r)
+	}
+
+	_, got = serveRun(t, req(2, "cloud.sync", nil))
+	mustResult(t, got["2"], &r)
+	if r.Captured || r.Push.Snapshots != 0 {
+		t.Fatalf("sin cambios no hay snapshot nuevo ni subida: %+v", r)
+	}
+
+	if err := os.WriteFile(filepath.Join(src, "settings.json"), []byte(`{"theme":"light-sync"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, got = serveRun(t, req(3, "cloud.sync", nil))
+	mustResult(t, got["3"], &r)
+	if !r.Captured || r.Push.Snapshots != 1 {
+		t.Fatalf("un cambio vivo tiene que viajar sin crear el snapshot a mano: %+v", r)
+	}
+}
+
+// Sin sesión, sincronizar falla con un error (la GUI ofrece la terminal), no
+// con un «todo subido» vacío.
+func TestServeCloudSyncSinSesion(t *testing.T) {
+	serveEnv(t)
+	_, got := serveRun(t, req(1, "cloud.sync", nil))
+	if got["1"].Error == nil {
+		t.Fatalf("sin sesión cloud.sync tiene que dar error: %+v", got["1"])
+	}
+}

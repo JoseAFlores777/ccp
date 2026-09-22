@@ -7,7 +7,7 @@
 // la operación inversa en el motor, no una foto de la pantalla.
 
 import { api, type ActiveLoan, type AutoStatus, type CliRun, type DesktopRow, type Profile, type Rule, type SettingsDrift } from './api';
-import { shellJoin, shellPath, tilde } from './format';
+import { bytes, shellJoin, shellPath, tilde } from './format';
 import { t } from './i18n';
 import type { Ctx, Field, ModalSpec } from './store';
 
@@ -112,7 +112,7 @@ export function newProfileModal(app: Ctx, init: { type?: string } = {}): ModalSp
         name, type: f.type,
         ...(prov ? { base_url: f.base_url, model_pro: f.model_pro, model_flash: f.model_flash, effort: f.effort } : {}),
       });
-      app.select(name, 'perfil');
+      app.openProfile(name, 'resumen');
       return t('Cuenta {n} creada', { n: name });
     },
   };
@@ -748,4 +748,20 @@ export function windowDeleteModal(row: DesktopRow): ModalSpec {
       return t('Instancia de {n} borrada', { n: name });
     },
   };
+}
+
+// --- nube ---
+
+/** Sincronizar = capturar lo que cambió + subir lo que falte (cloud.sync). El
+ *  mensaje dice qué pasó de verdad: «nada nuevo» no es lo mismo que «subido». */
+export async function syncCloud(mutate: Ctx['mutate']) {
+  return mutate(() => api.cloudSync(), {
+    msg: (r) => {
+      const p = r.push;
+      if (p.snapshots === 0) return t('La nube ya tenía todo: no había cambios que subir');
+      const base = t('Subido a la nube: {n} snapshots, {f} archivos ({b})', { n: p.snapshots, f: p.uploaded, b: bytes(p.bytes) });
+      const skipped = p.missing.length + p.too_large.length;
+      return skipped ? `${base} · ${t('{n} archivos no se pudieron subir', { n: skipped })}` : base;
+    },
+  });
 }

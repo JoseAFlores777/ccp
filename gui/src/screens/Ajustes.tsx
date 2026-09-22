@@ -8,6 +8,7 @@ import { pickOpenFile, pickSaveFile, revealPath } from '../lib/bridge';
 import { shellPath, tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall, type ModalSpec } from '../lib/store';
+import { restartAfterUpgrade, type AfterUpgrade } from '../lib/upgrade';
 import { Card, Checkbox, CliBar, CommandOutput, KV, Label, Note, Segmented } from '../components/ui';
 
 function SettingRow({ label, desc, value, children }: { label: string; desc: ReactNode; value?: ReactNode; children?: ReactNode }) {
@@ -71,7 +72,7 @@ function editorModal(cfg: ConfigInfo): ModalSpec {
 function upgradeModal(onRun: (r: CliRun) => void): ModalSpec {
   return {
     title: t('Actualizar ccp'),
-    initial: { source: 'release' },
+    initial: { source: 'release', after: 'all' },
     fields: [
       {
         key: 'source', label: t('De dónde'), kind: 'select',
@@ -81,11 +82,22 @@ function upgradeModal(onRun: (r: CliRun) => void): ModalSpec {
           { value: 'pull', label: t('Actualizar el repo con git pull y compilarlo') },
         ],
       },
+      {
+        key: 'after', label: t('Al terminar'), kind: 'select',
+        options: [
+          { value: 'all', label: t('Reiniciar la app y las ventanas de Desktop abiertas') },
+          { value: 'app', label: t('Reiniciar solo la app') },
+          { value: 'none', label: t('No reiniciar nada') },
+        ],
+      },
     ],
-    warns: [
-      t('Vuelve a ejecutar el instalador y después resincroniza todos los perfiles.'),
-      t('Los lanzadores de Desktop se ponen al día en su siguiente arranque.'),
-      t('La app sigue usando el ccp con el que arrancó hasta que la reinicies.'),
+    warns: (f) => [
+      t('Descarga e instala la versión nueva y después resincroniza todos los perfiles.'),
+      f.after === 'all'
+        ? t('La app se cierra y se vuelve a abrir. Después, las ventanas de Desktop de tus cuentas que estén abiertas se cierran y se reabren con el lanzador al día: guarda antes lo que tengas a medias en ellas. Tu Claude principal (default) no se toca.')
+        : f.after === 'app'
+          ? t('La app se cierra y se vuelve a abrir. Las ventanas de Desktop abiertas siguen con la versión de antes hasta que las reinicies.')
+          : t('La app sigue usando el ccp con el que arrancó hasta que la reinicies, y las ventanas de Desktop abiertas hasta su siguiente arranque.'),
     ],
     confirmLabel: t('Actualizar'),
     cli: (f) => ['ccp upgrade', f.source === 'source' ? '--from-source' : '', f.source === 'pull' ? '--from-source --pull' : ''].filter(Boolean).join(' '),
@@ -93,7 +105,7 @@ function upgradeModal(onRun: (r: CliRun) => void): ModalSpec {
       const r = await api.system('upgrade', f.source !== 'release', f.source === 'pull');
       onRun(r);
       must(r);
-      return t('ccp actualizado. Reinicia la app para usar la versión nueva.');
+      return restartAfterUpgrade((f.after as AfterUpgrade) || 'all');
     },
   };
 }
@@ -177,7 +189,7 @@ export function Ajustes() {
 
         <SettingRow
           label={t('Actualizar ccp')}
-          desc={t('Después resincroniza los perfiles; los lanzadores se ponen al día en su siguiente arranque.')}
+          desc={t('Descarga la versión nueva, resincroniza los perfiles y reinicia la app y las ventanas de Desktop abiertas para que usen la versión nueva.')}
           value={info ? `v${info.version.replace(/^v/, '')}` : ''}
         >
           <button className="btn" onClick={() => openModal(upgradeModal(setRun))}>{t('Actualizar')}</button>

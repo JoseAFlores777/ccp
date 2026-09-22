@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CloudOutcome, CloudPending, CloudStatus, Danger, DevicePolicy } from '../lib/api';
 import { api } from '../lib/api';
 import { ago, clock } from '../lib/format';
+import { syncCloud } from '../lib/actions';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, CardHead, Checkbox, CliBar, Empty, ErrorNote, KV, Loading, Note, Pill, Segmented } from '../components/ui';
@@ -44,7 +45,8 @@ function vaultLabel(v: CloudStatus['vault']): [string, 'accent' | 'warn' | 'err'
 /** La cuenta y la bóveda. Las dos acciones que piden un secreto abren Terminal:
  *  ni la contraseña de la cuenta ni la frase de bóveda pasan por la app. */
 function Cuenta({ st, reload }: { st: CloudStatus | null; reload: () => void }) {
-  const { openSheet } = useApp();
+  const { openSheet, mutate } = useApp();
+  const [syncing, setSyncing] = useState(false);
   const [vlabel, vtone] = vaultLabel(st?.vault ?? 'unknown');
   const term = (title: string, why: string, cmd: string[]) =>
     openSheet({ title, why, cwd: null, cmds: [cmd], after: t('Al volver, pulsa «Volver a mirar».') });
@@ -107,6 +109,21 @@ function Cuenta({ st, reload }: { st: CloudStatus | null; reload: () => void }) 
         )}
         {st?.vault === 'unlocked' && (
           <button
+            className="btn primary"
+            disabled={syncing}
+            title={t('Guarda un snapshot si cambió algo y sube a la nube todo lo que aún no está arriba')}
+            onClick={async () => {
+              setSyncing(true);
+              await syncCloud(mutate);
+              setSyncing(false);
+              reload();
+            }}
+          >
+            {syncing ? t('Sincronizando…') : t('Sincronizar ahora')}
+          </button>
+        )}
+        {st?.vault === 'unlocked' && (
+          <button
             className="btn"
             onClick={() => term(t('Rotar las claves de acceso'),
               t('Cambia la frase de bóveda y el código de recuperación sin tocar la clave de cuenta: lo que ya subiste se sigue abriendo. Los equipos ya desbloqueados lo siguen estando, incluido uno que hayas revocado si se quedó con una copia. Se hace en una terminal porque la frase nueva no pasa por esta app.'),
@@ -119,7 +136,7 @@ function Cuenta({ st, reload }: { st: CloudStatus | null; reload: () => void }) 
           <Note kind="unk">{t('No se pudo preguntar al servidor por la bóveda: cuenta como desconocida, no como ausente.')}</Note>
         )}
       </div>
-      <CliBar cmd="ccp cloud status" />
+      <CliBar cmd={st?.vault === 'unlocked' ? 'ccp snapshot create && ccp cloud push' : 'ccp cloud status'} />
     </Card>
   );
 }

@@ -1,5 +1,7 @@
 // P-09 Préstamos — conversaciones prestadas, cómo devolverlas y los
-// marcadores que quedaron colgados.
+// marcadores que quedaron colgados. Vive dentro de Conversaciones; con
+// `profile` enseña solo los préstamos en los que participa esa cuenta, sea
+// quien presta, quien recibe o un salto de la rotación.
 
 import { api, type ActiveLoan } from '../lib/api';
 import { discardLoanModal, openLoanEnd, openLoanResume, pruneModal } from '../lib/actions';
@@ -15,12 +17,13 @@ function loanMeta(l: ActiveLoan): string {
   return `${since} · ${t('transcript presente en el destino')}`;
 }
 
-export function Prestamos() {
+export function Prestamos({ profile }: { profile?: string } = {}) {
   const app = useApp();
   const { openModal, colorOf, go } = app;
   const res = useCall(() => api.handoffs(), [], 30_000);
-  const active = res.data?.active ?? [];
-  const archived = res.data?.archived ?? [];
+  const active = (res.data?.active ?? []).filter((l) => !profile || l.from === profile || l.to === profile || l.hops.includes(profile));
+  const allArchived = res.data?.archived ?? [];
+  const archived = allArchived.filter((h) => !profile || h.from === profile || h.to === profile);
 
   return (
     <div>
@@ -102,11 +105,11 @@ export function Prestamos() {
         )}
         <div style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 300, flex: 1 }}>
-            {archived.length > 50
-              ? t('Recortar deja los 50 más recientes: se quitarían {n} y quedarían 50.', { n: archived.length - 50 })
-              : t('{n} entradas. Recortar solo toca el rastro, nunca una conversación.', { n: archived.length })}
+            {allArchived.length > 50
+              ? t('Recortar deja los 50 más recientes: se quitarían {n} y quedarían 50.', { n: allArchived.length - 50 })
+              : t('{n} entradas. Recortar solo toca el rastro, nunca una conversación.', { n: allArchived.length })}
           </span>
-          <button className="btn" disabled={archived.length === 0} onClick={() => openModal(pruneModal(archived.length))}>
+          <button className="btn" disabled={allArchived.length === 0} onClick={() => openModal(pruneModal(allArchived.length))}>
             {t('Recortar…')}
           </button>
         </div>

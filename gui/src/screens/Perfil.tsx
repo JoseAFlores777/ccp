@@ -1,5 +1,9 @@
-// P-04 Detalle — todo lo de una cuenta en un sitio: acceso, proveedor,
-// carpetas, uso, atajos y la zona de riesgo.
+// P-04 La cuenta — la puerta de entrada. Todo lo de una cuenta cuelga de aquí,
+// en pestañas: resumen (acceso, uso, zona de riesgo), sus carpetas, sus
+// conversaciones, su cadena de rotación, su configuración, su ventana de
+// Desktop y su memoria. Cada pestaña es la MISMA pantalla que en «General»,
+// fijada a esta cuenta con la prop `profile`: una sola implementación, sin un
+// segundo selector que pueda contradecir al de la barra lateral.
 
 import { api, type Profile, type UsageWindow } from '../lib/api';
 import {
@@ -7,9 +11,15 @@ import {
 } from '../lib/actions';
 import { ago, clock, pct, tilde } from '../lib/format';
 import { t } from '../lib/i18n';
-import { useApp, useCall } from '../lib/store';
+import { useApp, useCall, type ProfileTab } from '../lib/store';
 import { Bar, Card, CardHead, CliBar, KV, Label, Note, Pill, ShortcutButton, toneColors, usageColor } from '../components/ui';
+import { profileTabs } from '../components/Shell';
 import { desktopLabel } from './Perfiles';
+import { Configuracion } from './Configuracion';
+import { Conversaciones } from './Conversaciones';
+import { Desktop } from './Desktop';
+import { Memoria } from './Memoria';
+import { Rotacion } from './Rotacion';
 
 function UsageBlock({ label, w, sampled }: { label: string; w: UsageWindow | undefined; sampled?: string }) {
   return (
@@ -30,12 +40,87 @@ function UsageBlock({ label, w, sampled }: { label: string; w: UsageWindow | und
 
 export function Perfil() {
   const app = useApp();
-  const { profiles, selected, select, openModal, go, colorOf } = app;
+  const { profiles, selected, tab, setTab } = app;
   const p: Profile | undefined = profiles.find((x) => x.name === selected) ?? profiles[0];
+  if (!p) return null;
+  const tabs = profileTabs(p);
+  // Una pestaña que esta cuenta no tiene (Desktop en un proveedor) cae al resumen
+  // en vez de pintar una vista vacía.
+  const current: ProfileTab = tabs.some(([k]) => k === tab) ? tab : 'resumen';
+
+  return (
+    <div>
+      <div className="tabs" role="tablist">
+        {tabs.map(([k, label]) => (
+          <button key={k} role="tab" aria-selected={k === current} className={k === current ? 'on' : ''} onClick={() => setTab(k)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {/* `key` por cuenta: cambiar de cuenta en la barra lateral remonta la
+          pestaña, así no arrastra filtros ni borradores de la anterior. */}
+      <div key={p.name + ':' + current}>
+        {current === 'resumen' && <Resumen p={p} />}
+        {current === 'carpetas' && <CarpetasDeCuenta p={p} />}
+        {current === 'conv' && <Conversaciones profile={p.name} />}
+        {current === 'rotacion' && <Rotacion profile={p.name} />}
+        {current === 'config' && <Configuracion profile={p.name} />}
+        {current === 'desktop' && <Desktop profile={p.name} />}
+        {current === 'memoria' && <Memoria profile={p.name} />}
+      </div>
+    </div>
+  );
+}
+
+function CarpetasDeCuenta({ p }: { p: Profile }) {
+  const app = useApp();
+  const { openModal } = app;
+  const rules = useCall(() => api.rules(), []);
+  const isDefault = p.name === 'default';
+  const mine = (rules.data ?? []).filter((r) => r.profile === p.name);
+  return (
+    <div>
+      <Card pad={false} clip shadow>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px 12px' }}>
+          <span className="label" style={{ flex: 1 }}>{t('Carpetas de esta cuenta')}</span>
+          <button className="btn sm" onClick={() => openModal(newRuleModal(app, rules.data ?? [], { profile: p.name }))}>
+            {t('Añadir')}
+          </button>
+        </div>
+        {rules.data && mine.length === 0 && (
+          <div style={{ padding: '4px 20px 16px', fontSize: 12, color: 'var(--ink-4)', fontWeight: 300 }}>
+            {isDefault
+              ? t('default no necesita reglas: es lo que usa toda carpeta sin regla. Una regla a default sirve para hacer una excepción dentro de otra carpeta.')
+              : t('Ninguna carpeta usa esta cuenta todavía.')}
+          </div>
+        )}
+        {mine.map((r) => (
+          <div key={r.path} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px', borderTop: '1px solid var(--line-soft)' }}>
+            <span className="mono ellipsis" style={{ fontSize: 11.5, color: 'var(--ink-2)', flex: 1 }}>{tilde(r.path)}</span>
+            {!r.exists && <Pill tone="warn">{t('no existe')}</Pill>}
+            <span style={{ fontSize: 11, color: 'var(--ink-4)', fontWeight: 300 }}>
+              {r.parent ? t('excepción dentro de {p}', { p: tilde(r.parent) }) : t('y sus subcarpetas')}
+            </span>
+            <button className="btn quiet danger sm" onClick={() => openModal(deleteRuleModal(r))}>
+              {t('Quitar')}
+            </button>
+          </div>
+        ))}
+      </Card>
+      <Note style={{ marginTop: 14 }}>
+        {t('Una carpeta usa la cuenta de su regla más cercana hacia arriba. Para ver todas las reglas juntas, o probar qué cuenta le toca a una carpeta, ve a General → Carpetas.')}
+      </Note>
+      <CliBar cmd={`ccp path list | grep ${p.name}`} />
+    </div>
+  );
+}
+
+function Resumen({ p }: { p: Profile }) {
+  const app = useApp();
+  const { openModal, setTab } = app;
   const rules = useCall(() => api.rules(), []);
   const chains = useCall(() => api.autoStatus(app.folder), [app.folder]);
 
-  if (!p) return null;
   const acc = accessInfo(p);
   const prov = isProvider(p.type);
   const isDefault = p.name === 'default';
@@ -48,14 +133,6 @@ export function Perfil() {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        {profiles.map((x) => (
-          <button key={x.name} className={`chip ${x.name === p.name ? 'on' : ''}`} onClick={() => select(x.name)} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <span className="swatch" style={{ background: colorOf(x.name), width: 7, height: 7 }} />
-            {x.name}
-          </button>
-        ))}
-      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.5fr) minmax(0,1fr)', gap: 14 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <Card shadow>
@@ -93,34 +170,6 @@ export function Perfil() {
               />
             </Card>
           )}
-
-          <Card pad={false} clip shadow>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px 12px' }}>
-              <span className="label" style={{ flex: 1 }}>{t('Carpetas de esta cuenta')}</span>
-              <button className="btn sm" onClick={() => openModal(newRuleModal(app, rules.data ?? [], { profile: p.name }))}>
-                {t('Añadir')}
-              </button>
-            </div>
-            {mine.length === 0 && (
-              <div style={{ padding: '4px 20px 16px', fontSize: 12, color: 'var(--ink-4)', fontWeight: 300 }}>
-                {isDefault
-                  ? t('default no necesita reglas: es lo que usa toda carpeta sin regla. Una regla a default sirve para hacer una excepción dentro de otra carpeta.')
-                  : t('Ninguna carpeta usa esta cuenta todavía.')}
-              </div>
-            )}
-            {mine.map((r) => (
-              <div key={r.path} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px', borderTop: '1px solid var(--line-soft)' }}>
-                <span className="mono ellipsis" style={{ fontSize: 11.5, color: 'var(--ink-2)', flex: 1 }}>{tilde(r.path)}</span>
-                {!r.exists && <Pill tone="warn">{t('no existe')}</Pill>}
-                <span style={{ fontSize: 11, color: 'var(--ink-4)', fontWeight: 300 }}>
-                  {r.parent ? t('excepción dentro de {p}', { p: tilde(r.parent) }) : t('y sus subcarpetas')}
-                </span>
-                <button className="btn quiet danger sm" onClick={() => openModal(deleteRuleModal(r))}>
-                  {t('Quitar')}
-                </button>
-              </div>
-            ))}
-          </Card>
 
           {!isDefault && (
             <div className="card pad" style={{ borderColor: 'var(--err-soft)' }}>
@@ -173,22 +222,29 @@ export function Perfil() {
           </Card>
 
           <Card>
-            <Label style={{ marginBottom: 12 }}>{t('Atajos')}</Label>
+            <Label style={{ marginBottom: 12 }}>{t('De un vistazo')}</Label>
+            {/* Cada fila abre la pestaña de ESTA cuenta, no una pantalla general
+                que después hubiera que volver a filtrar. */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-              {p.desktop.eligible && (
-                <ShortcutButton onClick={() => go('desktop')}>
-                  {t('Su ventana de Desktop')} <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--ink-4)' }}>{desktopLabel(p)}</span>
-                </ShortcutButton>
-              )}
-              <ShortcutButton onClick={() => go('rotacion')}>
+              <ShortcutButton onClick={() => setTab('carpetas')}>
+                {t('Carpetas')}
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--ink-4)' }}>
+                  {rules.data ? (mine.length ? t('{n} reglas', { n: mine.length }) : isDefault ? t('todo lo que no tiene regla') : t('ninguna')) : ''}
+                </span>
+              </ShortcutButton>
+              <ShortcutButton onClick={() => setTab('conv')}>{t('Conversaciones')}</ShortcutButton>
+              <ShortcutButton onClick={() => setTab('rotacion')}>
                 {t('Rotación')}
                 <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--ink-4)' }}>
                   {p.in_chain ? t('en una cadena') : chains.data?.primary === p.name ? t('principal aquí') : t('fuera de cadenas')}
                 </span>
               </ShortcutButton>
-              <ShortcutButton onClick={() => go('conv')}>{t('Sus conversaciones')}</ShortcutButton>
-              <ShortcutButton onClick={() => go('config')}>{t('Configuración efectiva')}</ShortcutButton>
-              <ShortcutButton onClick={() => go('memoria')}>{t('Memoria de Claude')}</ShortcutButton>
+              <ShortcutButton onClick={() => setTab('config')}>{t('Configuración')}</ShortcutButton>
+              {p.desktop.eligible && (
+                <ShortcutButton onClick={() => setTab('desktop')}>
+                  {t('Ventana de Desktop')} <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--ink-4)' }}>{desktopLabel(p)}</span>
+                </ShortcutButton>
+              )}
             </div>
           </Card>
 

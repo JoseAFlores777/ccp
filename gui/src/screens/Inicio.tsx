@@ -16,12 +16,12 @@ export function sampleAge(p: Profile): string {
 }
 
 function ProfileTile({ p }: { p: Profile }) {
-  const { select, colorOf } = useApp();
+  const { openProfile, colorOf } = useApp();
   const acc = accessInfo(p);
   const c = toneColors(acc.tone);
   const u5 = p.usage?.five_hour;
   return (
-    <button className="tile" onClick={() => select(p.name, 'perfil')}>
+    <button className="tile" onClick={() => openProfile(p.name, 'resumen')}>
       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <Swatch color={colorOf(p.name)} />
         <span className="ellipsis" style={{ fontSize: 13.5, color: 'var(--ink)', flex: 1 }}>
@@ -93,7 +93,7 @@ export function MiniMap({ st, loans }: { st: AutoStatus | undefined; loans: Hand
 
 export function Inicio() {
   const app = useApp();
-  const { folder, profiles, go, select } = app;
+  const { folder, profiles, go, openProfile } = app;
   const here = useCall(() => api.resolve(folder), [folder]);
   const diag = useCall(() => api.diag(), []);
   const loans = useCall(() => api.handoffs(), [], 30_000);
@@ -177,7 +177,7 @@ export function Inicio() {
                   {t('Su cadena de respaldo')}
                 </button>
                 {here.data.profile !== 'default' && (
-                  <button className="btn ghost" onClick={() => select(here.data!.profile, 'perfil')}>
+                  <button className="btn ghost" onClick={() => openProfile(here.data!.profile, 'resumen')}>
                     {t('La cuenta')}
                   </button>
                 )}
@@ -211,7 +211,7 @@ export function Inicio() {
                   title={d.title}
                   sub={f.code}
                   onClick={() => {
-                    if (d.action?.go === 'perfil' && f.profile) select(f.profile, 'perfil');
+                    if (d.action?.go === 'perfil' && f.profile) openProfile(f.profile, 'resumen');
                     else go('diag');
                   }}
                 />

@@ -199,3 +199,13 @@ mod tests {
         );
     }
 }
+
+/// Cierra la app y la vuelve a abrir. Es el último paso de «Actualizar ccp»:
+/// el puente elige el binario al arrancar, así que hasta reiniciar la app
+/// seguiría hablando con el `ccp serve` viejo. El hijo `ccp serve` muere con el
+/// proceso (se queda sin stdin), y el nuevo arranque elige el binario recién
+/// instalado.
+#[tauri::command]
+pub fn restart_app(app: tauri::AppHandle) {
+    app.restart();
+}

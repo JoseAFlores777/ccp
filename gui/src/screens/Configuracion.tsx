@@ -8,6 +8,10 @@
 // secreto en claro de un .mcp.json, lo que proyecta ccp— son las mismas que en
 // la terminal. Tras cada escritura, core regenera y proyecta; aquí solo se
 // cuenta qué ventana se queda con los MCP de antes hasta reiniciarla.
+//
+// Con `profile` es la pestaña Configuración de una cuenta: solo sus capas (la
+// del perfil y, si la tiene, la de su ventana), sin selector de cuenta. Lo
+// global y lo de proyecto siguen en General → Configuración.
 
 import { useMemo, useState } from 'react';
 import { api, type CfgType, type ConfigItem, type ConfigLayer } from '../lib/api';
@@ -31,10 +35,13 @@ function levelName(l: Level): string {
   return { global: t('Global'), profile: t('Perfil'), project: t('Proyecto'), desktop: t('Ventana') }[l];
 }
 
-export function Configuracion() {
-  const { profiles, selected, folder, openModal, colorOf, mutate } = useApp();
-  const [level, setLevel] = useState<Level>('global');
-  const [profile, setProfile] = useState(selected || 'default');
+export function Configuracion({ profile: fixed }: { profile?: string } = {}) {
+  const { profiles, selected, folder, openModal, colorOf, mutate, go } = useApp();
+  const [level, setLevel] = useState<Level>(fixed ? 'profile' : 'global');
+  const [picked, setProfile] = useState(selected || 'default');
+  const profile = fixed ?? picked;
+  const eligible = profiles.find((p) => p.name === profile)?.desktop.eligible ?? false;
+  const levels: Level[] = fixed ? (eligible ? ['profile', 'desktop'] : ['profile']) : LEVELS;
   const [project, setProject] = useState(folder);
   const [type, setType] = useState<CfgType>('instructions');
   const [eff, setEff] = useState(false);
@@ -110,11 +117,11 @@ export function Configuracion() {
             setLevel(l);
             if (l === 'desktop') setType('mcp');
           }}
-          options={LEVELS.map((l) => ({ value: l, label: levelName(l) }))}
+          options={levels.map((l) => ({ value: l, label: fixed && l === 'desktop' ? t('Su ventana') : levelName(l) }))}
         />
         {/* Con «Efectivo» la capa deja de mandar: lo efectivo es de una cuenta,
             así que el selector de perfil se enseña siempre que esté encendido. */}
-        {(eff || level === 'profile' || level === 'desktop') && (
+        {!fixed && (eff || level === 'profile' || level === 'desktop') && (
           <>
             <select className="input" style={{ width: 190, padding: '6px 10px' }} value={profile} onChange={(e) => setProfile(e.target.value)}>
               {profiles
@@ -131,11 +138,25 @@ export function Configuracion() {
           />
         )}
         <span style={{ flex: 1 }} />
-        <Toggle on={eff} onChange={setEff} label={t('Efectivo')} />
+        {/* Con texto visible: un interruptor suelto en la esquina no dice qué
+            enciende. */}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 12.5, color: 'var(--ink-3)', cursor: 'pointer' }} title={t('Lo que recibe de verdad la cuenta, sumando todas las capas')}>
+          {t('Efectivo')}
+          <Toggle on={eff} onChange={setEff} label={t('Efectivo')} />
+        </label>
       </div>
 
+      {fixed === 'default' && !eff && (
+        <Note style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <span style={{ flex: 1 }}>
+            {t('default no tiene capa propia: lee ~/.claude, que es la capa global. Lo que escribas aquí lo heredan también las demás cuentas.')}
+          </span>
+          <button className="btn sm" style={{ flex: '0 0 auto' }} onClick={() => go('configuracion')}>{t('Abrir la configuración global')}</button>
+        </Note>
+      )}
+
       {restart.length > 0 && (
-        <Note kind="warn">
+        <Note kind="warn" style={{ marginBottom: 14 }}>
           {t('Pendiente de reiniciar la ventana de {p}: con la ventana abierta el chat sigue con los MCP de antes.', { p: restart.join(', ') })}{' '}
           {/* El aviso traía el problema y no la salida: reiniciar era ir al Dock,
               cerrar la ventana a mano y volver a abrirla desde su icono, tres
@@ -186,7 +207,7 @@ export function Configuracion() {
             {list.error && <ErrorNote error={list.error} onRetry={list.reload} />}
             {!list.data && !list.error && <Loading rows={5} />}
             {unknown.map((p) => (
-              <Note key={p.source} kind="unk">{t('No se pudo leer {f}: cuenta como desconocido, no como vacío.', { f: tilde(p.source) })}</Note>
+              <Note key={p.source} kind="unk" style={{ marginBottom: 12 }}>{t('No se pudo leer {f}: cuenta como desconocido, no como vacío.', { f: tilde(p.source) })}</Note>
             ))}
 
             {type === 'mcp' ? (
@@ -203,7 +224,11 @@ export function Configuracion() {
                     <div style={{ display: 'flex', gap: 9, alignItems: 'baseline', flexWrap: 'wrap' }}>
                       <span className="mono selectable" style={{ fontSize: 12, color: it.editable ? 'var(--ink)' : 'var(--ink-3)' }}>{it.name}</span>
                       {it.ref.layer.level !== layer.level && <Pill>{layerLabel(it.ref.layer)}</Pill>}
-                      {it.scope.level !== layer.level && <Pill>{layerLabel(it.scope)}</Pill>}
+                      {/* Dónde vive y a qué alcance aplica suelen coincidir: la
+                          misma etiqueta dos veces seguidas no dice nada más. */}
+                      {it.scope.level !== layer.level && !(it.ref.layer.level !== layer.level && layerLabel(it.scope) === layerLabel(it.ref.layer)) && (
+                        <Pill>{layerLabel(it.scope)}</Pill>
+                      )}
                       {it.applies_to.map((a) => <Pill key={a} tone="accent">{whereLabel(a)}</Pill>)}
                       {it.managed && <Pill tone="ok">{t('lo gestiona ccp')}</Pill>}
                       {it.missing && <Pill tone="err">{t('falta {c}', { c: it.missing })}</Pill>}

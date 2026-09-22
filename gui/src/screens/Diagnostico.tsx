@@ -31,7 +31,7 @@ function shellModal(): ModalSpec {
 
 export function Diagnostico() {
   const app = useApp();
-  const { openModal, mutate, go, select, folder, notify } = app;
+  const { openModal, mutate, go, openProfile, folder, notify } = app;
   const res = useCall(() => api.diag(), []);
   const loans = useCall(() => api.handoffs(), []);
   const [filter, setFilter] = useState<Filter>('all');
@@ -137,7 +137,7 @@ export function Diagnostico() {
                   style={{ flex: '0 0 auto' }}
                   onClick={() => {
                     if (d.action!.fix) return void fix(d.action!.fix, f);
-                    if (d.action!.go === 'perfil' && f.profile) return select(f.profile, 'perfil');
+                    if (d.action!.go === 'perfil' && f.profile) return openProfile(f.profile, 'resumen');
                     if (d.action!.go) go(d.action!.go);
                   }}
                 >

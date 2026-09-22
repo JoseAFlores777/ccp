@@ -125,7 +125,7 @@ interface Check {
 
 export function Mapa() {
   const app = useApp();
-  const { profiles, folder, colorOf, openModal, select } = app;
+  const { profiles, folder, colorOf, openModal, openProfile } = app;
   const here = useCall(() => api.resolve(folder), [folder]);
   const [focusPick, setFocusPick] = useState<string>('');
   const focus = focusPick || here.data?.profile || 'default';
@@ -496,7 +496,7 @@ export function Mapa() {
                     {selNode.name !== focus && (
                       <button className="btn sm" onClick={() => { setFocusPick(selNode.name); setSel(null); setSim(null); }}>{t('Ver desde esta cuenta')}</button>
                     )}
-                    <button className="btn sm ghost" onClick={() => select(selNode.name, 'perfil')}>{t('Abrir la cuenta')}</button>
+                    <button className="btn sm ghost" onClick={() => openProfile(selNode.name, 'resumen')}>{t('Abrir la cuenta')}</button>
                   </div>
                 </>
               )}
@@ -679,7 +679,7 @@ export function Mapa() {
               <div
                 key={p.name}
                 onMouseDown={(e) => startNodeDrag(e, p.name)}
-                onDoubleClick={() => select(p.name, 'perfil')}
+                onDoubleClick={() => openProfile(p.name, 'resumen')}
                 style={{
                   position: 'absolute', left: q.x, top: q.y, width: W, background: 'var(--surface)', borderRadius: 10, padding: '11px 13px',
                   border: `1px solid ${selected ? 'var(--accent)' : isFocus ? 'var(--accent-line)' : 'var(--line)'}`,
