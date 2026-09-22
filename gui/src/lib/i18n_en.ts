@@ -1378,4 +1378,12 @@ export const en: Record<string, string> = {
   "Subido a la nube: {n} snapshots, {f} archivos ({b})": "Uploaded to the cloud: {n} snapshots, {f} files ({b})",
   "{n} archivos no se pudieron subir": "{n} files couldn't be uploaded",
   "Lo que recibe de verdad la cuenta, sumando todas las capas": "What the account really receives, adding up every layer",
+  "Chat de Desktop": "Desktop chat",
+  "Chat de Desktop (solo MCP)": "Desktop chat (MCP only)",
+  "Claude Code": "Claude Code",
+  "~/.claude: lo leen Claude Code y todas las cuentas, salvo lo que una cuenta cambie en su capa.": "~/.claude: read by Claude Code and every account, except for what an account changes in its own layer.",
+  "Lo que lee Claude Code con esta cuenta, en la terminal y en la pestaña Code de su ventana de Desktop.": "What Claude Code reads with this account, in the terminal and in the Code tab of its Desktop window.",
+  "Lo que lee Claude Code con esa cuenta, en la terminal y en la pestaña Code de su ventana de Desktop.": "What Claude Code reads with that account, in the terminal and in the Code tab of its Desktop window.",
+  "El .claude/ y el .mcp.json del repo: los lee Claude Code en esa carpeta, con cualquier cuenta.": "The repo's .claude/ and .mcp.json: Claude Code reads them in that folder, with any account.",
+  "El chat de la ventana de Desktop: solo servidores MCP, solo de tipo stdio, y se aplican al reiniciar la ventana. La pestaña Code también los hereda.": "The Desktop window's chat: MCP servers only, stdio only, applied when the window restarts. The Code tab inherits them too.",
 };
