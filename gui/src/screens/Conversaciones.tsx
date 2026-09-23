@@ -50,14 +50,11 @@ export function Conversaciones({ profile: fixed, view: routeView }: { profile?: 
         value={view}
         onChange={setView}
         options={[
-          { value: 'list', label: t('Conversaciones') },
-          { value: 'loans', label: t('Préstamos') },
+          { value: 'list', label: t('Conversaciones'), help: 'conversacion' },
+          { value: 'loans', label: t('Préstamos'), help: 'prestamo' },
         ]}
         style={{ marginBottom: 14, display: 'inline-flex' }}
       />
-      <Help term="conversacion" size={14} style={{ marginLeft: 10 }} />
-      <Help term="prestamo" size={14} style={{ marginLeft: 4 }} />
-      <Help term="dejar_trabajando" size={14} style={{ marginLeft: 4 }} />
       {view === 'loans' ? <Prestamos profile={fixed} /> : <Lista fixed={fixed} />}
     </div>
   );
@@ -137,7 +134,12 @@ function Lista({ fixed }: { fixed?: string }) {
             {!compact && <span>{t('Dónde vive')}</span>}
             {!compact && <span>{t('Carpeta')}</span>}
             <span>{t('Actividad')}</span>
-            {!compact && <span />}
+            {/* El «?» de «Dejar trabajando» va sobre la columna de ese botón. */}
+            {!compact && (
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                {t('Acciones')}<Help term="dejar_trabajando" size={12} />
+              </span>
+            )}
           </TableHead>
           {items.length === 0 && (
             <Empty title={q ? t('Nada coincide con «{q}»', { q }) : t('No hay conversaciones con este filtro')}>

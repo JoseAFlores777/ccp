@@ -90,13 +90,13 @@ export function RotacionRed() {
   return (
     <Card shadow style={{ marginBottom: 14, padding: '14px 18px 12px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
-        <Label style={{ flex: 1, display: 'flex', alignItems: 'center' }}>{t('Todas las cuentas entrelazadas')}<Help term="respaldo" size={13} /><Help term="cadena_propia" size={13} style={{ marginLeft: 4 }} /></Label>
+        <Label style={{ flex: 1, display: 'flex', alignItems: 'center' }}>{t('Todas las cuentas entrelazadas')}<Help term="respaldo" size={13} /></Label>
         <Segmented<'all' | 'own'>
           value={only}
           onChange={setOnly}
           options={[
             { value: 'all', label: t('Todas las cadenas') },
-            { value: 'own', label: t('Solo cadenas propias') },
+            { value: 'own', label: t('Solo cadenas propias'), help: 'cadena_propia' },
           ]}
         />
       </div>

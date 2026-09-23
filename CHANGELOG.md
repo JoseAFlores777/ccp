@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [2.28.3] — cada «?» junto a lo que explica
+
+- Los «?» del glosario van pegados a la palabra que explican, nunca sueltos ni dos seguidos: dentro de
+  las pestañas «Conversaciones» y «Préstamos», en la nueva cabecera «Acciones» de la tabla, en la opción
+  «Solo cadenas propias» de la red de cuentas, en la leyenda de «Cómo gira» (sacada del dibujo), junto a
+  «excepción dentro de…» en las carpetas de una cuenta y en la frase de los sensores en su uso.
+
+
 ## [2.28.2] — el nombre de la cuenta, siempre entero
 
 - **El nombre de una cuenta ya no se recorta en ninguna vista.** En la app de escritorio (WebKit) el texto

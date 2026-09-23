@@ -391,14 +391,14 @@ function ChainCanvas({ s, chain, colorOf, onOpenMap }: {
   }))];
   const x = (i: number) => PAD + i * (NW + GAP);
   const width = x(nodes.length - 1) + NW + PAD;
-  const height = TOP + NH + (chain.length ? 34 : 30);
+  const height = TOP + NH + 10;
   const mid = TOP + NH / 2;
   const cx = (i: number) => x(i) + NW / 2;
 
   return (
     <Card shadow style={{ marginBottom: 14, padding: '14px 18px 10px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-        <Label style={{ flex: 1, display: 'flex', alignItems: 'center' }}>{t('Cómo gira')}<Help term="respaldo" size={13} /><Help term="return_check" size={13} style={{ marginLeft: 4 }} /></Label>
+        <Label style={{ flex: 1, display: 'flex', alignItems: 'center' }}>{t('Cómo gira')}<Help term="cadena" size={13} /></Label>
         <button className="btn quiet xs" onClick={onOpenMap}>{t('Abrir el lienzo completo')}</button>
       </div>
       <div style={{ overflowX: 'auto' }}>
@@ -454,12 +454,22 @@ function ChainCanvas({ s, chain, colorOf, onOpenMap }: {
             </g>
           ))}
 
-          <text x={PAD} y={height - 8} fontSize={10.5} fill="var(--ink-4)">
-            {chain.length
-              ? t('Se prueba de izquierda a derecha; el préstamo salta al siguiente si también se agota.')
-              : t('Sin respaldos: si {p} se agota, la sesión se detiene y espera.', { p: s.primary })}
-          </text>
         </svg>
+      </div>
+      {/* La leyenda va fuera del dibujo para que cada «?» quede junto a lo que explica. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', fontSize: 11, color: 'var(--ink-4)', marginTop: 4 }}>
+        {chain.length ? (
+          <>
+            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+              {t('Se prueba de izquierda a derecha; el préstamo salta al siguiente si también se agota.')}<Help term="respaldo" size={12} />
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--accent)' }}>
+              {t('- - - vuelta a casa')}<Help term="return_check" size={12} />
+            </span>
+          </>
+        ) : (
+          <span>{t('Sin respaldos: si {p} se agota, la sesión se detiene y espera.', { p: s.primary })}</span>
+        )}
       </div>
     </Card>
   );

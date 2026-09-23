@@ -90,7 +90,7 @@ function CarpetasDeCuenta({ p }: { p: Profile }) {
     <div>
       <Card pad={false} clip shadow>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px 12px' }}>
-          <span className="label" style={{ flex: 1, display: 'flex', alignItems: 'center' }}>{t('Carpetas de esta cuenta')}<Help term="carpetas" size={13} /><Help term="excepcion" size={13} style={{ marginLeft: 4 }} /></span>
+          <span className="label" style={{ flex: 1, display: 'flex', alignItems: 'center' }}>{t('Carpetas de esta cuenta')}<Help term="carpetas" size={13} /></span>
           <button className="btn sm" onClick={() => openModal(newRuleModal(app, rules.data ?? [], { profile: p.name }))}>
             {t('Añadir')}
           </button>
@@ -107,7 +107,11 @@ function CarpetasDeCuenta({ p }: { p: Profile }) {
             <span className="mono ellipsis" style={{ fontSize: 11.5, color: 'var(--ink-2)', flex: 1 }}>{tilde(r.path)}</span>
             {!r.exists && <Pill tone="warn">{t('no existe')}</Pill>}
             <span style={{ fontSize: 11, color: 'var(--ink-4)', fontWeight: 300 }}>
-              {r.parent ? t('excepción dentro de {p}', { p: tilde(r.parent) }) : t('y sus subcarpetas')}
+              {r.parent ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                  {t('excepción dentro de {p}', { p: tilde(r.parent) })}<Help term="excepcion" size={12} />
+                </span>
+              ) : t('y sus subcarpetas')}
             </span>
             <button className="btn quiet danger sm" onClick={() => openModal(deleteRuleModal(r))}>
               {t('Quitar')}
@@ -210,7 +214,7 @@ function Resumen({ p }: { p: Profile }) {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <Card>
-            <Label style={{ marginBottom: 14, display: 'flex', alignItems: 'center' }}>{t('Uso')}<Help term="uso" size={13} /><Help term="sensores" size={13} style={{ marginLeft: 4 }} /></Label>
+            <Label style={{ marginBottom: 14, display: 'flex', alignItems: 'center' }}>{t('Uso')}<Help term="uso" size={13} /></Label>
             {p.usage ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <UsageBlock label={t('Ventana de 5 h')} w={p.usage.five_hour} sampled={p.usage.sampled_at} />
@@ -225,6 +229,7 @@ function Resumen({ p }: { p: Profile }) {
                     : prov
                       ? t('Sin sensores. Los proveedores no informan de ventanas de uso; los sensores sirven para detectar el límite cuando ocurre.')
                       : t('Sin sensores instalados: no hay muestras de uso. Se instalan desde Rotación o Diagnóstico.')}
+                {!isDefault && <Help term="sensores" size={12} />}
               </div>
             )}
           </Card>
