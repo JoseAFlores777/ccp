@@ -13,6 +13,8 @@ var catalogMCP = map[string]map[Lang]string{
   rm <name> [--scope <layer>]            remove it from the layer that declares it
   enable|disable <name> [--profile <n>]  turn an inherited server on/off in one profile
   targets [<name> [cli|desktop|cli,desktop|none]]   where each server goes
+  adopt <name> [--profile <n>]           take over a server written by hand in that
+                                         profile's Desktop chat, so ccp can edit it
 Layers: global · profile[:<name>] · project[:<path>] · desktop[:<name>] (read-only).
 Without --scope, the terminal's active profile.`,
 		Es: `Uso: ccp mcp <comando>
@@ -22,8 +24,14 @@ Without --scope, the terminal's active profile.`,
   rm <nombre> [--scope <capa>]           lo quita de la capa que lo declara
   enable|disable <nombre> [--profile <n>]  enciende/apaga en UN perfil uno heredado
   targets [<nombre> [cli|desktop|cli,desktop|none]]   a dónde va cada servidor
+  adopt <nombre> [--profile <n>]         pasa a ccp uno escrito a mano en el chat de
+                                         Desktop de ese perfil, para poder editarlo
 Capas: global · profile[:<nombre>] · project[:<ruta>] · desktop[:<nombre>] (solo lectura).
 Sin --scope, el perfil activo de la terminal.`,
+	},
+	"cli.mcp.adopted": {
+		En: "%s is now managed by ccp: declared in profile %s, for the Desktop chat only. Edit it with `ccp mcp add --scope profile:%[2]s`.",
+		Es: "%s ya lo gestiona ccp: declarado en el perfil %s, solo para el chat de Desktop. Edítalo con `ccp mcp add --scope profile:%[2]s`.",
 	},
 	"cli.mcp.unknown_sub": {En: "mcp: unknown command '%s'", Es: "mcp: comando desconocido '%s'"},
 	"cli.mcp.unknown_opt": {En: "mcp: unknown option or extra argument '%s'", Es: "mcp: opción desconocida o argumento de más '%s'"},

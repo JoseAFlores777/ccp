@@ -178,8 +178,12 @@ const MCP_DEFAULT_TARGETS = 'cli,desktop';
  *  ventana es un destino de proyección, nunca una capa que declare) y sus
  *  destinos incluyen el chat. Solo stdio, porque Desktop descarta en silencio
  *  una entrada remota al arrancar. */
-export function mcpModal(layer: ConfigLayer, row?: McpRow, def?: Record<string, unknown>, opts: { chat?: boolean } = {}): ModalSpec {
-  const chat = !!opts.chat;
+export function mcpModal(layer: ConfigLayer, row?: McpRow, def?: Record<string, unknown>, opts: { chat?: boolean; adopt?: string } = {}): ModalSpec {
+  // `adopt`: el servidor está escrito A MANO en el chat de la ventana de esa
+  // cuenta; guardar lo pasa a ccp (mcp.adoptDesktop) en vez de declararlo, que
+  // chocaría con la entrada a mano.
+  const adopt = opts.adopt;
+  const chat = !!opts.chat || !!adopt;
   const editing = !!row;
   const kind = String(def?.type ?? (def?.url ? 'http' : def?.command ? 'stdio' : 'stdio'));
   const known = kind === 'stdio' || kind === 'http' || kind === 'sse';
@@ -207,7 +211,9 @@ export function mcpModal(layer: ConfigLayer, row?: McpRow, def?: Record<string, 
       : [];
   const mcpErrors = (b: McpBuild): string[] => [...b.errors, ...(b.errors.length ? [] : [...maskLost(b.config), ...remoteForChat(b)])];
   return {
-    title: editing
+    title: adopt
+      ? t('Editar {n} (pasa a ccp)', { n: row?.name ?? '' })
+      : editing
       ? t('Editar {n}', { n: row.name })
       : chat
         ? t('Nuevo servidor MCP para el chat de {p}', { p: layer.name ?? '' })
@@ -269,7 +275,10 @@ export function mcpModal(layer: ConfigLayer, row?: McpRow, def?: Record<string, 
         w.push(t('Un .mcp.json viaja en el repo: un secreto en claro acabaría en git. ccp lo rechaza; escribe ${VARIABLE}.'));
       }
       if (layer.level === 'desktop') w.push(t('El chat de Desktop solo carga servidores stdio y no relee el archivo en caliente.'));
-      if (chat) {
+      if (adopt) {
+        w.push(t('Lo escribiste a mano en el chat de {p}. Al guardar pasa a ccp: queda declarado en la cuenta {p}, solo para el chat, y desde entonces se edita aquí como los demás.', { p: adopt }));
+        w.push(t('Si la ventana está abierta, el chat lo verá al reiniciarla: la app te ofrece el botón.'));
+      } else if (chat) {
         w.push(t('Se declara en la cuenta {p} y ccp lo escribe en la configuración del chat de su ventana.', { p: layer.name ?? '' }));
         w.push(t('Si la ventana está abierta, el chat lo verá al reiniciarla: la app te ofrece el botón.'));
         if (fv(f.targets) === 'desktop') w.push(t('Los destinos van por nombre: si otra cuenta declara un servidor con este mismo nombre, también dejará de llegar a su Claude Code.'));
@@ -297,6 +306,10 @@ export function mcpModal(layer: ConfigLayer, row?: McpRow, def?: Record<string, 
       // proyectados, un stdio arrancado dos veces y el token escrito dos
       // veces) y el usuario creía haber renombrado uno.
       const name = f.name.trim();
+      if (adopt) {
+        if (row && name !== row.name) throw new Error(t('Para pasarlo a ccp se conserva su nombre: {n}.', { n: row.name }));
+        return `${t('{n} ya lo gestiona ccp desde la cuenta {p}', { n: name, p: adopt })} · ${writeMsg(await api.mcpAdoptDesktop(adopt, name, cfg))}`;
+      }
       const msg = writeMsg(await api.mcpPut(layer, name, cfg));
       // Desde el chat, «solo el chat» son destinos distintos de los de por
       // defecto (que ya incluyen el chat): se fijan después de declararlo.

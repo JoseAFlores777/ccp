@@ -114,6 +114,8 @@ func dispatchMCP(args []string, stdout, stderr io.Writer) int {
 		return mcpCmdSwitch(rest, false, stdout, stderr)
 	case "targets":
 		return mcpCmdTargets(rest, stdout, stderr)
+	case "adopt":
+		return mcpCmdAdopt(rest, stdout, stderr)
 	case "help", "--help", "-h":
 		fmt.Fprintln(stdout, i18n.T(lang, "cli.mcp.usage"))
 		return 0
@@ -713,4 +715,38 @@ func mcpTargetRows(c mcpCtx, a snapArgs) ([]mcpTargetRow, error) {
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
+}
+
+// mcpCmdAdopt es `ccp mcp adopt <nombre> [--profile <n>]`: pasa a ccp un
+// servidor escrito a mano en el chat de la ventana de un perfil (ver
+// core.MCPAdoptDesktop). Queda declarado en ese perfil, solo para el chat, tal
+// como estaba; desde entonces se edita con `ccp mcp add --scope profile:<n>`.
+// Sin --profile, el perfil activo de la terminal, como enable/disable.
+func mcpCmdAdopt(args []string, stdout, stderr io.Writer) int {
+	a, name, code := mcpNameArgs(args, "adopt", stderr, nil)
+	if name == "" {
+		return code
+	}
+	c, ok := mcpSetup(stderr)
+	if !ok {
+		return 1
+	}
+	profile := a.val("--profile")
+	if profile == "" {
+		layer, err := mcpScope(c, a.val("--scope"))
+		if err != nil || (layer.Level != "profile" && layer.Level != "desktop") {
+			fmt.Fprintln(stderr, i18n.T(c.lang, "cli.mcp.bad_scope", a.val("--scope")))
+			return 1
+		}
+		profile = layer.Name
+	}
+	wr, err := core.MCPAdoptDesktop(c.roots, profile, name, nil)
+	if err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return 1
+	}
+	if a.flags["--json"] {
+		return snapJSON(stdout, stderr, wr)
+	}
+	return mcpReport(c, stdout, stderr, wr, i18n.T(c.lang, "cli.mcp.adopted", name, profile))
 }

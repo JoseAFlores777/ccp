@@ -258,3 +258,27 @@ func srvMCPDisable(s *server, raw json.RawMessage) (any, error) {
 	}
 	return okWrite(w), nil
 }
+
+// srvMCPAdoptDesktop pasa a ccp un MCP escrito a mano en el chat de la ventana
+// de un perfil y lo deja con `def` (o como está, sin `def`): ver
+// core.MCPAdoptDesktop. Es lo que permite editar desde la app un servidor que
+// ccp no escribió.
+func srvMCPAdoptDesktop(s *server, raw json.RawMessage) (any, error) {
+	p, err := params[struct {
+		Profile string         `json:"profile"`
+		Name    string         `json:"name"`
+		Def     map[string]any `json:"def"`
+	}](raw)
+	if err != nil {
+		return nil, err
+	}
+	r, err := srvCfgRoots(s)
+	if err != nil {
+		return nil, err
+	}
+	w, err := core.MCPAdoptDesktop(r, p.Profile, p.Name, p.Def)
+	if err != nil {
+		return nil, err
+	}
+	return okWrite(w), nil
+}

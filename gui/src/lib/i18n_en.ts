@@ -1600,4 +1600,11 @@ export const en: Record<string, string> = {
   ": al abrir una terminal ahí no estarás en {c}.": " today: a terminal opened there won’t be on {c}.",
   "Arrastra para cambiar el ancho": "Drag to change the width",
   "- - - vuelta a casa": "- - - trip home",
+  "Para pasarlo a ccp se conserva su nombre: {n}.": "To hand it over to ccp its name is kept: {n}.",
+  "{n} ya lo gestiona ccp desde la cuenta {p}": "{n} is now managed by ccp from the {p} account",
+  "Lo escribiste a mano en el chat de {p}. Al guardar pasa a ccp: queda declarado en la cuenta {p}, solo para el chat, y desde entonces se edita aquí como los demás.": "You wrote it by hand in {p}’s chat. Saving hands it over to ccp: it gets declared in the {p} account, for the chat only, and from then on it’s edited here like the rest.",
+  "Editar {n} (pasa a ccp)": "Edit {n} (hands it to ccp)",
+  "Lo escribiste a mano en el chat: al guardar pasa a ccp": "You wrote it by hand in the chat: saving hands it to ccp",
+  "Lo escribiste a mano en el chat de {p}: ccp lo toma y lo retira.": "You wrote it by hand in {p}’s chat: ccp takes it over and removes it.",
+  "Si la ventana está abierta, desaparece del chat al reiniciarla.": "If the window is open, it disappears from the chat when it restarts.",
 };

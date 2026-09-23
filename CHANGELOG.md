@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [2.29.0] — un MCP escrito a mano en el chat de Desktop ya se puede editar
+
+- **Pasar a ccp un MCP del chat de Desktop escrito a mano.** La ventana no declara (solo recibe) y la
+  proyección no pisa lo que no escribió ccp, así que un servidor puesto a mano en
+  `claude_desktop_config.json` no se podía editar por ningún lado: «la ventana de e-cc recibe los MCP del
+  perfil, no los declara». Ahora «Editar» y «Quitar» en la vista del chat lo pasan a ccp: queda declarado
+  en la cuenta, solo para el chat, y se edita como los demás. Con la ventana abierta, el cambio llega al
+  reiniciarla. En la terminal: `ccp mcp adopt <nombre> [--profile <n>]`.
+
+
 ## [2.28.3] — cada «?» junto a lo que explica
 
 - Los «?» del glosario van pegados a la palabra que explican, nunca sueltos ni dos seguidos: dentro de
