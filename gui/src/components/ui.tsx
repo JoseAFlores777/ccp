@@ -119,13 +119,20 @@ export function Bar({ value, height = 3, color }: { value: number | null | undef
 }
 
 export function Segmented<T extends string>({ value, options, onChange, style }: {
-  value: T; options: { value: T; label: string; disabled?: boolean }[]; onChange: (v: T) => void; style?: CSSProperties;
+  value: T;
+  // `help`: el término del glosario que explica ESA opción; su «?» va dentro de
+  // ella, no suelto al lado del selector, donde no se sabría a cuál se refiere.
+  options: { value: T; label: string; disabled?: boolean; help?: string }[];
+  onChange: (v: T) => void;
+  style?: CSSProperties;
 }) {
   return (
     <div className="segmented" style={style}>
       {options.map((o) => (
-        <button key={o.value} className={o.value === value ? 'on' : ''} disabled={o.disabled} onClick={() => onChange(o.value)}>
+        <button key={o.value} className={o.value === value ? 'on' : ''} disabled={o.disabled} onClick={() => onChange(o.value)}
+          style={o.help ? { display: 'inline-flex', alignItems: 'center' } : undefined}>
           {o.label}
+          {o.help && <Help term={o.help} size={12} />}
         </button>
       ))}
     </div>
