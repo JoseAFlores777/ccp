@@ -68,11 +68,12 @@ func serveRegistry() map[string]serveMethod {
 		"config.item.delete": w(srvConfigItemDelete),
 		"config.effective":   r(srvProfilesEffective),
 
-		"mcp.list":       r(srvMCPList),
-		"mcp.put":        w(srvMCPPut),
-		"mcp.delete":     w(srvMCPDelete),
-		"mcp.setTargets": w(srvMCPSetTargets),
-		"mcp.disable":    w(srvMCPDisable),
+		"mcp.list":         r(srvMCPList),
+		"mcp.put":          w(srvMCPPut),
+		"mcp.delete":       w(srvMCPDelete),
+		"mcp.setTargets":   w(srvMCPSetTargets),
+		"mcp.disable":      w(srvMCPDisable),
+		"mcp.adoptDesktop": w(srvMCPAdoptDesktop),
 
 		"memory.list":   r(srvMemoryList),
 		"memory.add":    w(srvMemoryAdd),

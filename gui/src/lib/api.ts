@@ -906,6 +906,9 @@ export const api = {
     ccpCall<ConfigWrite>('mcp.put', { layer, name, def, if_absent: ifAbsent }),
   mcpDelete: (layer: ConfigLayer, name: string) => ccpCall<ConfigWrite>('mcp.delete', { layer, name }),
   mcpSetTargets: (name: string, targets: string[]) => ccpCall<ConfigWrite>('mcp.setTargets', { name, targets }),
+  /** Pasa a ccp un MCP escrito a mano en el chat de una ventana, con `def` (o tal cual). */
+  mcpAdoptDesktop: (profile: string, name: string, def?: Record<string, unknown>) =>
+    ccpCall<ConfigWrite>('mcp.adoptDesktop', { profile, name, def }),
   // Un solo método para el conmutador: `enabled` permite volver atrás sin una
   // segunda ruta (mcp.enable) que mantener para la misma escritura.
   mcpSetEnabled: (profile: string, name: string, enabled: boolean) =>

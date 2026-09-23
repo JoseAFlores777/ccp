@@ -7,7 +7,7 @@ import { api, type ConfigLayer, type McpRow } from '../lib/api';
 import { mcpDeleteModal, mcpModal, mcpTargetsModal, whereLabel, writeMsg } from '../lib/config_edit';
 import { tilde } from '../lib/format';
 import { t } from '../lib/i18n';
-import { useApp, useCall } from '../lib/store';
+import { useApp, useCall, type ModalSpec } from '../lib/store';
 import { Card, Empty, ErrorNote, Loading, Pill, Toggle } from '../components/ui';
 import { Help } from '../components/Help';
 
@@ -62,6 +62,27 @@ export function McpTable({ layer, onAdd }: { layer: ConfigLayer; onAdd: () => vo
     openModal(mcpModal(at, r, (v.json ?? {}) as Record<string, unknown>, { chat: at !== layer }));
   };
 
+  // Un MCP escrito a mano en el chat: se edita con su definición actual y, al
+  // guardar, pasa a ccp.
+  const openAdopt = async (r: McpRow) => {
+    const v = await api.configItem({ layer, type: 'mcp', name: r.name, source: r.source });
+    openModal(mcpModal({ level: 'profile', name: chatOf }, r, (v.json ?? {}) as Record<string, unknown>, { adopt: chatOf }));
+  };
+
+  // Quitarlo: se pasa a ccp tal cual y se borra de la cuenta, y la proyección lo
+  // retira del chat. Así se quita por el mismo camino que cualquier otro.
+  const adoptDeleteModal = (r: McpRow): ModalSpec => ({
+    title: t('Quitar {n} del chat', { n: r.name }),
+    sub: t('Lo escribiste a mano en el chat de {p}: ccp lo toma y lo retira.', { p: chatOf }),
+    warns: [t('Si la ventana está abierta, desaparece del chat al reiniciarla.')],
+    danger: true,
+    confirmLabel: t('Quitar'),
+    onConfirm: async () => {
+      await api.mcpAdoptDesktop(chatOf, r.name);
+      return writeMsg(await api.mcpDelete({ level: 'profile', name: chatOf }, r.name));
+    },
+  });
+
   // Quitar del chat no borra el servidor: le quita el chat de los destinos, y
   // sigue llegando a Claude Code si ya llegaba.
   const removeFromChat = (d: { row: McpRow; layer: ConfigLayer }) => {
@@ -107,7 +128,14 @@ export function McpTable({ layer, onAdd }: { layer: ConfigLayer; onAdd: () => vo
               />
             )}
             <button className="btn quiet xs" onClick={() => openModal(mcpTargetsModal(r))}>{t('Destinos')}</button>
-            {r.editable ? (
+            {r.editable && chatOf ? (
+              // Escrito a mano en el chat de la ventana: editarlo o quitarlo lo pasa
+              // a ccp (la ventana no declara; solo recibe).
+              <>
+                <button className="btn quiet xs" title={t('Lo escribiste a mano en el chat: al guardar pasa a ccp')} onClick={() => void openAdopt(r)}>{t('Editar')}</button>
+                <button className="btn quiet danger xs" onClick={() => openModal(adoptDeleteModal(r))}>{t('Quitar')}</button>
+              </>
+            ) : r.editable ? (
               <>
                 <button className="btn quiet xs" onClick={() => void openEdit(r)}>{t('Editar')}</button>
                 <button className="btn quiet danger xs" onClick={() => openModal(mcpDeleteModal(layer, r))}>{t('Quitar')}</button>

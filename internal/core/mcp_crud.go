@@ -22,6 +22,8 @@ package core
 import (
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
@@ -476,4 +478,91 @@ func MCPSetEnabled(r InventoryRoots, profile, name string, enabled bool) (Config
 	}
 	mcpTrimBlock(cfg)
 	return mcpSaveAndRegen(r, cfg, mcpProfilesToRegen(r, cfg, profile))
+}
+
+// MCPAdoptDesktop pasa a ccp un servidor MCP que alguien escribió A MANO en el
+// chat de la ventana de `profile` (su claude_desktop_config.json), y lo deja con
+// la definición `def` (nil = tal como está).
+//
+// Por qué hace falta: esa ventana es un destino de la proyección y no una capa
+// que declare, y ccp solo toca en ella las entradas que registró como suyas. Una
+// entrada escrita a mano quedaba así fuera de las dos reglas a la vez —no se
+// podía editar en la ventana (MCPPut la rechaza) ni declarando en el perfil
+// (la proyección la vería como ajena y la dejaría en conflicto)—, es decir, no
+// se podía editar de ninguna manera desde ccp.
+//
+// Orden, y por qué:
+//  1. Se registra el nombre como gestionado en la ventana ANTES de declarar: así
+//     la proyección que dispara la declaración lo sobrescribe en vez de
+//     reportarlo como conflicto. El registro es un archivo de ccp, no de
+//     Desktop, así que se puede escribir con la ventana abierta.
+//  2. Si nadie tenía destinos para ese nombre, se fijan en solo el chat: era un
+//     servidor del chat, y adoptarlo no debe hacerlo aparecer además en el
+//     Claude Code de todas las cuentas que lo hereden.
+//  3. Se declara en la capa del perfil con MCPPut, que valida y regenera. Con la
+//     ventana abierta la escritura del chat queda pendiente hasta reiniciarla.
+//
+// No adopta si el nombre ya está declarado en el perfil o en la capa global:
+// ahí ya hay una fuente, y lo que toca es editarla a ella.
+func MCPAdoptDesktop(r InventoryRoots, profile, name string, def map[string]any) (ConfigWrite, error) {
+	if err := mcpValidName(name); err != nil {
+		return ConfigWrite{}, err
+	}
+	if profile == "" || profile == "default" {
+		return ConfigWrite{}, fmt.Errorf("la ventana de default es tu Claude de siempre: ccp no gestiona su chat")
+	}
+	if r.CCPHome == "" {
+		return ConfigWrite{}, fmt.Errorf("no hay raíz de ccp (CCPHome vacío)")
+	}
+	cfg, err := Load(r.CCPHome)
+	if err != nil {
+		return ConfigWrite{}, err
+	}
+	if _, ok := cfg.Profiles[profile]; !ok {
+		return ConfigWrite{}, fmt.Errorf("no existe el perfil %q", profile)
+	}
+	dir := DesktopDataDir(r.CCPHome, profile)
+	raw, err := os.ReadFile(filepath.Join(dir, "claude_desktop_config.json"))
+	if err != nil {
+		return ConfigWrite{}, fmt.Errorf("no se pudo leer el chat de la ventana de %s: %w", profile, err)
+	}
+	doc, err := decodeJSONObject(raw)
+	if err != nil {
+		return ConfigWrite{}, fmt.Errorf("la configuración del chat de %s no es JSON válido; no se toca: %w", profile, err)
+	}
+	servers, _ := doc["mcpServers"].(map[string]any)
+	cur, ok := servers[name].(map[string]any)
+	if !ok {
+		return ConfigWrite{}, fmt.Errorf("%s no está en el chat de la ventana de %s", name, profile)
+	}
+	if def == nil {
+		def = cur
+	}
+	if err := ValidateMCPServer(name, def); err != nil {
+		return ConfigWrite{}, err
+	}
+	global, prof, err := ReadMCPLayers(r.CCPHome, r.ClaudeSrc, profile)
+	if err != nil {
+		return ConfigWrite{}, err
+	}
+	if _, ok := prof[name]; ok {
+		return ConfigWrite{}, fmt.Errorf("%s ya está declarado en el perfil %s: edítalo ahí", name, profile)
+	}
+	if _, ok := global[name]; ok {
+		return ConfigWrite{}, fmt.Errorf("%s ya está declarado en la capa global: edítalo ahí", name)
+	}
+
+	managedPath := filepath.Join(dir, ".ccp-managed-mcp.json")
+	managed := readManaged(managedPath)
+	if !slices.Contains(managed, name) {
+		if err := writeManaged(managedPath, append(managed, name)); err != nil {
+			return ConfigWrite{}, err
+		}
+	}
+	if cfg.MCP == nil || cfg.MCP.Targets[name] == nil {
+		if _, err := MCPSetTargets(r, name, []string{MCPTargetDesktop}); err != nil {
+			return ConfigWrite{}, err
+		}
+	}
+	return MCPPut(r, ConfigLayer{Level: "profile", Name: profile}, name, def)
 }

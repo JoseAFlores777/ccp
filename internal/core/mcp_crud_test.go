@@ -372,3 +372,71 @@ func TestMCPWriteNuncaDevuelveListasNil(t *testing.T) {
 		}
 	}
 }
+
+// Un MCP escrito a mano en el chat de la ventana se pasa a ccp y se edita: queda
+// declarado en el perfil, solo para el chat, y la proyección sobrescribe la
+// entrada a mano con la definición nueva en vez de reportarla como conflicto.
+// Lo que Desktop guarda en el archivo (preferences) sobrevive.
+func TestMCPAdoptDesktopLaPasaACcpYLaEdita(t *testing.T) {
+	r, home := mcpCRUDFixture(t)
+	dir := DesktopDataDir(home, "work")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	chat := filepath.Join(dir, "claude_desktop_config.json")
+	body := `{"preferences":{"x":1},"mcpServers":{"dokploy-mcp":{"command":"npx","args":["-y","dokploy-mcp"]}}}`
+	if err := os.WriteFile(chat, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Antes: editarla en la ventana está prohibido (es un destino, no una capa).
+	if _, err := MCPPut(r, ConfigLayer{Level: "desktop", Name: "work"}, "dokploy-mcp", map[string]any{"command": "npx"}); err == nil {
+		t.Fatal("la ventana no debería aceptar declaraciones")
+	}
+
+	nuevo := map[string]any{"command": "npx", "args": []any{"-y", "dokploy-mcp@2"}}
+	if _, err := MCPAdoptDesktop(r, "work", "dokploy-mcp", nuevo); err != nil {
+		t.Fatalf("MCPAdoptDesktop: %v", err)
+	}
+	if s := leeMCPServers(t, mcpProfileFile(home, "work")); s["dokploy-mcp"] == nil {
+		t.Fatalf("no quedó declarado en el perfil: %v", s)
+	}
+	got := leeMCPServers(t, chat)
+	args, _ := got["dokploy-mcp"].(map[string]any)["args"].([]any)
+	if len(args) != 2 || args[1] != "dokploy-mcp@2" {
+		t.Fatalf("el chat no recibió la edición: %v", got["dokploy-mcp"])
+	}
+	raw, _ := os.ReadFile(chat)
+	if !strings.Contains(string(raw), `"preferences"`) {
+		t.Fatalf("se perdieron las preferencias de Desktop: %s", raw)
+	}
+	cfg, _ := Load(home)
+	if cfg.MCP == nil || !reflect.DeepEqual(cfg.MCP.Targets["dokploy-mcp"], []string{MCPTargetDesktop}) {
+		t.Fatalf("era un servidor del chat: sus destinos deben ser solo el chat: %+v", cfg.MCP)
+	}
+	// No llega al Claude Code de la cuenta: solo iba al chat.
+	cj := filepath.Join(ccHomePath(home, "work"), ".claude.json")
+	if s := leeMCPServers(t, cj); s["dokploy-mcp"] != nil {
+		t.Fatalf("adoptarlo lo metió también en Claude Code: %v", s)
+	}
+	// Adoptarlo otra vez ya no tiene sentido: ahora se edita en el perfil.
+	if _, err := MCPAdoptDesktop(r, "work", "dokploy-mcp", nil); err == nil {
+		t.Fatal("un nombre ya declarado en el perfil no se adopta dos veces")
+	}
+}
+
+func TestMCPAdoptDesktopRechazaLoQueNoEsta(t *testing.T) {
+	r, home := mcpCRUDFixture(t)
+	dir := DesktopDataDir(home, "work")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "claude_desktop_config.json"), []byte(`{"mcpServers":{}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := MCPAdoptDesktop(r, "work", "no-existe", nil); err == nil {
+		t.Fatal("adoptó un servidor que no está en el chat")
+	}
+	if _, err := MCPAdoptDesktop(r, "default", "x", nil); err == nil {
+		t.Fatal("la ventana de default no la gestiona ccp")
+	}
+}

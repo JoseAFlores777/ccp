@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/JoseAFlores777/ccp/internal/core"
 )
 
 // mcpEnv monta la máquina: un perfil `work` official y nada más. El HOME es
@@ -251,5 +253,29 @@ func TestMCPAddAvisaDelConflictoQueAcabaDeCrear(t *testing.T) {
 	}
 	if !strings.Contains(errs, "zz") || !strings.Contains(errs, "puesto a mano") {
 		t.Errorf("el add calló el conflicto que acababa de crear:\nstdout=%q\nstderr=%q", out, errs)
+	}
+}
+
+// `ccp mcp adopt`: un servidor escrito a mano en el chat de la ventana pasa a
+// ccp y después se edita como cualquier otro, sin conflicto.
+func TestMCPAdoptDelChat(t *testing.T) {
+	home := mcpEnv(t)
+	dir := core.DesktopDataDir(home, "work")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	chat := filepath.Join(dir, "claude_desktop_config.json")
+	if err := os.WriteFile(chat, []byte(`{"mcpServers":{"dokploy-mcp":{"command":"npx","args":["dokploy"]}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if code, out, errs := snapRun(t, "mcp", "adopt", "dokploy-mcp", "--profile", "work"); code != 0 || !strings.Contains(out, "ccp") {
+		t.Fatalf("adopt: %d %q %q", code, out, errs)
+	}
+	if code, _, errs := snapRun(t, "mcp", "add", "dokploy-mcp", "--scope", "profile:work", "--", "npx", "dokploy@2"); code != 0 {
+		t.Fatalf("editarlo tras adoptarlo: %d %q", code, errs)
+	}
+	raw, _ := os.ReadFile(chat)
+	if !strings.Contains(string(raw), "dokploy@2") {
+		t.Fatalf("el chat no recibió la edición: %s", raw)
 	}
 }
