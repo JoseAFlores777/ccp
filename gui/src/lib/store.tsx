@@ -114,6 +114,10 @@ export interface Ctx {
   /** La conversación cuyo detalle se está mirando (por uuid y cuenta). */
   convDetail: { uuid: string; profile: string } | null;
   openConversation: (uuid: string, profile: string) => void;
+  /** La conversación abierta en el panel lateral (sin salir de la pantalla). */
+  convPanel: { uuid: string; profile: string } | null;
+  openConvPanel: (uuid: string, profile: string) => void;
+  closeConvPanel: () => void;
   cli: string;
   setCli: (c: string) => void;
 }
@@ -187,6 +191,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [modal, setModal] = useState<ModalSpec | null>(null);
   const [sheet, setSheet] = useState<TerminalSheetSpec | null>(null);
   const [moveDraft, setMoveDraft] = useState<MoveDraft | null>(null);
+  const [convPanel, setConvPanel] = useState<{ uuid: string; profile: string } | null>(null);
   const [convDetail, setConvDetail] = useState<{ uuid: string; profile: string } | null>(() => {
     try {
       const v = readPref('convDetail');
@@ -335,9 +340,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         writePref('screen', 'conversacion');
         setCli('');
       },
+      convPanel,
+      openConvPanel: (uuid: string, profile: string) => setConvPanel({ uuid, profile }),
+      closeConvPanel: () => setConvPanel(null),
       cli, setCli,
     };
-  }, [info, infoError, bridge, lang, theme, screen, selected, tab, folder, folders, version, profiles, toast, modal, sheet, moveDraft, convDetail, cli, notify, refresh, mutate]);
+  }, [info, infoError, bridge, lang, theme, screen, selected, tab, folder, folders, version, profiles, toast, modal, sheet, moveDraft, convDetail, convPanel, cli, notify, refresh, mutate]);
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
 }

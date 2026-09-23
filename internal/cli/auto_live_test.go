@@ -51,3 +51,36 @@ func TestAutoLiveJSONYPerdida(t *testing.T) {
 		}
 	}
 }
+
+// conversations.read: el texto de una conversación de una cuenta, por uuid; una
+// que esa cuenta no tiene es not_found, no una lista vacía.
+func TestServeConversationsRead(t *testing.T) {
+	home := serveEnv(t)
+	cc, err := core.CCHome(home, "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := cc + "/projects/-repo"
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	id := "cccccccc-1111-4111-8111-cccccccccccc"
+	body := `{"type":"user","timestamp":"2026-09-22T10:00:00Z","cwd":"/repo","message":{"content":"hola"}}` + "\n" +
+		`{"type":"assistant","timestamp":"2026-09-22T10:00:01Z","message":{"id":"a","content":[{"type":"text","text":"qué tal"}]}}` + "\n"
+	if err := os.WriteFile(dir+"/"+id+".jsonl", []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, got := serveRun(t, req(1, "conversations.read", map[string]any{"profile": "work", "uuid": id}),
+		req(2, "conversations.read", map[string]any{"profile": "work", "uuid": "dddddddd-1111-4111-8111-dddddddddddd"}))
+	var c struct {
+		Messages []core.ConvMessage `json:"messages"`
+		Stats    core.ConvStats     `json:"stats"`
+	}
+	mustResult(t, got["1"], &c)
+	if len(c.Messages) != 2 || c.Messages[1].Text != "qué tal" || c.Stats.UserMessages != 1 {
+		t.Fatalf("lectura = %+v", c)
+	}
+	if got["2"].Error == nil || got["2"].Error.Code != "not_found" {
+		t.Fatalf("una conversación ajena tiene que ser not_found: %+v", got["2"])
+	}
+}

@@ -212,6 +212,18 @@ button { font-family: inherit; }
 @keyframes livepulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 60%, transparent); } 100% { box-shadow: 0 0 0 8px transparent; } }
 @keyframes livering { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .live-dot, .live-ring, .live-dot-svg { animation: none; } }
+.conv-panel {
+  position: absolute; top: 46px; bottom: 0; left: 228px; z-index: 40;
+  width: min(580px, calc(100vw - 260px)); display: flex; flex-direction: column;
+  background: var(--surface); border-right: 1px solid var(--line-strong);
+  box-shadow: 18px 0 40px -24px rgba(0,0,0,.45);
+}
+.conv-tool {
+  display: flex; gap: 8px; align-items: baseline; width: 100%; background: none; border: 0; padding: 2px 0;
+  font: inherit; color: inherit; cursor: pointer; text-align: left;
+}
+.conv-tool:disabled { cursor: default; }
+.conv-tool:not(:disabled):hover { color: var(--ink); }
 .table-head {
   display: grid; gap: 12px; padding: 10px 18px; background: var(--surface-2);
   border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 9.5px;

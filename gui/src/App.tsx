@@ -3,6 +3,7 @@
 
 import { Boundary } from './components/Boundary';
 import { Modal } from './components/Modal';
+import { ConversationPanel } from './components/ConversationPanel';
 import { TerminalSheet, ToastView } from './components/Overlays';
 import { Header, Shell } from './components/Shell';
 import { bridgeInfo } from './lib/bridge';
@@ -100,6 +101,9 @@ export function App() {
           error sin recargar la app. */}
       <Boundary key={screen}>
         {info ? <View /> : <div className="skeleton" style={{ height: 200 }} />}
+      </Boundary>
+      <Boundary>
+        <ConversationPanel />
       </Boundary>
       <Boundary>
         <Modal />

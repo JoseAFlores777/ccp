@@ -85,6 +85,7 @@ func serveRegistry() map[string]serveMethod {
 		"conversations.list": r(srvConversationsList),
 		"conversations.plan": r(srvConversationsPlan),
 		"conversations.copy": w(srvConversationsCopy),
+		"conversations.read": r(srvConversationsRead),
 
 		"auto.status":         r(srvAutoStatus),
 		"auto.init":           w(srvAutoInit),

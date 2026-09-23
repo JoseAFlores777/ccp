@@ -122,7 +122,7 @@ export function Inicio() {
       route: `${c.profile} · ${tilde(c.cwd)}`,
       age: ago(c.last_activity),
       bad: false,
-      go: () => app.startMove(c),
+      go: () => app.openConvPanel(c.uuid, c.profile),
     })),
   ];
 
