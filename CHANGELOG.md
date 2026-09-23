@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [2.28.1] — la conversación al lado, y la tabla sin saltos de línea
+
+- **El detalle de una conversación es pantalla dividida**, no un panel flotante: se acopla a la derecha,
+  la lista se encoge para dejarle sitio, el ancho se ajusta arrastrando el borde (y se recuerda) y sigue
+  abierto al cambiar de pantalla, así que su cuenta se ve al lado de la conversación. Con él abierto,
+  Conversaciones pasa a una lista compacta y resalta la fila abierta.
+- **La app usa el ancho de la ventana** (hasta 1600 px, antes 1000): ya no queda media ventana vacía.
+- **La tabla de Conversaciones no parte nombres**: cuentas y carpetas en una línea con «…» si no caben,
+  la fecha y las acciones en columnas propias de ancho fijo, alineadas en todas las filas.
+
+
 ## [2.28.0] — la conversación se lee en Markdown, y cada nombre lleva a su detalle
 
 - **El texto de una conversación se lee como Markdown**, en forma de chat: lo tuyo a la derecha y en tu

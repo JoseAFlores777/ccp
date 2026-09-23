@@ -10,7 +10,7 @@
 // uuid dentro de la carpeta de esa cuenta y devuelve los últimos mensajes ya
 // legibles; el panel nunca lee archivos por su cuenta.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, type ConvMessage, type ConvText, type Conversation } from '../lib/api';
 import { accessInfo, typeLabel } from '../lib/actions';
 import { copyText, revealPath } from '../lib/bridge';
@@ -153,13 +153,9 @@ export function ConversationPanel() {
   const [show, setShow] = useState<Show>('talk');
   const [q, setQ] = useState('');
 
-  // Cambiar de pantalla (Mover, la cuenta, el detalle completo) cierra el
-  // panel: se quedaría tapando la pantalla a la que se fue.
-  const lastScreen = useRef(app.screen);
-  useEffect(() => {
-    if (lastScreen.current !== app.screen) closeConvPanel();
-    lastScreen.current = app.screen;
-  }, [app.screen, closeConvPanel]);
+  // En pantalla dividida el panel no tapa nada, así que sigue abierto al
+  // cambiar de pantalla: pulsar su cuenta enseña la cuenta AL LADO de la
+  // conversación. Solo «Abrir el detalle completo» lo cierra (sería lo mismo dos veces).
 
   useEffect(() => {
     if (!convPanel) return;
@@ -199,7 +195,7 @@ export function ConversationPanel() {
   const resumeArgs = ['ccp', 'session', '--profile', profile, '--session', uuid, ...(c?.in_desktop ? ['--fork'] : [])];
 
   return (
-    <aside className="conv-panel fade-in" role="dialog" aria-label={t('Detalle de la conversación')}>
+    <aside className="conv-panel" aria-label={t('Detalle de la conversación')}>
       <header style={{ padding: '16px 18px 12px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="label" style={{ marginBottom: 6, display: 'flex', alignItems: 'center' }}>{t('Conversación')}<Help term="conversacion" size={12} /></div>
