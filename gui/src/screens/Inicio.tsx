@@ -8,7 +8,7 @@ import { ago, clock, tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Bar, Card, CliBar, Code, Empty, Label, ListButton, Pill, Skeleton, Swatch, toneColors, usageColor } from '../components/ui';
-import { AccountLink } from '../components/Links';
+import { AccountLink, nodeWidth } from '../components/Links';
 
 export function sampleAge(p: Profile): string {
   if (p.type === 'default') return t('sin sensores');
@@ -55,12 +55,16 @@ export function MiniMap({ st, loans }: { st: AutoStatus | undefined; loans: Hand
   const live = new Set((loans?.active ?? []).filter((l) => l.from === primary).map((l) => l.to));
   const H = Math.max(84, chain.length * 42);
   const py = H / 2;
+  // Los nodos se ensanchan hasta caber el nombre entero (texto mono de 9,5 px).
+  const W = nodeWidth([primary, ...chain.map((l) => l.profile)], 86, 6, 26);
+  const X2 = 6 + W + 76;
+  const VW = X2 + W + 6;
   return (
-    <svg viewBox={`0 0 260 ${H}`} style={{ width: '100%', height: H, display: 'block' }} role="img" aria-label={t('Mapa de cuentas')}>
-      <rect x={6} y={py - 15} width={86} height={30} rx={6} fill="var(--surface-2)" stroke="var(--accent-line)" />
+    <svg viewBox={`0 0 ${VW} ${H}`} style={{ width: '100%', height: H, display: 'block' }} role="img" aria-label={t('Mapa de cuentas')}>
+      <rect x={6} y={py - 15} width={W} height={30} rx={6} fill="var(--surface-2)" stroke="var(--accent-line)" />
       <rect x={12} y={py - 3} width={6} height={6} rx={1.5} fill={colorOf(primary)} />
       <text x={23} y={py + 3.5} fontSize={9.5} fontFamily="Geist Mono, monospace" fill="var(--ink-2)">
-        {primary.length > 11 ? primary.slice(0, 10) + '…' : primary}
+        {primary}
       </text>
       {chain.length === 0 && (
         <text x={120} y={py + 3.5} fontSize={9.5} fill="var(--ink-4)">
@@ -73,17 +77,17 @@ export function MiniMap({ st, loans }: { st: AutoStatus | undefined; loans: Hand
         return (
           <g key={l.profile}>
             <path
-              d={`M 92 ${py} C 130 ${py}, 130 ${y}, 168 ${y}`}
+              d={`M ${6 + W} ${py} C ${6 + W + 38} ${py}, ${6 + W + 38} ${y}, ${X2} ${y}`}
               fill="none"
               stroke={anim ? 'var(--accent)' : l.allowed ? 'var(--line-strong)' : 'var(--err)'}
               strokeWidth={anim ? 1.5 : 1.2}
               strokeDasharray={anim ? '6 8' : l.allowed ? (st.gate?.absent ? '3 4' : 'none') : '2 3'}
               style={anim ? { animation: 'dash .9s linear infinite' } : undefined}
             />
-            <rect x={168} y={y - 15} width={86} height={30} rx={6} fill="var(--surface-2)" stroke="var(--line)" opacity={l.allowed ? 1 : 0.55} />
-            <rect x={174} y={y - 3} width={6} height={6} rx={1.5} fill={colorOf(l.profile)} />
-            <text x={185} y={y + 3.5} fontSize={9.5} fontFamily="Geist Mono, monospace" fill="var(--ink-2)">
-              {l.profile.length > 11 ? l.profile.slice(0, 10) + '…' : l.profile}
+            <rect x={X2} y={y - 15} width={W} height={30} rx={6} fill="var(--surface-2)" stroke="var(--line)" opacity={l.allowed ? 1 : 0.55} />
+            <rect x={X2 + 6} y={y - 3} width={6} height={6} rx={1.5} fill={colorOf(l.profile)} />
+            <text x={X2 + 17} y={y + 3.5} fontSize={9.5} fontFamily="Geist Mono, monospace" fill="var(--ink-2)">
+              {l.profile}
             </text>
           </g>
         );

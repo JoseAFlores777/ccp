@@ -4,7 +4,8 @@ import { api, type Profile } from '../lib/api';
 import { accessInfo, deleteProfileModal, editProviderModal, isProvider, newProfileModal, renameModal, syncMsg, typeLabel } from '../lib/actions';
 import { t } from '../lib/i18n';
 import { useApp } from '../lib/store';
-import { Card, CliBar, Row, Swatch, TableHead, toneColors } from '../components/ui';
+import { Card, CliBar, Row, TableHead, toneColors } from '../components/ui';
+import { AccountLink, accountColumn } from '../components/Links';
 
 export function desktopLabel(p: Profile): string {
   if (p.type === 'default') return p.desktop.running ? t('Principal · abierta') : t('Principal');
@@ -19,11 +20,13 @@ export function sensorsLabel(p: Profile): { label: string; color: string } {
   return { label: t('No aplica'), color: 'var(--ink-4)' };
 }
 
-const COLS = '1.3fr 1fr 1fr .6fr .8fr .7fr 104px';
+// La primera columna cabe el nombre más largo: un nombre de cuenta no se recorta.
+const colsFor = (acct: string) => `minmax(${acct}, 1.3fr) 1fr 1fr .6fr .8fr .7fr 104px`;
 
 export function Perfiles() {
   const app = useApp();
-  const { profiles, openProfile, openModal, colorOf, mutate } = app;
+  const { profiles, openModal, mutate } = app;
+  const COLS = colsFor(accountColumn(profiles.map((p) => p.name)));
 
   return (
     <div>
@@ -44,15 +47,9 @@ export function Perfiles() {
           const isDefault = p.name === 'default';
           return (
             <Row key={p.name} cols={COLS}>
-              <button
-                onClick={() => openProfile(p.name, 'resumen')}
-                style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}
-              >
-                <Swatch color={colorOf(p.name)} />
-                <span className="ellipsis" style={{ fontSize: 13, color: 'var(--ink)' }}>
-                  {p.name}
-                </span>
-              </button>
+              <span style={{ minWidth: 0 }}>
+                <AccountLink name={p.name} style={{ fontSize: 13, color: 'var(--ink)', gap: 9 }} />
+              </span>
               <span style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 300 }}>{typeLabel(p.type)}</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: col, fontWeight: 300 }}>
                 <span className="dot" style={{ width: 5, height: 5, background: col }} />

@@ -13,7 +13,7 @@ import { tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, CliBar, Empty, ErrorNote, Label, Loading, Note, Pill, Toggle } from '../components/ui';
-import { AccountLink } from '../components/Links';
+import { AccountLink, nodeWidth } from '../components/Links';
 import { Help } from '../components/Help';
 import { SortableList } from '../components/Sortable';
 import { RotacionRed } from './RotacionRed';
@@ -382,7 +382,7 @@ function ChainsPorPerfil({ onPick, viewing, lendsTo }: { onPick: (n: string) => 
 function ChainCanvas({ s, chain, colorOf, onOpenMap }: {
   s: AutoStatus; chain: ChainLink[]; colorOf: (n: string) => string; onOpenMap: () => void;
 }) {
-  const NW = 132, NH = 48, GAP = 46, TOP = 52, PAD = 12;
+  const NW = nodeWidth([s.primary, ...chain.map((l) => l.profile)], 132, 7.6, 44), NH = 48, GAP = 46, TOP = 52, PAD = 12;
   const nodes = [{ name: s.primary, primary: true, blocked: false, note: t('principal') }, ...chain.map((l, i) => ({
     name: l.profile,
     primary: false,
@@ -394,7 +394,6 @@ function ChainCanvas({ s, chain, colorOf, onOpenMap }: {
   const height = TOP + NH + (chain.length ? 34 : 30);
   const mid = TOP + NH / 2;
   const cx = (i: number) => x(i) + NW / 2;
-  const clip = (n: string) => (n.length > 15 ? n.slice(0, 14) + '…' : n);
 
   return (
     <Card shadow style={{ marginBottom: 14, padding: '14px 18px 10px' }}>
@@ -429,7 +428,7 @@ function ChainCanvas({ s, chain, colorOf, onOpenMap }: {
                 fill="none" stroke="var(--accent)" strokeWidth={1.3} strokeDasharray="4 4" markerEnd="url(#cc-home)" opacity={0.85}
               />
               <text x={(cx(0) + cx(nodes.length - 1)) / 2} y={14} textAnchor="middle" fontSize={10.5} fill="var(--accent)">
-                {t('vuelve a {p} cuando se libera', { p: clip(s.primary) })}
+                {t('vuelve a {p} cuando se libera', { p: s.primary })}
               </text>
             </>
           )}
@@ -450,7 +449,7 @@ function ChainCanvas({ s, chain, colorOf, onOpenMap }: {
                 strokeDasharray={n.blocked ? '4 3' : undefined}
               />
               <rect x={x(i) + 12} y={TOP + 14} width={8} height={8} rx={2} fill={colorOf(n.name)} />
-              <text x={x(i) + 27} y={TOP + 22} fontSize={12.5} fill="var(--ink)">{clip(n.name)}</text>
+              <text x={x(i) + 27} y={TOP + 22} fontSize={12.5} fill="var(--ink)">{n.name}</text>
               <text x={x(i) + 12} y={TOP + 38} fontSize={10} fill={n.blocked ? 'var(--err)' : 'var(--ink-4)'}>{n.note}</text>
             </g>
           ))}

@@ -12,7 +12,7 @@ import { ago, bytes, shortUUID } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, Chips, CliBar, Empty, ErrorNote, Loading, Note, Row, Segmented, TableHead } from '../components/ui';
-import { AccountLink, FolderLink } from '../components/Links';
+import { AccountLink, FolderLink, accountColumn } from '../components/Links';
 import { Help } from '../components/Help';
 import { Prestamos } from './Prestamos';
 import { openLeaveWorking } from '../lib/leaveWorking';
@@ -28,11 +28,11 @@ export function whereLabel(c: Conversation): string {
 // vez de partir el texto. La fecha y las acciones van aparte y con ancho FIJO:
 // cada fila es su propia rejilla, y con `auto` una fila sin «Dejar trabajando»
 // tendría columnas de otro ancho que la de al lado.
-const COLS = 'minmax(0,2.4fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.4fr) 76px 196px';
+const cols = (acct: string) => `minmax(0,2.4fr) ${acct} minmax(0,1fr) minmax(0,1.4fr) 76px 196px`;
 // Con el panel de detalle abierto (pantalla dividida) la lista pierde media
 // ventana: se queda con conversación, cuenta y actividad; dónde vive y la
 // carpeta pasan bajo el título, y las acciones ya están en el panel.
-const COLS_COMPACT = 'minmax(0,1fr) minmax(96px,0.45fr) 76px';
+const colsCompact = (acct: string) => `minmax(0,1fr) ${acct} 76px`;
 
 type View = 'list' | 'loans';
 
@@ -68,6 +68,11 @@ function Lista({ fixed }: { fixed?: string }) {
   const { folder, startMove, selected } = app;
   const open = app.convPanel;
   const compact = !!open;
+  // La columna Cuenta cabe el nombre más largo de todas las cuentas: el mismo
+  // ancho en cada fila, y ningún nombre recortado.
+  const acct = accountColumn(app.profiles.map((p) => p.name));
+  const COLS = cols(acct);
+  const COLS_COMPACT = colsCompact(acct);
   const [filter, setFilter] = useState<Filter>(fixed ? 'all' : 'here');
   const [picked, setProfile] = useState<string>('');
   const profile = fixed ?? picked;
