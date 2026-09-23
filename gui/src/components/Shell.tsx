@@ -328,7 +328,7 @@ function Sidebar() {
               return (
                 <NavButton key={p.name} on={on} onClick={() => openProfile(p.name)}>
                   <Swatch color={colorOf(p.name)} size={7} />
-                  <span className="ellipsis" style={{ flex: 1 }}>{p.name}</span>
+                  <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere', lineHeight: 1.3 }}>{p.name}</span>
                   {needs && (
                     <span
                       className="dot"

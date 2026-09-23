@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [2.28.2] — el nombre de la cuenta, siempre entero
+
+- **El nombre de una cuenta ya no se recorta en ninguna vista.** En la app de escritorio (WebKit) el texto
+  de un botón dentro de una celda se cortaba con «…» aunque hubiera sitio («a-…» por «a-cc»); los
+  enlaces a entidades pasan a ser enlaces de texto. Las columnas «Cuenta» toman el ancho del nombre más
+  largo, los nodos de la cadena, la red, la vista en vivo y el minimapa se ensanchan hasta caberlo, y
+  donde el espacio es fijo (barra lateral, mapa) el nombre salta de línea entero. Solo las rutas de
+  carpeta siguen terminando en «…».
+
+
 ## [2.28.1] — la conversación al lado, y la tabla sin saltos de línea
 
 - **El detalle de una conversación es pantalla dividida**, no un panel flotante: se acopla a la derecha,

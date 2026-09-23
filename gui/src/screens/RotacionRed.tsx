@@ -15,10 +15,9 @@ import { api, type ChainRow } from '../lib/api';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, ErrorNote, Label, Loading, Segmented } from '../components/ui';
-import { AccountLink } from '../components/Links';
+import { AccountLink, nodeWidth } from '../components/Links';
 import { Help } from '../components/Help';
 
-const NW = 118;
 const NH = 38;
 
 interface Edge {
@@ -29,7 +28,7 @@ interface Edge {
 }
 
 /** Donde la recta que sale del centro de un nodo cruza su borde. */
-function border(cx: number, cy: number, dx: number, dy: number): [number, number] {
+function border(NW: number, cx: number, cy: number, dx: number, dy: number): [number, number] {
   const sx = dx === 0 ? Infinity : (NW / 2 + 4) / Math.abs(dx);
   const sy = dy === 0 ? Infinity : (NH / 2 + 4) / Math.abs(dy);
   const s = Math.min(sx, sy);
@@ -70,7 +69,10 @@ export function RotacionRed() {
   if (!rows.data) return <Loading rows={4} />;
 
   const n = names.length;
-  const R = Math.max(150, n * 34);
+  // Nodos tan anchos como el nombre más largo: ninguno se recorta.
+  const NW = nodeWidth(names, 118, 7.2, 40);
+  // Radio que separa los nodos aunque sean anchos: con nombres largos se pisaban.
+  const R = Math.max(150, n * 34, Math.round((NW * n) / 5));
   const W = 2 * R + NW + 40;
   const H = 2 * R * 0.72 + NH + 40;
   const pos = new Map(
@@ -128,8 +130,8 @@ export function RotacionRed() {
             // Curva hacia el mismo lado según el sentido: A→B y B→A no se tapan.
             const cxp = (a.x + b.x) / 2 - uy * len * 0.16;
             const cyp = (a.y + b.y) / 2 + ux * len * 0.16;
-            const [sx, sy] = border(a.x, a.y, cxp - a.x, cyp - a.y);
-            const [ex, ey] = border(b.x, b.y, cxp - b.x, cyp - b.y);
+            const [sx, sy] = border(NW, a.x, a.y, cxp - a.x, cyp - a.y);
+            const [ex, ey] = border(NW, b.x, b.y, cxp - b.x, cyp - b.y);
             const mx = 0.25 * sx + 0.5 * cxp + 0.25 * ex;
             const my = 0.25 * sy + 0.5 * cyp + 0.25 * ey;
             const on = lit(e);
@@ -165,7 +167,7 @@ export function RotacionRed() {
               >
                 <rect width={NW} height={NH} rx={9} fill={focus === name ? 'var(--accent-soft)' : 'var(--surface)'} stroke={focus === name ? 'var(--accent-line)' : 'var(--line-strong)'} strokeWidth={pin === name ? 2 : 1} />
                 <rect x={10} y={10} width={8} height={8} rx={2} fill={colorOf(name)} />
-                <text x={24} y={18} fontSize={12} fill="var(--ink)">{name.length > 13 ? name.slice(0, 12) + '…' : name}</text>
+                <text x={24} y={18} fontSize={12} fill="var(--ink)">{name}</text>
                 <text x={10} y={31} fontSize={9.5} fill="var(--ink-4)">
                   {t('usa {o} · le usan {i}', { o: outs, i: ins })}
                 </text>

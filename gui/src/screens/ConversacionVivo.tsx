@@ -17,7 +17,7 @@ import type { LiveSession } from '../lib/api';
 import { t } from '../lib/i18n';
 import { useApp } from '../lib/store';
 import { Bar, Card, Label, Pill, type Tone } from '../components/ui';
-import { AccountLink, FolderLink } from '../components/Links';
+import { AccountLink, FolderLink, nodeWidth } from '../components/Links';
 import { Help } from '../components/Help';
 
 /** «12 min», «1 h 05 min», «40 s». */
@@ -117,7 +117,8 @@ function Tiles({ s, now }: { s: LiveSession; now: number }) {
  *  atrás, y los saltos hechos como arcos numerados por encima. */
 function ChainTrack({ s, now }: { s: LiveSession; now: number }) {
   const { colorOf } = useApp();
-  const NW = 138, NH = 58, GAP = 50, PAD = 14;
+  // El nodo se ensancha hasta caber el nombre más largo: nunca se recorta.
+  const NW = nodeWidth(s.chain, 138, 7.8, 46), NH = 58, GAP = 50, PAD = 14;
   const hopsH = Math.min(s.hops.length, 6) * 16 + 18;
   const TOP = PAD + hopsH;
   const x = (i: number) => PAD + i * (NW + GAP);
@@ -177,7 +178,7 @@ function ChainTrack({ s, now }: { s: LiveSession; now: number }) {
                 stroke={cd ? 'var(--warn)' : cur ? 'var(--accent-line)' : 'var(--line-strong)'}
                 strokeDasharray={cd && !cur ? '4 3' : undefined} />
               <rect x={x(i) + 12} y={TOP + 14} width={9} height={9} rx={2} fill={colorOf(p)} />
-              <text x={x(i) + 28} y={TOP + 23} fontSize={13} fill="var(--ink)">{p.length > 13 ? p.slice(0, 12) + '…' : p}</text>
+              <text x={x(i) + 28} y={TOP + 23} fontSize={13} fill="var(--ink)">{p}</text>
               <text x={x(i) + 12} y={TOP + 42} fontSize={10} fill={cd ? 'var(--warn)' : cur ? 'var(--accent)' : 'var(--ink-4)'}>{sub}</text>
               {p === s.primary && <text x={x(i) + NW / 2} y={TOP + NH + 16} textAnchor="middle" fontSize={9.5} fill="var(--ink-4)">{t('casa')}</text>}
             </g>

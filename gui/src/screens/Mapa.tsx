@@ -700,7 +700,7 @@ export function Mapa() {
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
                   <span className="swatch" style={{ background: colorOf(p.name) }} />
-                  <span className="ellipsis" style={{ fontSize: 12.5, color: 'var(--ink)', flex: 1 }}>{p.name}</span>
+                  <span style={{ fontSize: 12.5, color: 'var(--ink)', flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{p.name}</span>
                 </div>
                 <div style={{ fontSize: 10.5, color: 'var(--ink-4)', fontWeight: 300, lineHeight: 1.45 }}>
                   {typeLabel(p.type)} · {role}
