@@ -24,7 +24,15 @@ export function whereLabel(c: Conversation): string {
   return c.profile === 'default' ? t('Ventana principal') : t('Ventana {p}', { p: c.profile });
 }
 
-const COLS = '2fr 1fr 1fr 1fr 1.6fr';
+// Columnas: minmax(0, …) deja que cada una se encoja hasta recortar con «…» en
+// vez de partir el texto. La fecha y las acciones van aparte y con ancho FIJO:
+// cada fila es su propia rejilla, y con `auto` una fila sin «Dejar trabajando»
+// tendría columnas de otro ancho que la de al lado.
+const COLS = 'minmax(0,2.4fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.4fr) 76px 196px';
+// Con el panel de detalle abierto (pantalla dividida) la lista pierde media
+// ventana: se queda con conversación, cuenta y actividad; dónde vive y la
+// carpeta pasan bajo el título, y las acciones ya están en el panel.
+const COLS_COMPACT = 'minmax(0,1fr) minmax(96px,0.45fr) 76px';
 
 type View = 'list' | 'loans';
 
@@ -58,6 +66,8 @@ export function Conversaciones({ profile: fixed, view: routeView }: { profile?: 
 function Lista({ fixed }: { fixed?: string }) {
   const app = useApp();
   const { folder, startMove, selected } = app;
+  const open = app.convPanel;
+  const compact = !!open;
   const [filter, setFilter] = useState<Filter>(fixed ? 'all' : 'here');
   const [picked, setProfile] = useState<string>('');
   const profile = fixed ?? picked;
@@ -116,12 +126,13 @@ function Lista({ fixed }: { fixed?: string }) {
       {!res.data && !res.error && <Loading rows={6} />}
       {res.data && (
         <Card pad={false} clip shadow>
-          <TableHead cols={COLS}>
+          <TableHead cols={compact ? COLS_COMPACT : COLS}>
             <span>{t('Conversación')}</span>
             <span>{t('Cuenta')}</span>
-            <span>{t('Dónde vive')}</span>
-            <span>{t('Carpeta')}</span>
+            {!compact && <span>{t('Dónde vive')}</span>}
+            {!compact && <span>{t('Carpeta')}</span>}
             <span>{t('Actividad')}</span>
+            {!compact && <span />}
           </TableHead>
           {items.length === 0 && (
             <Empty title={q ? t('Nada coincide con «{q}»', { q }) : t('No hay conversaciones con este filtro')}>
@@ -129,7 +140,11 @@ function Lista({ fixed }: { fixed?: string }) {
             </Empty>
           )}
           {items.map((c) => (
-            <Row key={c.profile + c.uuid} cols={COLS}>
+            <Row
+              key={c.profile + c.uuid}
+              cols={compact ? COLS_COMPACT : COLS}
+              style={open?.uuid === c.uuid && open.profile === c.profile ? { background: 'var(--accent-soft)', boxShadow: 'inset 3px 0 0 var(--accent)' } : undefined}
+            >
               <span style={{ minWidth: 0 }}>
                 <button
                   className="ellipsis conv-link"
@@ -149,15 +164,20 @@ function Lista({ fixed }: { fixed?: string }) {
                   )}
                   {c.archived && <span className="pill" style={{ color: 'var(--ink-3)', background: 'var(--surface-3)' }}>{t('archivada')}</span>}
                 </span>
+                {compact && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, fontSize: 10.5, color: 'var(--ink-4)', minWidth: 0 }}>
+                    <span style={{ whiteSpace: 'nowrap' }}>{whereLabel(c)}</span>·
+                    <FolderLink path={c.cwd} />
+                  </span>
+                )}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                 <AccountLink name={c.profile} tab="conv" style={{ fontSize: 12, color: 'var(--ink-2)', fontWeight: 300 }} />
               </span>
-              <span className="ellipsis" style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 300 }}>{whereLabel(c)}</span>
-              <span className="ellipsis" style={{ fontSize: 11, color: 'var(--ink-4)', minWidth: 0 }} title={c.cwd}><FolderLink path={c.cwd} /></span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 11.5, color: 'var(--ink-4)', fontWeight: 300 }}>{ago(c.last_activity)}</span>
-                <span style={{ display: 'flex', gap: 4 }}>
+              {!compact && <span className="ellipsis" style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 300 }}>{whereLabel(c)}</span>}
+              {!compact && <span className="ellipsis" style={{ fontSize: 11, color: 'var(--ink-4)', minWidth: 0 }} title={c.cwd}><FolderLink path={c.cwd} /></span>}
+              <span style={{ fontSize: 11.5, color: 'var(--ink-4)', fontWeight: 300, whiteSpace: 'nowrap' }}>{ago(c.last_activity)}</span>
+              {!compact && <span style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                   {!c.archived && !c.loan && (
                     <button
                       className="btn quiet sm"
@@ -168,8 +188,7 @@ function Lista({ fixed }: { fixed?: string }) {
                     </button>
                   )}
                   <button className="btn quiet sm" onClick={() => startMove(c)}>{t('Mover')}</button>
-                </span>
-              </span>
+              </span>}
             </Row>
           ))}
         </Card>

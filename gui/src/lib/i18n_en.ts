@@ -1598,4 +1598,5 @@ export const en: Record<string, string> = {
   "prestada por": "lent by",
   "Hoy esa carpeta usa": "That folder uses",
   ": al abrir una terminal ahí no estarás en {c}.": " today: a terminal opened there won’t be on {c}.",
+  "Arrastra para cambiar el ancho": "Drag to change the width",
 };

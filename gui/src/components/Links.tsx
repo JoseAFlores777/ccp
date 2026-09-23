@@ -26,7 +26,7 @@ export function AccountLink({ name, tab = 'resumen', swatch = true, style, child
   const body = (
     <>
       {swatch && <span className="swatch" style={{ background: colorOf(name), width: 7, height: 7 }} />}
-      {children ?? name}
+      <span className="ellipsis">{children ?? name}</span>
     </>
   );
   if (!exists) return <span className="entity-link off" style={style}>{body}</span>;
@@ -82,7 +82,7 @@ export function FolderLink({ path, style, children }: { path: string; style?: CS
         go('carpetas');
       }}
     >
-      {children ?? tilde(path)}
+      <span className="ellipsis">{children ?? tilde(path)}</span>
     </button>
   );
 }

@@ -9,6 +9,8 @@ import { t } from '../lib/i18n';
 import { useApp, useCall, type ProfileTab, type Screen } from '../lib/store';
 import { isProvider, syncCloud } from '../lib/actions';
 import { Swatch } from './ui';
+import { Boundary } from './Boundary';
+import { ConversationPanel } from './ConversationPanel';
 import { Help } from './Help';
 import { glossary, glossaryKeys } from '../lib/glossary';
 
@@ -518,14 +520,61 @@ export function Shell({ children }: { children: ReactNode }) {
     scroller.current?.scrollTo({ top: 0 });
   }, [screen]);
 
+  // Ancho del panel dividido: se recuerda entre sesiones y se acota para que la
+  // lista siempre conserve sitio.
+  const { convPanel } = useApp();
+  const [panelW, setPanelW] = useState(() => {
+    try {
+      const v = Number(localStorage.getItem('ccp.panelWidth'));
+      return v >= 380 && v <= 1100 ? v : 560;
+    } catch {
+      return 560;
+    }
+  });
+  const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = panelW;
+    let w = startW;
+    const move = (ev: PointerEvent) => {
+      w = Math.min(Math.max(380, startW + (startX - ev.clientX)), Math.min(1100, window.innerWidth - 228 - 420));
+      setPanelW(w);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      try {
+        localStorage.setItem('ccp.panelWidth', String(Math.round(w)));
+      } catch {
+        /* sin almacenamiento: el ancho dura lo que la sesión */
+      }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
   return (
     <div style={{ position: 'relative', height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--surface)', overflow: 'hidden' }}>
       <TopBar onSearch={() => setPalette(true)} />
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <Sidebar />
         <main ref={scroller} style={{ flex: 1, minWidth: 0, overflowY: 'auto', background: 'var(--bg)' }}>
-          <div style={{ maxWidth: screen === 'mapa' ? 'none' : 1000, padding: '26px 30px 60px' }}>{children}</div>
+          {/* Ancho útil de la ventana: con 1000 px fijos, en una pantalla grande
+              quedaba media ventana vacía a la derecha y las tablas se apretaban.
+              El tope evita líneas de texto interminables en monitores enormes. */}
+          <div style={{ maxWidth: screen === 'mapa' ? 'none' : 1600, padding: '26px 30px 60px' }}>{children}</div>
         </main>
+        {/* El detalle de una conversación en pantalla dividida: a la derecha,
+            en el sitio que la lista no necesita, y la lista se encoge para
+            dejarle hueco en vez de quedar tapada. El borde se arrastra. */}
+        {convPanel && (
+          <div className="split-pane" style={{ width: panelW }}>
+            <div className="split-handle" onPointerDown={startResize} title={t('Arrastra para cambiar el ancho')} />
+            <Boundary key={convPanel.uuid}>
+              <ConversationPanel />
+            </Boundary>
+          </div>
+        )}
       </div>
       {palette && <Palette onClose={() => setPalette(false)} />}
     </div>
