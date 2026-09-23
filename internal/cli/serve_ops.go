@@ -1388,3 +1388,37 @@ func srvAutoLive(s *server, raw json.RawMessage) (any, error) {
 	}
 	return out, nil
 }
+
+// srvConversationsRead es el texto de una conversación para el panel de
+// detalle: sus últimos mensajes legibles y las estadísticas de toda ella. Se
+// pide por cuenta y uuid, nunca por ruta: el transcript se busca dentro de la
+// carpeta de Claude Code de esa cuenta y solo ahí.
+func srvConversationsRead(s *server, raw json.RawMessage) (any, error) {
+	p, err := params[struct {
+		Profile string `json:"profile"`
+		UUID    string `json:"uuid"`
+		Limit   int    `json:"limit"`
+	}](raw)
+	if err != nil {
+		return nil, err
+	}
+	if p.Profile == "" || p.UUID == "" {
+		return nil, badParams("faltan la cuenta y el uuid de la conversación")
+	}
+	ccHome, err := core.CCHome(s.home, p.Profile)
+	if err != nil {
+		return nil, err
+	}
+	path := core.FindTranscript(ccHome, p.UUID)
+	if path == "" {
+		return nil, &serveError{Code: "not_found", Message: fmt.Sprintf("%s no tiene la conversación %s", p.Profile, p.UUID)}
+	}
+	c, err := core.ReadConversation(path, p.Limit)
+	if err != nil {
+		return nil, err
+	}
+	return struct {
+		core.ConvText
+		Transcript string `json:"transcript"`
+	}{c, path}, nil
+}

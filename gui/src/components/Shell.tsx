@@ -426,7 +426,7 @@ function Palette({ onClose }: { onClose: () => void }) {
         key: 'c:' + c.profile + c.uuid,
         label: c.title || c.uuid,
         hint: `${c.profile} · ${tilde(c.cwd)}`,
-        run: () => app.startMove(c),
+        run: () => app.openConvPanel(c.uuid, c.profile),
       });
     }
     return out;

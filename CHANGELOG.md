@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [2.27.0] — el detalle de una conversación, sin salir de la lista
+
+- **Panel lateral de conversación.** Pulsar una conversación (en Conversaciones, en Inicio o en ⌘K) abre
+  a la izquierda su detalle: título y uuid para copiar; de qué cuenta viene, su tipo y su acceso; su
+  carpeta, y si hoy esa carpeta usa otra cuenta; su actividad (mensajes, herramientas más usadas,
+  duración, modelo, tokens, errores); **el texto de lo que se habló**, con filtros, buscador y copia por
+  mensaje o entera en Markdown; y las acciones: dejar trabajando, mover, retomar en la terminal
+  supervisada, abrir el detalle completo o mostrar el archivo.
+- **`conversations.read`** (serve) y `core.ReadConversation` convierten el transcript —un diario de
+  eventos donde cada bloque de una respuesta es su propia línea— en mensajes legibles: une la respuesta
+  partida, resume cada herramienta por su comando o archivo, recorta y dice que recortó, y nunca enseña
+  el pensamiento del modelo. Se pide por cuenta y uuid, nunca por ruta.
+
+
 ## [2.26.0] — dejar a Claude trabajando de noche, y verlo girar en vivo
 
 - **«Dejar trabajando»** en cada conversación (Conversaciones y su detalle): la sigue desatendida en una

@@ -134,7 +134,7 @@ function Lista({ fixed }: { fixed?: string }) {
                   className="ellipsis conv-link"
                   style={{ display: 'block', fontSize: 13, color: c.title ? 'var(--ink)' : 'var(--ink-4)' }}
                   title={t('Ver el detalle de la conversación')}
-                  onClick={() => app.openConversation(c.uuid, c.profile)}
+                  onClick={() => app.openConvPanel(c.uuid, c.profile)}
                 >
                   {c.title || t('(sin título)')}
                 </button>

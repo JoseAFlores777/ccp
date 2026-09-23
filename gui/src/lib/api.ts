@@ -174,6 +174,36 @@ export interface Conversation {
   transcript: string;
 }
 
+/** Un mensaje de una conversación, ya legible (core.ConvMessage). */
+export interface ConvMessage {
+  kind: 'user' | 'assistant' | 'tool_use' | 'tool_result' | 'error';
+  text: string;
+  tool?: string;
+  at: string;
+  truncated?: boolean;
+}
+
+/** El texto de una conversación y sus estadísticas (`conversations.read`). */
+export interface ConvText {
+  title: string;
+  cwd: string;
+  transcript: string;
+  messages: ConvMessage[];
+  omitted: number;
+  stats: {
+    user_messages: number;
+    assistant_messages: number;
+    tool_calls: number;
+    tools: Record<string, number>;
+    errors: number;
+    models: string[];
+    input_tokens: number;
+    output_tokens: number;
+    first: string;
+    last: string;
+  };
+}
+
 /** Una sesión supervisada vista desde fuera (`ccp auto live --json`). */
 export interface LiveSession {
   id: string;
@@ -822,6 +852,8 @@ export const api = {
   policy: (p: Partial<PolicyParams> & { policy?: string }) => ccpCall('auto.policy', p),
   autoTest: (profile?: string) => ccpCall<CliRun>('auto.test', { profile }),
   simulate: (p: { cwd?: string; primary?: string; policy?: string }) => ccpCall<Simulation>('auto.simulate', p),
+  readConversation: (profile: string, uuid: string, limit = 400) =>
+    ccpCall<ConvText>('conversations.read', { profile, uuid, limit }),
   autoLive: (session?: string) => ccpCall<LiveSession[]>('auto.live', { session: session ?? '' }),
   bootstrap: (cwd: string, policy?: string, profile?: string) => ccpCall<Bootstrap>('auto.bootstrap', { cwd, policy, profile }),
   bootstrapApply: (cwd: string, policy?: string, profile?: string) =>
