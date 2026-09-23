@@ -14,10 +14,10 @@
 
 import { useEffect, useState } from 'react';
 import type { LiveSession } from '../lib/api';
-import { tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp } from '../lib/store';
 import { Bar, Card, Label, Pill, type Tone } from '../components/ui';
+import { AccountLink, FolderLink } from '../components/Links';
 import { Help } from '../components/Help';
 
 /** «12 min», «1 h 05 min», «40 s». */
@@ -72,7 +72,6 @@ function returnInfo(s: LiveSession, now: number): { text: string; ms: number | n
 }
 
 function Tiles({ s, now }: { s: LiveSession; now: number }) {
-  const { colorOf } = useApp();
   const ret = returnInfo(s, now);
   const st = stateInfo(s);
   const tile = { flex: '1 1 170px', minWidth: 0, padding: '14px 16px' } as const;
@@ -91,8 +90,7 @@ function Tiles({ s, now }: { s: LiveSession; now: number }) {
       <Card style={tile}>
         <Label style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>{t('Ahora en')}<Help term="principal" size={12} /></Label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 17, color: 'var(--ink)' }}>
-          <span className="swatch" style={{ background: colorOf(s.current), width: 10, height: 10 }} />
-          {s.current}
+          <AccountLink name={s.current} tab="conv" style={{ gap: 8 }} />
           {s.current !== s.primary && <Pill tone="accent">{t('prestada')}</Pill>}
         </div>
         <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 8, fontWeight: 300 }}>
@@ -259,7 +257,6 @@ function Timeline({ s, now }: { s: LiveSession; now: number }) {
 }
 
 function HopList({ s }: { s: LiveSession }) {
-  const { colorOf } = useApp();
   if (s.hops.length === 0) {
     return <div style={{ fontSize: 12, color: 'var(--ink-4)', fontWeight: 300 }}>{t('Todavía no ha cambiado de cuenta.')}</div>;
   }
@@ -269,9 +266,9 @@ function HopList({ s }: { s: LiveSession }) {
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderTop: i ? '1px solid var(--line-soft)' : 'none', fontSize: 12 }}>
           <span className="mono" style={{ width: 20, color: 'var(--ink-4)' }}>{i + 1}</span>
           <span className="mono" style={{ width: 46, color: 'var(--ink-3)' }}>{clockOf(h.at)}</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span className="swatch" style={{ background: colorOf(h.from), width: 7, height: 7 }} />{h.from}</span>
+          <AccountLink name={h.from} tab="conv" />
           <span style={{ color: 'var(--ink-4)' }}>→</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span className="swatch" style={{ background: colorOf(h.to), width: 7, height: 7 }} />{h.to}</span>
+          <AccountLink name={h.to} tab="conv" />
           <Pill tone={h.home ? 'ok' : 'accent'}>{h.home ? t('vuelta a casa') : t('préstamo')}</Pill>
           <span className="ellipsis" style={{ flex: 1, minWidth: 0, color: 'var(--ink-4)', fontWeight: 300 }} title={h.reason}>{h.reason}</span>
         </div>
@@ -297,7 +294,7 @@ export function LiveView({ s }: { s: LiveSession }) {
         <Label style={{ marginBottom: 6 }}>{t('Saltos')}</Label>
         <HopList s={s} />
         <div className="mono" style={{ fontSize: 10.5, color: 'var(--ink-4)', marginTop: 10 }}>
-          {tilde(s.cwd)} · {t('sesión')} {s.session.slice(0, 8)} · pid {s.pid}
+          <FolderLink path={s.cwd} /> · {t('sesión')} {s.session.slice(0, 8)} · pid {s.pid}
         </div>
       </Card>
     </div>

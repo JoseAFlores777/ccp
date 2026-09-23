@@ -8,10 +8,11 @@
 
 import { useMemo, useState } from 'react';
 import { api, type Conversation } from '../lib/api';
-import { ago, bytes, shortUUID, tilde } from '../lib/format';
+import { ago, bytes, shortUUID } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, Chips, CliBar, Empty, ErrorNote, Loading, Note, Row, Segmented, TableHead } from '../components/ui';
+import { AccountLink, FolderLink } from '../components/Links';
 import { Help } from '../components/Help';
 import { Prestamos } from './Prestamos';
 import { openLeaveWorking } from '../lib/leaveWorking';
@@ -56,7 +57,7 @@ export function Conversaciones({ profile: fixed, view: routeView }: { profile?: 
 
 function Lista({ fixed }: { fixed?: string }) {
   const app = useApp();
-  const { folder, colorOf, startMove, selected } = app;
+  const { folder, startMove, selected } = app;
   const [filter, setFilter] = useState<Filter>(fixed ? 'all' : 'here');
   const [picked, setProfile] = useState<string>('');
   const profile = fixed ?? picked;
@@ -150,11 +151,10 @@ function Lista({ fixed }: { fixed?: string }) {
                 </span>
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                <span className="swatch" style={{ background: colorOf(c.profile), width: 7, height: 7 }} />
-                <span className="ellipsis" style={{ fontSize: 12, color: 'var(--ink-2)', fontWeight: 300 }}>{c.profile}</span>
+                <AccountLink name={c.profile} tab="conv" style={{ fontSize: 12, color: 'var(--ink-2)', fontWeight: 300 }} />
               </span>
               <span className="ellipsis" style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 300 }}>{whereLabel(c)}</span>
-              <span className="mono ellipsis" style={{ fontSize: 11, color: 'var(--ink-4)' }} title={c.cwd}>{tilde(c.cwd) || '—'}</span>
+              <span className="ellipsis" style={{ fontSize: 11, color: 'var(--ink-4)', minWidth: 0 }} title={c.cwd}><FolderLink path={c.cwd} /></span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 11.5, color: 'var(--ink-4)', fontWeight: 300 }}>{ago(c.last_activity)}</span>
                 <span style={{ display: 'flex', gap: 4 }}>

@@ -9,9 +9,10 @@ import { tilde, untilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, CliBar, Dot, ErrorNote, Label, Loading, Pill } from '../components/ui';
+import { AccountLink } from '../components/Links';
 
 function Tester() {
-  const { folder, colorOf } = useApp();
+  const { folder } = useApp();
   const [input, setInput] = useState(tilde(folder));
   const [query, setQuery] = useState(folder);
   useEffect(() => {
@@ -42,8 +43,7 @@ function Tester() {
       {r && (
         <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line-soft)' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
-            <span className="swatch" style={{ background: colorOf(r.profile), alignSelf: 'center' }} />
-            <span style={{ fontSize: 21, fontWeight: 300, letterSpacing: '-.02em' }}>{r.profile}</span>
+            <AccountLink name={r.profile} tab="carpetas" style={{ fontSize: 21, fontWeight: 300, letterSpacing: '-.02em', gap: 9 }} />
             <span style={{ fontSize: 11.5, color: 'var(--ink-4)', fontWeight: 300 }}>
               {r.rule ? t('la decide una regla') : t('ninguna regla: default')}
             </span>
@@ -75,7 +75,7 @@ function Tester() {
 
 export function Carpetas() {
   const app = useApp();
-  const { openModal, colorOf, profiles } = app;
+  const { openModal, profiles } = app;
   const rules = useCall(() => api.rules(), []);
   const list: Rule[] = rules.data ?? [];
 
@@ -95,8 +95,7 @@ export function Carpetas() {
                 <span className="mono" style={{ fontSize: 10, color: 'var(--ink-4)', width: 14, flex: '0 0 14px' }}>▸</span>
                 <span style={{ fontSize: 12, color: 'var(--ink-3)', flex: 1, fontWeight: 300 }}>{t('Todo lo que no cubre una regla')}</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <span className="swatch" style={{ background: colorOf('default'), width: 7, height: 7 }} />
-                  <span style={{ fontSize: 12, color: 'var(--ink-2)', fontWeight: 300 }}>default</span>
+                  <AccountLink name="default" tab="carpetas" style={{ fontSize: 12, color: 'var(--ink-2)', fontWeight: 300 }} />
                 </span>
                 <span style={{ width: 118 }} />
               </div>
@@ -112,10 +111,14 @@ export function Carpetas() {
                   {r.depth > 0 && <Pill tone="unk">{t('excepción')}</Pill>}
                   {!r.exists && <Pill tone="warn">{t('no existe')}</Pill>}
                   <span style={{ display: 'flex', alignItems: 'center', gap: 7, flex: '0 0 auto' }}>
-                    <span className="swatch" style={{ background: r.orphan ? 'var(--err)' : colorOf(r.profile), width: 7, height: 7 }} />
-                    <span style={{ fontSize: 12, color: r.orphan ? 'var(--err)' : 'var(--ink-2)', fontWeight: 300 }} title={r.orphan ? r.profile : undefined}>
-                      {r.orphan ? t('cuenta que ya no existe') : r.profile}
-                    </span>
+                    {r.orphan ? (
+                      <>
+                        <span className="swatch" style={{ background: 'var(--err)', width: 7, height: 7 }} />
+                        <span style={{ fontSize: 12, color: 'var(--err)', fontWeight: 300 }} title={r.profile}>{t('cuenta que ya no existe')}</span>
+                      </>
+                    ) : (
+                      <AccountLink name={r.profile} tab="carpetas" style={{ fontSize: 12, color: 'var(--ink-2)', fontWeight: 300 }} />
+                    )}
                   </span>
                   <span style={{ display: 'flex', gap: 6, flex: '0 0 auto' }}>
                     <button className="btn quiet xs" onClick={() => openModal(editRuleModal(app, r))}>{t('Cambiar')}</button>

@@ -5,10 +5,11 @@
 
 import { api, type ActiveLoan } from '../lib/api';
 import { discardLoanModal, openLoanEnd, openLoanResume, pruneModal } from '../lib/actions';
-import { ago, shortUUID, tilde } from '../lib/format';
+import { ago, shortUUID } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, CliBar, Empty, ErrorNote, Label, Loading, Pill } from '../components/ui';
+import { AccountLink, ConvLink, FolderLink } from '../components/Links';
 
 function loanMeta(l: ActiveLoan): string {
   const since = t('Desde {a}', { a: ago(l.since) });
@@ -19,7 +20,7 @@ function loanMeta(l: ActiveLoan): string {
 
 export function Prestamos({ profile }: { profile?: string } = {}) {
   const app = useApp();
-  const { openModal, colorOf, go } = app;
+  const { openModal, go } = app;
   const res = useCall(() => api.handoffs(), [], 30_000);
   const active = (res.data?.active ?? []).filter((l) => !profile || l.from === profile || l.to === profile || l.hops.includes(profile));
   const allArchived = res.data?.archived ?? [];
@@ -46,18 +47,25 @@ export function Prestamos({ profile }: { profile?: string } = {}) {
               <div key={l.session} style={{ padding: '16px 20px', borderBottom: '1px solid var(--line-soft)', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13.5, color: 'var(--ink)' }}>{l.title || shortUUID(l.session)}</span>
+                    <ConvLink uuid={l.session} profile={l.to} style={{ fontSize: 13.5, color: 'var(--ink)' }}>{l.title || shortUUID(l.session)}</ConvLink>
                     <Pill tone={tag.tone}>{tag.label}</Pill>
                   </span>
                   <span className="mono" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 7, fontSize: 11, color: 'var(--ink-3)', flexWrap: 'wrap' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span className="swatch" style={{ background: colorOf(l.from), width: 6, height: 6 }} />{l.from}</span>
+                    <AccountLink name={l.from} tab="conv" />
                     <span style={{ color: 'var(--ink-4)' }}>→</span>
                     {l.auto && l.hops.length > 1 ? (
-                      <span>{l.hops.join(' → ')}</span>
+                      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {l.hops.map((h, k) => (
+                          <span key={k} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                            {k > 0 && <span style={{ color: 'var(--ink-4)' }}>→</span>}
+                            <AccountLink name={h} tab="conv" />
+                          </span>
+                        ))}
+                      </span>
                     ) : (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span className="swatch" style={{ background: colorOf(l.to), width: 6, height: 6 }} />{l.to}</span>
+                      <AccountLink name={l.to} tab="conv" />
                     )}
-                    <span style={{ color: 'var(--ink-4)' }}>{tilde(l.cwd)}</span>
+                    <span style={{ color: 'var(--ink-4)' }}><FolderLink path={l.cwd} /></span>
                     <span className="selectable" style={{ color: 'var(--ink-4)' }} title={l.session}>{shortUUID(l.session)}</span>
                   </span>
                   <span style={{ display: 'block', marginTop: 7, fontSize: 11.5, color: l.present ? 'var(--ink-4)' : 'var(--err)', fontWeight: 300 }}>{loanMeta(l)}</span>
@@ -93,8 +101,13 @@ export function Prestamos({ profile }: { profile?: string } = {}) {
           <div key={h.session + i} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '11px 20px', borderBottom: '1px solid var(--line-soft)' }}>
             <span className="mono selectable" style={{ fontSize: 11, color: 'var(--ink-3)', width: 74 }} title={h.session}>{shortUUID(h.session)}</span>
             <span className="mono ellipsis" style={{ fontSize: 11, color: 'var(--ink-3)', flex: 1 }}>
-              {h.from} → {h.to}
-              {h.returned_as && <span style={{ color: 'var(--ink-4)' }}> · {t('volvió como {u}', { u: shortUUID(h.returned_as) })}</span>}
+              <AccountLink name={h.from} tab="conv" swatch={false} /> → <AccountLink name={h.to} tab="conv" swatch={false} />
+              {h.returned_as && (
+                <span style={{ color: 'var(--ink-4)' }}>
+                  {' · '}{t('volvió como')}{' '}
+                  <ConvLink uuid={h.returned_as} profile={h.from}>{shortUUID(h.returned_as)}</ConvLink>
+                </span>
+              )}
               {!h.returned_as && <span style={{ color: 'var(--ink-4)' }}> · {t('descartado')}</span>}
             </span>
             <span style={{ fontSize: 11.5, color: 'var(--ink-4)', fontWeight: 300, width: 110, textAlign: 'right' }}>{ago(h.ended)}</span>

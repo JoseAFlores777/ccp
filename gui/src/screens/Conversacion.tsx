@@ -4,18 +4,19 @@
 
 import { useState } from 'react';
 import { api, type Conversation } from '../lib/api';
-import { ago, bytes, tilde } from '../lib/format';
+import { ago, bytes } from '../lib/format';
 import { t } from '../lib/i18n';
 import { openLeaveWorking } from '../lib/leaveWorking';
 import { useApp, useCall } from '../lib/store';
 import { Card, CliBar, Empty, ErrorNote, KV, Label, Loading, Pill } from '../components/ui';
+import { AccountLink, FolderLink } from '../components/Links';
 import { Help } from '../components/Help';
 import { whereLabel } from './Conversaciones';
 import { LiveView } from './ConversacionVivo';
 
 export function Conversacion() {
   const app = useApp();
-  const { convDetail, colorOf, startMove, go } = app;
+  const { convDetail, startMove, go } = app;
   const uuid = convDetail?.uuid ?? '';
   const conv = useCall(
     () => (convDetail ? api.conversations({ profile: convDetail.profile, limit: 1000 }) : Promise.resolve(null)),
@@ -63,9 +64,9 @@ export function Conversacion() {
         <KV
           labelWidth={96}
           rows={[
-            [t('Cuenta'), <span key="p" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="swatch" style={{ background: colorOf(convDetail.profile) }} />{convDetail.profile}</span>],
+            [t('Cuenta'), <AccountLink key="p" name={convDetail.profile} tab="conv" />],
             [t('Dónde vive'), c ? whereLabel(c) : '—'],
-            [t('Carpeta'), c ? tilde(c.cwd) : '—'],
+            [t('Carpeta'), c ? <FolderLink key="f" path={c.cwd} /> : '—'],
             [t('Actividad'), c ? `${ago(c.last_activity)} · ${bytes(c.bytes)}` : '—'],
             ['uuid', uuid],
           ]}

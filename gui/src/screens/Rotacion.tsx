@@ -13,6 +13,7 @@ import { tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, CliBar, Empty, ErrorNote, Label, Loading, Note, Pill, Toggle } from '../components/ui';
+import { AccountLink } from '../components/Links';
 import { Help } from '../components/Help';
 import { SortableList } from '../components/Sortable';
 import { RotacionRed } from './RotacionRed';
@@ -187,9 +188,8 @@ export function Rotacion({ profile: fixed }: { profile?: string } = {}) {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 12px', border: '1px solid var(--accent-line)', borderRadius: 9, marginBottom: 8, background: 'var(--accent-soft)' }}>
             <span className="mono" style={{ fontSize: 10, color: 'var(--ink-4)', width: 16 }}>—</span>
-            <span className="swatch" style={{ background: colorOf(s.primary) }} />
             <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: 'block', fontSize: 13, color: 'var(--ink)' }}>{s.primary}</span>
+              <AccountLink name={s.primary} tab="rotacion" style={{ fontSize: 13, color: 'var(--ink)' }} />
               <span style={{ display: 'block', fontSize: 11, color: 'var(--ink-4)', marginTop: 2, fontWeight: 300 }}>
                 {fixed
                   ? t('La cuenta que se agota; los respaldos toman el relevo en este orden')
@@ -232,9 +232,8 @@ export function Rotacion({ profile: fixed }: { profile?: string } = {}) {
                 >
                   <span aria-hidden style={{ color: 'var(--ink-4)', fontSize: 13, lineHeight: 1, width: 10, letterSpacing: '-2px' }}>⋮⋮</span>
                   <span className="mono" style={{ fontSize: 10, color: 'var(--ink-4)', width: 14 }}>{row.position + 1}</span>
-                  <span className="swatch" style={{ background: colorOf(l.profile) }} />
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: 'block', fontSize: 13, color: 'var(--ink)' }}>{l.profile}</span>
+                    <AccountLink name={l.profile} tab="rotacion" style={{ fontSize: 13, color: 'var(--ink)' }} />
                     <span style={{ display: 'block', fontSize: 11, color: blocked ? 'var(--err)' : l.sensors === 'missing' ? 'var(--warn)' : 'var(--ink-4)', marginTop: 2, fontWeight: 300 }}>
                       {linkNote(l)}
                     </span>
@@ -328,7 +327,6 @@ export function Rotacion({ profile: fixed }: { profile?: string } = {}) {
  * sola. Es informativa: se edita desde la tarjeta de cada carpeta o por CLI.
  */
 function ChainsPorPerfil({ onPick, viewing, lendsTo }: { onPick: (n: string) => void; viewing: string; lendsTo?: string }) {
-  const { colorOf } = useApp();
   const rows = useCall(() => api.chains(), []);
   if (!rows.data) return null;
   // Con `lendsTo`: solo las cadenas donde aparece esa cuenta, es decir, a
@@ -354,11 +352,15 @@ function ChainsPorPerfil({ onPick, viewing, lendsTo }: { onPick: (n: string) => 
           title={t('Editar la cadena de {p} arriba', { p: r.profile })}
           style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px', borderBottom: '1px solid var(--line-soft)', cursor: 'pointer', borderRadius: 6, background: r.profile === viewing ? 'var(--accent-soft)' : undefined }}
         >
-          <span className="swatch" style={{ background: colorOf(r.profile) }} />
-          <span style={{ fontSize: 12.5, color: 'var(--ink)', minWidth: 130 }}>{r.profile}</span>
+          <AccountLink name={r.profile} tab="rotacion" style={{ fontSize: 12.5, color: 'var(--ink)', minWidth: 130 }} />
           <Pill tone={r.own ? 'ok' : undefined}>{r.own ? t('propia') : t('heredada')}</Pill>
           <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: r.fallback.length ? 'var(--ink-2)' : 'var(--ink-4)', fontWeight: 300 }}>
-            {r.fallback.length ? r.fallback.join(' → ') : t('no presta a nadie')}
+            {r.fallback.length ? r.fallback.map((f, k) => (
+              <span key={f} style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
+                {k > 0 && <span style={{ color: 'var(--ink-4)', margin: '0 5px' }}>→</span>}
+                <AccountLink name={f} tab="rotacion" swatch={false} />
+              </span>
+            )) : t('no presta a nadie')}
           </span>
           {r.pinned && <Pill>{t('política {n}', { n: r.policy })}</Pill>}
           {r.missing.length > 0 && <Pill tone="err">{t('{n} inexistentes', { n: r.missing.length })}</Pill>}

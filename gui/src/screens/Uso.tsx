@@ -8,6 +8,7 @@ import { ago, clock, pct } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Bar, Card, CliBar, CommandOutput, Note, Pill, type Tone, usageColor } from '../components/ui';
+import { AccountLink } from '../components/Links';
 
 function state(p: Profile, threshold: number): { label: string; tone: Tone } {
   const u = p.usage?.five_hour?.pct;
@@ -41,7 +42,7 @@ function Window({ label, w, threshold }: { label: string; w: UsageWindow | undef
 
 export function Uso() {
   const app = useApp();
-  const { profiles, colorOf, folder, mutate } = app;
+  const { profiles, folder, mutate } = app;
   const st = useCall(() => api.autoStatus(folder), [folder]);
   const [test, setTest] = useState<CliRun | null>(null);
   const [testing, setTesting] = useState(false);
@@ -84,8 +85,7 @@ export function Uso() {
           return (
             <Card key={p.name} shadow style={{ padding: '17px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 15 }}>
-                <span className="swatch" style={{ background: colorOf(p.name) }} />
-                <span style={{ fontSize: 13.5, color: 'var(--ink)' }}>{p.name}</span>
+                <AccountLink name={p.name} style={{ fontSize: 13.5, color: 'var(--ink)', gap: 8 }} />
                 <Pill tone={s.tone}>{s.label}</Pill>
                 {p.access !== 'ok' && <Pill tone="err">{t('sin acceso')}</Pill>}
                 <span style={{ flex: 1 }} />
