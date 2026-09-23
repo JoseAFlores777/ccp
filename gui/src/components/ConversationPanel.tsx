@@ -14,11 +14,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, type ConvMessage, type ConvText, type Conversation } from '../lib/api';
 import { accessInfo, typeLabel } from '../lib/actions';
 import { copyText, revealPath } from '../lib/bridge';
-import { ago, bytes, tilde } from '../lib/format';
+import { ago, bytes } from '../lib/format';
 import { t } from '../lib/i18n';
 import { openLeaveWorking } from '../lib/leaveWorking';
 import { useApp, useCall } from '../lib/store';
 import { Help } from './Help';
+import { AccountLink, FolderLink } from './Links';
+import { Markdown } from './Markdown';
 import { Chips, ErrorNote, Label, Loading, Pill, toneColors } from './ui';
 import { whereLabel } from '../screens/Conversaciones';
 
@@ -120,33 +122,32 @@ function Message({ m }: { m: ConvMessage }) {
       </div>
     );
   }
-  const who = m.kind === 'user' ? t('Tú') : m.kind === 'assistant' ? 'Claude' : t('Error');
-  const tone = m.kind === 'error' ? toneColors('err') : null;
+  // Chat: lo tuyo a la derecha y en el color de acento, lo de Claude a la
+  // izquierda y neutro, un error de la API en rojo. Las dos voces se distinguen
+  // por el lado, el color y la etiqueta, no solo por uno de los tres.
+  const side = m.kind === 'user' ? 'user' : m.kind === 'error' ? 'error' : 'assistant';
+  const who = m.kind === 'user' ? t('Tú') : m.kind === 'assistant' ? 'Claude' : t('Error de la API');
+  const avatarBg = m.kind === 'user' ? 'var(--accent)' : m.kind === 'error' ? 'var(--err)' : '#d97757';
   return (
-    <div
-      style={{
-        margin: '8px 0', padding: '10px 12px', borderRadius: 9,
-        background: m.kind === 'user' ? 'var(--accent-soft)' : tone ? tone.bg : 'var(--surface-2)',
-        border: `1px solid ${m.kind === 'user' ? 'var(--accent-line)' : 'var(--line-soft)'}`,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-        <span style={{ fontSize: 11, fontWeight: 500, color: m.kind === 'user' ? 'var(--accent)' : tone ? tone.fg : 'var(--ink-2)' }}>{who}</span>
-        <span className="mono" style={{ fontSize: 10, color: 'var(--ink-4)' }}>{clockOf(m.at)}</span>
-        <span style={{ flex: 1 }} />
-        <CopyBtn text={m.text} label={t('Copiar')} />
+    <div className={`chat-row ${side}`}>
+      <div className="chat-bubble">
+        <div className="chat-who">
+          <span className="chat-avatar" style={{ background: avatarBg }}>{m.kind === 'user' ? t('Tú').charAt(0) : m.kind === 'error' ? '!' : 'C'}</span>
+          <span style={{ fontWeight: 600, color: m.kind === 'user' ? 'var(--accent)' : m.kind === 'error' ? 'var(--err)' : 'var(--ink)' }}>{who}</span>
+          <span className="mono" style={{ fontSize: 10, color: 'var(--ink-4)' }}>{clockOf(m.at)}</span>
+          <span style={{ flex: 1 }} />
+          <CopyBtn text={m.text} label={t('Copiar')} />
+        </div>
+        <Markdown text={m.text} keepBreaks={m.kind === 'user'} />
+        {m.truncated && <div style={{ fontSize: 10.5, color: 'var(--ink-4)', marginTop: 6 }}>{t('(recortado: el mensaje completo está en el transcript)')}</div>}
       </div>
-      <div className="selectable" style={{ fontSize: 12.5, color: 'var(--ink)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.55 }}>
-        {m.text}
-      </div>
-      {m.truncated && <div style={{ fontSize: 10.5, color: 'var(--ink-4)', marginTop: 6 }}>{t('(recortado: el mensaje completo está en el transcript)')}</div>}
     </div>
   );
 }
 
 export function ConversationPanel() {
   const app = useApp();
-  const { convPanel, closeConvPanel, profiles, colorOf, openProfile, startMove, openConversation, openSheet } = app;
+  const { convPanel, closeConvPanel, profiles, openProfile, startMove, openConversation, openSheet } = app;
   const uuid = convPanel?.uuid ?? '';
   const profile = convPanel?.profile ?? '';
   const [show, setShow] = useState<Show>('talk');
@@ -244,35 +245,40 @@ export function ConversationPanel() {
           {running && (
             <div className="note accent" style={{ marginTop: 10, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span className="live-dot" />
-              {t('Trabajando ahora con supervisión, en {p}.', { p: running.current })}
+              {t('Trabajando ahora con supervisión, en')} <AccountLink name={running.current} />
             </div>
           )}
         </Section>
 
         <Section title={t('Cuenta')} help="cuenta" right={<button className="btn quiet xs" onClick={() => openProfile(profile, 'conv')}>{t('Abrir la cuenta')}</button>}>
           <Row k={t('Cuenta')}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-              <span className="swatch" style={{ background: colorOf(profile) }} />
-              <span style={{ color: 'var(--ink)' }}>{profile}</span>
-            </span>
+            <AccountLink name={profile} style={{ color: 'var(--ink)' }} />
           </Row>
           {p && <Row k={t('Tipo')}>{typeLabel(p.type)}</Row>}
           {acc && <Row k={t('Acceso')}><span style={{ color: toneColors(acc.tone).fg }}>{acc.label}</span></Row>}
           {c && <Row k={t('Dónde vive')}>{whereLabel(c)}{c.archived ? ` · ${t('archivada')}` : ''}</Row>}
           {c?.loan && (
             <Row k={t('Préstamo')}>
-              <Pill tone="accent">{c.loan.from === c.profile ? t('prestada a {p}', { p: c.loan.to }) : t('prestada por {p}', { p: c.loan.from })}</Pill>
+              <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                {c.loan.from === c.profile ? t('prestada a') : t('prestada por')}
+                <AccountLink name={c.loan.from === c.profile ? c.loan.to : c.loan.from} />
+              </span>
             </Row>
           )}
         </Section>
 
         <Section title={t('Carpeta')} help="carpetas" right={cwd ? <CopyBtn text={cwd} label={t('Copiar ruta')} /> : undefined}>
-          <div className="mono selectable" style={{ fontSize: 11.5, color: 'var(--ink-2)', wordBreak: 'break-all', marginBottom: 8 }}>{cwd ? tilde(cwd) : '—'}</div>
+          <div style={{ fontSize: 11.5, color: 'var(--ink-2)', wordBreak: 'break-all', marginBottom: 8 }}>{cwd ? <FolderLink path={cwd} /> : '—'}</div>
           {folder.data && (
             <div style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 300 }}>
               {folder.data.profile === profile
                 ? t('Esa carpeta usa esta misma cuenta.')
-                : t('Hoy esa carpeta usa {p}: al abrir una terminal ahí no estarás en {c}.', { p: folder.data.profile, c: profile })}
+                : (
+                  <>
+                    {t('Hoy esa carpeta usa')} <AccountLink name={folder.data.profile} />{' '}
+                    {t(': al abrir una terminal ahí no estarás en {c}.', { c: profile })}
+                  </>
+                )}
             </div>
           )}
           {cwd && <button className="btn quiet xs" style={{ marginTop: 8 }} onClick={() => void revealPath(cwd)}>{t('Mostrar en Finder')}</button>}

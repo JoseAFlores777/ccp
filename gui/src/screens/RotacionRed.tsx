@@ -15,6 +15,7 @@ import { api, type ChainRow } from '../lib/api';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, ErrorNote, Label, Loading, Segmented } from '../components/ui';
+import { AccountLink } from '../components/Links';
 import { Help } from '../components/Help';
 
 const NW = 118;
@@ -39,6 +40,9 @@ export function RotacionRed() {
   const { profiles, colorOf, openProfile } = useApp();
   const rows = useCall(() => api.chains(), []);
   const [hover, setHover] = useState<string | null>(null);
+  // Pulsar una cuenta la FIJA: el hover se pierde al mover el ratón hacia el
+  // panel de la derecha, y ahí están los enlaces.
+  const [pin, setPin] = useState<string | null>(null);
   // Con la cadena compartida, todas usan a todas y la red se vuelve una madeja:
   // ver solo las propias enseña las decisiones que alguien tomó a mano.
   const [only, setOnly] = useState<'all' | 'own'>('all');
@@ -79,7 +83,7 @@ export function RotacionRed() {
   const outOf = (x: string) => edges.filter((e) => e.from === x).sort((a, b) => a.order - b.order);
   const into = (x: string) => edges.filter((e) => e.to === x);
   const lit = (e: Edge) => !hover || e.from === hover || e.to === hover;
-  const focus = hover ?? null;
+  const focus = hover ?? pin;
 
   return (
     <Card shadow style={{ marginBottom: 14, padding: '14px 18px 12px' }}>
@@ -96,7 +100,7 @@ export function RotacionRed() {
       </div>
       <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 8, fontWeight: 300 }}>
         {t('Cada flecha va de una cuenta a su respaldo, con el orden en que lo probaría. Continua: cadena propia; punteada: heredada de la política.')}{' '}
-        {t('Pasa por encima de una cuenta para ver solo lo suyo; pulsa para abrir su rotación.')}
+        {t('Pasa por encima de una cuenta para ver solo lo suyo; pulsa para fijarla y doble clic para abrir su rotación.')}
       </div>
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <svg
@@ -156,9 +160,10 @@ export function RotacionRed() {
                 style={{ cursor: 'pointer', transition: 'opacity .15s' }}
                 onMouseEnter={() => setHover(name)}
                 onMouseLeave={() => setHover(null)}
-                onClick={() => openProfile(name, 'rotacion')}
+                onClick={() => setPin((x) => (x === name ? null : name))}
+                onDoubleClick={() => openProfile(name, 'rotacion')}
               >
-                <rect width={NW} height={NH} rx={9} fill={hover === name ? 'var(--accent-soft)' : 'var(--surface)'} stroke={hover === name ? 'var(--accent-line)' : 'var(--line-strong)'} />
+                <rect width={NW} height={NH} rx={9} fill={focus === name ? 'var(--accent-soft)' : 'var(--surface)'} stroke={focus === name ? 'var(--accent-line)' : 'var(--line-strong)'} strokeWidth={pin === name ? 2 : 1} />
                 <rect x={10} y={10} width={8} height={8} rx={2} fill={colorOf(name)} />
                 <text x={24} y={18} fontSize={12} fill="var(--ink)">{name.length > 13 ? name.slice(0, 12) + '…' : name}</text>
                 <text x={10} y={31} fontSize={9.5} fill="var(--ink-4)">
@@ -173,13 +178,24 @@ export function RotacionRed() {
           {focus ? (
             <>
               <div style={{ color: 'var(--ink)', fontSize: 13, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 7 }}>
-                <span className="swatch" style={{ background: colorOf(focus) }} />
-                {focus}
+                <AccountLink name={focus} tab="rotacion" />
+                {pin === focus && <button className="btn quiet xs" onClick={() => setPin(null)}>{t('Soltar')}</button>}
               </div>
               <div className="label" style={{ marginTop: 6 }}>{t('Se apoya en')}</div>
-              <div>{outOf(focus).length ? outOf(focus).map((e) => e.to).join(' → ') : t('nadie: si se agota, espera')}</div>
+              <div>{outOf(focus).length ? outOf(focus).map((e, k) => (
+                <span key={e.to} style={{ display: 'inline-flex', alignItems: 'center' }}>
+                  {k > 0 && <span style={{ margin: '0 5px' }}>→</span>}
+                  <AccountLink name={e.to} tab="rotacion" swatch={false} />
+                </span>
+              )) : t('nadie: si se agota, espera')}</div>
               <div className="label" style={{ marginTop: 10 }}>{t('Dependen de ella')}</div>
-              <div>{into(focus).length ? into(focus).map((e) => t('{p} (su n.º {n})', { p: e.from, n: e.order })).join(', ') : t('ninguna cuenta')}</div>
+              <div>{into(focus).length ? into(focus).map((e, k) => (
+                <span key={e.from} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  {k > 0 && ', '}
+                  <AccountLink name={e.from} tab="rotacion" swatch={false} />
+                  <span>{t('(su n.º {n})', { n: e.order })}</span>
+                </span>
+              )) : t('ninguna cuenta')}</div>
             </>
           ) : (
             <>
@@ -191,8 +207,7 @@ export function RotacionRed() {
                 .slice(0, 5)
                 .map((r) => (
                   <div key={r.x} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <span className="swatch" style={{ background: colorOf(r.x) }} />
-                    <span style={{ flex: 1, color: 'var(--ink-2)' }}>{r.x}</span>
+                    <AccountLink name={r.x} tab="rotacion" style={{ flex: 1, color: 'var(--ink-2)' }} />
                     <span className="mono" style={{ fontSize: 11 }}>{t('{n} dependen', { n: r.ins })}</span>
                   </div>
                 ))}

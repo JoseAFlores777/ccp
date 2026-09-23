@@ -8,6 +8,7 @@ import { ago, clock, pct, shortUUID, tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, Checkbox, CliBar, Dot, Empty, ErrorNote, Label, Loading, Note, Pill, type Tone } from '../components/ui';
+import { AccountLink, FolderLink } from '../components/Links';
 import { durationLabel } from './Rotacion';
 
 function bootLabel(it: BootstrapItem): string {
@@ -40,7 +41,7 @@ function stepTone(s: SimStep['status']): { tone: Tone; label: string } {
 /** Las sesiones supervisadas de los últimos días, con su estado en vivo. Cada
  *  una abre el detalle de su conversación, donde se ve dibujada. */
 function EnVivo() {
-  const { colorOf, openConversation } = useApp();
+  const { openConversation } = useApp();
   const live = useCall(() => api.autoLive(), [], 3000);
   const list = live.data ?? [];
   if (!live.data || list.length === 0) return null;
@@ -53,24 +54,28 @@ function EnVivo() {
         <Label>{t('Sesiones supervisadas')}</Label>
       </div>
       {list.slice(0, 8).map((s) => (
-        <button
+        // Un div con rol de botón y no un <button>: dentro van enlaces a la cuenta
+        // y a la carpeta, y un botón no puede contener otros botones.
+        <div
           key={s.id}
+          role="button"
+          tabIndex={0}
           className="nav-item"
           style={{ borderRadius: 0, padding: '10px 20px', borderTop: '1px solid var(--line-soft)', gap: 12 }}
           onClick={() => openConversation(s.session, s.current)}
+          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && openConversation(s.session, s.current)}
           title={t('Ver en vivo')}
         >
           {s.state === 'running' ? <span className="live-dot" /> : <span style={{ width: 8 }} />}
           <Pill tone={tone(s.state)}>{label(s.state, s.exit_code)}</Pill>
           <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--ink)' }}>
-            <span className="swatch" style={{ background: colorOf(s.current) }} />
-            {s.current}
-            {s.current !== s.primary && <span style={{ color: 'var(--ink-4)' }}>{t('(de {p})', { p: s.primary })}</span>}
+            <AccountLink name={s.current} tab="conv" />
+            {s.current !== s.primary && <span style={{ color: 'var(--ink-4)', display: 'inline-flex', gap: 4 }}>({t('de')} <AccountLink name={s.primary} tab="conv" swatch={false} />)</span>}
           </span>
-          <span className="mono ellipsis" style={{ flex: 1, minWidth: 0, fontSize: 11, color: 'var(--ink-4)' }}>{tilde(s.cwd)}</span>
+          <span className="ellipsis" style={{ flex: 1, minWidth: 0, fontSize: 11, color: 'var(--ink-4)' }}><FolderLink path={s.cwd} /></span>
           <span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>{t('{n}/{m} préstamos', { n: s.loans_used, m: s.max_hops })}</span>
           <span style={{ color: 'var(--accent)', fontSize: 12 }}>→</span>
-        </button>
+        </div>
       ))}
     </Card>
   );
@@ -78,7 +83,7 @@ function EnVivo() {
 
 export function Sesiones() {
   const app = useApp();
-  const { folder, mutate, openSheet, colorOf, go } = app;
+  const { folder, mutate, openSheet, go } = app;
   const boot = useCall(() => api.bootstrap(folder), [folder]);
   const st = useCall(() => api.autoStatus(folder), [folder]);
   const sim = useCall(() => (st.data?.present ? api.simulate({ cwd: folder }) : Promise.resolve(null)), [folder, st.data?.present]);
@@ -169,8 +174,10 @@ export function Sesiones() {
                 const tn = stepTone(x.status);
                 return (
                   <div key={x.profile} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, padding: '3px 0' }}>
-                    <span className="swatch" style={{ background: colorOf(x.profile), width: 6, height: 6 }} />
-                    <span style={{ flex: 1, color: 'var(--ink-2)' }}>{x.profile}{x.role === 'primary' ? ` · ${t('principal')}` : ''}</span>
+                    <span style={{ flex: 1, color: 'var(--ink-2)', display: 'inline-flex', gap: 5, alignItems: 'center' }}>
+                      <AccountLink name={x.profile} tab="rotacion" />
+                      {x.role === 'primary' ? ` · ${t('principal')}` : ''}
+                    </span>
                     {x.sampled_at && <span className="mono" style={{ color: 'var(--ink-4)', fontSize: 10.5 }}>{pct(x.pct5)}</span>}
                     {x.until && <span style={{ color: 'var(--ink-4)', fontSize: 10.5 }}>{t('hasta {h}', { h: clock(x.until) })}</span>}
                     <Pill tone={tn.tone}>{tn.label}</Pill>

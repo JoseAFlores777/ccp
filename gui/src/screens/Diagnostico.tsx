@@ -10,6 +10,7 @@ import { describeFinding, findingRef, sevLabel, sevTone, type FixKind } from '..
 import { t } from '../lib/i18n';
 import { useApp, useCall, type ModalSpec } from '../lib/store';
 import { Card, Chips, CliBar, Empty, ErrorNote, Loading, Note, Pill, toneColors } from '../components/ui';
+import { AccountLink } from '../components/Links';
 
 type Filter = 'all' | 'error' | 'warn' | 'unknown' | 'info';
 
@@ -127,6 +128,7 @@ export function Diagnostico() {
                 <span style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 13, color: 'var(--ink)' }}>{d.title}</span>
                   <Pill tone={tone}>{sevLabel(f.severity)}</Pill>
+                  {f.profile && <AccountLink name={f.profile} style={{ fontSize: 12, color: 'var(--ink-2)' }} />}
                 </span>
                 {d.what && <span className="selectable" style={{ display: 'block', fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.6, marginTop: 6, fontWeight: 300 }}>{d.what}</span>}
                 <span className="mono selectable" style={{ display: 'block', fontSize: 10, color: 'var(--ink-4)', marginTop: 8 }}>{findingRef(f)}</span>

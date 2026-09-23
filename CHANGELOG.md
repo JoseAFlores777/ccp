@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [2.28.0] — la conversación se lee en Markdown, y cada nombre lleva a su detalle
+
+- **El texto de una conversación se lee como Markdown**, en forma de chat: lo tuyo a la derecha y en tu
+  color, lo de Claude a la izquierda, los errores de la API en rojo. Títulos, listas, listas de tareas,
+  tablas, código y citas se ven como tales. El HTML incrustado no se interpreta, un enlace no saca la app
+  de sí misma (copia la dirección) y las imágenes externas no se cargan.
+- **Cada entidad es un enlace.** Donde la app nombra una cuenta, una conversación o una carpeta, lleva a
+  su detalle: la cuenta en la pestaña que toca, la conversación a su panel y la carpeta al probador de
+  Carpetas (qué cuenta le toca y por qué regla). En tablas, cadenas, la red de cuentas, Supervisadas,
+  Uso, Desktop, Diagnóstico, Préstamos, la vista en vivo y Mover.
+- En la red de cuentas, un clic fija una cuenta (para llegar a sus enlaces) y el doble clic abre su rotación.
+
+
 ## [2.27.0] — el detalle de una conversación, sin salir de la lista
 
 - **Panel lateral de conversación.** Pulsar una conversación (en Conversaciones, en Inicio o en ⌘K) abre

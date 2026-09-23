@@ -8,6 +8,7 @@ import { bytes, tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Card, CliBar, ErrorNote, Label, Loading, Note, Pill, toneColors } from '../components/ui';
+import { AccountLink } from '../components/Links';
 import { Help } from '../components/Help';
 
 // `identity` solo dice algo de una ventana abierta: «none» es «no hay nada que
@@ -69,7 +70,7 @@ export function Desktop({ profile }: { profile?: string } = {}) {
                   {r.profile.charAt(0).toUpperCase()}
                 </span>
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: 'block', fontSize: 13.5, color: 'var(--ink)' }}>{r.profile}</span>
+                  <AccountLink name={r.profile} tab="desktop" swatch={false} style={{ fontSize: 13.5, color: 'var(--ink)' }} />
                   <span className="ellipsis" style={{ display: 'block', fontSize: 11.5, color: 'var(--ink-4)', marginTop: 3, fontWeight: 300 }} title={r.data_dir ? tilde(r.data_dir) : undefined}>
                     {detailOf(r)}
                   </span>
@@ -142,6 +143,7 @@ export function Desktop({ profile }: { profile?: string } = {}) {
                     <span style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 13, color: 'var(--ink)' }}>{d.title}</span>
                       <Pill tone={sevTone(f.severity)}>{sevLabel(f.severity)}</Pill>
+                      {f.profile && <AccountLink name={f.profile} tab="desktop" style={{ fontSize: 12, color: 'var(--ink-2)' }} />}
                     </span>
                     <span style={{ display: 'block', fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.6, marginTop: 6, fontWeight: 300 }}>{d.what}</span>
                     <span className="mono selectable" style={{ display: 'block', fontSize: 10, color: 'var(--ink-4)', marginTop: 8 }}>{findingRef(f)}</span>

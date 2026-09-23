@@ -8,6 +8,7 @@ import { ago, clock, tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall } from '../lib/store';
 import { Bar, Card, CliBar, Code, Empty, Label, ListButton, Pill, Skeleton, Swatch, toneColors, usageColor } from '../components/ui';
+import { AccountLink } from '../components/Links';
 
 export function sampleAge(p: Profile): string {
   if (p.type === 'default') return t('sin sensores');
@@ -149,7 +150,7 @@ export function Inicio() {
           {here.data ? (
             <>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 27, fontWeight: 300, letterSpacing: '-.025em' }}>{here.data.profile}</span>
+                <AccountLink name={here.data.profile} swatch={false} style={{ fontSize: 27, fontWeight: 300, letterSpacing: '-.025em' }} />
                 <span style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 300 }}>{typeLabel(here.data.type)}</span>
                 {hereProfile && hereProfile.access !== 'ok' && <Pill tone={accessInfo(hereProfile).tone}>{accessInfo(hereProfile).label}</Pill>}
               </div>

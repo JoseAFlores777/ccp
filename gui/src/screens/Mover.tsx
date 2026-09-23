@@ -16,6 +16,7 @@ import { ago, shortUUID, tilde } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useApp, useCall, type MoveDraft } from '../lib/store';
 import { Card, Checkbox, CommandOutput, Empty, Label, Loading, Note, Pill } from '../components/ui';
+import { AccountLink, ConvLink, FolderLink } from '../components/Links';
 
 type Mode = 'desktop' | 'terminal';
 
@@ -183,7 +184,8 @@ export function Mover() {
             <Label style={{ marginBottom: 6 }}>{t('Qué')}</Label>
             <div style={{ fontSize: 17, fontWeight: 300, letterSpacing: '-.015em', marginBottom: 4 }}>{draft.title}</div>
             <div className="mono selectable" style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>
-              {draft.profile} · {tilde(draft.cwd)} · {draft.uuid}
+              <AccountLink name={draft.profile} tab="conv" /> · <FolderLink path={draft.cwd} /> ·{' '}
+              <ConvLink uuid={draft.uuid} profile={draft.profile}>{draft.uuid}</ConvLink>
             </div>
           </div>
           <button className="btn sm" onClick={() => setDraft(null)}>{t('Cambiar')}</button>
