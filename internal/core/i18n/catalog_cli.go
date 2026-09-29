@@ -569,6 +569,19 @@ var catalogCLI = map[string]map[Lang]string{
 		En: "  To remove it: edit %s by hand.",
 		Es: "  Para quitarlo: edita %s a mano.",
 	},
+	// Lo escrito en el global solo llega a un perfil regenerando su cc-home.
+	"cli.instruct.regenerated": {
+		En: "Regenerated so they read it: %s",
+		Es: "Regenerados para que lo lean: %s",
+	},
+	"cli.instruct.regen_failed": {
+		En: "%s: could not be regenerated (%s). What was written stays, but that profile will not read it until: ccp profile sync %s",
+		Es: "%s: no se pudo regenerar (%s). Lo escrito se queda, pero ese perfil no lo leerá hasta: ccp profile sync %s",
+	},
+	"cli.instruct.regen_unknown": {
+		En: "Could not tell which profiles to regenerate (%s). What was written stays, but the profiles will not read it until: ccp profile sync",
+		Es: "No se pudo saber qué perfiles regenerar (%s). Lo escrito se queda, pero los perfiles no lo leerán hasta: ccp profile sync",
+	},
 	"cli.instruct.usage_list": {
 		En: "Usage: ccp instruct list <scope>",
 		Es: "Uso: ccp instruct list <scope>",

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -290,6 +291,152 @@ func TestInstructAddHookProfileRegenera(t *testing.T) {
 	rows, _ := InstructList(ctx, "profile")
 	if len(rows) != 1 || rows[0].Type != "hook" {
 		t.Fatalf("manifiesto profile = %v", rows)
+	}
+}
+
+// La primera regla global de una máquina sin <src>/CLAUDE.md es la que crea el
+// archivo, y cfgBuildClaudeMD solo importa el global si existía al generar: sin
+// regenerar, la regla llegaba a `default` y a ningún perfil hasta un
+// `ccp profile sync` (reproducido el 2026-09-29).
+func TestInstructAddPrimeraReglaGlobalLlegaALosPerfiles(t *testing.T) {
+	home, src := t.TempDir(), t.TempDir()
+	t.Setenv("CCP_CLAUDE_SRC", src)
+	t.Setenv("HOME", t.TempDir())
+	for _, n := range []string{"work", "personal"} {
+		if err := ProfileAddOfficial(home, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	globalMD := filepath.Join(src, "CLAUDE.md")
+	importa := func(n string) bool {
+		b, err := os.ReadFile(filepath.Join(ccHomePath(home, n), "CLAUDE.md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.Contains(string(b), "@"+globalMD+"\n")
+	}
+	if importa("work") {
+		t.Fatal("precondición: sin global, el cc-home no puede importarlo")
+	}
+
+	ctx := InstructCtx{Home: home, Src: src, RepoRoot: t.TempDir(), ActiveProfile: "default"}
+	res, err := InstructAdd(ctx, "global", "rule", "responde siempre en español")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{"personal", "work"} {
+		if !importa(n) {
+			t.Errorf("%s no importa el CLAUDE.md global tras la primera regla", n)
+		}
+		if claudeMDPending(home, n, src, ccHomePath(home, n)) {
+			t.Errorf("%s: `profile sync --check` seguiría viendo su CLAUDE.md desfasado", n)
+		}
+	}
+	if want := []string{"personal", "work"}; !reflect.DeepEqual(res.Regenerated, want) || len(res.RegenFailed) != 0 {
+		t.Fatalf("Regenerated = %v, RegenFailed = %v; quiero %v y ninguno", res.Regenerated, res.RegenFailed, want)
+	}
+
+	// Con el import puesto, la segunda regla llega en vivo: regenerar sería
+	// reescribir el settings.json de todos por nada.
+	res, err = InstructAdd(ctx, "global", "rule", "no uses emojis")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Regenerated) != 0 {
+		t.Errorf("la segunda regla no debe regenerar a nadie: %v", res.Regenerated)
+	}
+}
+
+// El global también puede nacer fuera de ccp (un editor, /memory en la ventana
+// de default) después de generar los perfiles. La siguiente regla global lo
+// arregla: lo que decide es si el CLAUDE.md del perfil es el que saldría, no
+// quién creó el archivo.
+func TestInstructAddReglaGlobalReparaUnImportQueFalta(t *testing.T) {
+	home, src := t.TempDir(), t.TempDir()
+	t.Setenv("CCP_CLAUDE_SRC", src)
+	t.Setenv("HOME", t.TempDir())
+	if err := ProfileAddOfficial(home, "work"); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, filepath.Join(src, "CLAUDE.md"), "# mis reglas\n")
+
+	ctx := InstructCtx{Home: home, Src: src, RepoRoot: t.TempDir(), ActiveProfile: "default"}
+	res, err := InstructAdd(ctx, "global", "rule", "regla nueva")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(res.Regenerated, []string{"work"}) {
+		t.Fatalf("Regenerated = %v, quiero [work]", res.Regenerated)
+	}
+	if claudeMDPending(home, "work", src, ccHomePath(home, "work")) {
+		t.Error("work sigue sin importar el global")
+	}
+}
+
+// Un hook o un MCP global no se importan: el settings.json del perfil es
+// global ⊕ overlay y sus MCP una proyección, así que solo le llegan regenerando,
+// y eso vale para CADA add, no solo para el primero.
+func TestInstructAddHookYMCPGlobalLleganALosPerfiles(t *testing.T) {
+	home, src := t.TempDir(), t.TempDir()
+	t.Setenv("CCP_CLAUDE_SRC", src)
+	t.Setenv("HOME", t.TempDir())
+	if err := ProfileAddOfficial(home, "work"); err != nil {
+		t.Fatal(err)
+	}
+	ctx := InstructCtx{Home: home, Src: src, RepoRoot: t.TempDir(), ActiveProfile: "default"}
+	cch := ccHomePath(home, "work")
+
+	hookJSON := `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"echo global"}]}]}}`
+	res, err := InstructAdd(ctx, "global", "hook", "g="+hookJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(cch, "settings.json")); !strings.Contains(string(b), "echo global") {
+		t.Errorf("el hook global no llegó a cc-home/settings.json:\n%s", b)
+	}
+	if !reflect.DeepEqual(res.Regenerated, []string{"work"}) {
+		t.Errorf("hook: Regenerated = %v", res.Regenerated)
+	}
+
+	res, err = InstructAdd(ctx, "global", "mcp", `ctx7={"command":"npx","args":["-y","ctx7"]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(cch, ".claude.json")); !strings.Contains(string(b), "ctx7") {
+		t.Errorf("el MCP global no llegó a cc-home/.claude.json:\n%s", b)
+	}
+	if !reflect.DeepEqual(res.Regenerated, []string{"work"}) {
+		t.Errorf("mcp: Regenerated = %v", res.Regenerated)
+	}
+}
+
+// Lo escrito en el global es lo que se pidió y ya está hecho: un perfil que no
+// se puede regenerar se informa con su nombre, no tumba el add ni frena a los
+// demás.
+func TestInstructAddGlobalInformaElPerfilQueNoSeRegenera(t *testing.T) {
+	home, src := t.TempDir(), t.TempDir()
+	t.Setenv("CCP_CLAUDE_SRC", src)
+	t.Setenv("HOME", t.TempDir())
+	for _, n := range []string{"roto", "work"} {
+		if err := ProfileAddOfficial(home, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustWrite(t, cfgSettingsFile(home, "roto"), "{overlay roto")
+
+	ctx := InstructCtx{Home: home, Src: src, RepoRoot: t.TempDir(), ActiveProfile: "default"}
+	res, err := InstructAdd(ctx, "global", "rule", "regla")
+	if err != nil {
+		t.Fatalf("un perfil que no se regenera no puede tumbar el add: %v", err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(src, "CLAUDE.md")); !strings.Contains(string(b), "- regla") {
+		t.Fatalf("la regla no se escribió:\n%s", b)
+	}
+	if !reflect.DeepEqual(res.Regenerated, []string{"work"}) {
+		t.Errorf("Regenerated = %v, quiero [work]", res.Regenerated)
+	}
+	if len(res.RegenFailed) != 1 || res.RegenFailed[0].Profile != "roto" || res.RegenFailed[0].Error == "" {
+		t.Errorf("RegenFailed = %+v, quiero roto con su error", res.RegenFailed)
 	}
 }
 
