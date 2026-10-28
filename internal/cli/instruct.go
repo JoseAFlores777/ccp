@@ -150,7 +150,32 @@ func instructAdd(args []string, stdout, stderr io.Writer) int {
 	if res.Scope == "profile" && ctx.ActiveProfile != "" && ctx.ActiveProfile != "default" {
 		printSettingsDrift(stdout, lang, core.TakePendingDrift(ctx.Home, ctx.ActiveProfile))
 	}
+	printInstructRegen(stdout, lang, ctx.Home, res)
 	return 0
+}
+
+// printInstructRegen cuenta qué perfiles se regeneraron para que les llegue lo
+// escrito en el global, y cuáles no. Un fallo aquí no cambia el código de
+// salida: lo escrito está escrito, y lo que falta tiene su `profile sync`.
+func printInstructRegen(w io.Writer, lang i18n.Lang, home string, res *core.AddResult) {
+	if res.RegenErr != "" {
+		fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.instruct.regen_unknown", res.RegenErr)))
+		return
+	}
+	if len(res.Regenerated) > 0 {
+		fmt.Fprintln(w, mute(w, i18n.T(lang, "cli.instruct.regenerated", strings.Join(res.Regenerated, ", "))))
+	}
+	for _, f := range res.RegenFailed {
+		fmt.Fprintln(w, warnLine(w, i18n.T(lang, "cli.instruct.regen_failed", f.Profile, f.Error, f.Profile)))
+	}
+	// Como `profile config` e `instruct add profile hook`: lo que /config había
+	// cambiado en esos cc-home se cuenta ahora, no en el próximo sync.
+	for _, n := range res.Regenerated {
+		printSettingsDrift(w, lang, core.TakePendingDrift(home, n))
+	}
+	for _, f := range res.RegenFailed {
+		printSettingsDrift(w, lang, core.TakePendingDrift(home, f.Profile))
+	}
 }
 
 // ccp instruct list <scope>

@@ -78,6 +78,38 @@ func TestDispatchInstructRuleDup(t *testing.T) {
 	}
 }
 
+// /ccp:remember-global en una máquina sin ~/.claude/CLAUDE.md: la regla crea el
+// archivo, los perfiles se regeneran para importarlo y la salida lo dice. Un
+// perfil que no se deja regenerar se avisa con su `profile sync`, y el add sigue
+// saliendo 0: la regla está escrita.
+func TestDispatchInstructPrimeraReglaGlobalRegeneraPerfiles(t *testing.T) {
+	home, src, _ := setupInstructEnv(t)
+	t.Setenv("HOME", t.TempDir())
+	for _, n := range []string{"roto", "work"} {
+		if err := core.ProfileAddOfficial(home, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(core.ProfileSettingsFile(home, "roto"), []byte("{overlay roto"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errb bytes.Buffer
+	if code := Dispatch([]string{"instruct", "add", "global", "rule", "responde", "en", "español"}, &out, &errb); code != 0 {
+		t.Fatalf("code=%d stderr=%q", code, errb.String())
+	}
+	if !strings.Contains(out.String(), "Regenerados para que lo lean: work") {
+		t.Errorf("falta la línea de regenerados: %q", out.String())
+	}
+	if !strings.Contains(out.String(), "roto: no se pudo regenerar") || !strings.Contains(out.String(), "ccp profile sync roto") {
+		t.Errorf("falta el aviso del perfil que no se regeneró: %q", out.String())
+	}
+	b, err := os.ReadFile(filepath.Join(home, "profiles", "work", "cc-home", "CLAUDE.md"))
+	if err != nil || !strings.Contains(string(b), "@"+filepath.Join(src, "CLAUDE.md")) {
+		t.Fatalf("work no importa el global: %s %v", b, err)
+	}
+}
+
 // profile scope con perfil default -> rc 2 y mensaje guía.
 func TestDispatchInstructProfileDefaultRC2(t *testing.T) {
 	setupInstructEnv(t)

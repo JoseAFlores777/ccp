@@ -1089,8 +1089,15 @@ func srvMemoryAdd(s *server, raw json.RawMessage) (any, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Lo que alcanzó a los perfiles una escritura en el global: siempre
+		// arrays, como el resto de listas de serve.
+		failed := res.RegenFailed
+		if failed == nil {
+			failed = []core.RegenFailure{}
+		}
 		return map[string]any{"type": res.Type, "scope": res.Scope, "dest": res.Dest,
-			"name": res.Name, "duplicate": res.Duplicate}, nil
+			"name": res.Name, "duplicate": res.Duplicate,
+			"regenerated": res.Regenerated, "regen_failed": failed, "regen_error": res.RegenErr}, nil
 	case "agent", "command", "skill":
 		// Los mismos tres pasos que siguen los /ccp:remember-*: pedir el destino
 		// oficial, escribir el archivo ahí y registrarlo en el manifiesto.

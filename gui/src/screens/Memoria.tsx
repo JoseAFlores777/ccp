@@ -3,7 +3,7 @@
 // repo de la carpeta en contexto). Solo se ve lo que ccp creó.
 
 import { useState } from 'react';
-import { api, type MemoryItem } from '../lib/api';
+import { api, type MemoryAdded, type MemoryItem } from '../lib/api';
 import { shellJoin, tilde } from '../lib/format';
 import { buildMcp } from '../lib/mcp';
 import { t } from '../lib/i18n';
@@ -104,7 +104,7 @@ function addModal(scope: Scope, ctx: { profile?: string; cwd?: string; repo?: st
         if (scope === 'project') {
           w.push(t('Va a {d}, que suele subirse a git: lo verá cualquiera con acceso al repo. Claude Code pedirá aprobarlo la primera vez.', { d: mcpDest }));
         } else {
-          w.push(t('Va a {d}, la configuración de default: las demás cuentas tienen su propio .claude.json y no lo verán. Para tenerlo en un repo con cualquier cuenta, añádelo en Proyecto.', { d: mcpDest }));
+          w.push(t('Va a {d}, la capa global: al añadirlo, ccp lo lleva también a cada cuenta que no lo tenga apagado. Para tenerlo solo en un repo, añádelo en Proyecto.', { d: mcpDest }));
         }
         w.push(t('Las sesiones ya abiertas no lo ven hasta reiniciarlas; /mcp dentro de Claude Code dice si conectó.'));
         return w;
@@ -147,13 +147,23 @@ function addModal(scope: Scope, ctx: { profile?: string; cwd?: string; repo?: st
         if (!b.config) throw new Error(b.errors.join(' '));
         const name = f.name.trim();
         const r = await api.addMemory({ scope, cwd: ctx.cwd, type: 'mcp', name, text: JSON.stringify(b.config) });
-        return t('MCP {n} añadido en {d}', { n: name, d: tilde(r.dest) });
+        return t('MCP {n} añadido en {d}', { n: name, d: tilde(r.dest) }) + regenNote(r);
       }
       const r = await api.addMemory({ scope, profile: ctx.profile, cwd: ctx.cwd, type: f.type, text: f.text.trim(), name: f.name?.trim() });
-      if (r.duplicate) return t('Ya estaba: no se ha duplicado');
-      return t('Añadido en {d}', { d: tilde(r.dest) });
+      if (r.duplicate) return t('Ya estaba: no se ha duplicado') + regenNote(r);
+      return t('Añadido en {d}', { d: tilde(r.dest) }) + regenNote(r);
     },
   };
+}
+
+// Lo escrito en el global ya está guardado aunque alguna cuenta no se haya
+// podido regenerar, así que no es un error del añadido: se dice cuál no lo
+// leerá todavía y cómo arreglarlo.
+function regenNote(r: MemoryAdded): string {
+  if (r.regen_error) return ' ' + t('Las cuentas no lo leerán hasta un ccp profile sync ({e}).', { e: r.regen_error });
+  const failed = r.regen_failed ?? [];
+  if (failed.length === 0) return '';
+  return ' ' + t('No se pudo regenerar {p}: no lo leerá hasta un ccp profile sync.', { p: failed.map((f) => f.profile).join(', ') });
 }
 
 function removeModal(scope: Scope, it: MemoryItem, ctx: { profile?: string; cwd?: string }): ModalSpec {

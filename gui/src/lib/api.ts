@@ -127,6 +127,17 @@ export interface MemoryItem {
   where: string;
 }
 
+// Lo que devuelve memory.add. Una escritura en el global solo llega a las demás
+// cuentas regenerándolas: regenerated son las que ya lo leen, regen_failed las
+// que no lo leerán hasta un `ccp profile sync <n>`.
+export interface MemoryAdded {
+  dest: string;
+  duplicate?: boolean;
+  regenerated?: string[];
+  regen_failed?: { profile: string; error: string }[];
+  regen_error?: string;
+}
+
 export interface MemoryList {
   scope: 'global' | 'profile' | 'project';
   available: boolean;
@@ -812,7 +823,7 @@ export const api = {
 
   memory: (p: { scope: string; profile?: string; cwd?: string }) => ccpCall<MemoryList>('memory.list', p),
   addMemory: (p: { scope: string; profile?: string; cwd?: string; type: string; text: string; name?: string }) =>
-    ccpCall<{ dest: string; duplicate?: boolean }>('memory.add', p),
+    ccpCall<MemoryAdded>('memory.add', p),
   removeMemory: (p: { scope: string; profile?: string; cwd?: string; index: number }) => ccpCall('memory.remove', p),
 
   handoffs: () => ccpCall<Handoffs>('handoffs.list'),

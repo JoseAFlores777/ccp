@@ -38,6 +38,22 @@ type AddResult struct {
 	Name        string // id/nombre para hook/mcp ("" para rule)
 	Duplicate   bool   // rule ya existía (no se duplicó)
 	RegenProfil bool   // se regeneró el cc-home (hook en scope profile)
+	// Regenerated son los perfiles que se regeneraron porque lo escrito en el
+	// global solo les llega así (instructReachProfiles). Nunca nil.
+	Regenerated []string
+	// RegenFailed son los que no se pudieron regenerar: lo escrito se queda,
+	// pero ese perfil no lo ve hasta un `ccp profile sync <n>`.
+	RegenFailed []RegenFailure
+	// RegenErr dice que ni siquiera se supo qué perfiles regenerar (ccp.yaml
+	// ilegible). Vacío si se supo.
+	RegenErr string
+}
+
+// RegenFailure es un perfil que no se pudo regenerar después de una escritura
+// en el global.
+type RegenFailure struct {
+	Profile string `json:"profile"`
+	Error   string `json:"error"`
 }
 
 // InstructAdd persiste un artefacto rule/hook/mcp en su estructura nativa al
@@ -52,7 +68,7 @@ func InstructAdd(ctx InstructCtx, scope, typ, text string) (*AddResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	res := &AddResult{Type: typ, Scope: scope, Dest: dest}
+	res := &AddResult{Type: typ, Scope: scope, Dest: dest, Regenerated: []string{}}
 
 	switch typ {
 	case "rule":
@@ -61,6 +77,11 @@ func InstructAdd(ctx InstructCtx, scope, typ, text string) (*AddResult, error) {
 			return nil, err
 		}
 		res.Duplicate = !added
+		// También con un duplicado: la regla ya estaba en el global, pero eso
+		// no dice que algún perfil la lea.
+		if scope == "global" {
+			instructReachProfiles(ctx, res)
+		}
 		return res, nil
 
 	case "mcp":
@@ -82,12 +103,16 @@ func InstructAdd(ctx InstructCtx, scope, typ, text string) (*AddResult, error) {
 		}
 		// Un MCP de perfil vive en overlay/mcp.json, que es una capa DECLARADA:
 		// hay que regenerar para que llegue a lo que leen la CLI y la ventana
-		// (spec §6.1). El global no: su archivo ya es el destino de `default`.
-		if scope == "profile" {
+		// (spec §6.1). El global también es una capa declarada: su archivo es el
+		// destino de `default`, pero a los demás perfiles les llega proyectado.
+		switch scope {
+		case "profile":
 			if err := CfgRegenerate(ctx.Home, ctx.ActiveProfile, ctx.Src); err != nil {
 				return nil, err
 			}
 			res.RegenProfil = true
+		case "global":
+			instructReachProfiles(ctx, res)
 		}
 		res.Name = name
 		return res, nil
@@ -108,11 +133,14 @@ func InstructAdd(ctx InstructCtx, scope, typ, text string) (*AddResult, error) {
 		}); err != nil {
 			return nil, err
 		}
-		if scope == "profile" {
+		switch scope {
+		case "profile":
 			if err := CfgRegenerate(ctx.Home, ctx.ActiveProfile, ctx.Src); err != nil {
 				return nil, err
 			}
 			res.RegenProfil = true
+		case "global":
+			instructReachProfiles(ctx, res)
 		}
 		res.Name = name
 		return res, nil
@@ -241,6 +269,45 @@ func InstructRm(ctx InstructCtx, scope string, idx int) (*RmResult, error) {
 		// viven en arrays sin id estable); solo se quitó del manifiesto.
 	}
 	return res, nil
+}
+
+// instructReachProfiles regenera los perfiles a los que lo recién escrito en el
+// global no les llega solo. Un perfil que no es `default` lee su cc-home, no
+// <src>: su settings.json es global ⊕ overlay y sus MCP una proyección, así que
+// un hook o un MCP global solo le llegan regenerando, en cada add. Una regla sí
+// llega en vivo, por el @import del global en cc-home/CLAUDE.md, pero ese
+// import solo se escribe si el global existía al generar (cfgBuildClaudeMD, como
+// el oráculo): la PRIMERA regla, la que crea <src>/CLAUDE.md, llegaba a
+// `default` y a ningún perfil hasta un `profile sync` (2026-09-29). Para una
+// regla se regeneran por eso solo los perfiles cuyo CLAUDE.md no es el que
+// saldría (claudeMDPending, la misma pregunta de `profile sync --check`), que
+// también cubre un global creado fuera de ccp; con el import ya puesto,
+// regenerar sería reescribir el settings.json de todos por nada.
+//
+// A quién alcanza una escritura en el global lo decide cfgRegenTargets, el mismo
+// que usa el editor de configuración, y se regenera con CfgRegenerate, el camino
+// de `profile sync`: la deriva de /config se adopta y la proyección corre igual.
+//
+// No falla nunca. Lo escrito es lo que se pidió y ya está hecho: un perfil que
+// no se regenera se informa (RegenFailed) y no frena a los demás, porque
+// convertirlo en un error del add diría que la regla no se guardó.
+func instructReachProfiles(ctx InstructCtx, res *AddResult) {
+	r := InventoryRoots{CCPHome: ctx.Home, ClaudeSrc: ctx.Src}
+	names, err := cfgRegenTargets(r, cfgTarget{File: res.Dest, Layer: ConfigLayer{Level: "global"}})
+	if err != nil {
+		res.RegenErr = err.Error()
+		return
+	}
+	for _, n := range names {
+		if res.Type == "rule" && !claudeMDPending(ctx.Home, n, ctx.Src, ccHomePath(ctx.Home, n)) {
+			continue
+		}
+		if err := CfgRegenerate(ctx.Home, n, ctx.Src); err != nil {
+			res.RegenFailed = append(res.RegenFailed, RegenFailure{Profile: n, Error: err.Error()})
+			continue
+		}
+		res.Regenerated = append(res.Regenerated, n)
+	}
 }
 
 // --- helpers ---
