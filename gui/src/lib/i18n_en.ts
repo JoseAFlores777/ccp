@@ -381,6 +381,8 @@ export const en: Record<string, string> = {
   "Reconstruir": "Rebuild",
   "El lanzador de {p} guarda una copia huérfana de Claude": "The launcher for {p} holds an orphaned copy of Claude",
   "Claude se actualizó por fuera y la copia interna del lanzador ya no comparte archivos con él: ocupa disco entero.": "Claude was updated independently and the launcher's internal copy no longer shares files with it: it takes up its full size on disk.",
+  "El lanzador de {p} no arranca con este Claude": "The launcher for {p} does not start with this Claude",
+  "Lo construyó un ccp anterior, con su copia de Claude dentro de Contents/, y Claude 4.29.0 o posterior aborta al arrancar así. Reconstrúyelo con su ventana cerrada.": "It was built by an older ccp, with its copy of Claude inside Contents/, and Claude 4.29.0 or later aborts on start that way. Rebuild it with its window closed.",
   "Hay un lanzador para una cuenta que ya no existe": "There's a launcher for an account that no longer exists",
   "Claude ({p}).app sigue en ~/Applications pero su perfil se borró.": "Claude ({p}).app is still in ~/Applications but its profile was deleted.",
   "Quitar el lanzador": "Remove launcher",

@@ -34,11 +34,12 @@ import (
 //	  Contents/Info.plist                    ← copia PARCHEADA: id propio, nombre,
 //	                                           icono, sin claude:// (ver desktopAppPlist)
 //	  Contents/MacOS/Claude                  ← CFBundleExecutable: hard link al binario de ccp
-//	  Contents/MacOS/Claude-run -> ../ccp/Claude/Contents/MacOS/Claude
+//	  Contents/MacOS/Claude-run -> ../../ccp/Claude/Contents/MacOS/Claude
 //	  Contents/Resources/ccp-icon.icns       ← el icono de Claude.app, tintado
-//	  Contents/ccp/Claude/…                  ← espejo PRÍSTINO de Claude.app
-//	                                           (directorios reales, archivos hard-link)
 //	  Contents/ccp-desktop.json              ← manifiesto (perfil, color, versión…)
+//	  ccp/Claude/…                           ← espejo PRÍSTINO de Claude.app, FUERA
+//	                                           de Contents/ (directorios reales,
+//	                                           archivos hard-link)
 //
 // LaunchServices lanza `MacOS/Claude`, que es ccp en modo lanzador: calcula el
 // entorno del perfil (EnvForChild) y hace exec de `MacOS/Claude-run` con
@@ -56,17 +57,26 @@ import (
 //     usuario. No hay palanca para recuperarlo (ver CLAUDE.md), así que ccp lo
 //     DETECTA (`ccp desktop doctor`) en vez de darlo por hecho.
 //   - Security.framework (Keychain, TCC) valida el proceso por su ruta REAL
-//     (proc_pidpath resuelve el symlink): `Contents/ccp/Claude/Contents/MacOS/
-//     Claude`, dentro de un bundle idéntico al original —mismo Info.plist, mismo
+//     (proc_pidpath resuelve el symlink): `ccp/Claude/Contents/MacOS/Claude`,
+//     dentro de un bundle idéntico al original —mismo Info.plist, mismo
 //     CFBundleExecutable, mismos bytes (hard links)—, que valida igual que
 //     /Applications/Claude.app. La sesión se conserva.
 //   - Los procesos auxiliares de Chromium corren en un sandbox cuyo BUNDLE_PATH
 //     es el bundle principal (la capa externa); como el espejo está DENTRO, la
 //     regla `subpath` lo cubre. Con symlinks hacia /Applications no lo cubría
 //     y el GPU y la red morían con «Unable to find helper app».
-//   - Electron valida app.asar contra `ElectronAsarIntegrity` del bundle
-//     principal, con la ruta relativa a su Contents/: por eso el plist externo
-//     lleva la entrada duplicada bajo `ccp/Claude/Contents/Resources/app.asar`.
+//   - Electron valida cada .asar que esté DENTRO del Contents/ del bundle
+//     principal contra `ElectronAsarIntegrity`, con la ruta relativa a ese
+//     Contents/; uno que quede fuera no se valida (archive.cc solo entra si
+//     RelativePath() existe). Por eso el espejo vive en la raíz del .app y no en
+//     Contents/: desde Electron 44 (Claude 4.29.0) el framework firmado lleva
+//     una huella SHA-256 del diccionario ENTERO, así que ya no se le puede
+//     añadir la entrada `ccp/Claude/Contents/Resources/app.asar` que antes
+//     hacía falta —con ella la huella no cuadra, Electron da el diccionario por
+//     inexistente y aborta con «Failed to get integrity for validatable asar
+//     archive»—, y sin ella el espejo anidado tampoco arranca. Los .asar del
+//     espejo son hard links de los firmados: lo que no se valida es idéntico a
+//     lo que sí.
 //   - El ejecutable externo es un Mach-O (ccp), no un script: con un script
 //     LaunchServices no puede leer la arquitectura y lanza bajo Rosetta, y ahí
 //     Chromium no arranca. Y es un HARD LINK (o copia), no un symlink: a un
@@ -89,12 +99,17 @@ import (
 
 const (
 	desktopAppManifestName = "ccp-desktop.json"
-	desktopAppNestedRel    = "ccp/Claude" // bajo Contents/: el espejo prístino
-	desktopAppIconName     = "ccp-icon.icns"
-	desktopAppExecName     = "Claude"     // CFBundleExecutable: hard link al binario ccp
-	desktopAppRunName      = "Claude-run" // symlink al stub del espejo
-	desktopAppBundleIDBase = "com.anthropic.claudefordesktop.ccp."
-	desktopAppSuffix       = ".app"
+	desktopAppMirrorRel    = "ccp/Claude" // bajo la RAÍZ del .app: el espejo prístino
+	// desktopAppLegacyMirrorRel es donde vivía el espejo hasta que Claude 4.29.0
+	// dejó de arrancar con él (ver la cabecera). Solo sirve para reconocer un
+	// lanzador viejo —su ventana viva, o que hay que reconstruirlo—; nunca se
+	// construye nada ahí.
+	desktopAppLegacyMirrorRel = "Contents/ccp/Claude"
+	desktopAppIconName        = "ccp-icon.icns"
+	desktopAppExecName        = "Claude"     // CFBundleExecutable: hard link al binario ccp
+	desktopAppRunName         = "Claude-run" // symlink al stub del espejo
+	desktopAppBundleIDBase    = "com.anthropic.claudefordesktop.ccp."
+	desktopAppSuffix          = ".app"
 )
 
 // DesktopAppManifest es lo que el lanzador recuerda de sí mismo. Vive dentro
@@ -484,8 +499,11 @@ func readDesktopSource(app string) (*desktopSource, error) {
 //   - el icono es el nuestro y se quita CFBundleIconName, que en macOS 26
 //     apuntaría al de Assets.car y ganaría al .icns;
 //   - se quitan los CFBundleURLTypes: claude:// y msauth siguen siendo de
-//     Claude.app, y así un lanzador no secuestra los enlaces de la app normal;
-//   - ElectronAsarIntegrity gana la entrada con la ruta del espejo anidado.
+//     Claude.app, y así un lanzador no secuestra los enlaces de la app normal.
+//
+// ElectronAsarIntegrity NO se toca, ni para añadir: el framework firmado lleva
+// la huella del diccionario original y cualquier entrada de más lo invalida
+// entero (ver la cabecera).
 func desktopAppPlist(src *plistDict, m DesktopAppManifest) *plistDict {
 	p := src.Clone()
 	p.Set("CFBundleIdentifier", m.BundleID)
@@ -495,15 +513,6 @@ func desktopAppPlist(src *plistDict, m DesktopAppManifest) *plistDict {
 	p.Set("CFBundleIconFile", desktopAppIconName)
 	p.Delete("CFBundleIconName")
 	p.Delete("CFBundleURLTypes")
-	if integ := p.Dict("ElectronAsarIntegrity"); integ != nil {
-		for _, k := range integ.Keys() {
-			if strings.HasPrefix(k, desktopAppNestedRel+"/") {
-				continue
-			}
-			v, _ := integ.Get(k)
-			integ.Set(desktopAppNestedRel+"/Contents/"+k, clonePlistValue(v))
-		}
-	}
 	return p
 }
 
@@ -512,7 +521,7 @@ func assembleDesktopApp(dst string, src *desktopSource, m DesktopAppManifest) er
 	contents := filepath.Join(dst, "Contents")
 	macos := filepath.Join(contents, "MacOS")
 	resources := filepath.Join(contents, "Resources")
-	nested := filepath.Join(contents, filepath.FromSlash(desktopAppNestedRel))
+	nested := filepath.Join(dst, filepath.FromSlash(desktopAppMirrorRel))
 	for _, d := range []string{macos, resources, filepath.Dir(nested)} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			return fmt.Errorf("no se pudo crear %s: %w", d, err)
@@ -534,7 +543,8 @@ func assembleDesktopApp(dst string, src *desktopSource, m DesktopAppManifest) er
 	if err := os.Chmod(launcher, 0o755); err != nil {
 		return err
 	}
-	runTarget := filepath.ToSlash(filepath.Join("..", desktopAppNestedRel, "Contents", "MacOS", src.exeName))
+	// Relativo a Contents/MacOS/: dos niveles arriba está la raíz del .app.
+	runTarget := filepath.ToSlash(filepath.Join("..", "..", desktopAppMirrorRel, "Contents", "MacOS", src.exeName))
 	if err := os.Symlink(runTarget, filepath.Join(macos, desktopAppRunName)); err != nil {
 		return err
 	}
@@ -650,7 +660,10 @@ func DesktopAppStale(app *DesktopApp, sourceApp string) (string, bool) {
 	if src.version != app.Manifest.SourceVersion {
 		return fmt.Sprintf("Claude.app pasó de %s a %s", app.Manifest.SourceVersion, src.version), true
 	}
-	nestedExe := filepath.Join(app.Path, "Contents", filepath.FromSlash(desktopAppNestedRel), "Contents", "MacOS", src.exeName)
+	if desktopAppLegacyLayout(app.Path) {
+		return "el espejo está dentro de Contents/, forma con la que Claude 4.29.0 ya no arranca", true
+	}
+	nestedExe := filepath.Join(desktopAppMirrorDir(app.Path), "Contents", "MacOS", src.exeName)
 	if !fileExists(nestedExe) {
 		return "falta el espejo de la app", true
 	}
@@ -686,6 +699,27 @@ func DesktopAppStale(app *DesktopApp, sourceApp string) (string, bool) {
 		return "falta el icono", true
 	}
 	return "", false
+}
+
+// desktopAppMirrorDir es el espejo de un lanzador tal como se construye hoy.
+func desktopAppMirrorDir(app string) string {
+	return filepath.Join(app, filepath.FromSlash(desktopAppMirrorRel))
+}
+
+// desktopAppMirrorDirs son los dos sitios donde puede estar el espejo de un
+// lanzador: el de hoy y el de antes de Claude 4.29.0. Lo usa quien reconoce una
+// ventana VIVA, que pudo arrancar de un lanzador viejo que aún no se ha
+// reconstruido (eso solo ocurre con su ventana cerrada): mirar solo la ruta
+// nueva la tomaría por una instancia ajena.
+func desktopAppMirrorDirs(app string) []string {
+	return []string{desktopAppMirrorDir(app), filepath.Join(app, filepath.FromSlash(desktopAppLegacyMirrorRel))}
+}
+
+// desktopAppLegacyLayout dice si el lanzador tiene el espejo donde lo dejaban
+// los ccp anteriores, dentro de Contents/. Desde Claude 4.29.0 esa forma no
+// arranca: hay que reconstruirlo.
+func desktopAppLegacyLayout(app string) bool {
+	return !isDir(desktopAppMirrorDir(app)) && isDir(filepath.Join(app, filepath.FromSlash(desktopAppLegacyMirrorRel)))
 }
 
 // sameDevice dice si dos archivos viven en el mismo dispositivo. Sin eso no se
@@ -786,10 +820,10 @@ func PlanDesktopLauncher(app *DesktopApp, home string, cfg *Config, args, enviro
 	// La misma barrera que en `desktop open`, y aquí importa más: el espejo
 	// lleva Squirrel.framework y su ShipIt hard-linkeados dentro (hardlinkTree
 	// no excluye nada) y el updater se inicializa en CADA arranque. Si llegara a
-	// instalar, su targetBundleURL sería el ESPEJO, lo que invalidaría el
-	// ElectronAsarIntegrity del plist externo y rompería este lanzador para
-	// siempre. El valor es "1", así que el filtro de gestionadas vacías de
-	// arriba no lo toca.
+	// instalar, su targetBundleURL sería el ESPEJO: lo reemplazaría por una
+	// copia privada de otra versión, desligada de la Claude.app de la que el
+	// plist externo sacó su id, su icono y su ElectronAsarIntegrity. El valor
+	// es "1", así que el filtro de gestionadas vacías de arriba no lo toca.
 	env = desktopStripGuards(env)
 	for _, v := range desktopGuardEnv(profile) {
 		env = append(env, v.Name+"="+v.Value)

@@ -818,15 +818,19 @@ func DesktopImportRoute(in DesktopImportInput) DesktopImportTarget {
 		return DesktopImportTarget{Refuse: DesktopImportNoLauncher}
 	}
 	t := DesktopImportTarget{App: in.Launcher.Path}
-	// Dos rutas y solo dos: la del lanzador (la ventana sana) y la del espejo
-	// anidado, que es donde reaparece la ventana cuando se reencarna con el id
-	// del Claude principal. Los helpers de Chromium cuelgan también del
-	// lanzador, pero con su propio id (…helper): contarlos daría por colapsada
-	// toda ventana viva.
+	// La ruta del lanzador (la ventana sana) y la del espejo, que es donde
+	// reaparece la ventana cuando se reencarna con el id del Claude principal
+	// —el espejo de hoy o el de un lanzador de antes de 4.29.0, que una ventana
+	// vieja aún puede estar usando—. Nada más: los helpers de Chromium cuelgan
+	// también del lanzador, pero con su propio id (…helper), y contarlos daría
+	// por colapsada toda ventana viva.
 	launcher := filepath.Clean(in.Launcher.Path)
-	mirror := filepath.Join(launcher, "Contents", filepath.FromSlash(desktopAppNestedRel))
+	ours := map[string]bool{launcher: true}
+	for _, m := range desktopAppMirrorDirs(launcher) {
+		ours[m] = true
+	}
 	for _, a := range in.Apps {
-		if p := filepath.Clean(a.BundlePath); p != launcher && p != mirror {
+		if !ours[filepath.Clean(a.BundlePath)] {
 			continue
 		}
 		if a.BundleID != in.Launcher.Manifest.BundleID {

@@ -366,6 +366,10 @@ perfil official. El lanzador sigue solo las actualizaciones de Claude.app.`,
 		En: "'%s': the launcher's mirror no longer shares files with the installed Claude.app, so it is holding a full private copy on disk (%s). Rebuild it with 'ccp desktop app %[1]s --force' when its window is closed.",
 		Es: "«%s»: el espejo del lanzador ya no comparte ficheros con la Claude.app instalada, así que retiene una copia entera en disco (%s). Reconstrúyelo con «ccp desktop app %[1]s --force» con su ventana cerrada.",
 	},
+	"cli.desktop.doctor.f.launcher_layout_legacy": {
+		En: "'%s': the launcher was built by an older ccp, with its copy of Claude inside Contents/, and Claude 4.29.0 or later aborts on start with that layout (%s). Rebuild it with 'ccp desktop app %[1]s --force' when its window is closed; its Dock icon would rebuild it the old way.",
+		Es: "«%s»: el lanzador lo construyó un ccp anterior, con su copia de Claude dentro de Contents/, y Claude 4.29.0 o posterior aborta al arrancar con esa forma (%s). Reconstrúyelo con «ccp desktop app %[1]s --force» con su ventana cerrada; su icono del Dock lo reconstruiría a la manera vieja.",
+	},
 	"cli.desktop.doctor.f.launcher_profile_gone": {
 		En: "'%s': there is a launcher for a profile that no longer works (%s). Remove it with 'ccp desktop app rm %[1]s'.",
 		Es: "«%s»: hay un lanzador para un perfil que ya no sirve (%s). Bórralo con «ccp desktop app rm %[1]s».",

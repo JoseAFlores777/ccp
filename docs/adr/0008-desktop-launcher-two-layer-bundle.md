@@ -4,7 +4,13 @@ Fecha: 2026-09-09
 
 ## Estado
 
-Aceptada · **enmendada por [0009](0009-desktop-identity-is-not-durable.md)** (2026-09-16).
+Aceptada · **enmendada por [0009](0009-desktop-identity-is-not-durable.md)** (2026-09-16) y por
+**[0018](0018-el-espejo-del-lanzador-vive-fuera-de-contents.md)** (2026-10-28).
+
+0018: desde Claude 4.29.0 (Electron 44) el **hecho 4** ya no se puede satisfacer duplicando la entrada de
+integridad —el framework firmado lleva la huella del diccionario entero y una entrada de más lo invalida—, así
+que el espejo dejó `Contents/ccp/Claude` y vive en `ccp/Claude`, en la raíz del `.app`, donde Electron no
+valida sus `.asar`. Donde abajo se lee `Contents/ccp/Claude` o «la entrada duplicada», es la forma anterior.
 
 La decisión se mantiene —el bundle de dos capas sigue siendo la forma correcta—, pero dos de los hechos de
 abajo quedaron desmentidos por un incidente real, y se leen mal sin esta nota:
@@ -17,7 +23,7 @@ abajo quedaron desmentidos por un incidente real, y se leen mal sin esta nota:
   ese colapso es el id real. El 2026-09-15 una instancia de perfil actualizó el `/Applications/Claude.app` del
   usuario. De ahí la barrera `DISABLE_UPDATE_CHECK` del 0009.
 
-Los hechos 2, 3, 4 y 5 siguen en pie sin matices.
+Los hechos 2, 3 y 5 siguen en pie sin matices; el 4, con la nota del 0018.
 
 ## Contexto
 

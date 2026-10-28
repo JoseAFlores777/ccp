@@ -571,10 +571,14 @@ func TestDesktopImportRoute(t *testing.T) {
 		}
 	})
 	t.Run("ventana de perfil reencarnada como el Claude principal", func(t *testing.T) {
-		in := base("e-cc")
-		in.Apps = append(in.Apps, LSApp{BundleID: "com.anthropic.claudefordesktop", BundlePath: launcher.Path + "/Contents/ccp/Claude"})
-		if got := DesktopImportRoute(in); got.Refuse != DesktopImportCollapsed {
-			t.Errorf("Refuse = %q", got.Refuse)
+		// En el espejo de hoy y en el de un lanzador de antes de 4.29.0, que
+		// una ventana abierta antes de reconstruirlo sigue usando.
+		for _, mirror := range []string{"/ccp/Claude", "/Contents/ccp/Claude"} {
+			in := base("e-cc")
+			in.Apps = append(in.Apps, LSApp{BundleID: "com.anthropic.claudefordesktop", BundlePath: launcher.Path + mirror})
+			if got := DesktopImportRoute(in); got.Refuse != DesktopImportCollapsed {
+				t.Errorf("%s: Refuse = %q", mirror, got.Refuse)
+			}
 		}
 	})
 	t.Run("ventana de perfil sin su CLAUDE_CONFIG_DIR", func(t *testing.T) {

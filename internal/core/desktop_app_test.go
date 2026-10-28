@@ -119,13 +119,20 @@ func TestBuildDesktopAppMontaLasDosCapas(t *testing.T) {
 	if p.Dict("LSEnvironment") == nil || p.Dict("LSEnvironment").String("MallocNanoZone") != "0" {
 		t.Error("LSEnvironment del original debería conservarse")
 	}
+	// ElectronAsarIntegrity, intacto: desde Electron 44 el framework firmado
+	// lleva la huella del diccionario ENTERO y una sola entrada de más (la
+	// `ccp/Claude/Contents/Resources/app.asar` que se añadía antes) hace que
+	// Electron lo dé por inexistente y aborte al arrancar.
 	integ := p.Dict("ElectronAsarIntegrity")
 	if integ == nil || integ.Dict("Resources/app.asar") == nil {
 		t.Fatal("ElectronAsarIntegrity original perdido")
 	}
-	nestedKey := "ccp/Claude/Contents/Resources/app.asar"
-	if integ.Dict(nestedKey) == nil || integ.Dict(nestedKey).String("hash") != "abc123" {
-		t.Errorf("falta la entrada de integridad del espejo anidado: %v", integ.Keys())
+	srcInfo, err := readPlist(filepath.Join(o.SourceApp, "Contents", "Info.plist"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(marshalPlist(integ)), string(marshalPlist(srcInfo.Dict("ElectronAsarIntegrity"))); got != want {
+		t.Errorf("ElectronAsarIntegrity debe ser el original sin tocar\n got: %v\nwant: %s", integ.Keys(), want)
 	}
 
 	// Ejecutables: el lanzador es ccp (hard link, nunca symlink: LaunchServices
@@ -143,12 +150,22 @@ func TestBuildDesktopAppMontaLasDosCapas(t *testing.T) {
 	if launcher.Mode()&0o111 == 0 {
 		t.Error("el lanzador tiene que ser ejecutable")
 	}
-	if got := readlinkT(t, filepath.Join(app, "Contents", "MacOS", "Claude-run")); got != "../ccp/Claude/Contents/MacOS/Claude" {
+	if got := readlinkT(t, filepath.Join(app, "Contents", "MacOS", "Claude-run")); got != "../../ccp/Claude/Contents/MacOS/Claude" {
 		t.Errorf("MacOS/Claude-run -> %s", got)
 	}
 
-	// Capa interna: idéntica y por hard link.
-	nested := filepath.Join(app, "Contents", "ccp", "Claude")
+	// Capa interna: idéntica, por hard link y FUERA de Contents/ —dentro de
+	// Contents/ Electron valida sus .asar con una clave que el plist ya no
+	// puede llevar—.
+	nested := filepath.Join(app, "ccp", "Claude")
+	if _, err := os.Lstat(filepath.Join(app, "Contents", "ccp")); !os.IsNotExist(err) {
+		t.Errorf("no debe quedar nada en Contents/ccp: %v", err)
+	}
+	if run, err := os.Stat(filepath.Join(app, "Contents", "MacOS", "Claude-run")); err != nil {
+		t.Errorf("Claude-run no resuelve: %v", err)
+	} else if stub, _ := os.Stat(filepath.Join(nested, "Contents", "MacOS", "Claude")); !os.SameFile(run, stub) {
+		t.Error("Claude-run debe resolver al stub del espejo")
+	}
 	srcStub, _ := os.Stat(filepath.Join(o.SourceApp, "Contents", "MacOS", "Claude"))
 	dstStub, err := os.Stat(filepath.Join(nested, "Contents", "MacOS", "Claude"))
 	if err != nil {
@@ -266,6 +283,57 @@ func TestDesktopAppStaleYRefrescoPorVersion(t *testing.T) {
 	}
 	if _, stale := DesktopAppStale(res.App, o.SourceApp); !stale {
 		t.Error("sin el binario de ccp registrado debería ser obsoleto")
+	}
+}
+
+// simulaFormaVieja deja un lanzador recién construido como lo dejaban los ccp
+// de antes de Claude 4.29.0: el espejo dentro de Contents/ y Claude-run
+// apuntando ahí.
+func simulaFormaVieja(t *testing.T, app string) {
+	t.Helper()
+	if err := os.Rename(filepath.Join(app, "ccp"), filepath.Join(app, "Contents", "ccp")); err != nil {
+		t.Fatal(err)
+	}
+	run := filepath.Join(app, "Contents", "MacOS", "Claude-run")
+	if err := os.Remove(run); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("../ccp/Claude/Contents/MacOS/Claude", run); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Un lanzador de forma vieja no arranca con Claude 4.29.0, aunque la versión
+// del espejo coincida con la instalada: tiene que contar como obsoleto (es lo
+// que hace que `desktop open` lo reconstruya antes de lanzar) y el build tiene
+// que dejarlo en la forma nueva.
+func TestDesktopAppStaleLanzadorDeFormaVieja(t *testing.T) {
+	o, _ := desktopAppOpts(t, "work")
+	res, err := BuildDesktopApp(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	simulaFormaVieja(t, res.App.Path)
+
+	reason, stale := DesktopAppStale(res.App, o.SourceApp)
+	if !stale || !strings.Contains(reason, "Contents/") {
+		t.Fatalf("la forma vieja debería estar obsoleta: %v %q", stale, reason)
+	}
+	res, err = BuildDesktopApp(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Changed {
+		t.Fatalf("debería reconstruir: %+v", res)
+	}
+	if _, err := os.Lstat(filepath.Join(res.App.Path, "Contents", "ccp")); !os.IsNotExist(err) {
+		t.Errorf("el espejo viejo debería desaparecer con la reconstrucción: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(res.App.Path, "Contents", "MacOS", "Claude-run")); err != nil {
+		t.Errorf("Claude-run no resuelve tras reconstruir: %v", err)
+	}
+	if reason, stale := DesktopAppStale(res.App, o.SourceApp); stale {
+		t.Errorf("reconstruido no debería seguir obsoleto: %s", reason)
 	}
 }
 

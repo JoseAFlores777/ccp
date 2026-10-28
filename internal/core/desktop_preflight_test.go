@@ -231,9 +231,18 @@ func TestDesktopForeignInstance(t *testing.T) {
 
 func TestDesktopExecBelongsTo(t *testing.T) {
 	app := "/Users/j/Applications/Claude (work).app"
-	mirror := filepath.Join(app, "Contents", "ccp", "Claude", "Contents", "MacOS", "Claude")
+	mirror := filepath.Join(app, "ccp", "Claude", "Contents", "MacOS", "Claude")
 	if !desktopExecBelongsTo(mirror, app) {
 		t.Error("el stub del espejo pertenece a su lanzador")
+	}
+	// La ventana de un lanzador de antes de Claude 4.29.0 sigue siendo suya
+	// hasta que se reconstruya; tomarla por ajena sería un Fatal falso.
+	legacy := filepath.Join(app, "Contents", "ccp", "Claude", "Contents", "MacOS", "Claude")
+	if !desktopExecBelongsTo(legacy, app) {
+		t.Error("el stub del espejo viejo (Contents/ccp) también pertenece a su lanzador")
+	}
+	if desktopExecBelongsTo(filepath.Join(app, "ccp", "Otro", "Contents", "MacOS", "Claude"), app) {
+		t.Error("solo el espejo cuenta, no cualquier cosa bajo ccp/")
 	}
 	if desktopExecBelongsTo("/Applications/Claude.app/Contents/MacOS/Claude", app) {
 		t.Error("la app principal NO pertenece a un lanzador")
@@ -251,6 +260,7 @@ func TestIsDesktopExec(t *testing.T) {
 	ok := []string{
 		"/Applications/Claude.app/Contents/MacOS/Claude",
 		"/x/Claude (a-cc).app/Contents/ccp/Claude/Contents/MacOS/Claude",
+		"/x/Claude (a-cc).app/ccp/Claude/Contents/MacOS/Claude",
 		"/x/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper",
 	}
 	for _, e := range ok {

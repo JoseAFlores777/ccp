@@ -174,6 +174,12 @@ export function describeFinding(f: Finding): FindingText {
         what: t('Claude se actualizó por fuera y la copia interna del lanzador ya no comparte archivos con él: ocupa disco entero.'),
         action: { label: t('Reconstruir'), fix: 'desktop_rebuild' },
       };
+    case 'launcher_layout_legacy':
+      return {
+        title: t('El lanzador de {p} no arranca con este Claude', { p }),
+        what: t('Lo construyó un ccp anterior, con su copia de Claude dentro de Contents/, y Claude 4.29.0 o posterior aborta al arrancar así. Reconstrúyelo con su ventana cerrada.'),
+        action: { label: t('Reconstruir'), fix: 'desktop_rebuild' },
+      };
     case 'launcher_profile_gone':
       return {
         title: t('Hay un lanzador para una cuenta que ya no existe'),

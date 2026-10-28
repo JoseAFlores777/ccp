@@ -28,9 +28,9 @@ import "strings"
 //   - por el camino `desktop open` toca /Applications/Claude.app, es decir el
 //     Claude PRINCIPAL del usuario, desde una ventana que él abrió para otra
 //     cuenta;
-//   - por el camino del lanzador el `targetBundleURL` sería el ESPEJO, lo que
-//     invalidaría el ElectronAsarIntegrity del plist externo y dejaría ese
-//     lanzador roto de forma permanente.
+//   - por el camino del lanzador el `targetBundleURL` sería el ESPEJO, que
+//     pasaría a ser una copia privada de otra versión, desligada de la
+//     Claude.app de la que el plist externo sacó id, icono e integridad.
 //
 // DISABLE_UPDATE_CHECK es la palanca. No está documentada, pero está en el
 // binario: la cadena aparece dos veces en

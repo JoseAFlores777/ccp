@@ -43,6 +43,7 @@ const (
 	DesktopFindingUpdaterOn     = "instance_updater_on"
 	DesktopFindingMirrorStale   = "launcher_mirror_stale"
 	DesktopFindingMirrorOrphan  = "launcher_mirror_orphan"
+	DesktopFindingLegacyLayout  = "launcher_layout_legacy"
 	DesktopFindingLauncherGone  = "launcher_profile_gone"
 	DesktopFindingMultiAccount  = "instance_multi_account"
 	DesktopFindingIdentity      = "launcher_identity_collapsed"
@@ -213,6 +214,12 @@ func desktopAuditProfiles(o DesktopAuditOptions, apps map[string]*DesktopApp) []
 //     ocurre SIN cambio de versión cuando ShipIt reemplaza el bundle entero con
 //     un move —lo que hizo el 2026-09-15—, y deja el espejo reteniendo una copia
 //     completa del Claude viejo que ya no comparte un solo byte con nadie.
+//
+// Y una tercera, de forma: un lanzador construido por un ccp anterior tiene el
+// espejo dentro de Contents/, y desde Claude 4.29.0 eso aborta al arrancar (ver
+// desktop_app.go). Es Error y no Warn porque la ventana no abre, y el remedio
+// no puede ser «ábrelo desde su icono»: el icono ejecuta el ccp con el que se
+// construyó, que lo reconstruiría con la forma vieja.
 func desktopAuditMirror(app *DesktopApp) []DesktopFinding {
 	src, err := readDesktopSource(app.Manifest.SourceApp)
 	if err != nil {
@@ -229,8 +236,16 @@ func desktopAuditMirror(app *DesktopApp) []DesktopFinding {
 			Detail:  app.Manifest.SourceVersion + " → " + src.version,
 		})
 	}
-	mirrorExe := filepath.Join(app.Path, "Contents", filepath.FromSlash(desktopAppNestedRel),
-		"Contents", "MacOS", src.exeName)
+	mirror := desktopAppMirrorDir(app.Path)
+	if desktopAppLegacyLayout(app.Path) {
+		out = append(out, DesktopFinding{
+			Code: DesktopFindingLegacyLayout, Severity: DesktopSevError,
+			Profile: app.Manifest.Profile, Detail: app.Path,
+		})
+		// El espejo viejo sigue pudiendo estar huérfano, y decirlo no cuesta.
+		mirror = filepath.Join(app.Path, filepath.FromSlash(desktopAppLegacyMirrorRel))
+	}
+	mirrorExe := filepath.Join(mirror, "Contents", "MacOS", src.exeName)
 	srcExe := filepath.Join(app.Manifest.SourceApp, "Contents", "MacOS", src.exeName)
 	mi, merr := os.Stat(mirrorExe)
 	si, serr := os.Stat(srcExe)

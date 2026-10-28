@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -179,6 +180,47 @@ func TestDesktopAuditDetectaEspejoHuerfano(t *testing.T) {
 		t.Errorf("el espejo ya no comparte inodo y nadie lo dijo: %v", fs)
 	}
 	_ = res
+}
+
+// Un lanzador construido por un ccp de antes de Claude 4.29.0 tiene el espejo
+// en Contents/ccp/Claude, y con ese Claude ya no arranca. El doctor tiene que
+// decirlo como Error —la ventana no abre— y dejar de decirlo en cuanto se
+// reconstruye.
+func TestDesktopAuditDetectaLanzadorDeFormaVieja(t *testing.T) {
+	o, _ := desktopAppOpts(t, "work")
+	res, err := BuildDesktopApp(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	simulaFormaVieja(t, res.App.Path)
+
+	probes := DesktopProbes{Procs: func() ([]DesktopProc, bool) { return nil, true }}
+	fs := DesktopAudit(DesktopAuditOptions{
+		Home: o.Home, Cfg: o.Cfg, AppsDir: o.AppsDir, Profile: "work", Probes: probes,
+	})
+	if !hasFinding(fs, DesktopFindingLegacyLayout, DesktopSevError) {
+		t.Fatalf("el lanzador de forma vieja no aborta en silencio: %v", fs)
+	}
+	// Su espejo sigue siendo el de la fuente: nada huérfano que inventar, y la
+	// sonda del espejo no puede caer a Unknown por buscarlo en la ruta nueva.
+	if hasFinding(fs, DesktopFindingMirrorOrphan, DesktopSevWarn) {
+		t.Errorf("el espejo viejo comparte inodos con la fuente: %v", fs)
+	}
+	for _, f := range fs {
+		if f.Code == DesktopFindingProbeMissing && strings.Contains(f.Detail, "/ccp/Claude/") {
+			t.Errorf("el espejo viejo existe, no es una sonda que falte: %+v", f)
+		}
+	}
+
+	if _, err := BuildDesktopApp(o); err != nil {
+		t.Fatal(err)
+	}
+	fs = DesktopAudit(DesktopAuditOptions{
+		Home: o.Home, Cfg: o.Cfg, AppsDir: o.AppsDir, Profile: "work", Probes: probes,
+	})
+	if _, ok := findFinding(fs, DesktopFindingLegacyLayout); ok {
+		t.Errorf("reconstruido ya no es de forma vieja: %v", fs)
+	}
 }
 
 func TestDesktopFindingsJSONSiempreArray(t *testing.T) {

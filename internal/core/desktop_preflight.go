@@ -280,8 +280,10 @@ func DesktopPreflight(in DesktopPreflightInput) []DesktopIssue {
 //
 //   - `<app>/Contents/MacOS/Claude-run` — lo que imprime `ps`, porque es el
 //     argv[0] con el que el lanzador hizo exec;
-//   - `<app>/Contents/ccp/…` — la ruta resuelta del espejo, que es lo que se ve
-//     en los helpers y en lo que reportan otras herramientas.
+//   - `<app>/ccp/Claude/…` — la ruta resuelta del espejo, que es lo que se ve
+//     en los helpers y en lo que reportan otras herramientas (o
+//     `<app>/Contents/ccp/Claude/…` si la ventana salió de un lanzador de antes
+//     de Claude 4.29.0 que aún no se ha reconstruido).
 //
 // Comparar solo contra el espejo clasificaba la instancia sana como ventana
 // ajena (un hallazgo Fatal), es decir el falso positivo simétrico del falso
@@ -292,11 +294,8 @@ func desktopExecBelongsTo(exe, app string) bool {
 		return false
 	}
 	clean := filepath.Clean(exe) + string(filepath.Separator)
-	for _, rel := range []string{
-		filepath.Join("Contents", desktopAppNestedRel),
-		filepath.Join("Contents", "MacOS"),
-	} {
-		if strings.HasPrefix(clean, filepath.Join(app, rel)+string(filepath.Separator)) {
+	for _, dir := range append(desktopAppMirrorDirs(app), filepath.Join(app, "Contents", "MacOS")) {
+		if strings.HasPrefix(clean, dir+string(filepath.Separator)) {
 			return true
 		}
 	}
