@@ -654,6 +654,12 @@ el que `ccp` se da cuenta —por versión *y* por inodo, porque el updater no pa
 entero— y reconstruye el espejo (un segundo). Igual tras `ccp upgrade`: los lanzadores llevan el binario
 dentro y en su siguiente arranque enlazan el nuevo.
 
+**Un lanzador construido antes de ccp 2.29.1 no arranca con Claude 4.29.0 o posterior**: la ventana muere al
+arrancar con «Failed to get integrity for validatable asar archive». Reconstrúyelo una vez, con su ventana
+cerrada, con `ccp desktop app <perfil> --force` (o simplemente `ccp desktop open <perfil>`); su icono del
+Dock ejecuta el ccp con el que se construyó, así que el primer clic desde ahí lo rehace a la manera vieja.
+`ccp desktop doctor` lista los que quedan como `launcher_layout_legacy`.
+
 **Una instancia de perfil no puede actualizar tu Claude.** Podía, y lo hizo una vez: una instancia actualizó
 el `/Applications/Claude.app` de un usuario desde una ventana abierta para otra cuenta. Ahora toda instancia
 distinta de `default` arranca con su updater apagado, y `ccp desktop doctor` comprueba que la barrera siga

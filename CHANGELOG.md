@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [2.29.1] — las ventanas de Desktop vuelven a abrir con Claude 4.29.0
+
+- **`ccp desktop open <perfil>` y el icono del lanzador vuelven a abrir la ventana.** Desde Claude 4.29.0
+  todas las ventanas de perfil morían al arrancar (ccp decía «ok» y no aparecía nada; en la terminal,
+  «Failed to get integrity for validatable asar archive»). El Electron nuevo lleva firmada una huella de
+  la tabla de integridad de la app y el lanzador le añadía una entrada; ahora la deja intacta y guarda su
+  copia de Claude en la raíz del `.app`, fuera de `Contents/`. La ventana conserva su nombre, su icono y
+  su sesión. Detalle en el ADR 0018.
+- **Después de actualizar, reconstruye cada lanzador una vez**, con su ventana cerrada:
+  `ccp desktop app <perfil> --force`, o simplemente `ccp desktop open <perfil>`. No sirve abrirlo desde
+  su icono del Dock: ese icono ejecuta el ccp con el que se construyó, que lo rehace a la manera vieja.
+  `ccp desktop doctor` señala los que faltan con el error nuevo `launcher_layout_legacy`, y en la app
+  aparece en Diagnóstico con su botón «Reconstruir».
+- **Lo que se añade al global llega a todas las cuentas al momento.** La primera regla global (la que
+  crea `~/.claude/CLAUDE.md`), un hook o un MCP global solo llegaban a `default` hasta el siguiente
+  `ccp profile sync`. Ahora `ccp instruct add global …` y la pantalla Memoria regeneran las cuentas a las
+  que alcanza y dicen cuáles; si alguna no se puede regenerar, lo escrito se queda y se indica el
+  `ccp profile sync <perfil>` que falta. Memoria ya no dice que un MCP global no lo ven las demás cuentas.
+
 ## [2.29.0] — un MCP escrito a mano en el chat de Desktop ya se puede editar
 
 - **Pasar a ccp un MCP del chat de Desktop escrito a mano.** La ventana no declara (solo recibe) y la

@@ -654,6 +654,12 @@ because the updater replaces the bundle wholesale instead of patching it — and
 second). Same after `ccp upgrade`: the launchers embed the binary and re-link the new one on their next
 launch.
 
+**A launcher built before ccp 2.29.1 does not start with Claude 4.29.0 or later**: the window dies on start
+with «Failed to get integrity for validatable asar archive». Rebuild it once, with its window closed, using
+`ccp desktop app <profile> --force` (or just `ccp desktop open <profile>`); its Dock icon runs the ccp it was
+built with, so the first click from there rebuilds it the old way. `ccp desktop doctor` lists the ones left
+as `launcher_layout_legacy`.
+
 **A profile instance can never update your Claude.** It could, and once did: an instance updated a user's
 `/Applications/Claude.app` from a window opened for a different account. Every instance other than `default`
 now starts with its updater switched off, and `ccp desktop doctor` checks the guard is actually there rather
