@@ -1,0 +1,136 @@
+{
+  "realm": "ccp",
+  "displayName": "ccp cloud",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "registrationEmailAsUsername": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "verifyEmail": false,
+  "rememberMe": false,
+  "editUsernameAllowed": false,
+  "internationalizationEnabled": true,
+  "supportedLocales": ["es", "en"],
+  "defaultLocale": "es",
+  "passwordPolicy": "length(12) and notUsername and notEmail and passwordHistory(3)",
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "offlineSessionIdleTimeout": 2592000,
+  "offlineSessionMaxLifespanEnabled": false,
+  "oauth2DeviceCodeLifespan": 600,
+  "oauth2DevicePollingInterval": 5,
+  "eventsEnabled": true,
+  "eventsExpiration": 2592000,
+  "eventsListeners": ["jboss-logging"],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": false,
+  "roles": {
+    "realm": [
+      { "name": "offline_access", "description": "Sesiones offline: la credencial de larga vida de cada dispositivo." },
+      { "name": "uma_authorization", "description": "Rol estándar de Keycloak." },
+      { "name": "ccp-user", "description": "Usa la nube de ccp: sube, descarga y restaura sus snapshots." },
+      { "name": "ccp-admin", "description": "Invita usuarios y ve la auditoría global." },
+      {
+        "name": "default-roles-ccp",
+        "description": "Roles que recibe todo usuario nuevo del realm.",
+        "composite": true,
+        "composites": { "realm": ["offline_access", "uma_authorization", "ccp-user"] }
+      }
+    ]
+  },
+  "defaultRole": { "name": "default-roles-ccp" },
+  "clients": [
+    {
+      "clientId": "ccp-api",
+      "name": "ccp API",
+      "description": "Audience del backend: los tokens de ccp-cli y ccp-portal llevan aud=ccp-api.",
+      "enabled": true,
+      "bearerOnly": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect"
+    },
+    {
+      "clientId": "ccp-cli",
+      "name": "ccp CLI y app de escritorio",
+      "description": "ccp cloud login: concesión de dispositivo (RFC 8628). Pide offline_access: la sesión offline es la credencial del dispositivo.",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "oauth2.device.authorization.grant.enabled": "true",
+        "use.refresh.tokens": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "aud-ccp-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "ccp-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "ccp-portal",
+      "name": "ccp portal",
+      "description": "Portal web: código de autorización + PKCE.",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "rootUrl": "https://ccp.joseiz.com",
+      "baseUrl": "/",
+      "redirectUris": ["https://ccp.joseiz.com/*"],
+      "webOrigins": ["https://ccp.joseiz.com"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://ccp.joseiz.com/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "aud-ccp-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "ccp-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}

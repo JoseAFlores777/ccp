@@ -1,0 +1,135 @@
+# ccp-cloud: toda la infraestructura de la nube de ccp en un solo stack
+# (spec docs/superpowers/specs/2026-09-18-config-unificada-snapshots-nube-design.md, §10).
+#
+#   postgres  una instancia, dos bases con usuarios propios: keycloak y ccp (el backend, F1)
+#   keycloak  identidad; el realm `ccp` se importa al arrancar desde ../files/realm-ccp.json
+#   alarik    blobs S3; bucket y clave de acceso sembrados al arrancar
+#   api       backend /v1 y portal web (cmd/ccp-cloud); https://ccp.joseiz.com
+#
+# Se despliega en Dokploy importando la plantilla (ver README.md): Dokploy genera los secretos en
+# el servidor y los escribe en el .env del compose, así que ninguno vive en git ni pasa por un chat.
+# `../files/…` es donde Dokploy materializa los file mounts de un compose.
+#
+# Imágenes fijadas a propósito: Alarik está en beta y un `latest` cambiaría bajo nuestros pies.
+# Ningún servicio publica puertos: Traefik (Dokploy) enruta ccp-auth.joseiz.com → keycloak:8080,
+# ccp-s3.joseiz.com → alarik:8080 y ccp.joseiz.com → api:8080; postgres solo es alcanzable
+# dentro del stack.
+services:
+  postgres:
+    image: postgres:17.11-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - KEYCLOAK_DB_PASSWORD=${KEYCLOAK_DB_PASSWORD}
+      - CCP_DB_PASSWORD=${CCP_DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../files/init-dbs.sh:/docker-entrypoint-initdb.d/10-init-dbs.sh:ro
+    healthcheck:
+      # Por TCP a propósito: durante initdb el servidor temporal solo escucha en el socket unix, así
+      # que keycloak no arranca hasta que existen sus bases.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.4
+    restart: unless-stopped
+    # --import-realm: importa ../files/realm-ccp.json si el realm no existe; si ya existe lo deja
+    # como esté (lo editado en la consola no se pisa en cada reinicio).
+    command: ["start", "--import-realm"]
+    environment:
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://postgres:5432/keycloak
+      - KC_DB_USERNAME=keycloak
+      - KC_DB_PASSWORD=${KEYCLOAK_DB_PASSWORD}
+      - KC_HOSTNAME=https://ccp-auth.joseiz.com
+      - KC_HTTP_ENABLED=true
+      - KC_PROXY_HEADERS=xforwarded
+      - KC_HEALTH_ENABLED=true
+      - KC_METRICS_ENABLED=true
+      - KC_BOOTSTRAP_ADMIN_USERNAME=ccp-admin
+      - KC_BOOTSTRAP_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+    volumes:
+      - ../files/realm-ccp.json:/opt/keycloak/data/import/realm-ccp.json:ro
+    expose:
+      - "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # La imagen no trae curl: se pregunta al puerto de gestión (9000) con /dev/tcp de bash.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '\"UP\"' <&3"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  alarik:
+    image: ghcr.io/achtungsoftware/alarik:1.0.0-beta-16
+    restart: unless-stopped
+    # Sin consola web: el backend solo habla S3 y una consola pública con admin es superficie de
+    # ataque que nadie usa. ADMIN_PASSWORD se fija igual para que no quede el alarik/alarik de fábrica.
+    environment:
+      - API_BASE_URL=https://ccp-s3.joseiz.com
+      - CONSOLE_BASE_URL=https://ccp-s3-console.joseiz.com
+      - ADMIN_USERNAME=ccp-admin
+      - ADMIN_PASSWORD=${ALARIK_ADMIN_PASSWORD}
+      - JWT=${ALARIK_JWT}
+      - ALLOW_ACCOUNT_CREATION=false
+      - DEFAULT_ACCESS_KEY=${CCP_S3_ACCESS_KEY}
+      - DEFAULT_SECRET_KEY=${CCP_S3_SECRET_KEY}
+      - DEFAULT_BUCKETS=ccp-blobs
+      - ALARIK_REGION=us-east-1
+      - ALARIK_FSYNC=true
+    volumes:
+      - alarik-storage:/app/Storage
+    expose:
+      - "8080"
+
+  api:
+    # Etiqueta fija, como el resto: un `latest` cambiaría el backend bajo los pies
+    # de máquinas que ya tienen conversaciones a medio subir. Se sube con
+    # `git tag cloud-v0.1.0 && git push origin cloud-v0.1.0` (workflow cloud-image).
+    image: ghcr.io/joseaflores777/ccp-cloud:cloud-v0.1.0
+    restart: unless-stopped
+    environment:
+      # El emisor es el PÚBLICO: es lo que el API anuncia en /v1/info y contra lo
+      # que el portal y la CLI piden el token, así que tiene que ser el que ve el
+      # navegador, no el interno.
+      - CCP_CLOUD_OIDC_ISSUER=https://ccp-auth.joseiz.com/realms/ccp
+      # Las claves de firma, en cambio, se leen por la red interna: si Traefik o el
+      # DNS fallan, el API sigue validando tokens en vez de caerse con ellos.
+      - CCP_CLOUD_OIDC_JWKS=http://keycloak:8080/realms/ccp/protocol/openid-connect/certs
+      - CCP_CLOUD_DB_HOST=postgres
+      - CCP_CLOUD_DB_USER=ccp
+      - CCP_CLOUD_DB_NAME=ccp
+      - CCP_CLOUD_DB_PASSWORD=${CCP_DB_PASSWORD}
+      - CCP_CLOUD_S3_ENDPOINT=http://alarik:8080
+      # El público va en las URLs prefirmadas que firma el API y abren las máquinas
+      # desde fuera: con el interno, cada subida apuntaría a un host que no existe.
+      - CCP_CLOUD_S3_PUBLIC_ENDPOINT=https://ccp-s3.joseiz.com
+      - CCP_CLOUD_S3_BUCKET=ccp-blobs
+      - CCP_CLOUD_S3_ACCESS_KEY=${CCP_S3_ACCESS_KEY}
+      - CCP_CLOUD_S3_SECRET_KEY=${CCP_S3_SECRET_KEY}
+    expose:
+      - "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      alarik:
+        condition: service_started
+    healthcheck:
+      # La imagen es distroless: no hay shell ni curl, así que pregunta el propio
+      # binario por /healthz.
+      test: ["CMD", "/ccp-cloud", "healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  postgres-data:
+  alarik-storage:

@@ -1,0 +1,27 @@
+# Plantilla de Dokploy para el stack ccp-cloud.
+# Los secretos se generan en el servidor de Dokploy al importar; ninguno vive en el repo.
+# Los file mounts (files/*) los añade import-string.py al construir la cadena de importación, para
+# no duplicar aquí el realm ni el script. Los dominios se crean aparte con la API de dominios
+# (https + letsencrypt), que la importación no controla.
+
+[variables]
+postgres_password = "${password:32}"
+keycloak_db_password = "${password:32}"
+ccp_db_password = "${password:32}"
+keycloak_admin_password = "${password:24}"
+alarik_admin_password = "${password:32}"
+alarik_jwt = "${base64:48}"
+s3_access_key = "${hash:20}"
+s3_secret_key = "${password:40}"
+
+[config]
+env = [
+  "POSTGRES_PASSWORD=${postgres_password}",
+  "KEYCLOAK_DB_PASSWORD=${keycloak_db_password}",
+  "CCP_DB_PASSWORD=${ccp_db_password}",
+  "KEYCLOAK_ADMIN_PASSWORD=${keycloak_admin_password}",
+  "ALARIK_ADMIN_PASSWORD=${alarik_admin_password}",
+  "ALARIK_JWT=${alarik_jwt}",
+  "CCP_S3_ACCESS_KEY=${s3_access_key}",
+  "CCP_S3_SECRET_KEY=${s3_secret_key}",
+]
